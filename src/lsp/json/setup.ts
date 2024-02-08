@@ -3,7 +3,11 @@ import * as lf from "../language-features";
 import type { CreateData, JSONWorker } from "./worker";
 import { schemas } from "./schemas";
 
-export function setup(languageId: string, monaco: typeof monacoNS) {
+export function setup(
+  languageId: string,
+  monaco: typeof monacoNS,
+  format?: Record<string, unknown>,
+) {
   const languages = monaco.languages;
   const events = new monaco.Emitter<void>();
   const createData: CreateData = {
@@ -16,13 +20,14 @@ export function setup(languageId: string, monaco: typeof monacoNS) {
         schemaRequest: "warning",
         schemaValidation: "warning",
         comments: "error",
-        trailingCommas: "error",
+        trailingCommas: "error"
       },
       format: {
         tabSize: 4,
         insertSpaces: false,
         trimTrailingWhitespace: true,
         insertFinalNewline: true,
+        ...format,
       },
     },
   };

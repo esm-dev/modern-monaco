@@ -1,43 +1,116 @@
+import type ts from "typescript";
 import type { BundledLanguage, BundledTheme } from "./shiki";
 import type { GrammarInfo } from "./tm-grammars";
 import type { ThemeInfo } from "./tm-themes";
 import type { VFS } from "./vfs";
 import type * as monacoNS from "./monaco";
 
-/**
- * Value-object describing what options formatting should use.
- */
-export interface FormattingOptions {
-  /**
-   * Size of a tab in spaces.
-   */
-  tabSize: uinteger;
-  /**
-   * Prefer spaces over tabs.
-   */
-  insertSpaces: boolean;
-  /**
-   * Trim trailing whitespace on a line.
-   *
-   * @since 3.15.0
-   */
+export interface FormatOptions {
+  tabSize?: number;
+  insertSpaces?: boolean;
   trimTrailingWhitespace?: boolean;
-  /**
-   * Insert a newline character at the end of the file if one does not exist.
-   *
-   * @since 3.15.0
-   */
   insertFinalNewline?: boolean;
-  /**
-   * Trim all newlines after the final newline at the end of the file.
-   *
-   * @since 3.15.0
-   */
   trimFinalNewlines?: boolean;
-  /**
-   * Signature for further properties.
-   */
-  [key: string]: boolean | integer | string | undefined;
+
+  // HTML
+  html: {
+    contentUnformatted?: string;
+    endWithNewline?: boolean;
+    extraLiners?: string;
+    indentEmptyLines?: boolean;
+    indentHandlebars?: boolean;
+    indentInnerHtml?: boolean;
+    indentScripts?: "keep" | "separate" | "normal";
+    insertSpaces?: boolean;
+    maxPreserveNewLines?: number;
+    preserveNewLines?: boolean;
+    tabSize?: number;
+    templating?: boolean;
+    unformatted?: string;
+    unformattedContentDelimiter?: string;
+    wrapAttributes?:
+      | "auto"
+      | "force"
+      | "force-aligned"
+      | "force-expand-multiline"
+      | "aligned-multiple"
+      | "preserve"
+      | "preserve-aligned";
+    wrapAttributesIndentSize?: number;
+    wrapLineLength?: number;
+  };
+
+  // CSS
+  css: {
+    /** indentation size. Default: 4 */
+    tabSize?: number;
+    /** Whether to use spaces or tabs */
+    insertSpaces?: boolean;
+    /** end with a newline: Default: false */
+    insertFinalNewline?: boolean;
+    /** separate selectors with newline (e.g. "a,\nbr" or "a, br"): Default: true */
+    newlineBetweenSelectors?: boolean;
+    /** add a new line after every css rule: Default: true */
+    newlineBetweenRules?: boolean;
+    /** ensure space around selector separators:  '>', '+', '~' (e.g. "a>b" -> "a > b"): Default: false */
+    spaceAroundSelectorSeparator?: boolean;
+    /** put braces on the same line as rules (`collapse`), or put braces on own line, Allman / ANSI style (`expand`). Default `collapse` */
+    braceStyle?: "collapse" | "expand";
+    /** whether existing line breaks before elements should be preserved. Default: true */
+    preserveNewLines?: boolean;
+    /** maximum number of line breaks to be preserved in one chunk. Default: unlimited */
+    maxPreserveNewLines?: number;
+    /** maximum amount of characters per line (0/undefined = disabled). Default: disabled. */
+    wrapLineLength?: number;
+    /** add indenting whitespace to empty lines. Default: false */
+    indentEmptyLines?: boolean;
+  };
+
+  // JSON
+  json: {
+    insertFinalNewline?: boolean;
+    insertSpaces?: boolean;
+    keepLines?: boolean;
+    tabSize?: uinteger;
+    trimFinalNewlines?: boolean;
+    trimTrailingWhitespace?: boolean;
+  };
+
+  // TypeScript
+  typescript: {
+    indentMultiLineObjectLiteralBeginningOnBlankLine?: boolean;
+    indentSwitchCase?: boolean;
+    insertSpaceAfterCommaDelimiter?: boolean;
+    insertSpaceAfterConstructor?: boolean;
+    insertSpaceAfterFunctionKeywordForAnonymousFunctions?: boolean;
+    insertSpaceAfterKeywordsInControlFlowStatements?: boolean;
+    insertSpaceAfterOpeningAndBeforeClosingEmptyBraces?: boolean;
+    insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces?: boolean;
+    insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces?: boolean;
+    insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets?: boolean;
+    insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis?: boolean;
+    insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces?: boolean;
+    insertSpaceAfterSemicolonInForStatements?: boolean;
+    insertSpaceAfterTypeAssertion?: boolean;
+    insertSpaceBeforeAndAfterBinaryOperators?: boolean;
+    insertSpaceBeforeFunctionParenthesis?: boolean;
+    insertSpaceBeforeTypeAnnotation?: boolean;
+    placeOpenBraceOnNewLineForControlBlocks?: boolean;
+    placeOpenBraceOnNewLineForFunctions?: boolean;
+    semicolons?: SemicolonPreference;
+    baseIndentSize?: number;
+    convertTabsToSpaces?: boolean;
+    indentSize?: number;
+    indentStyle?: IndentStyle;
+    newLineCharacter?: string;
+    tabSize?: number;
+    trimTrailingWhitespace?: boolean;
+  };
+}
+
+export interface ImportMap {
+  imports: Record<string, string>;
+  scopes: Record<string, Record<string, string>>;
 }
 
 export interface ShikiInitOptions {
@@ -48,8 +121,9 @@ export interface ShikiInitOptions {
 
 export interface InitOptions extends ShikiInitOptions {
   vfs?: VFS;
-  format?: FormattingOptions;
-  languages?: Record<string, Record<string, unknown>>;
+  format?: FormatOptions;
+  compilerOptions?: ts.CompilerOptions;
+  importMap?: ImportMap;
 }
 
 export interface RenderOptions

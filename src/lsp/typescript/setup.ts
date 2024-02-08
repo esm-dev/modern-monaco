@@ -1,6 +1,7 @@
 import type * as monacoNS from "monaco-editor-core";
 import type ts from "typescript";
-import { blankImportMap, parseImportMapFromJson } from "../../import-map";
+import { blankImportMap, isBlank } from "../../import-map";
+import { ImportMap, parseImportMapFromJson } from "../../import-map";
 import type { VFS } from "../../vfs";
 import type { CreateData, Host, TypeScriptWorker } from "./worker";
 import * as lf from "./language-features";
@@ -113,7 +114,7 @@ async function loadCompilerOptions(vfs: VFS) {
 }
 
 /** Load import maps from the root index.html or external json file. */
-async function loadImportMap(vfs: VFS) {
+async function loadImportMap(vfs: VFS, postload: (im: ImportMap) => ImportMap) {
   try {
     const indexHtml = await vfs.readTextFile("index.html");
     const tplEl = document.createElement("template");
@@ -128,7 +129,7 @@ async function loadImportMap(vfs: VFS) {
           : scriptEl.textContent,
       );
       im.$src = toUrl(scriptEl.src ? scriptEl.src : "index.html").href;
-      return im;
+      return postload(im);
     }
   } catch (error) {
     if (error instanceof vfs.ErrorNotFound) {
@@ -141,7 +142,11 @@ async function loadImportMap(vfs: VFS) {
 }
 
 /** Create the typescript worker. */
-async function createWorker(monaco: typeof monacoNS, vfs: VFS | undefined) {
+async function createWorker(
+  monaco: typeof monacoNS,
+  format?: Record<string, unknown>,
+  vfs?: VFS,
+) {
   const defaultCompilerOptions: ts.CompilerOptions = {
     allowImportingTsExtensions: true,
     allowJs: true,
@@ -149,20 +154,34 @@ async function createWorker(monaco: typeof monacoNS, vfs: VFS | undefined) {
     moduleResolution: 100, // ModuleResolutionKind.Bundler,
     target: 99, // ScriptTarget.ESNext,
     noEmit: true,
+    ...Reflect.get(monaco.languages, "compilerOptions"),
+  };
+  const defaultImportMap = parseImportMapFromJson(
+    Reflect.get(monaco.languages, "importMapJSON") ?? "{}",
+  );
+  const remixImportMap = (im: ImportMap): ImportMap => {
+    if (isBlank(defaultImportMap)) {
+      return im;
+    }
+    return {
+      ...im,
+      imports: Object.assign({}, defaultImportMap.imports, im.imports),
+      scopes: Object.assign({}, defaultImportMap.scopes, im.scopes),
+    };
   };
 
   // @ts-expect-error 'libs.js' is generated at build time
   const promises = [import("./libs.js").then((m) => m.default)];
 
   let compilerOptions: ts.CompilerOptions = { ...defaultCompilerOptions };
-  let importMap = blankImportMap();
+  let importMap = { ...defaultImportMap };
 
   if (vfs) {
     promises.push(
       loadCompilerOptions(vfs).then((options) => {
         compilerOptions = { ...defaultCompilerOptions, ...options };
       }),
-      loadImportMap(vfs).then((im) => {
+      loadImportMap(vfs, remixImportMap).then((im) => {
         importMap = im;
       }),
     );
@@ -176,6 +195,11 @@ async function createWorker(monaco: typeof monacoNS, vfs: VFS | undefined) {
     libs,
     extraLibs: lf.libFiles.extraLibs,
     importMap,
+    formatOptions: {
+      tabSize: 4,
+      trimTrailingWhitespace: true,
+      ...format,
+    },
   };
   const worker = monaco.editor.createWebWorker<TypeScriptWorker>({
     moduleId: "lsp/typescript/worker",
@@ -227,7 +251,7 @@ async function createWorker(monaco: typeof monacoNS, vfs: VFS | undefined) {
       if ($src && $src !== "file:///index.html") {
         return vfs.watch($src, async (e) => {
           if (e.kind === "remove") {
-            importMap = blankImportMap();
+            importMap = { ...defaultImportMap };
           } else {
             const content = await vfs.readTextFile($src);
             const im = parseImportMapFromJson(content);
@@ -255,7 +279,7 @@ async function createWorker(monaco: typeof monacoNS, vfs: VFS | undefined) {
     });
     vfs.watch("index.html", async (e) => {
       dispose?.();
-      loadImportMap(vfs).then((im) => {
+      loadImportMap(vfs, remixImportMap).then((im) => {
         if (JSON.stringify(im) !== JSON.stringify(importMap)) {
           importMap = im;
           updateCompilerOptions({ importMap });
@@ -275,7 +299,8 @@ let refreshDiagnosticEventEmitter: EventTrigger | null = null;
 export async function setup(
   languageId: string,
   monaco: typeof monacoNS,
-  vfs: VFS | undefined,
+  format?: Record<string, unknown>,
+  vfs?: VFS,
 ) {
   const languages = monaco.languages;
 
@@ -284,7 +309,7 @@ export async function setup(
   }
 
   if (!worker) {
-    worker = createWorker(monaco, vfs);
+    worker = createWorker(monaco, format, vfs);
   }
   if (worker instanceof Promise) {
     worker = await worker;

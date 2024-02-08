@@ -25,6 +25,7 @@ export interface CreateData {
   libs: Record<string, string>;
   extraLibs: Record<string, ExtraLib>;
   importMap: ImportMap;
+  formatOptions?: ts.FormatCodeSettings;
   inlayHintsOptions?: ts.UserPreferences;
 }
 
@@ -50,6 +51,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   private _isBlankImportMap: boolean;
   private _libs: Record<string, string>;
   private _extraLibs: Record<string, ExtraLib>;
+  private _formatOptions?: ts.FormatCodeSettings;
   private _inlayHintsOptions?: ts.UserPreferences;
   private _languageService = ts.createLanguageService(this);
   private _httpLibs = new Map<string, string>();
@@ -69,6 +71,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     this._isBlankImportMap = isBlank(createData.importMap);
     this._libs = createData.libs;
     this._extraLibs = createData.extraLibs;
+    this._formatOptions = createData.formatOptions;
     this._inlayHintsOptions = createData.inlayHintsOptions;
   }
 
@@ -574,11 +577,11 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
 
   async getFormattingEditsForDocument(
     fileName: string,
-    options: ts.FormatCodeSettings,
+    formatOptions: ts.FormatCodeSettings,
   ): Promise<ts.TextChange[]> {
     return this._languageService.getFormattingEditsForDocument(
       fileName,
-      options,
+      this._mergeFormatOptions(formatOptions),
     );
   }
 
@@ -586,13 +589,13 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     fileName: string,
     start: number,
     end: number,
-    options: ts.FormatCodeSettings,
+    formatOptions: ts.FormatCodeSettings,
   ): Promise<ts.TextChange[]> {
     return this._languageService.getFormattingEditsForRange(
       fileName,
       start,
       end,
-      options,
+      this._mergeFormatOptions(formatOptions),
     );
   }
 
@@ -600,13 +603,13 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     fileName: string,
     postion: number,
     ch: string,
-    options: ts.FormatCodeSettings,
+    formatOptions: ts.FormatCodeSettings,
   ): Promise<ts.TextChange[]> {
     return this._languageService.getFormattingEditsAfterKeystroke(
       fileName,
       postion,
       ch,
-      options,
+      this._mergeFormatOptions(formatOptions),
     );
   }
 
@@ -652,7 +655,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
         start,
         end,
         errorCodes,
-        formatOptions,
+        this._mergeFormatOptions(formatOptions),
         preferences,
       );
     } catch {
@@ -689,7 +692,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
           fileName,
           mode: ts.OrganizeImportsMode.SortAndCombine,
         },
-        formatOptions,
+        this._mergeFormatOptions(formatOptions),
         undefined,
       );
     } catch {
@@ -845,6 +848,15 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
         return specifier;
       }
     }
+  }
+
+  private _mergeFormatOptions(
+    formatOptions: ts.FormatCodeSettings,
+  ): ts.FormatCodeSettings {
+    return {
+      ...this._formatOptions,
+      ...formatOptions,
+    };
   }
 }
 

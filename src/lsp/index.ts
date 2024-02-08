@@ -1,6 +1,5 @@
 import type * as monacoNS from "monaco-editor-core";
 import type { VFS } from "../vfs";
-import type { FormattingOptions } from "vscode-languageserver-types";
 
 export interface LspLoader {
   aliases?: string[];
@@ -8,12 +7,47 @@ export interface LspLoader {
     setup: (
       languageId: string,
       monaco: typeof monacoNS,
+      formatOptions: Record<string, unknown>,
       vfs?: VFS,
-      format?: FormattingOptions,
-      languageOptions?: Record<string, unknown>,
     ) => Promise<void>;
     workerUrl: () => URL;
   }>;
+}
+
+export function normalizeFormatOptions(
+  label: string,
+  formatOptions?: Record<string, unknown>,
+): Record<string, unknown> {
+  const options: Record<string, unknown> = {};
+  if (!formatOptions) {
+    return options;
+  }
+  if (label in formatOptions) {
+    Object.assign(options, formatOptions[label]);
+  }
+  for (let key in formatOptions) {
+    let value = formatOptions[key];
+    if (key === "insertSpaces") {
+      if (label === "typescript") {
+        key = "convertTabsToSpaces";
+      }
+    } else if (key === "insertFinalNewline") {
+      if (label === "html") {
+        key = "endWithNewline";
+      }
+    } else if (key === "trimFinalNewlines") {
+      if (label === "html" || label === "css") {
+        key = "preserveNewLines";
+        value = !value;
+      }
+    } else if (key === "tabSize" || key === "trimTrailingWhitespace") {
+      // ignore
+    } else {
+      continue;
+    }
+    options[key] = value;
+  }
+  return options;
 }
 
 export default <Record<string, LspLoader>> {

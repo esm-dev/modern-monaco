@@ -2,7 +2,11 @@ import type * as monacoNS from "monaco-editor-core";
 import * as lf from "../language-features";
 import type { CreateData, CSSWorker } from "./worker";
 
-export function setup(languageId: string, monaco: typeof monacoNS) {
+export function setup(
+  languageId: string,
+  monaco: typeof monacoNS,
+  format?: Record<string, unknown>,
+) {
   const languages = monaco.languages;
   const events = new monaco.Emitter<void>();
   const createData: CreateData = {
@@ -12,11 +16,15 @@ export function setup(languageId: string, monaco: typeof monacoNS) {
         useDefaultDataProvider: true,
       },
       format: {
+        tabSize: 4,
+        insertSpaces: false,
+        insertFinalNewline: true,
         newlineBetweenSelectors: true,
         newlineBetweenRules: true,
         spaceAroundSelectorSeparator: false,
         braceStyle: "collapse",
         preserveNewLines: true,
+        ...format,
       },
     },
   };

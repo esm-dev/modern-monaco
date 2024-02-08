@@ -1,5 +1,4 @@
 import type * as monacoNS from "monaco-editor-core";
-import type { FormattingOptions } from "vscode-languageserver-types";
 import type { HighlighterCore } from "@shikijs/core";
 import { shikiToMonaco } from "@shikijs/monaco";
 import type { ShikiInitOptions } from "./shiki";
@@ -7,7 +6,7 @@ import { getLanguageIdFromPath, initShiki } from "./shiki";
 import { grammarRegistry, loadedGrammars, loadTMGrammer } from "./shiki";
 import { render, type RenderOptions } from "./render.js";
 import { VFS } from "./vfs";
-import lspIndex from "./lsp/index";
+import lspIndex, { normalizeFormatOptions } from "./lsp/index";
 
 const editorOptionKeys = [
   "autoDetectHighContrast",
@@ -43,14 +42,12 @@ const editorOptionKeys = [
 
 export interface InitOption extends ShikiInitOptions {
   vfs?: VFS;
-  format?: FormattingOptions;
-  languages?: Record<string, Record<string, unknown>>;
+  format?: Record<string, unknown>;
+  compilerOptions?: Record<string, unknown>;
+  importMap?: Record<string, unknown>;
 }
 
-async function loadEditor(
-  highlighter: HighlighterCore,
-  { vfs, format, languages }: InitOption = {},
-) {
+async function loadEditor(highlighter: HighlighterCore, options?: InitOption) {
   const monaco = await import("./editor.js");
   const editorWorkerUrl = monaco.workerUrl();
 
@@ -78,6 +75,17 @@ async function loadEditor(
       getLanguageIdFromPath(uri.path),
   });
 
+  const { vfs, compilerOptions, importMap } = options ?? {};
+  if (compilerOptions) {
+    Reflect.set(monaco.languages, "compilerOptions", compilerOptions);
+  }
+  if (importMap) {
+    Reflect.set(monaco.languages, "importMapJSON", JSON.stringify(importMap));
+  }
+  if (vfs) {
+    vfs._bindMonaco(monaco);
+  }
+
   if (!document.getElementById("monaco-editor-core-css")) {
     const styleEl = document.createElement("style");
     styleEl.id = "monaco-editor-core-css";
@@ -85,10 +93,6 @@ async function loadEditor(
     // @ts-expect-error `_CSS` is defined at build time
     styleEl.textContent = monaco._CSS;
     document.head.appendChild(styleEl);
-  }
-
-  if (vfs) {
-    vfs._bindMonaco(monaco);
   }
 
   for (const id of grammarRegistry) {
@@ -101,14 +105,16 @@ async function loadEditor(
           shikiToMonaco(highlighter, monaco);
         });
       }
-      let lsp = lspIndex[id];
+      let label = id;
+      let lsp = lspIndex[label];
       if (!lsp) {
-        lsp = Object.values(lspIndex).find((lsp) => lsp.aliases?.includes(id));
+        [label, lsp] = Object.entries(lspIndex).find(([, lsp]) =>
+          lsp.aliases?.includes(id)
+        );
       }
       if (lsp) {
-        lsp.import().then(({ setup }) =>
-          setup(id, monaco, vfs, format, languages?.[id])
-        );
+        const formatOptions = normalizeFormatOptions(label, options?.format);
+        lsp.import().then(({ setup }) => setup(id, monaco, formatOptions, vfs));
       }
     });
   }

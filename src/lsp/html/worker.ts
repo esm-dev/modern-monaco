@@ -24,7 +24,7 @@ export interface Options {
   /**
    * Settings for the HTML formatter.
    */
-  readonly format?: htmlService.FormattingOptions;
+  readonly format?: htmlService.HTMLFormatConfiguration;
   /**
    * Code completion settings.
    */

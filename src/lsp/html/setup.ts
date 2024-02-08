@@ -2,7 +2,11 @@ import type * as monacoNS from "monaco-editor-core";
 import * as lf from "../language-features";
 import type { CreateData, HTMLWorker } from "./worker";
 
-export function setup(languageId: string, monaco: typeof monacoNS) {
+export function setup(
+  languageId: string,
+  monaco: typeof monacoNS,
+  format?: Record<string, unknown>,
+) {
   const languages = monaco.languages;
   const createData: CreateData = {
     languageId,
@@ -24,6 +28,8 @@ export function setup(languageId: string, monaco: typeof monacoNS) {
         endWithNewline: false,
         extraLiners: "head, body, /html",
         wrapAttributes: "auto",
+        ...format,
+        ...format?.html as Record<string, unknown>,
       },
     },
   };
