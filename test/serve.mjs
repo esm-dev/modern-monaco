@@ -66,7 +66,7 @@ async function serveDist(url, req, notFound) {
   }
 }
 
-async function serveCWD(url, req) {
+async function servePages(url, req) {
   const filename = url.pathname.slice(1) || "index.html";
   try {
     const fileUrl = new URL(filename, import.meta.url);
@@ -141,5 +141,5 @@ Deno.serve(async (req) => {
   if (url.pathname.startsWith("/dist/")) {
     url = new URL(url.pathname.slice(5), url);
   }
-  return serveDist(url, req, serveCWD);
+  return serveDist(url, req, servePages);
 });

@@ -7,10 +7,6 @@ import * as lf from "./language-features";
 
 type TSWorker = monacoNS.editor.MonacoWebWorker<TypeScriptWorker>;
 
-// javascript and typescript share the same worker
-let worker: TSWorker | Promise<TSWorker> | null = null;
-let refreshDiagnosticEventEmitter: EventTrigger | null = null;
-
 class EventTrigger {
   private _fireTimer = null;
 
@@ -37,12 +33,33 @@ function toUrl(name: string | URL) {
   return typeof name === "string" ? new URL(name, "file:///") : name;
 }
 
+/**
+ * Parse JSONC.
+ * @source: https://www.npmjs.com/package/tiny-jsonc
+ */
+const stringOrCommentRe = /("(?:\\?[^])*?")|(\/\/.*)|(\/\*[^]*?\*\/)/g;
+const stringOrTrailingCommaRe = /("(?:\\?[^])*?")|(,\s*)(?=]|})/g;
+function parseJsonc(text: string) {
+  try {
+    // Fast path for valid JSON
+    return JSON.parse(text);
+  } catch {
+    // Slow path for JSONC and invalid inputs
+    return JSON.parse(
+      text.replace(stringOrCommentRe, "$1").replace(
+        stringOrTrailingCommaRe,
+        "$1",
+      ),
+    );
+  }
+}
+
 /** Load compiler options from tsconfig.json in VFS if exists. */
 async function loadCompilerOptions(vfs: VFS) {
   const compilerOptions: ts.CompilerOptions = {};
   try {
     const tconfigjson = await vfs.readTextFile("tsconfig.json");
-    const tconfig = JSON.parse(tconfigjson);
+    const tconfig = parseJsonc(tconfigjson);
     const types = tconfig.compilerOptions.types;
     delete tconfig.compilerOptions.types;
     Array.isArray(types) && await Promise.all(types.map(async (type) => {
@@ -133,6 +150,8 @@ async function createWorker(monaco: typeof monacoNS, vfs: VFS | undefined) {
     target: 99, // ScriptTarget.ESNext,
     noEmit: true,
   };
+
+  // @ts-expect-error 'libs.js' is generated at build time
   const promises = [import("./libs.js").then((m) => m.default)];
 
   let compilerOptions: ts.CompilerOptions = { ...defaultCompilerOptions };
@@ -248,6 +267,10 @@ async function createWorker(monaco: typeof monacoNS, vfs: VFS | undefined) {
 
   return worker;
 }
+
+// javascript and typescript share the same worker
+let worker: TSWorker | Promise<TSWorker> | null = null;
+let refreshDiagnosticEventEmitter: EventTrigger | null = null;
 
 export async function setup(
   languageId: string,

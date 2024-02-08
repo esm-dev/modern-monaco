@@ -83,6 +83,9 @@ export class VFS implements VFSInterface {
 
   async openModel(name: string | URL) {
     const monaco = this.#monaco;
+    if (!monaco) {
+      throw new Error("monaco is not bound");
+    }
     const url = toUrl(name);
     const uri = monaco.Uri.parse(url.href);
     const { content, version } = await this.#read(url);
@@ -207,7 +210,7 @@ export class VFS implements VFSInterface {
     return vfetch(url);
   }
 
-  bindMonaco(monaco: typeof monacoNS) {
+  _bindMonaco(monaco: typeof monacoNS) {
     this.#monaco = monaco;
   }
 }

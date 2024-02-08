@@ -1,4 +1,5 @@
 import type * as monacoNS from "monaco-editor-core";
+import type { FormattingOptions } from "vscode-languageserver-types";
 import type { HighlighterCore } from "@shikijs/core";
 import { shikiToMonaco } from "@shikijs/monaco";
 import type { ShikiInitOptions } from "./shiki";
@@ -42,9 +43,14 @@ const editorOptionKeys = [
 
 export interface InitOption extends ShikiInitOptions {
   vfs?: VFS;
+  format?: FormattingOptions;
+  languages?: Record<string, Record<string, unknown>>;
 }
 
-async function loadEditor(highlighter: HighlighterCore, vfs?: VFS) {
+async function loadEditor(
+  highlighter: HighlighterCore,
+  { vfs, format, languages }: InitOption = {},
+) {
   const monaco = await import("./editor.js");
   const editorWorkerUrl = monaco.workerUrl();
 
@@ -82,7 +88,7 @@ async function loadEditor(highlighter: HighlighterCore, vfs?: VFS) {
   }
 
   if (vfs) {
-    vfs.bindMonaco(monaco);
+    vfs._bindMonaco(monaco);
   }
 
   for (const id of grammarRegistry) {
@@ -100,7 +106,9 @@ async function loadEditor(highlighter: HighlighterCore, vfs?: VFS) {
         lsp = Object.values(lspIndex).find((lsp) => lsp.aliases?.includes(id));
       }
       if (lsp) {
-        lsp.import().then(({ setup }) => setup(id, monaco, vfs));
+        lsp.import().then(({ setup }) =>
+          setup(id, monaco, vfs, format, languages?.[id])
+        );
       }
     });
   }
@@ -133,7 +141,7 @@ export function init(options: InitOption = {}) {
       }
     };
     loading = getGrammarsInVFS().then(() =>
-      initShiki(options).then((shiki) => loadEditor(shiki, options.vfs))
+      initShiki(options).then((shiki) => loadEditor(shiki, options))
     );
   }
   return loading;
@@ -262,11 +270,11 @@ export function lazyMode(options: InitOption = {}) {
         // add a transition effect to hide the pre-rendered content
         if (preRenderEl) {
           preRenderEl.style.opacity = "1";
-          preRenderEl.style.transition = "opacity 0.3s";
+          preRenderEl.style.transition = "opacity 0.2s";
         }
 
         // load monaco editor
-        loadEditor(highlighter, vfs).then(async (monaco) => {
+        loadEditor(highlighter, options).then(async (monaco) => {
           this.#editor = monaco.editor.create(containerEl, renderOptions);
           if (vfs && file) {
             const model = await vfs.openModel(file);
@@ -295,8 +303,8 @@ export function lazyMode(options: InitOption = {}) {
               preRenderEl.style.opacity = "0";
               setTimeout(() => {
                 preRenderEl.remove();
-              }, 300);
-            }, 500);
+              }, 200);
+            }, 400);
           }
         });
       }
@@ -304,7 +312,7 @@ export function lazyMode(options: InitOption = {}) {
   );
 }
 
-export async function renderToString(options: RenderOptions) {
+export async function renderToString(options: RenderOptions): Promise<string> {
   if (options.filename && !options.lang) {
     options.lang = getLanguageIdFromPath(options.filename);
   }

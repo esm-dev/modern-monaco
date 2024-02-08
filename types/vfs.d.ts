@@ -5,8 +5,12 @@ export interface VFSOptions {
   initial?: Record<string, string[] | string | Uint8Array>;
 }
 
+export class ErrorNotFound extends Error {}
+
 export class VFS {
-  openModel(name: string | URL): Promise<editor.ITextModel>;
+  constructor(options?: VFSOptions);
+  readonly ErrorNotFound: ErrorNotFound;
+  openModel(name: string | URL): Promise<monacoNS.editor.ITextModel>;
   exists(name: string | URL): Promise<boolean>;
   list(): Promise<string[]>;
   readFile(name: string | URL): Promise<Uint8Array>;

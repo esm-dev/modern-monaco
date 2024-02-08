@@ -82,7 +82,6 @@ const copyDts = (...files) => {
   }));
 };
 
-await bundleTypescriptLibs();
 await copyDts(
   ["tm-themes/index.d.ts", "tm-themes.d.ts"],
   ["tm-grammars/index.d.ts", "tm-grammars.d.ts"],
@@ -102,3 +101,4 @@ await build([
 ]);
 await build(["src/index.ts"], ["*/editor.js"], tmDefine);
 await modifyEditorJs();
+await bundleTypescriptLibs();
