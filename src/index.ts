@@ -4,7 +4,7 @@ import { shikiToMonaco } from "@shikijs/monaco";
 import type { ShikiInitOptions } from "./shiki";
 import { getLanguageIdFromPath, initShiki } from "./shiki";
 import { grammarRegistry, loadedGrammars, loadTMGrammer } from "./shiki";
-import { render, type RenderOptions } from "./render.js";
+import { renderMockEditor, type RenderOptions } from "./render.js";
 import { VFS } from "./vfs";
 import lspIndex, { normalizeFormatOptions } from "./lsp/index";
 
@@ -47,6 +47,7 @@ export interface InitOption extends ShikiInitOptions {
   importMap?: Record<string, unknown>;
 }
 
+/** Load the monaco editor and use shiki as the tokenizer. */
 async function loadEditor(highlighter: HighlighterCore, options?: InitOption) {
   const monaco = await import("./editor.js");
   const editorWorkerUrl = monaco.workerUrl();
@@ -126,7 +127,8 @@ async function loadEditor(highlighter: HighlighterCore, options?: InitOption) {
 let loading: Promise<typeof monacoNS> | undefined;
 let ssrHighlighter: HighlighterCore | Promise<HighlighterCore> | undefined;
 
-export function init(options: InitOption = {}) {
+/* Initialize and return the monaco editor namespace. */
+export function init(options: InitOption = {}): Promise<typeof monacoNS> {
   if (!loading) {
     const getGrammarsInVFS = async () => {
       const vfs = options.vfs;
@@ -153,6 +155,7 @@ export function init(options: InitOption = {}) {
   return loading;
 }
 
+/** Render a mock editor, then load the monaco editor in background. */
 export function lazyMode(options: InitOption = {}) {
   customElements.define(
     "monaco-editor",
@@ -265,7 +268,7 @@ export function lazyMode(options: InitOption = {}) {
           preRenderEl.style.position = "absolute";
           preRenderEl.style.top = "0";
           preRenderEl.style.left = "0";
-          preRenderEl.innerHTML = render(highlighter, {
+          preRenderEl.innerHTML = renderMockEditor(highlighter, {
             ...renderOptions,
             lang,
             code,
@@ -318,6 +321,7 @@ export function lazyMode(options: InitOption = {}) {
   );
 }
 
+/** Render a monaco editor on the server side. */
 export async function renderToString(options: RenderOptions): Promise<string> {
   if (options.filename && !options.lang) {
     options.lang = getLanguageIdFromPath(options.filename);
@@ -336,7 +340,7 @@ export async function renderToString(options: RenderOptions): Promise<string> {
       JSON.stringify(options)
     }</script>`,
     `<div class="monaco-editor-prerender" style="width:100%;height:100%;position:absolute;top:0px;left:0px">`,
-    render(highlighter, options),
+    renderMockEditor(highlighter, options),
     `</div>`,
     `</monaco-editor>`,
   ].join("");

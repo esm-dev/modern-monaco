@@ -1,29 +1,5 @@
 import type * as monacoNS from "monaco-editor-core";
 
-const enc = new TextEncoder();
-const dec = new TextDecoder();
-
-export interface VFSInterface {
-  readonly ErrorNotFound: typeof ErrorNotFound;
-  openModel(name: string | URL): Promise<monacoNS.editor.ITextModel>;
-  exists(name: string | URL): Promise<boolean>;
-  list(): Promise<string[]>;
-  readFile(name: string | URL): Promise<Uint8Array>;
-  readTextFile(name: string | URL): Promise<string>;
-  writeFile(
-    name: string | URL,
-    content: string | Uint8Array,
-    version?: number,
-  ): Promise<void>;
-  removeFile(name: string | URL): Promise<void>;
-  watch(name: string | URL, handler: (evt: WatchEvent) => void): () => void;
-}
-
-interface WatchEvent {
-  kind: "create" | "modify" | "remove";
-  path: string;
-}
-
 interface VFile {
   url: string;
   version: number;
@@ -33,14 +9,18 @@ interface VFile {
   headers?: [string, string][];
 }
 
+interface WatchEvent {
+  kind: "create" | "modify" | "remove";
+  path: string;
+}
+
 interface VFSOptions {
   scope?: string;
   initial?: Record<string, string[] | string | Uint8Array>;
 }
 
-/** Virtual file system class for monaco editor. */
-// TODO: use lz-string to compress text content
-export class VFS implements VFSInterface {
+/** Virtual file system for monaco editor. */
+export class VFS {
   #monaco: typeof monacoNS;
   #db: Promise<IDBDatabase> | IDBDatabase;
   #watchHandlers = new Map<
@@ -306,6 +286,9 @@ export async function vfetch(url: string | URL): Promise<Response> {
 function toUrl(name: string | URL) {
   return typeof name === "string" ? new URL(name, "file:///") : name;
 }
+
+const enc = new TextEncoder();
+const dec = new TextDecoder();
 
 /** Convert string to Uint8Array. */
 function toUint8Array(data: string | Uint8Array): Uint8Array {

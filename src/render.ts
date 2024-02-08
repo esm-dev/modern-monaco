@@ -18,7 +18,8 @@ export interface RenderOptions
   fontMaxDigitWidth?: number;
 }
 
-export function render(
+/** Renders a mock monaco editor. */
+export function renderMockEditor(
   highlighter: HighlighterCore,
   options: RenderOptions,
 ): string {
@@ -142,6 +143,7 @@ ${finHtml}
 </div>`;
 }
 
+// Get the maximum width of a digit in the given font.
 // https://stackoverflow.com/questions/118241/calculate-text-width-with-javascript
 function getMaxDigitWidth(font: string) {
   const canvas = document.createElement("canvas");

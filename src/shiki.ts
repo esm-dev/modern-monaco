@@ -20,6 +20,7 @@ export interface ShikiInitOptions {
   customGrammars?: { name: string }[];
 }
 
+/** Initialize shiki with the given options. */
 export async function initShiki({
   theme = "vitesse-dark",
   preloadGrammars = [],
@@ -67,6 +68,7 @@ export async function initShiki({
   return getHighlighterCore({ langs, themes, loadWasm });
 }
 
+/** Get language ID from file path. */
 export function getLanguageIdFromPath(path: string) {
   const idx = path.lastIndexOf(".");
   if (idx > 0) {
@@ -80,6 +82,7 @@ export function getLanguageIdFromPath(path: string) {
   }
 }
 
+/** Load a TextMate theme from the given source. */
 export function loadTMTheme(src: string) {
   const url = tmThemes.has(src)
     ? `https://esm.sh/tm-themes@${tmThemesVersion}/themes/${src}.json`
@@ -87,6 +90,7 @@ export function loadTMTheme(src: string) {
   return vfetch(url).then((res) => res.json());
 }
 
+/** Load a TextMate grammar from the given source. */
 export function loadTMGrammer(src: string) {
   const grammar = tmGrammars.find((g) =>
     g.name === src || g.aliases?.includes(src)

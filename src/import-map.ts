@@ -1,3 +1,4 @@
+/** The import maps follow the spec at https://wicg.github.io/import-maps/. */
 export interface ImportMap {
   $src?: string;
   $support?: boolean;
@@ -6,6 +7,7 @@ export interface ImportMap {
   scopes: Record<string, ImportMap["imports"]>;
 }
 
+/** Create a blank import map. */
 export function blankImportMap(): ImportMap {
   return {
     $baseURL: "file:///",
@@ -14,6 +16,7 @@ export function blankImportMap(): ImportMap {
   };
 }
 
+/** Check if the import map is blank. */
 export function isBlank(importMap: ImportMap) {
   return (
     Object.keys(importMap.imports).length === 0 &&
@@ -21,18 +24,7 @@ export function isBlank(importMap: ImportMap) {
   );
 }
 
-function matchImports(specifier: string, imports: ImportMap["imports"]) {
-  if (specifier in imports) {
-    return imports[specifier];
-  }
-  for (const [k, v] of Object.entries(imports)) {
-    if (k.endsWith("/") && specifier.startsWith(k)) {
-      return v + specifier.slice(k.length);
-    }
-  }
-  return null;
-}
-
+/** Resolve the specifier with the import map. */
 export function resolve(
   importMap: ImportMap,
   specifier: string,
@@ -63,6 +55,7 @@ export function resolve(
   return new URL(specifier, scriptUrl);
 }
 
+/** Parse the import map from JSON. */
 export function parseImportMapFromJson(
   json: string,
   baseURL?: string,
@@ -86,6 +79,18 @@ export function parseImportMapFromJson(
     }
   }
   return importMap;
+}
+
+function matchImports(specifier: string, imports: ImportMap["imports"]) {
+  if (specifier in imports) {
+    return imports[specifier];
+  }
+  for (const [k, v] of Object.entries(imports)) {
+    if (k.endsWith("/") && specifier.startsWith(k)) {
+      return v + specifier.slice(k.length);
+    }
+  }
+  return null;
 }
 
 function validateImports(imports: Record<string, unknown>) {
