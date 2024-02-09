@@ -6,11 +6,11 @@ settings:
 
 devDependencies:
   '@shikijs/core':
-    specifier: 1.0.0
-    version: 1.0.0
+    specifier: 1.1.1
+    version: 1.1.1
   '@shikijs/monaco':
-    specifier: 1.0.0
-    version: 1.0.0
+    specifier: 1.1.1
+    version: 1.1.1
   esbuild:
     specifier: 0.20.0
     version: 0.20.0
@@ -248,14 +248,14 @@ packages:
     dev: true
     optional: true
 
-  /@shikijs/core@1.0.0:
-    resolution: {integrity: sha512-UMKGMZ+8b88N0/n6DWwWth1PHsOaxjW+R2u+hzSiargZWTv+l3s1l8dhuIxUSsEUPlBDKLs2CSMiFZeviKQM1w==}
+  /@shikijs/core@1.1.1:
+    resolution: {integrity: sha512-WSHuW0i4W04+UZgim378oxHBAp4S5X3hVI2zXh+t5v2fx2u/7QXz9VNisoOD/CA4O9Lc6Zs97TrKiDbWyZua6Q==}
     dev: true
 
-  /@shikijs/monaco@1.0.0:
-    resolution: {integrity: sha512-yZ3TSWxo0uMKgf387YIY/OMvTuxGy2EMpyrHFQ1aIwaWFadRrtx1X3GwTE6/fpDfEp7VdIshbaZM9Eltymqp1g==}
+  /@shikijs/monaco@1.1.1:
+    resolution: {integrity: sha512-HdQnDhj/I3Yf/G14ls1YrmAUUYsDFLqqzaf7oMjpGiDTI48W65dbwPH5X+m3Ol2K4hxkR0QcCQKSAWxxLbEV6w==}
     dependencies:
-      '@shikijs/core': 1.0.0
+      '@shikijs/core': 1.1.1
     dev: true
 
   /@vscode/l10n@0.0.18:

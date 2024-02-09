@@ -26,8 +26,8 @@
   },
   "sideEffects": false,
   "devDependencies": {
-    "@shikijs/core": "1.0.0",
-    "@shikijs/monaco": "1.0.0",
+    "@shikijs/core": "1.1.1",
+    "@shikijs/monaco": "1.1.1",
     "esbuild": "0.20.0",
     "monaco-editor-core": "0.46.0",
     "tm-grammars": "1.1.4",
