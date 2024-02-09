@@ -1,5 +1,5 @@
 import type ts from "typescript";
-import type { BundledLanguage, BundledTheme } from "./shiki";
+import type { TmGrammar, TmTheme } from "./tm";
 import type { GrammarInfo } from "./tm-grammars";
 import type { ThemeInfo } from "./tm-themes";
 import type { VFS } from "./vfs";
@@ -114,8 +114,8 @@ export interface ImportMap {
 }
 
 export interface ShikiInitOptions {
-  theme?: BundledTheme | ThemeInfo;
-  preloadGrammars?: BundledLanguage[];
+  theme?: TmTheme | ThemeInfo;
+  preloadGrammars?: TmGrammar[];
   customGrammars?: GrammarInfo[];
 }
 

@@ -3,5 +3,6 @@ node_modules/
 dist/
 *.log
 monaco.d.ts
+tm.d.ts
 tm-grammars.d.ts
 tm-themes.d.ts

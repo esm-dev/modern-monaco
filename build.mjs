@@ -77,12 +77,17 @@ const copyDts = (...files) => {
     copyFile("node_modules/" + src, "types/" + dest);
   }));
 };
+const createTmDts = (...files) => {
+  return writeFile(
+    "types/tm.d.ts",
+    [
+      "export type TmTheme = " + tmThemes.map((v) => JSON.stringify(v.name)).join(" | ") + ";",
+      "export type TmGrammar = " + tmGrammars.map((v) => JSON.stringify(v.name)).join(" | ") + ";",
+    ].join("\n"),
+    "utf-8",
+  );
+};
 
-await copyDts(
-  ["tm-themes/index.d.ts", "tm-themes.d.ts"],
-  ["tm-grammars/index.d.ts", "tm-grammars.d.ts"],
-  ["monaco-editor-core/esm/vs/editor/editor.api.d.ts", "monaco.d.ts"],
-);
 await build([
   "src/editor-core.ts",
   "src/editor-worker.ts",
@@ -96,5 +101,11 @@ await build([
   "src/lsp/typescript/worker.ts",
 ]);
 await build(["src/index.ts"], tmDefine);
+await copyDts(
+  ["tm-themes/index.d.ts", "tm-themes.d.ts"],
+  ["tm-grammars/index.d.ts", "tm-grammars.d.ts"],
+  ["monaco-editor-core/esm/vs/editor/editor.api.d.ts", "monaco.d.ts"],
+);
+await createTmDts();
 await modifyEditorJs();
 await bundleTypescriptLibs();
