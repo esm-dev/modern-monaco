@@ -21,8 +21,8 @@ devDependencies:
     specifier: 1.1.4
     version: 1.1.4
   tm-themes:
-    specifier: 1.1.1
-    version: 1.1.1
+    specifier: 1.1.2
+    version: 1.1.2
   typescript:
     specifier: 5.3.3
     version: 5.3.3
@@ -305,8 +305,8 @@ packages:
     resolution: {integrity: sha512-Y4ctT7sb57yS2D99xSAgsFY8tEH/eOd9/ZhO3jLxWxGUbTxw/RfrlMapqBcWupfjCE7/Lro1GezjuTdN4tS9vA==}
     dev: true
 
-  /tm-themes@1.1.1:
-    resolution: {integrity: sha512-Cvmlo8TXNOLLxPKo+CU7dGbc7aCTvl91lmxB/Z1Jl5py/p8HvtahzbWhNKyIsFN2MAsSIoFHjyYAVH21L2Rulw==}
+  /tm-themes@1.1.2:
+    resolution: {integrity: sha512-9n79rJtLPglvob3uMULtyXUnTWXYssMP0vY8r4ffzjuFLQWDn8aiRpz5lJsg6pqcdQMSik6zOygoWe/TEUc/8A==}
     dev: true
 
   /typescript@5.3.3:
