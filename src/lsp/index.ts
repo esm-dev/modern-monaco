@@ -1,7 +1,7 @@
 import type * as monacoNS from "monaco-editor-core";
 import type { VFS } from "../vfs";
 
-export interface LspLoader {
+export interface LSPLoader {
   aliases?: string[];
   import: () => Promise<{
     setup: (
@@ -50,7 +50,17 @@ export function normalizeFormatOptions(
   return options;
 }
 
-export default <Record<string, LspLoader>> {
+export async function createWorker(url: URL): Promise<Worker> {
+  if (url.hostname === "esm.sh") {
+    const { default: workerFactory } = await import(
+      url.href.replace(/\.js$/, ".bundle.js") + "?worker"
+    );
+    return workerFactory() as Worker;
+  }
+  return new Worker(url, { type: "module" });
+}
+
+export default <Record<string, LSPLoader>> {
   html: {
     // @ts-expect-error 'setup.js' is generated at build time
     import: () => import("./lsp/html/setup.js"),

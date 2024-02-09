@@ -30,8 +30,7 @@ export interface CreateData {
 }
 
 /** TypeScriptWorker removes all but the `fileName` property to avoid serializing circular JSON structures. */
-export interface DiagnosticRelatedInformation
-  extends Omit<ts.DiagnosticRelatedInformation, "file"> {
+export interface DiagnosticRelatedInformation extends Omit<ts.DiagnosticRelatedInformation, "file"> {
   file: { fileName: string } | undefined;
 }
 
@@ -726,9 +725,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     url: URL | string,
     defaultExt = ".js",
   ): string | null {
-    const pathname = typeof url === "string"
-      ? new URL(url, "file:///").pathname
-      : url.pathname;
+    const pathname = typeof url === "string" ? new URL(url, "file:///").pathname : url.pathname;
     const fileName = pathname.substring(pathname.lastIndexOf("/") + 1);
     const dotIndex = fileName.lastIndexOf(".");
     if (dotIndex === -1) {
@@ -774,9 +771,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     for (const tsDiagnostic of tsDiagnostics) {
       const diagnostic: Diagnostic = {
         ...tsDiagnostic,
-        file: tsDiagnostic.file
-          ? { fileName: tsDiagnostic.file.fileName }
-          : undefined,
+        file: tsDiagnostic.file ? { fileName: tsDiagnostic.file.fileName } : undefined,
       };
       if (tsDiagnostic.relatedInformation) {
         diagnostic.relatedInformation = [];
@@ -784,9 +779,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
           const relatedDiagnostic: DiagnosticRelatedInformation = {
             ...tsRelatedDiagnostic,
           };
-          relatedDiagnostic.file = relatedDiagnostic.file
-            ? { fileName: relatedDiagnostic.file.fileName }
-            : undefined;
+          relatedDiagnostic.file = relatedDiagnostic.file ? { fileName: relatedDiagnostic.file.fileName } : undefined;
           diagnostic.relatedInformation.push(relatedDiagnostic);
         }
       }

@@ -35,9 +35,7 @@ export function resolve(
   const sameOriginScopes = Object.entries(scopes)
     .map(([scope, imports]) => [new URL(scope, $baseURL), imports] as const)
     .filter(([scopeUrl]) => scopeUrl.origin === scriptUrl.origin)
-    .sort(([a], [b]) =>
-      b.pathname.split("/").length - a.pathname.split("/").length
-    );
+    .sort(([a], [b]) => b.pathname.split("/").length - a.pathname.split("/").length);
   if (sameOriginScopes.length > 0) {
     for (const [scopeUrl, scopeImports] of sameOriginScopes) {
       if (scriptUrl.pathname.startsWith(scopeUrl.pathname)) {

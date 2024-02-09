@@ -73,9 +73,7 @@ export function getLanguageIdFromPath(path: string) {
   const idx = path.lastIndexOf(".");
   if (idx > 0) {
     const ext = path.slice(idx + 1);
-    const lang = tmGrammars.find((g) =>
-      g.name === ext || g.aliases?.includes(ext)
-    );
+    const lang = tmGrammars.find((g) => g.name === ext || g.aliases?.includes(ext));
     if (lang) {
       return lang.name;
     }
@@ -84,20 +82,14 @@ export function getLanguageIdFromPath(path: string) {
 
 /** Load a TextMate theme from the given source. */
 export function loadTMTheme(src: string) {
-  const url = tmThemes.has(src)
-    ? `https://esm.sh/tm-themes@${tmThemesVersion}/themes/${src}.json`
-    : src;
+  const url = tmThemes.has(src) ? `https://esm.sh/tm-themes@${tmThemesVersion}/themes/${src}.json` : src;
   return vfetch(url).then((res) => res.json());
 }
 
 /** Load a TextMate grammar from the given source. */
 export function loadTMGrammer(src: string) {
-  const grammar = tmGrammars.find((g) =>
-    g.name === src || g.aliases?.includes(src)
-  );
-  const url = grammar
-    ? `https://esm.sh/tm-grammars@${tmGrammersVersion}/grammars/${grammar.name}.json`
-    : src;
+  const grammar = tmGrammars.find((g) => g.name === src || g.aliases?.includes(src));
+  const url = grammar ? `https://esm.sh/tm-grammars@${tmGrammersVersion}/grammars/${grammar.name}.json` : src;
   return vfetch(url).then((res) => res.json());
 }
 

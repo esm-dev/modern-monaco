@@ -3,13 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {
-  LanguageService,
-  Position,
-  Range,
-  TextDocument,
-  TokenType,
-} from "vscode-html-languageservice";
+import { LanguageService, Position, Range, TextDocument, TokenType } from "vscode-html-languageservice";
 
 export interface LanguageRange extends Range {
   languageId: string | undefined;
@@ -119,12 +113,10 @@ export function getDocumentRegions(
     token = scanner.scan();
   }
   return {
-    getLanguageRanges: (range: Range) =>
-      getLanguageRanges(document, regions, range),
+    getLanguageRanges: (range: Range) => getLanguageRanges(document, regions, range),
     getEmbeddedDocument: (languageId: string, ignoreAttributeValues: boolean) =>
       getEmbeddedDocument(document, regions, languageId, ignoreAttributeValues),
-    getLanguageAtPosition: (position: Position) =>
-      getLanguageAtPosition(document, regions, position),
+    getLanguageAtPosition: (position: Position) => getLanguageAtPosition(document, regions, position),
     getLanguagesInDocument: () => getLanguagesInDocument(document, regions),
     getImportedScripts: () => importedScripts,
   };
@@ -138,9 +130,7 @@ function getLanguageRanges(
   const result: LanguageRange[] = [];
   let currentPos = range ? range.start : Position.create(0, 0);
   let currentOffset = range ? document.offsetAt(range.start) : 0;
-  const endOffset = range
-    ? document.offsetAt(range.end)
-    : document.getText().length;
+  const endOffset = range ? document.offsetAt(range.end) : document.getText().length;
   for (const region of regions) {
     if (region.end > currentOffset && region.start < endOffset) {
       const start = Math.max(region.start, currentOffset);

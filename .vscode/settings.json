@@ -1,0 +1,4 @@
+{
+  "deno.enable": false,
+  "deno.config": "./.vscode/deno.json"
+}

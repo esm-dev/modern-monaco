@@ -25,9 +25,9 @@
 <body>
   <monaco-editor file="App.tsx" padding="8"></monaco-editor>
   <script type="module">
-    import { lazyMode } from '/index.js';
+    import { lazy } from '/index.js';
     import { vfs } from '/vfs.js';
-    lazyMode({ vfs });
+    lazy({ vfs });
   </script>
 </body>
 

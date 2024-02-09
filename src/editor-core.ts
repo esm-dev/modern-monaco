@@ -1,12 +1,11 @@
 import { editor, Uri } from "monaco-editor-core";
 
-export const defaultEditorOptions: editor.IStandaloneEditorConstructionOptions =
-  {
-    automaticLayout: true,
-    minimap: { enabled: false },
-    scrollBeyondLastLine: false,
-    theme: "vitesse-dark",
-  };
+export const defaultEditorOptions: editor.IStandaloneEditorConstructionOptions = {
+  automaticLayout: true,
+  minimap: { enabled: false },
+  scrollBeyondLastLine: false,
+  theme: "vitesse-dark",
+};
 
 const _create = editor.create;
 const _createModel = editor.createModel;

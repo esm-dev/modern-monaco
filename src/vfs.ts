@@ -38,9 +38,7 @@ export class VFS {
           const item: VFile = {
             url: url.href,
             version: 1,
-            content: Array.isArray(data) && !(data instanceof Uint8Array)
-              ? data.join("\n")
-              : data,
+            content: Array.isArray(data) && !(data instanceof Uint8Array) ? data.join("\n") : data,
             ctime: now,
             mtime: now,
           };
@@ -68,17 +66,23 @@ export class VFS {
     }
     const url = toUrl(name);
     const uri = monaco.Uri.parse(url.href);
-    const { content, version } = await this.#read(url);
     let model = monaco.editor.getModel(uri);
     if (model) {
       return model;
     }
+    const { content, version } = await this.#read(url);
+    model = monaco.editor.getModel(uri) ??
+      monaco.editor.createModel(toString(content), undefined, uri);
     let writeTimer: number | null = null;
-    model = monaco.editor.createModel(toString(content), undefined, uri);
-    model.onDidChangeContent((e) => {
+    const askToExit = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = true;
+    };
+    const onDidChange = model.onDidChangeContent((e) => {
       if (writeTimer !== null) {
         return;
       }
+      globalThis.addEventListener("beforeunload", askToExit);
       writeTimer = setTimeout(() => {
         writeTimer = null;
         this.writeFile(
@@ -86,7 +90,11 @@ export class VFS {
           model.getValue(),
           version + model.getVersionId(),
         );
+        globalThis.removeEventListener("beforeunload", askToExit);
       }, 500);
+    });
+    model.onWillDispose(() => {
+      onDidChange.dispose();
     });
     return model;
   }

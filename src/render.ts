@@ -8,8 +8,7 @@ const LINE_NUMBERS_COLOR = "rgba(222, 220, 213, 0.31)";
 const MINIMUM_LINE_HEIGHT = 8;
 const MINIMUM_MAX_DIGIT_WIDTH = 5;
 
-export interface RenderOptions
-  extends editor.IStandaloneEditorConstructionOptions {
+export interface RenderOptions extends editor.IStandaloneEditorConstructionOptions {
   lang: string;
   code: string;
   filename?: string;

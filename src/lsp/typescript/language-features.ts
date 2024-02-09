@@ -18,12 +18,7 @@ import type {
   Range,
   Uri,
 } from "monaco-editor-core";
-import type {
-  Diagnostic,
-  DiagnosticRelatedInformation,
-  ExtraLib,
-  TypeScriptWorker,
-} from "./worker";
+import type { Diagnostic, DiagnosticRelatedInformation, ExtraLib, TypeScriptWorker } from "./worker";
 
 let M = {} as unknown as typeof import("monaco-editor-core");
 export function preclude(monaco: typeof M) {
@@ -316,9 +311,7 @@ export class DiagnosticsAdapter extends Adapter {
       editor.setModelMarkers(model, this._selector, []);
     };
 
-    editor.onDidCreateModel((model) =>
-      onModelAdd(<IInternalEditorModel> model)
-    );
+    editor.onDidCreateModel((model) => onModelAdd(<IInternalEditorModel> model));
     editor.onWillDisposeModel(onModelRemoved);
     editor.onDidChangeModelLanguage((event) => {
       onModelRemoved(event.model);
@@ -331,9 +324,7 @@ export class DiagnosticsAdapter extends Adapter {
       }
     });
 
-    editor.getModels().forEach((model) =>
-      onModelAdd(<IInternalEditorModel> model)
-    );
+    editor.getModels().forEach((model) => onModelAdd(<IInternalEditorModel> model));
   }
 
   // public dispose(): void {
@@ -453,8 +444,7 @@ export class DiagnosticsAdapter extends Adapter {
       }
       const infoStart = info.start || 0;
       const infoLength = info.length || 1;
-      const { lineNumber: startLineNumber, column: startColumn } =
-        relatedResource.getPositionAt(infoStart);
+      const { lineNumber: startLineNumber, column: startColumn } = relatedResource.getPositionAt(infoStart);
       const { lineNumber: endLineNumber, column: endColumn } = relatedResource
         .getPositionAt(
           infoStart + infoLength,
@@ -500,8 +490,7 @@ interface MyCompletionItem extends languages.CompletionItem {
   data?: any;
 }
 
-export class SuggestAdapter extends Adapter
-  implements languages.CompletionItemProvider {
+export class SuggestAdapter extends Adapter implements languages.CompletionItemProvider {
   public get triggerCharacters(): string[] {
     return ["."];
   }
@@ -685,8 +674,7 @@ function tagToString(tag: ts.JSDocTagInfo): string {
   return tagLabel;
 }
 
-export class SignatureHelpAdapter extends Adapter
-  implements languages.SignatureHelpProvider {
+export class SignatureHelpAdapter extends Adapter implements languages.SignatureHelpProvider {
   public signatureHelpTriggerCharacters = ["(", ","];
 
   private static _toSignatureHelpTriggerReason(
@@ -712,9 +700,7 @@ export class SignatureHelpAdapter extends Adapter
         }
 
       case languages.SignatureHelpTriggerKind.ContentChange:
-        return context.isRetrigger
-          ? { kind: "retrigger" }
-          : { kind: "invoked" };
+        return context.isRetrigger ? { kind: "retrigger" } : { kind: "invoked" };
 
       case languages.SignatureHelpTriggerKind.Invoke:
       default:
@@ -793,8 +779,7 @@ export class SignatureHelpAdapter extends Adapter
 
 // --- hover ------
 
-export class QuickInfoAdapter extends Adapter
-  implements languages.HoverProvider {
+export class QuickInfoAdapter extends Adapter implements languages.HoverProvider {
   public async provideHover(
     model: editor.ITextModel,
     position: Position,
@@ -818,9 +803,7 @@ export class QuickInfoAdapter extends Adapter
     }
 
     const documentation = displayPartsToString(info.documentation);
-    const tags = info.tags
-      ? info.tags.map((tag) => tagToString(tag)).join("  \n\n")
-      : "";
+    const tags = info.tags ? info.tags.map((tag) => tagToString(tag)).join("  \n\n") : "";
     const contents = displayPartsToString(info.displayParts);
     return {
       range: this._textSpanToRange(model, info.textSpan),
@@ -838,8 +821,7 @@ export class QuickInfoAdapter extends Adapter
 
 // --- occurrences ------
 
-export class DocumentHighlightAdapter extends Adapter
-  implements languages.DocumentHighlightProvider {
+export class DocumentHighlightAdapter extends Adapter implements languages.DocumentHighlightProvider {
   public async provideDocumentHighlights(
     model: editor.ITextModel,
     position: Position,
@@ -930,8 +912,7 @@ export class DefinitionAdapter extends Adapter {
 
 // --- references ------
 
-export class ReferenceAdapter extends Adapter
-  implements languages.ReferenceProvider {
+export class ReferenceAdapter extends Adapter implements languages.ReferenceProvider {
   constructor(
     worker: (...uris: Uri[]) => Promise<TypeScriptWorker>,
   ) {
@@ -983,8 +964,7 @@ export class ReferenceAdapter extends Adapter
 
 const outlineTypeTable: { [kind: string]: languages.SymbolKind } = {};
 
-export class OutlineAdapter extends Adapter
-  implements languages.DocumentSymbolProvider {
+export class OutlineAdapter extends Adapter implements languages.DocumentSymbolProvider {
   public async provideDocumentSymbols(
     model: editor.ITextModel,
     token: CancellationToken,
@@ -1021,9 +1001,7 @@ export class OutlineAdapter extends Adapter
     };
 
     // Exclude the root node, as it alwas spans the entire document.
-    const result = root.childItems
-      ? root.childItems.map((item) => convert(item))
-      : [];
+    const result = root.childItems ? root.childItems.map((item) => convert(item)) : [];
     return result;
   }
 }
@@ -1096,8 +1074,7 @@ export abstract class FormatHelper extends Adapter {
   }
 }
 
-export class FormatAdapter extends FormatHelper
-  implements languages.DocumentRangeFormattingEditProvider {
+export class FormatAdapter extends FormatHelper implements languages.DocumentRangeFormattingEditProvider {
   readonly canFormatMultipleRanges = false;
 
   public async provideDocumentRangeFormattingEdits(
@@ -1136,8 +1113,7 @@ export class FormatAdapter extends FormatHelper
   }
 }
 
-export class FormatOnTypeAdapter extends FormatHelper
-  implements languages.OnTypeFormattingEditProvider {
+export class FormatOnTypeAdapter extends FormatHelper implements languages.OnTypeFormattingEditProvider {
   get autoFormatTriggerCharacters() {
     return [";", "}", "\n"];
   }
@@ -1174,8 +1150,7 @@ export class FormatOnTypeAdapter extends FormatHelper
 
 // --- code actions ------
 
-export class CodeActionAdaptor extends FormatHelper
-  implements languages.CodeActionProvider {
+export class CodeActionAdaptor extends FormatHelper implements languages.CodeActionProvider {
   public async provideCodeActions(
     model: editor.ITextModel,
     range: Range,
@@ -1331,8 +1306,7 @@ export class RenameAdapter extends Adapter implements languages.RenameProvider {
 
 // --- inlay hints ----
 
-export class InlayHintsAdapter extends Adapter
-  implements languages.InlayHintsProvider {
+export class InlayHintsAdapter extends Adapter implements languages.InlayHintsProvider {
   public async provideInlayHints(
     model: editor.ITextModel,
     range: Range,

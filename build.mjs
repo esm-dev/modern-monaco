@@ -10,14 +10,10 @@ javascriptGrammar.aliases?.push("mjs", "cjs", "jsx");
 typescriptGrammar.aliases?.push("mts", "cts", "tsx");
 
 const tmDefine = {
-  "TM_THEMES": JSON.stringify(
-    tmThemes.map((v) => v.name),
-  ),
-  "TM_GRAMMARS": JSON.stringify(
-    tmGrammars.map((v) => ({ name: v.name, aliases: v.aliases })),
-  ),
+  "TM_THEMES": JSON.stringify(tmThemes.map((v) => v.name)),
+  "TM_GRAMMARS": JSON.stringify(tmGrammars.map((v) => ({ name: v.name, aliases: v.aliases }))),
 };
-const build = (/** @type {string[]} */ entryPoints, external, define) => {
+const build = (/** @type {string[]} */ entryPoints, define) => {
   return esbuild({
     target: "esnext",
     format: "esm",
@@ -33,9 +29,9 @@ const build = (/** @type {string[]} */ entryPoints, external, define) => {
       "typescript",
       "*/libs.js",
       "*/worker.js",
+      "*/editor-core.js",
       "*/editor-worker.js",
       "*/setup.js",
-      ...(external ?? []),
     ],
     entryPoints,
   });
@@ -61,8 +57,8 @@ const bundleTypescriptLibs = async () => {
   );
 };
 const modifyEditorJs = async () => {
-  const css = await readFile("dist/editor.css", "utf-8");
-  const js = (await readFile("dist/editor.js", "utf-8"))
+  const css = await readFile("dist/editor-core.css", "utf-8");
+  const js = (await readFile("dist/editor-core.js", "utf-8"))
     // patch: try to get the `fontMaxDigitWidth` value from the `extraEditorClassName` option
     // the option `fontMaxDigitWidth` uaually is set with SSR mode to keep the line numbers
     // layout consistent with the client side.
@@ -71,7 +67,7 @@ const modifyEditorJs = async () => {
       "* (Number(options2.get(140).match(/font-max-digit-width-([\\d\\_]+)/)?.[1].replace('_','.')) || maxDigitWidth))",
     );
   await writeFile(
-    "dist/editor.js",
+    "dist/editor-core.js",
     "export const _CSS = " + JSON.stringify(css) + "\n" + js,
     "utf-8",
   );
@@ -88,7 +84,7 @@ await copyDts(
   ["monaco-editor-core/esm/vs/editor/editor.api.d.ts", "monaco.d.ts"],
 );
 await build([
-  "src/editor.ts",
+  "src/editor-core.ts",
   "src/editor-worker.ts",
   "src/lsp/html/setup.ts",
   "src/lsp/html/worker.ts",
@@ -99,6 +95,6 @@ await build([
   "src/lsp/typescript/setup.ts",
   "src/lsp/typescript/worker.ts",
 ]);
-await build(["src/index.ts"], ["*/editor.js"], tmDefine);
+await build(["src/index.ts"], tmDefine);
 await modifyEditorJs();
 await bundleTypescriptLibs();

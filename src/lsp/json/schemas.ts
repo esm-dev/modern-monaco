@@ -11,11 +11,9 @@ export const schemas: SchemaConfiguration[] = [
     ],
     schema: {
       $schema: "http://json-schema.org/draft-07/schema#",
-      $id:
-        "https://github.com/denoland/vscode_deno/blob/main/schemas/import_map.schema.json",
+      $id: "https://github.com/denoland/vscode_deno/blob/main/schemas/import_map.schema.json",
       title: "An Import Map",
-      description:
-        "An import map which is used to remap imports when modules are loaded.",
+      description: "An import map which is used to remap imports when modules are loaded.",
       type: "object",
       properties: {
         imports: {
@@ -34,8 +32,7 @@ export const schemas: SchemaConfiguration[] = [
           },
         },
         scopes: {
-          description:
-            "Define a scope which remaps a specifier in only a specified scope",
+          description: "Define a scope which remaps a specifier in only a specified scope",
           type: "object",
           additionalProperties: {
             description: "A definition of a scoped remapping.",

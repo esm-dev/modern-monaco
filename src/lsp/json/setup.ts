@@ -20,7 +20,7 @@ export function setup(
         schemaRequest: "warning",
         schemaValidation: "warning",
         comments: "error",
-        trailingCommas: "error"
+        trailingCommas: "error",
       },
       format: {
         tabSize: 4,

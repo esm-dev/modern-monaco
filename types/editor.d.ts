@@ -71,7 +71,7 @@ export interface FormatOptions {
     insertFinalNewline?: boolean;
     insertSpaces?: boolean;
     keepLines?: boolean;
-    tabSize?: uinteger;
+    tabSize?: number;
     trimFinalNewlines?: boolean;
     trimTrailingWhitespace?: boolean;
   };
@@ -97,11 +97,11 @@ export interface FormatOptions {
     insertSpaceBeforeTypeAnnotation?: boolean;
     placeOpenBraceOnNewLineForControlBlocks?: boolean;
     placeOpenBraceOnNewLineForFunctions?: boolean;
-    semicolons?: SemicolonPreference;
+    semicolons?: "ignore" | "insert" | "remove";
     baseIndentSize?: number;
     convertTabsToSpaces?: boolean;
     indentSize?: number;
-    indentStyle?: IndentStyle;
+    indentStyle?: number;
     newLineCharacter?: string;
     tabSize?: number;
     trimTrailingWhitespace?: boolean;
@@ -127,7 +127,7 @@ export interface InitOptions extends ShikiInitOptions {
 }
 
 export interface RenderOptions
-  extends editor.IStandaloneEditorConstructionOptions {
+  extends monacoNS.editor.IStandaloneEditorConstructionOptions {
   lang: string;
   code: string;
   filename?: string;
@@ -137,7 +137,7 @@ export interface RenderOptions
 }
 
 export function init(options?: InitOptions): Promise<typeof monacoNS>;
-export function lazyMode(options?: InitOptions): void;
+export function lazy(options?: InitOptions): void;
 export function renderToString(options: RenderOptions): Promise<string>;
 
 export * from "./vfs";

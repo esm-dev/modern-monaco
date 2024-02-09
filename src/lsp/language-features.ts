@@ -148,9 +148,7 @@ function toDiagnostics(
   resource: Uri,
   diag: lsTypes.Diagnostic,
 ): editor.IMarkerData {
-  let code = typeof diag.code === "number"
-    ? String(diag.code)
-    : <string> diag.code;
+  let code = typeof diag.code === "number" ? String(diag.code) : <string> diag.code;
 
   return {
     severity: toSeverity(diag.severity),
@@ -175,8 +173,7 @@ export interface ILanguageWorkerWithCompletions {
   ): Promise<lsTypes.CompletionList | null>;
 }
 
-export class CompletionAdapter<T extends ILanguageWorkerWithCompletions>
-  implements languages.CompletionItemProvider {
+export class CompletionAdapter<T extends ILanguageWorkerWithCompletions> implements languages.CompletionItemProvider {
   constructor(
     private readonly _worker: WorkerAccessor<T>,
     private readonly _triggerCharacters: string[],
@@ -239,8 +236,7 @@ export class CompletionAdapter<T extends ILanguageWorkerWithCompletions>
             >(toTextEdit);
           }
           if (entry.insertTextFormat === lsTypes.InsertTextFormat.Snippet) {
-            item.insertTextRules =
-              M.languages.CompletionItemInsertTextRule.InsertAsSnippet;
+            item.insertTextRules = M.languages.CompletionItemInsertTextRule.InsertAsSnippet;
           }
           return item;
         });
@@ -390,8 +386,7 @@ export interface ILanguageWorkerWithHover {
   ): Promise<lsTypes.Hover | null>;
 }
 
-export class HoverAdapter<T extends ILanguageWorkerWithHover>
-  implements languages.HoverProvider {
+export class HoverAdapter<T extends ILanguageWorkerWithHover> implements languages.HoverProvider {
   constructor(private readonly _worker: WorkerAccessor<T>) {}
 
   provideHover(
@@ -530,8 +525,7 @@ export interface ILanguageWorkerWithDefinitions {
   ): Promise<lsTypes.Location | null>;
 }
 
-export class DefinitionAdapter<T extends ILanguageWorkerWithDefinitions>
-  implements languages.DefinitionProvider {
+export class DefinitionAdapter<T extends ILanguageWorkerWithDefinitions> implements languages.DefinitionProvider {
   constructor(private readonly _worker: WorkerAccessor<T>) {}
 
   public provideDefinition(
@@ -575,8 +569,7 @@ export interface ILanguageWorkerWithReferences {
   ): Promise<lsTypes.Location[]>;
 }
 
-export class ReferenceAdapter<T extends ILanguageWorkerWithReferences>
-  implements languages.ReferenceProvider {
+export class ReferenceAdapter<T extends ILanguageWorkerWithReferences> implements languages.ReferenceProvider {
   constructor(private readonly _worker: WorkerAccessor<T>) {}
 
   provideReferences(
@@ -615,8 +608,7 @@ export interface ILanguageWorkerWithRename {
   ): Promise<lsTypes.WorkspaceEdit | null>;
 }
 
-export class RenameAdapter<T extends ILanguageWorkerWithRename>
-  implements languages.RenameProvider {
+export class RenameAdapter<T extends ILanguageWorkerWithRename> implements languages.RenameProvider {
   constructor(private readonly _worker: WorkerAccessor<T>) {}
 
   provideRenameEdits(
@@ -782,8 +774,7 @@ export interface ILanguageWorkerWithDocumentLinks {
   findDocumentLinks(uri: string): Promise<lsTypes.DocumentLink[]>;
 }
 
-export class DocumentLinkAdapter<T extends ILanguageWorkerWithDocumentLinks>
-  implements languages.LinkProvider {
+export class DocumentLinkAdapter<T extends ILanguageWorkerWithDocumentLinks> implements languages.LinkProvider {
   constructor(private _worker: WorkerAccessor<T>) {}
 
   public provideLinks(
@@ -969,8 +960,7 @@ export interface ILanguageWorkerWithFoldingRanges {
   ): Promise<lsTypes.FoldingRange[]>;
 }
 
-export class FoldingRangeAdapter<T extends ILanguageWorkerWithFoldingRanges>
-  implements languages.FoldingRangeProvider {
+export class FoldingRangeAdapter<T extends ILanguageWorkerWithFoldingRanges> implements languages.FoldingRangeProvider {
   constructor(private _worker: WorkerAccessor<T>) {}
 
   public provideFoldingRanges(

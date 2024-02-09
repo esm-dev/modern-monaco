@@ -96,9 +96,7 @@ async function loadCompilerOptions(vfs: VFS) {
       }
       return null;
     })).then((entries) => {
-      compilerOptions.$types = entries.map(([url]) => url).filter((url) =>
-        url.startsWith("file://")
-      );
+      compilerOptions.$types = entries.map(([url]) => url).filter((url) => url.startsWith("file://"));
       lf.libFiles.setExtraLibs(Object.fromEntries(entries.filter(Boolean)));
     });
     compilerOptions.$src = toUrl("tsconfig.json").href;
@@ -124,9 +122,7 @@ async function loadImportMap(vfs: VFS, postload: (im: ImportMap) => ImportMap) {
     );
     if (scriptEl) {
       const im = parseImportMapFromJson(
-        scriptEl.src
-          ? await vfs.readTextFile(scriptEl.src)
-          : scriptEl.textContent,
+        scriptEl.src ? await vfs.readTextFile(scriptEl.src) : scriptEl.textContent,
       );
       im.$src = toUrl(scriptEl.src ? scriptEl.src : "index.html").href;
       return postload(im);
@@ -226,12 +222,11 @@ async function createWorker(
     } satisfies Host,
   });
 
-  const updateCompilerOptions: TypeScriptWorker["updateCompilerOptions"] =
-    async (options) => {
-      const proxy = await worker.getProxy();
-      await proxy.updateCompilerOptions(options);
-      refreshDiagnosticEventEmitter?.fire();
-    };
+  const updateCompilerOptions: TypeScriptWorker["updateCompilerOptions"] = async (options) => {
+    const proxy = await worker.getProxy();
+    await proxy.updateCompilerOptions(options);
+    refreshDiagnosticEventEmitter?.fire();
+  };
 
   if (vfs) {
     const watchTypes = () =>

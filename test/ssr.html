@@ -25,9 +25,9 @@
 <body>
   {SSR}
   <script type="module">
-    import { lazyMode } from '/index.js';
+    import { lazy } from '/index.js';
     import { vfs } from '/vfs.js';
-    lazyMode({ vfs, ssr: true });
+    lazy({ vfs, ssr: true });
   </script>
 </body>
 

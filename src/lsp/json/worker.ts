@@ -45,8 +45,7 @@ export class JSONWorker {
           return url.href;
         },
       },
-      schemaRequestService: (url: string) =>
-        fetch(url).then((response) => response.text()),
+      schemaRequestService: (url: string) => fetch(url).then((response) => response.text()),
       clientCapabilities: jsonService.ClientCapabilities.LATEST,
     });
     this._languageService.configure(this._languageSettings);
