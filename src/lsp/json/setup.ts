@@ -64,7 +64,7 @@ export function setup(
     }
   }
 
-  lf.preclude(monaco);
+  lf.prelude(monaco);
   languages.registerDocumentFormattingEditProvider(
     languageId,
     new lf.DocumentFormattingEditProvider(workerAccessor),

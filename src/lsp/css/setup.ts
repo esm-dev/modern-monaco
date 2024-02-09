@@ -39,7 +39,7 @@ export function setup(
     return worker.withSyncedResources(uris);
   };
 
-  lf.preclude(monaco);
+  lf.prelude(monaco);
   languages.registerCompletionItemProvider(
     languageId,
     new lf.CompletionAdapter(workerAccessor, ["/", "-", ":"]),

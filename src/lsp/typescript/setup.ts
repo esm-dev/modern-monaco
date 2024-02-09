@@ -97,7 +97,7 @@ async function loadCompilerOptions(vfs: VFS) {
       return null;
     })).then((entries) => {
       compilerOptions.$types = entries.map(([url]) => url).filter((url) => url.startsWith("file://"));
-      lf.libFiles.setExtraLibs(Object.fromEntries(entries.filter(Boolean)));
+      lf.types.setTypes(Object.fromEntries(entries.filter(Boolean)));
     });
     compilerOptions.$src = toUrl("tsconfig.json").href;
     Object.assign(compilerOptions, tconfig.compilerOptions);
@@ -184,12 +184,12 @@ async function createWorker(
   }
 
   const [libs] = await Promise.all(promises);
-  lf.libFiles.setLibs(libs);
+  lf.types.setLibs(libs);
 
   const createData: CreateData = {
     compilerOptions,
     libs,
-    extraLibs: lf.libFiles.extraLibs,
+    types: lf.types.types,
     importMap,
     formatOptions: {
       tabSize: 4,
@@ -233,12 +233,12 @@ async function createWorker(
       (compilerOptions.$types as string[] ?? []).map((url) =>
         vfs.watch(url, async (e) => {
           if (e.kind === "remove") {
-            lf.libFiles.removeExtraLib(url);
+            lf.types.removeType(url);
           } else {
             const content = await vfs.readTextFile(url);
-            lf.libFiles.addExtraLib(content, url);
+            lf.types.addType(content, url);
           }
-          updateCompilerOptions({ extraLibs: lf.libFiles.extraLibs });
+          updateCompilerOptions({ types: lf.types.types });
         })
       );
     const watchImportMap = () => {
@@ -266,7 +266,7 @@ async function createWorker(
           compilerOptions = newOptions;
           updateCompilerOptions({
             compilerOptions,
-            extraLibs: lf.libFiles.extraLibs,
+            types: lf.types.types,
           });
         }
         disposes = watchTypes();
@@ -317,7 +317,7 @@ export async function setup(
   };
 
   // register language features
-  lf.preclude(monaco);
+  lf.prelude(monaco);
   languages.registerCompletionItemProvider(
     languageId,
     new lf.SuggestAdapter(workerWithResources),

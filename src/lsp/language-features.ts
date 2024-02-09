@@ -20,7 +20,7 @@ import type {
 import * as lsTypes from "vscode-languageserver-types";
 
 let M = {} as unknown as typeof import("monaco-editor-core");
-export function preclude(monaco: typeof M) {
+export function prelude(monaco: typeof M) {
   M = monaco;
 }
 

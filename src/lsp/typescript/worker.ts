@@ -15,7 +15,7 @@ export interface Host {
   refreshDiagnostics: () => Promise<void>;
 }
 
-export interface ExtraLib {
+export interface VersionedContent {
   content: string;
   version: number;
 }
@@ -23,7 +23,7 @@ export interface ExtraLib {
 export interface CreateData {
   compilerOptions: ts.CompilerOptions;
   libs: Record<string, string>;
-  extraLibs: Record<string, ExtraLib>;
+  types: Record<string, VersionedContent>;
   importMap: ImportMap;
   formatOptions?: ts.FormatCodeSettings;
   inlayHintsOptions?: ts.UserPreferences;
@@ -49,7 +49,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   private _importMapVersion: number;
   private _isBlankImportMap: boolean;
   private _libs: Record<string, string>;
-  private _extraLibs: Record<string, ExtraLib>;
+  private _types: Record<string, VersionedContent>;
   private _formatOptions?: ts.FormatCodeSettings;
   private _inlayHintsOptions?: ts.UserPreferences;
   private _languageService = ts.createLanguageService(this);
@@ -69,7 +69,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     this._importMapVersion = 0;
     this._isBlankImportMap = isBlank(createData.importMap);
     this._libs = createData.libs;
-    this._extraLibs = createData.extraLibs;
+    this._types = createData.types;
     this._formatOptions = createData.formatOptions;
     this._inlayHintsOptions = createData.inlayHintsOptions;
   }
@@ -97,15 +97,15 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     return this._ctx.getMirrorModels()
       .map((model) => model.uri.toString())
       .concat(
-        Object.keys(this._extraLibs),
+        Object.keys(this._types),
         [...this._httpLibs.keys()],
         [...this._httpModules.keys()],
       );
   }
 
   getScriptVersion(fileName: string): string {
-    if (fileName in this._extraLibs) {
-      return String(this._extraLibs[fileName].version);
+    if (fileName in this._types) {
+      return String(this._types[fileName].version);
     }
     let model = this._getModel(fileName);
     if (model) {
@@ -132,7 +132,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
 
   getScriptKind(fileName: string): ts.ScriptKind {
     if (
-      fileName in this._libs || fileName in this._extraLibs ||
+      fileName in this._libs || fileName in this._types ||
       this._httpLibs.has(fileName)
     ) {
       return ts.ScriptKind.TS;
@@ -171,7 +171,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     switch (options.target) {
       case 99 /* ESNext */:
         const esnext = "lib.esnext.full.d.ts";
-        if (esnext in this._libs || esnext in this._extraLibs) return esnext;
+        if (esnext in this._libs || esnext in this._types) return esnext;
       case 7 /* ES2020 */:
       case 6 /* ES2019 */:
       case 5 /* ES2018 */:
@@ -182,10 +182,10 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
         // Support a dynamic lookup for the ES20XX version based on the target
         // which is safe unless TC39 changes their numbering system
         const eslib = `lib.es${2013 + (options.target || 99)}.full.d.ts`;
-        // Note: This also looks in _extraLibs, If you want
+        // Note: This also looks in _types, If you want
         // to add support for additional target options, you will need to
-        // add the extra dts files to _extraLibs via the API.
-        if (eslib in this._libs || eslib in this._extraLibs) {
+        // add the extra dts files to _types via the API.
+        if (eslib in this._libs || eslib in this._types) {
           return eslib;
         }
 
@@ -702,11 +702,11 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   async updateCompilerOptions({
     compilerOptions,
     importMap,
-    extraLibs,
+    types,
   }: {
     compilerOptions?: ts.CompilerOptions;
     importMap?: ImportMap;
-    extraLibs?: Record<string, ExtraLib>;
+    types?: Record<string, VersionedContent>;
   }): Promise<void> {
     if (compilerOptions) {
       this._compilerOptions = compilerOptions;
@@ -716,8 +716,8 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
       this._importMapVersion++;
       this._isBlankImportMap = isBlank(importMap);
     }
-    if (extraLibs) {
-      this._extraLibs = extraLibs;
+    if (types) {
+      this._types = types;
     }
   }
 
@@ -799,7 +799,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     return (
       fileName in this._libs ||
       `lib.${fileName}.d.ts` in this._libs ||
-      fileName in this._extraLibs ||
+      fileName in this._types ||
       this._httpLibs.has(fileName) ||
       this._httpModules.has(fileName)
     );
@@ -812,7 +812,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     }
     return this._libs[fileName] ??
       this._libs[`lib.${fileName}.d.ts`] ??
-      this._extraLibs[fileName]?.content ??
+      this._types[fileName]?.content ??
       this._httpLibs.get(fileName) ??
       this._httpModules.get(fileName);
   }
