@@ -19,15 +19,194 @@
       width: 100%;
       height: 100%;
     }
+
+    button.folder,
+    ul.selector {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      position: fixed;
+      left: 20px;
+      bottom: 20px;
+      background-color: rgba(250, 250, 250, 0.05);
+      color: rgba(255, 255, 255, 0.6);
+      padding: 10px 16px;
+      border-radius: 10px;
+      border: 1px rgba(250, 250, 250, 0.1) solid;
+      font-size: 14px;
+      font-weight: 500;
+      font-family: inter;
+      line-height: 1;
+      cursor: pointer;
+      transition: all 0.3s ease-in-out;
+    }
+
+    button.folder:hover {
+      color: rgba(255, 255, 255, 0.9);
+      background-color: rgba(250, 250, 250, 0.1);
+      border-color: rgba(250, 250, 250, 0.2);
+    }
+
+    button.folder svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    button.folder .folder-icon-open {
+      display: none;
+    }
+
+    button.folder:is(.open) .folder-icon {
+      display: none;
+    }
+
+    button.folder:is(.open) .folder-icon-open {
+      display: block;
+    }
+
+    ul.selector {
+      list-style: none;
+      display: none;
+      flex-direction: column;
+      gap: 0;
+      align-items: flex-start;
+      bottom: 40px;
+      opacity: 0;
+      font-weight: 400;
+      border-color: rgba(250, 250, 250, 0.2);
+    }
+
+    ul.selector.open {
+      display: flex;
+      bottom: 55px;
+      opacity: 1;
+      animation: in 0.3s ease-in-out;
+    }
+
+    ul.selector.closing {
+      display: flex;
+      pointer-events: none;
+      animation: out 0.3s ease-in-out;
+    }
+
+    @keyframes in {
+      from {
+        opacity: 0;
+        bottom: 40px;
+      }
+
+      to {
+        opacity: 1;
+        bottom: 55px;
+      }
+    }
+
+    @keyframes out {
+      from {
+        opacity: 1;
+        bottom: 55px;
+      }
+
+      to {
+        opacity: 0;
+        bottom: 40px;
+      }
+    }
+
+    ul.selector li {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      height: 32px;
+      transition: color 0.3s ease-in-out;
+    }
+
+    ul.selector li:hover,
+    ul.selector li.selected {
+      color: rgba(255, 255, 255, 1);
+    }
+
+    ul.selector li svg {
+      width: 20px;
+      height: 20px;
+    }
   </style>
 </head>
 
 <body>
-  <monaco-editor file="App.tsx" padding="8"></monaco-editor>
+  <monaco-editor padding="8"></monaco-editor>
+  <button class="folder"></button>
+  <ul class="selector"></ul>
+  <template class="icons">
+    <svg class="folder-icon" xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 256 256">
+      <g fill="currentColor">
+        <path d="m128 80l-29.87 22.4a8 8 0 0 1-4.8 1.6H32V64a8 8 0 0 1 8-8h53.33a8 8 0 0 1 4.8 1.6Z" opacity=".2" />
+        <path
+          d="M216 72h-85.33l-27.74-20.8a16.12 16.12 0 0 0-9.6-3.2H40a16 16 0 0 0-16 16v136a16 16 0 0 0 16 16h176a16 16 0 0 0 16-16V88a16 16 0 0 0-16-16M40 64h53.33l21.34 16l-21.34 16H40Zm176 136H40v-88h53.33a16.12 16.12 0 0 0 9.6-3.2L130.67 88H216Z" />
+      </g>
+    </svg>
+    <svg class="folder-icon-open" xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 256 256">
+      <g fill="currentColor">
+        <path
+          d="M208 88v24h-61.58a8.07 8.07 0 0 0-4.44 1.34l-20 13.32a8.07 8.07 0 0 1-4.44 1.34H69.42a8 8 0 0 0-7.42 5l-30 75V64a8 8 0 0 1 8-8h53.33a8 8 0 0 1 4.8 1.6l27.74 20.8a8 8 0 0 0 4.8 1.6H200a8 8 0 0 1 8 8"
+          opacity=".2" />
+        <path
+          d="M245 110.64a16 16 0 0 0-13-6.64h-16V88a16 16 0 0 0-16-16h-69.33l-27.73-20.8a16.14 16.14 0 0 0-9.6-3.2H40a16 16 0 0 0-16 16v144a8 8 0 0 0 8 8h179.1a8 8 0 0 0 7.59-5.47l28.49-85.47a16.05 16.05 0 0 0-2.18-14.42M93.34 64l27.73 20.8a16.12 16.12 0 0 0 9.6 3.2H200v16h-53.57a16 16 0 0 0-8.88 2.69l-20 13.31H69.42a15.94 15.94 0 0 0-14.86 10.06L40 166.46V64Zm112 136H43.82l25.6-64h48.16a16 16 0 0 0 8.88-2.69l20-13.31H232Z" />
+      </g>
+    </svg>
+    <svg class="file-icon" xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24">
+      <path fill="currentColor"
+        d="M20 8.94a1.31 1.31 0 0 0-.06-.27v-.09a1.07 1.07 0 0 0-.19-.28l-6-6a1.07 1.07 0 0 0-.28-.19h-.09L13.06 2H7a3 3 0 0 0-3 3v14a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3V9zm-6-3.53L16.59 8H14ZM18 19a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h5v5a1 1 0 0 0 1 1h5Z" />
+    </svg>
+  </template>
   <script type="module">
     import { lazy } from '/index.js';
     import { vfs } from '/vfs.js';
     lazy({ vfs });
+
+    const list = await vfs.list()
+    const folderButton = document.querySelector('button.folder')
+    const selector = document.querySelector('ul.selector')
+    const icons = document.querySelector('template.icons').content
+    const toggleFolder = () => {
+      folderButton.classList.toggle('open')
+      selector.classList.toggle('open')
+      if (selector.classList.contains('open')) {
+        setTimeout(() => {
+          selector.addEventListener('mouseleave', toggleFolder)
+        }, 300);
+      } else {
+        selector.removeEventListener('mouseleave', toggleFolder)
+        selector.classList.add('closing')
+        setTimeout(() => {
+          selector.classList.remove('closing')
+        }, 300);
+      }
+    }
+    let currentFile = vfs.state.activeFile.slice('file:///'.length)
+    folderButton.prepend(...icons.querySelectorAll('.folder-icon, .folder-icon-open'), currentFile)
+    folderButton.addEventListener('click', toggleFolder)
+    list.forEach(file => {
+      const option = document.createElement('li')
+      const filename = file.slice('file:///'.length)
+      option.textContent = filename
+      option.prepend(icons.querySelector('.file-icon').cloneNode(true))
+      if (filename === currentFile) {
+        option.classList.add('selected')
+      }
+      option.addEventListener('click', () => {
+        currentFile = filename
+        folderButton.childNodes[2].textContent = filename
+        selector.querySelectorAll('li').forEach(li => {
+          li.classList.remove('selected')
+        })
+        option.classList.add('selected')
+        toggleFolder()
+        vfs.openModel(file, true)
+      })
+      selector.appendChild(option)
+    })
   </script>
 </body>
 
