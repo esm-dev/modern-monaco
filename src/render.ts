@@ -55,7 +55,6 @@ export function renderMockEditor(
     lang,
     code,
     padding,
-    fontFamily = EDITOR_FONT_DEFAULTS.fontFamily,
     fontWeight = EDITOR_FONT_DEFAULTS.fontWeight,
     fontSize = EDITOR_FONT_DEFAULTS.fontSize,
     lineHeight = 0,
@@ -64,6 +63,10 @@ export function renderMockEditor(
     lineDecorationsWidth = 10,
     fontMaxDigitWidth,
   } = options;
+  const fontFamily = [
+    options.fontFamily ? normalizeFontFamily(options.fontFamily) : null,
+    EDITOR_FONT_DEFAULTS.fontFamily,
+  ].filter(Boolean).join(", ");
 
   let computedlineHeight = lineHeight || fontSize * GOLDEN_LINE_HEIGHT_RATIO;
   if (computedlineHeight < MINIMUM_LINE_HEIGHT) {
@@ -73,7 +76,7 @@ export function renderMockEditor(
   const lines = countLines(code);
   const lineNumbers = Array.from(
     { length: lines },
-    (_, i) => `<code>${i + 1}</code>`,
+    (_, i) => `<span>${i + 1}</span>`,
   );
   const maxDigitWidth = Math.max(
     fontMaxDigitWidth ??
@@ -127,13 +130,13 @@ export function renderMockEditor(
     "align-items:flex-end",
     "user-select:none",
     `color:${LINE_NUMBERS_COLOR}`,
-    `width:${lineNumbersWidth}px;`,
+    `width:${lineNumbersWidth}px`,
   ];
   const shikiStyle = html.slice(styleIndex, html.indexOf('"', styleIndex));
-  const finHtml = html.slice(0, styleIndex) + lineStyle.join(";") +
-    html.slice(styleIndex);
+  const finHtml = html.slice(0, styleIndex) + lineStyle.join(";") + ";" + html.slice(styleIndex);
   style.push(shikiStyle);
   return `<div style="${style.join(";")}">
+<style>.shiki code {${lineStyle.join(";")}}</style>
 <div style="${lineNumbersStyle.join(";")}">
 ${lineNumbers.join("")}
 </div>
@@ -163,4 +166,13 @@ function countLines(str: string) {
     if (str[i] === "\n" || str[i] === "\r") n++;
   }
   return n;
+}
+
+function normalizeFontFamily(fontFamily: string) {
+  return fontFamily
+    .split(",")
+    .map((f) => f.replace(/['"]+/g, "").trim())
+    .filter(Boolean)
+    .map((f) => (f.includes(" ") ? `'${f}'` : f))
+    .join(", ");
 }
