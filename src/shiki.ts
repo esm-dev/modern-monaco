@@ -4,7 +4,7 @@ import loadWasm from "@shikijs/core/wasm-inlined";
 import { getHighlighterCore } from "@shikijs/core";
 import { version as tmGrammersVersion } from "../node_modules/tm-grammars/package.json";
 import { version as tmThemesVersion } from "../node_modules/tm-themes/package.json";
-import { vfetch } from "./vfs";
+import { vfetch, type VFS } from "./vfs";
 
 // @ts-expect-error `TM_GRAMMARS` is defined at build time
 const tmGrammars: { name: string; aliases?: string[] }[] = TM_GRAMMARS;
@@ -32,7 +32,7 @@ export async function initShiki({
   if (preloadGrammars.length > 0) {
     langs.push(
       ...await Promise.all(
-        preloadGrammars.map((src) =>
+        Array.from(new Set(preloadGrammars)).map((src) =>
           src.startsWith("https://")
             ? { name: src }
             : tmGrammars.find((g) => g.name === src || g.aliases?.includes(src))
@@ -79,6 +79,23 @@ export function getLanguageIdFromPath(path: string) {
     }
   }
 }
+
+/** Get all grammars in the given VFS. */
+export const getGrammarsInVFS = async (vfs: VFS) => {
+  const grammars = new Set<string>();
+  try {
+    const list = await vfs.list();
+    for (const path of list) {
+      const lang = getLanguageIdFromPath(path);
+      if (lang) {
+        grammars.add(lang);
+      }
+    }
+  } catch {
+    // ignore vfs error
+  }
+  return grammars;
+};
 
 /** Load a TextMate theme from the given source. */
 export function loadTMTheme(src: string) {

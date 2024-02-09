@@ -6,6 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ESM&gt;Monaco</title>
   <link rel="modulepreload" href="/vfs.js">
+  <link rel="modulepreload" href="/index.js">
+  <link rel="modulepreload" href="/editor-core.js">
   <style>
     html,
     body {
@@ -24,15 +26,15 @@
     ul.selector {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
       position: fixed;
-      left: 20px;
+      right: 20px;
       bottom: 20px;
-      background-color: rgba(250, 250, 250, 0.05);
+      background-color: rgba(255, 255, 255, 0.05);
       color: rgba(255, 255, 255, 0.6);
       padding: 10px 16px;
       border-radius: 10px;
-      border: 1px rgba(250, 250, 250, 0.1) solid;
+      border: 1px rgba(255, 255, 255, 0.1) solid;
       font-size: 14px;
       font-weight: 500;
       font-family: inter;
@@ -43,8 +45,9 @@
 
     button.folder:hover {
       color: rgba(255, 255, 255, 0.9);
-      background-color: rgba(250, 250, 250, 0.1);
-      border-color: rgba(250, 250, 250, 0.2);
+      background-color: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.2);
+      box-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
     }
 
     button.folder svg {
@@ -73,7 +76,7 @@
       bottom: 40px;
       opacity: 0;
       font-weight: 400;
-      border-color: rgba(250, 250, 250, 0.2);
+      border-color: rgba(255, 255, 255, 0.2);
     }
 
     ul.selector.open {
@@ -117,7 +120,7 @@
       width: 100%;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
       height: 32px;
       transition: color 0.3s ease-in-out;
     }
@@ -128,14 +131,23 @@
     }
 
     ul.selector li svg {
-      width: 20px;
-      height: 20px;
+      display: none;
+      width: 18px;
+      height: 18px;
+    }
+
+    ul.selector li:not(.selected) svg.file-icon {
+      display: block;
+    }
+
+    ul.selector li:is(.selected) svg.file-icon-edit {
+      display: block;
     }
   </style>
 </head>
 
 <body>
-  <monaco-editor padding="8"></monaco-editor>
+  <monaco-editor fontSize="18" fontFamily="dank mono" padding="8"></monaco-editor>
   <button class="folder"></button>
   <ul class="selector"></ul>
   <template class="icons">
@@ -157,7 +169,11 @@
     </svg>
     <svg class="file-icon" xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24">
       <path fill="currentColor"
-        d="M20 8.94a1.31 1.31 0 0 0-.06-.27v-.09a1.07 1.07 0 0 0-.19-.28l-6-6a1.07 1.07 0 0 0-.28-.19h-.09L13.06 2H7a3 3 0 0 0-3 3v14a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3V9zm-6-3.53L16.59 8H14ZM18 19a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h5v5a1 1 0 0 0 1 1h5Z" />
+        d="M9 10h1a1 1 0 0 0 0-2H9a1 1 0 0 0 0 2m0 2a1 1 0 0 0 0 2h6a1 1 0 0 0 0-2Zm11-3.06a1.31 1.31 0 0 0-.06-.27v-.09a1.07 1.07 0 0 0-.19-.28l-6-6a1.07 1.07 0 0 0-.28-.19a.32.32 0 0 0-.09 0a.88.88 0 0 0-.33-.11H7a3 3 0 0 0-3 3v14a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3V9zm-6-3.53L16.59 8H15a1 1 0 0 1-1-1ZM18 19a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h5v3a3 3 0 0 0 3 3h3Zm-3-3H9a1 1 0 0 0 0 2h6a1 1 0 0 0 0-2" />
+    </svg>
+    <svg class="file-icon-edit" xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24">
+      <path fill="currentColor"
+        d="m20.71 16.71l-2.42-2.42a1 1 0 0 0-1.42 0l-3.58 3.58a1 1 0 0 0-.29.71V21a1 1 0 0 0 1 1h2.42a1 1 0 0 0 .71-.29l3.58-3.58a1 1 0 0 0 0-1.42M16 20h-1v-1l2.58-2.58l1 1Zm-6 0H6a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h5v3a3 3 0 0 0 3 3h3v1a1 1 0 0 0 2 0V8.94a1.31 1.31 0 0 0-.06-.27v-.09a1.07 1.07 0 0 0-.19-.28l-6-6a1.07 1.07 0 0 0-.28-.19a.32.32 0 0 0-.09 0L12.06 2H6a3 3 0 0 0-3 3v14a3 3 0 0 0 3 3h4a1 1 0 0 0 0-2m3-14.59L15.59 8H14a1 1 0 0 1-1-1ZM8 14h6a1 1 0 0 0 0-2H8a1 1 0 0 0 0 2m0-4h1a1 1 0 0 0 0-2H8a1 1 0 0 0 0 2m2 6H8a1 1 0 0 0 0 2h2a1 1 0 0 0 0-2" />
     </svg>
   </template>
   <script type="module">
@@ -192,6 +208,7 @@
       const filename = file.slice('file:///'.length)
       option.textContent = filename
       option.prepend(icons.querySelector('.file-icon').cloneNode(true))
+      option.prepend(icons.querySelector('.file-icon-edit').cloneNode(true))
       if (filename === currentFile) {
         option.classList.add('selected')
       }

@@ -4,6 +4,7 @@ export const defaultEditorOptions: editor.IStandaloneEditorConstructionOptions =
   automaticLayout: true,
   minimap: { enabled: false },
   scrollBeyondLastLine: false,
+  smoothScrolling: true,
   theme: "vitesse-dark",
 };
 

@@ -2,7 +2,7 @@ import type monacoNS from "monaco-editor-core";
 import type { HighlighterCore } from "@shikijs/core";
 import { shikiToMonaco } from "@shikijs/monaco";
 import type { ShikiInitOptions } from "./shiki";
-import { getLanguageIdFromPath, initShiki } from "./shiki";
+import { getGrammarsInVFS, getLanguageIdFromPath, initShiki } from "./shiki";
 import { grammarRegistry, loadedGrammars, loadTMGrammer } from "./shiki";
 import lspIndex, { createWorker, normalizeFormatOptions } from "./lsp/index";
 import { renderMockEditor, type RenderOptions } from "./render";
@@ -128,25 +128,19 @@ let ssrHighlighter: HighlighterCore | Promise<HighlighterCore> | undefined;
 /* Initialize and return the monaco editor namespace. */
 export function init(options: InitOption = {}): Promise<typeof monacoNS> {
   if (!loading) {
-    const getGrammarsInVFS = async () => {
+    const load = async () => {
       const vfs = options.vfs;
-      const preloadGrammars = options.preloadGrammars ?? [];
       if (vfs) {
-        try {
-          const list = await vfs.list();
-          for (const path of list) {
-            const lang = getLanguageIdFromPath(path);
-            if (lang && !preloadGrammars.includes(lang)) {
-              preloadGrammars.push(lang);
-            }
-          }
-          options.preloadGrammars = preloadGrammars;
-        } catch {
-          // ignore vfs error
+        const grammars = await getGrammarsInVFS(vfs);
+        if (grammars.size > 0) {
+          const preloadGrammars = options.preloadGrammars ?? (options.preloadGrammars = []);
+          preloadGrammars.push(...grammars);
         }
       }
+      const hightlighter = await initShiki(options);
+      return loadMonaco(hightlighter, options);
     };
-    loading = getGrammarsInVFS().then(() => initShiki(options).then((shiki) => loadMonaco(shiki, options)));
+    loading = load();
   }
   return loading;
 }
@@ -244,14 +238,13 @@ export function lazy(options?: InitOption) {
 
         // crreate a highlighter instance for the renderer/editor
         const preloadGrammars = options?.preloadGrammars ?? [];
-        let file = renderOptions.filename;
+        let file = renderOptions.filename ?? this.getAttribute("file");
         if (!file && vfs) {
           if (vfs.state.activeFile) {
             file = vfs.state.activeFile;
           } else {
             const list = await vfs.list();
-            file = list[0];
-            vfs.state.activeFile = file;
+            vfs.state.activeFile = file = list[0];
           }
         }
         if (renderOptions.lang || file) {
@@ -288,12 +281,6 @@ export function lazy(options?: InitOption) {
           this.appendChild(preRenderEl);
         }
 
-        // add a transition effect to hide the pre-rendered content
-        if (preRenderEl) {
-          preRenderEl.style.opacity = "1";
-          preRenderEl.style.transition = "opacity 0.25s";
-        }
-
         // load monaco editor
         (async () => {
           const monaco = await loadMonacoCore(highlighter);
@@ -321,11 +308,25 @@ export function lazy(options?: InitOption) {
           // hide the prerender element if exists
           if (preRenderEl && workerPromise) {
             workerPromise.then(() => {
-              setTimeout(() => {
-                preRenderEl.style.opacity = "0";
-                setTimeout(() => preRenderEl.remove(), 250);
-              }, 500);
+              const animate = preRenderEl.animate?.([{ opacity: 1 }, { opacity: 0 }], { duration: 200 });
+              if (animate) {
+                animate.finished.then(() => preRenderEl.remove());
+              } else {
+                // don't suuport animation api
+                preRenderEl.remove();
+              }
             });
+          }
+          // load required grammars in background
+          if (vfs) {
+            const grammars = await getGrammarsInVFS(vfs);
+            for (const grammar of grammars) {
+              if (!loadedGrammars.has(grammar)) {
+                loadedGrammars.add(grammar);
+                await highlighter.loadLanguage(loadTMGrammer(grammar));
+                shikiToMonaco(highlighter, monaco);
+              }
+            }
           }
         })();
       }
