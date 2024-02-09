@@ -3,7 +3,7 @@ import type { TmGrammar, TmTheme } from "./tm";
 import type { GrammarInfo } from "./tm-grammars";
 import type { ThemeInfo } from "./tm-themes";
 import type { VFS } from "./vfs";
-import type * as monacoNS from "./monaco";
+import type monacoNS from "./monaco";
 
 export interface FormatOptions {
   tabSize?: number;

@@ -1,4 +1,4 @@
-import type * as monacoNS from "monaco-editor-core";
+import type monacoNS from "monaco-editor-core";
 import type { HighlighterCore } from "@shikijs/core";
 import { shikiToMonaco } from "@shikijs/monaco";
 import type { ShikiInitOptions } from "./shiki";

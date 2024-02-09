@@ -4,10 +4,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as monacoNS from "monaco-editor-core";
-import * as worker from "monaco-editor-core/esm/vs/editor/editor.worker";
+import type monacoNS from "monaco-editor-core";
+import { initialize } from "monaco-editor-core/esm/vs/editor/editor.worker";
 import * as htmlService from "vscode-html-languageservice";
-import { getDocumentRegions } from "./embedded/support";
 
 export interface HTMLDataConfiguration {
   /**
@@ -227,7 +226,7 @@ export class HTMLWorker {
 
 globalThis.onmessage = () => {
   // ignore the first message
-  worker.initialize((ctx, createData) => {
+  initialize((ctx, createData) => {
     return new HTMLWorker(ctx, createData);
   });
 };

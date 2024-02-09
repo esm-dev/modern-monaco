@@ -4,8 +4,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as monacoNS from "monaco-editor-core";
-import * as worker from "monaco-editor-core/esm/vs/editor/editor.worker";
+import type monacoNS from "monaco-editor-core";
+import { initialize } from "monaco-editor-core/esm/vs/editor/editor.worker";
 import * as jsonService from "vscode-json-languageservice";
 
 export interface Options {
@@ -220,7 +220,7 @@ export class JSONWorker {
 
 globalThis.onmessage = () => {
   // ignore the first message
-  worker.initialize((ctx, createData) => {
+  initialize((ctx, createData) => {
     return new JSONWorker(ctx, createData);
   });
 };

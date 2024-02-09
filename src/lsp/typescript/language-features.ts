@@ -5,20 +5,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type ts from "typescript";
-import type {
-  CancellationToken,
-  editor,
-  IDisposable,
-  IEvent,
-  IRange,
-  languages,
-  MarkerSeverity,
-  MarkerTag,
-  Position,
-  Range,
-  Uri,
-} from "monaco-editor-core";
-import type { Diagnostic, DiagnosticRelatedInformation, VersionedContent, TypeScriptWorker } from "./worker";
+import type monacoNS from "monaco-editor-core";
+import type { Diagnostic, DiagnosticRelatedInformation, TypeScriptWorker, VersionedContent } from "./worker";
 
 let M = {} as unknown as typeof import("monaco-editor-core");
 export function prelude(monaco: typeof M) {
@@ -100,7 +88,7 @@ export class TypesManager {
     return false;
   }
 
-  public isLibFile(uri: Uri | null): boolean {
+  public isLibFile(uri: monacoNS.Uri | null): boolean {
     if (!uri) {
       return false;
     }
@@ -110,7 +98,7 @@ export class TypesManager {
     return false;
   }
 
-  public getOrCreateModel(fileName: string): editor.ITextModel | null {
+  public getOrCreateModel(fileName: string): monacoNS.editor.ITextModel | null {
     const editor = M.editor;
     const uri = M.Uri.parse(fileName);
     const model = editor.getModel(uri);
@@ -184,21 +172,21 @@ function displayPartsToString(
 
 export abstract class Adapter {
   constructor(
-    protected _worker: (...uris: Uri[]) => Promise<TypeScriptWorker>,
+    protected _worker: (...uris: monacoNS.Uri[]) => Promise<TypeScriptWorker>,
   ) {}
 
-  // protected _positionToOffset(model: editor.ITextModel, position: monaco.IPosition): number {
+  // protected _positionToOffset(model: monacoNS.editor.ITextModel, position: monaco.IPosition): number {
   // 	return model.getOffsetAt(position);
   // }
 
-  // protected _offsetToPosition(model: editor.ITextModel, offset: number): monaco.IPosition {
+  // protected _offsetToPosition(model: monacoNS.editor.ITextModel, offset: number): monaco.IPosition {
   // 	return model.getPositionAt(offset);
   // }
 
   protected _textSpanToRange(
-    model: editor.ITextModel,
+    model: monacoNS.editor.ITextModel,
     span: ts.TextSpan,
-  ): IRange {
+  ): monacoNS.IRange {
     let p1 = model.getPositionAt(span.start);
     let p2 = model.getPositionAt(span.start + span.length);
     let { lineNumber: startLineNumber, column: startColumn } = p1;
@@ -232,20 +220,20 @@ enum DiagnosticCategory {
  * temporary interface until the editor API exposes
  * `IModel.isAttachedToEditor` and `IModel.onDidChangeAttached`
  */
-interface IInternalEditorModel extends editor.IModel {
-  onDidChangeAttached(listener: () => void): IDisposable;
+interface IInternalEditorModel extends monacoNS.editor.IModel {
+  onDidChangeAttached(listener: () => void): monacoNS.IDisposable;
   isAttachedToEditor(): boolean;
 }
 
 export class DiagnosticsAdapter extends Adapter {
-  // private _disposables: IDisposable[] = [];
-  private _listeners: { [uri: string]: IDisposable } = Object.create(null);
+  // private _disposables: monacoNS.IDisposable[] = [];
+  private _listeners: { [uri: string]: monacoNS.IDisposable } = Object.create(null);
 
   constructor(
     private _diagnosticsOptions: DiagnosticsOptions,
-    onRefreshDiagnostic: IEvent<void>,
+    onRefreshDiagnostic: monacoNS.IEvent<void>,
     private _selector: string,
-    worker: (...uris: Uri[]) => Promise<TypeScriptWorker>,
+    worker: (...uris: monacoNS.Uri[]) => Promise<TypeScriptWorker>,
   ) {
     super(worker);
 
@@ -302,7 +290,7 @@ export class DiagnosticsAdapter extends Adapter {
 
       maybeValidate();
     };
-    const onModelRemoved = (model: editor.IModel): void => {
+    const onModelRemoved = (model: monacoNS.editor.IModel): void => {
       const key = model.uri.toString();
       if (this._listeners[key]) {
         this._listeners[key].dispose();
@@ -332,7 +320,7 @@ export class DiagnosticsAdapter extends Adapter {
   //   this._disposables = [];
   // }
 
-  private async _doValidate(model: editor.ITextModel): Promise<void> {
+  private async _doValidate(model: monacoNS.editor.ITextModel): Promise<void> {
     const editor = M.editor;
     const worker = await this._worker(model.uri);
 
@@ -386,9 +374,9 @@ export class DiagnosticsAdapter extends Adapter {
   }
 
   private static _convertDiagnostics(
-    model: editor.ITextModel,
+    model: monacoNS.editor.ITextModel,
     diag: Diagnostic,
-  ): editor.IMarkerData {
+  ): monacoNS.editor.IMarkerData {
     const diagStart = diag.start || 0;
     const diagLength = diag.length || 1;
     const { lineNumber: startLineNumber, column: startColumn } = model
@@ -398,7 +386,7 @@ export class DiagnosticsAdapter extends Adapter {
         diagStart + diagLength,
       );
 
-    const tags: MarkerTag[] = [];
+    const tags: monacoNS.MarkerTag[] = [];
     if (diag.reportsUnnecessary) {
       tags.push(M.MarkerTag.Unnecessary);
     }
@@ -425,16 +413,16 @@ export class DiagnosticsAdapter extends Adapter {
   }
 
   private static _convertRelatedInformation(
-    model: editor.ITextModel,
+    model: monacoNS.editor.ITextModel,
     relatedInformation?: DiagnosticRelatedInformation[],
-  ): editor.IRelatedInformation[] {
+  ): monacoNS.editor.IRelatedInformation[] {
     if (!relatedInformation) {
       return [];
     }
 
-    const result: editor.IRelatedInformation[] = [];
+    const result: monacoNS.editor.IRelatedInformation[] = [];
     relatedInformation.forEach((info) => {
-      let relatedResource: editor.ITextModel | null = model;
+      let relatedResource: monacoNS.editor.ITextModel | null = model;
       if (info.file) {
         relatedResource = types.getOrCreateModel(info.file.fileName);
       }
@@ -464,7 +452,7 @@ export class DiagnosticsAdapter extends Adapter {
 
   private static _tsDiagnosticCategoryToMarkerSeverity(
     category: ts.DiagnosticCategory,
-  ): MarkerSeverity {
+  ): monacoNS.MarkerSeverity {
     const MarkerSeverity = M.MarkerSeverity;
     switch (category) {
       case DiagnosticCategory.Error:
@@ -482,25 +470,25 @@ export class DiagnosticsAdapter extends Adapter {
 
 // --- suggest ------
 
-interface MyCompletionItem extends languages.CompletionItem {
+interface MyCompletionItem extends monacoNS.languages.CompletionItem {
   label: string;
-  uri: Uri;
-  position: Position;
+  uri: monacoNS.Uri;
+  position: monacoNS.Position;
   offset: number;
   data?: any;
 }
 
-export class SuggestAdapter extends Adapter implements languages.CompletionItemProvider {
+export class SuggestAdapter extends Adapter implements monacoNS.languages.CompletionItemProvider {
   public get triggerCharacters(): string[] {
     return ["."];
   }
 
   public async provideCompletionItems(
-    model: editor.ITextModel,
-    position: Position,
-    _context: languages.CompletionContext,
-    token: CancellationToken,
-  ): Promise<languages.CompletionList | undefined> {
+    model: monacoNS.editor.ITextModel,
+    position: monacoNS.Position,
+    _context: monacoNS.languages.CompletionContext,
+    token: monacoNS.CancellationToken,
+  ): Promise<monacoNS.languages.CompletionList | undefined> {
     const wordInfo = model.getWordUntilPosition(position);
     const wordRange = new M.Range(
       position.lineNumber,
@@ -536,7 +524,7 @@ export class SuggestAdapter extends Adapter implements languages.CompletionItemP
         range = new M.Range(p1.lineNumber, p1.column, p2.lineNumber, p2.column);
       }
 
-      const tags: languages.CompletionItemTag[] = [];
+      const tags: monacoNS.languages.CompletionItemTag[] = [];
       if (
         entry.kindModifiers !== undefined &&
         entry.kindModifiers.indexOf("deprecated") !== -1
@@ -564,9 +552,9 @@ export class SuggestAdapter extends Adapter implements languages.CompletionItemP
   }
 
   public async resolveCompletionItem(
-    item: languages.CompletionItem,
-    token: CancellationToken,
-  ): Promise<languages.CompletionItem> {
+    item: monacoNS.languages.CompletionItem,
+    token: monacoNS.CancellationToken,
+  ): Promise<monacoNS.languages.CompletionItem> {
     const myItem = <MyCompletionItem> item;
     const resource = myItem.uri;
     const position = myItem.position;
@@ -582,7 +570,7 @@ export class SuggestAdapter extends Adapter implements languages.CompletionItemP
     if (!details) {
       return myItem;
     }
-    let additionalTextEdits: languages.TextEdit[] = [];
+    let additionalTextEdits: monacoNS.languages.TextEdit[] = [];
     if (details.codeActions) {
       const model = M.editor.getModel(resource);
       if (model) {
@@ -611,7 +599,7 @@ export class SuggestAdapter extends Adapter implements languages.CompletionItemP
     };
   }
 
-  private static convertKind(kind: string): languages.CompletionItemKind {
+  private static convertKind(kind: string): monacoNS.languages.CompletionItemKind {
     const languages = M.languages;
     switch (kind) {
       case Kind.primitiveType:
@@ -674,11 +662,11 @@ function tagToString(tag: ts.JSDocTagInfo): string {
   return tagLabel;
 }
 
-export class SignatureHelpAdapter extends Adapter implements languages.SignatureHelpProvider {
+export class SignatureHelpAdapter extends Adapter implements monacoNS.languages.SignatureHelpProvider {
   public signatureHelpTriggerCharacters = ["(", ","];
 
   private static _toSignatureHelpTriggerReason(
-    context: languages.SignatureHelpContext,
+    context: monacoNS.languages.SignatureHelpContext,
   ): ts.SignatureHelpTriggerReason {
     const languages = M.languages;
     switch (context.triggerKind) {
@@ -709,11 +697,11 @@ export class SignatureHelpAdapter extends Adapter implements languages.Signature
   }
 
   public async provideSignatureHelp(
-    model: editor.ITextModel,
-    position: Position,
-    token: CancellationToken,
-    context: languages.SignatureHelpContext,
-  ): Promise<languages.SignatureHelpResult | undefined> {
+    model: monacoNS.editor.ITextModel,
+    position: monacoNS.Position,
+    token: monacoNS.CancellationToken,
+    context: monacoNS.languages.SignatureHelpContext,
+  ): Promise<monacoNS.languages.SignatureHelpResult | undefined> {
     const resource = model.uri;
     const offset = model.getOffsetAt(position);
     const worker = await this._worker(resource);
@@ -736,14 +724,14 @@ export class SignatureHelpAdapter extends Adapter implements languages.Signature
       return;
     }
 
-    const ret: languages.SignatureHelp = {
+    const ret: monacoNS.languages.SignatureHelp = {
       activeSignature: info.selectedItemIndex,
       activeParameter: info.argumentIndex,
       signatures: [],
     };
 
     info.items.forEach((item) => {
-      const signature: languages.SignatureInformation = {
+      const signature: monacoNS.languages.SignatureInformation = {
         label: "",
         parameters: [],
       };
@@ -754,7 +742,7 @@ export class SignatureHelpAdapter extends Adapter implements languages.Signature
       signature.label += displayPartsToString(item.prefixDisplayParts);
       item.parameters.forEach((p, i, a) => {
         const label = displayPartsToString(p.displayParts);
-        const parameter: languages.ParameterInformation = {
+        const parameter: monacoNS.languages.ParameterInformation = {
           label: label,
           documentation: {
             value: displayPartsToString(p.documentation),
@@ -779,12 +767,12 @@ export class SignatureHelpAdapter extends Adapter implements languages.Signature
 
 // --- hover ------
 
-export class QuickInfoAdapter extends Adapter implements languages.HoverProvider {
+export class QuickInfoAdapter extends Adapter implements monacoNS.languages.HoverProvider {
   public async provideHover(
-    model: editor.ITextModel,
-    position: Position,
-    token: CancellationToken,
-  ): Promise<languages.Hover | undefined> {
+    model: monacoNS.editor.ITextModel,
+    position: monacoNS.Position,
+    token: monacoNS.CancellationToken,
+  ): Promise<monacoNS.languages.Hover | undefined> {
     const resource = model.uri;
     const offset = model.getOffsetAt(position);
     const worker = await this._worker(resource);
@@ -821,12 +809,12 @@ export class QuickInfoAdapter extends Adapter implements languages.HoverProvider
 
 // --- occurrences ------
 
-export class DocumentHighlightAdapter extends Adapter implements languages.DocumentHighlightProvider {
+export class DocumentHighlightAdapter extends Adapter implements monacoNS.languages.DocumentHighlightProvider {
   public async provideDocumentHighlights(
-    model: editor.ITextModel,
-    position: Position,
-    token: CancellationToken,
-  ): Promise<languages.DocumentHighlight[] | undefined> {
+    model: monacoNS.editor.ITextModel,
+    position: monacoNS.Position,
+    token: monacoNS.CancellationToken,
+  ): Promise<monacoNS.languages.DocumentHighlight[] | undefined> {
     const resource = model.uri;
     const offset = model.getOffsetAt(position);
     const worker = await this._worker(resource);
@@ -850,7 +838,7 @@ export class DocumentHighlightAdapter extends Adapter implements languages.Docum
     return entries.flatMap((entry) => {
       return entry.highlightSpans.map((highlightSpans) => {
         const languages = M.languages;
-        return <languages.DocumentHighlight> {
+        return <monacoNS.languages.DocumentHighlight> {
           range: this._textSpanToRange(model, highlightSpans.textSpan),
           kind: highlightSpans.kind === "writtenReference"
             ? languages.DocumentHighlightKind.Write
@@ -865,16 +853,16 @@ export class DocumentHighlightAdapter extends Adapter implements languages.Docum
 
 export class DefinitionAdapter extends Adapter {
   constructor(
-    worker: (...uris: Uri[]) => Promise<TypeScriptWorker>,
+    worker: (...uris: monacoNS.Uri[]) => Promise<TypeScriptWorker>,
   ) {
     super(worker);
   }
 
   public async provideDefinition(
-    model: editor.ITextModel,
-    position: Position,
-    token: CancellationToken,
-  ): Promise<languages.Definition | undefined> {
+    model: monacoNS.editor.ITextModel,
+    position: monacoNS.Position,
+    token: monacoNS.CancellationToken,
+  ): Promise<monacoNS.languages.Definition | undefined> {
     const resource = model.uri;
     const offset = model.getOffsetAt(position);
     const worker = await this._worker(resource);
@@ -896,7 +884,7 @@ export class DefinitionAdapter extends Adapter {
       return;
     }
 
-    const result: languages.Location[] = [];
+    const result: monacoNS.languages.Location[] = [];
     for (let entry of entries) {
       const refModel = types.getOrCreateModel(entry.fileName);
       if (refModel) {
@@ -912,19 +900,19 @@ export class DefinitionAdapter extends Adapter {
 
 // --- references ------
 
-export class ReferenceAdapter extends Adapter implements languages.ReferenceProvider {
+export class ReferenceAdapter extends Adapter implements monacoNS.languages.ReferenceProvider {
   constructor(
-    worker: (...uris: Uri[]) => Promise<TypeScriptWorker>,
+    worker: (...uris: monacoNS.Uri[]) => Promise<TypeScriptWorker>,
   ) {
     super(worker);
   }
 
   public async provideReferences(
-    model: editor.ITextModel,
-    position: Position,
-    context: languages.ReferenceContext,
-    token: CancellationToken,
-  ): Promise<languages.Location[] | undefined> {
+    model: monacoNS.editor.ITextModel,
+    position: monacoNS.Position,
+    context: monacoNS.languages.ReferenceContext,
+    token: monacoNS.CancellationToken,
+  ): Promise<monacoNS.languages.Location[] | undefined> {
     const resource = model.uri;
     const offset = model.getOffsetAt(position);
     const worker = await this._worker(resource);
@@ -946,7 +934,7 @@ export class ReferenceAdapter extends Adapter implements languages.ReferenceProv
       return;
     }
 
-    const result: languages.Location[] = [];
+    const result: monacoNS.languages.Location[] = [];
     for (let entry of entries) {
       const refModel = types.getOrCreateModel(entry.fileName);
       if (refModel) {
@@ -962,13 +950,13 @@ export class ReferenceAdapter extends Adapter implements languages.ReferenceProv
 
 // --- outline ------
 
-const outlineTypeTable: { [kind: string]: languages.SymbolKind } = {};
+const outlineTypeTable: { [kind: string]: monacoNS.languages.SymbolKind } = {};
 
-export class OutlineAdapter extends Adapter implements languages.DocumentSymbolProvider {
+export class OutlineAdapter extends Adapter implements monacoNS.languages.DocumentSymbolProvider {
   public async provideDocumentSymbols(
-    model: editor.ITextModel,
-    token: CancellationToken,
-  ): Promise<languages.DocumentSymbol[] | undefined> {
+    model: monacoNS.editor.ITextModel,
+    token: monacoNS.CancellationToken,
+  ): Promise<monacoNS.languages.DocumentSymbol[] | undefined> {
     const resource = model.uri;
     const worker = await this._worker(resource);
 
@@ -985,11 +973,11 @@ export class OutlineAdapter extends Adapter implements languages.DocumentSymbolP
     const convert = (
       item: ts.NavigationTree,
       containerLabel?: string,
-    ): languages.DocumentSymbol => {
-      const result: languages.DocumentSymbol = {
+    ): monacoNS.languages.DocumentSymbol => {
+      const result: monacoNS.languages.DocumentSymbol = {
         name: item.text,
         detail: "",
-        kind: <languages.SymbolKind> (outlineTypeTable[item.kind] ||
+        kind: <monacoNS.languages.SymbolKind> (outlineTypeTable[item.kind] ||
           M.languages.SymbolKind.Variable),
         range: this._textSpanToRange(model, item.spans[0]),
         selectionRange: this._textSpanToRange(model, item.spans[0]),
@@ -1042,7 +1030,7 @@ export class Kind {
 
 export abstract class FormatHelper extends Adapter {
   protected static _convertOptions(
-    options: languages.FormattingOptions,
+    options: monacoNS.languages.FormattingOptions,
   ): ts.FormatCodeSettings {
     return {
       convertTabsToSpaces: options.insertSpaces,
@@ -1064,9 +1052,9 @@ export abstract class FormatHelper extends Adapter {
   }
 
   protected _convertTextChanges(
-    model: editor.ITextModel,
+    model: monacoNS.editor.ITextModel,
     change: ts.TextChange,
-  ): languages.TextEdit {
+  ): monacoNS.languages.TextEdit {
     return {
       text: change.newText,
       range: this._textSpanToRange(model, change.span),
@@ -1074,15 +1062,15 @@ export abstract class FormatHelper extends Adapter {
   }
 }
 
-export class FormatAdapter extends FormatHelper implements languages.DocumentRangeFormattingEditProvider {
+export class FormatAdapter extends FormatHelper implements monacoNS.languages.DocumentRangeFormattingEditProvider {
   readonly canFormatMultipleRanges = false;
 
   public async provideDocumentRangeFormattingEdits(
-    model: editor.ITextModel,
-    range: Range,
-    options: languages.FormattingOptions,
-    token: CancellationToken,
-  ): Promise<languages.TextEdit[] | undefined> {
+    model: monacoNS.editor.ITextModel,
+    range: monacoNS.Range,
+    options: monacoNS.languages.FormattingOptions,
+    token: monacoNS.CancellationToken,
+  ): Promise<monacoNS.languages.TextEdit[] | undefined> {
     const resource = model.uri;
     const startOffset = model.getOffsetAt({
       lineNumber: range.startLineNumber,
@@ -1113,18 +1101,18 @@ export class FormatAdapter extends FormatHelper implements languages.DocumentRan
   }
 }
 
-export class FormatOnTypeAdapter extends FormatHelper implements languages.OnTypeFormattingEditProvider {
+export class FormatOnTypeAdapter extends FormatHelper implements monacoNS.languages.OnTypeFormattingEditProvider {
   get autoFormatTriggerCharacters() {
     return [";", "}", "\n"];
   }
 
   public async provideOnTypeFormattingEdits(
-    model: editor.ITextModel,
-    position: Position,
+    model: monacoNS.editor.ITextModel,
+    position: monacoNS.Position,
     ch: string,
-    options: languages.FormattingOptions,
-    token: CancellationToken,
-  ): Promise<languages.TextEdit[] | undefined> {
+    options: monacoNS.languages.FormattingOptions,
+    token: monacoNS.CancellationToken,
+  ): Promise<monacoNS.languages.TextEdit[] | undefined> {
     const resource = model.uri;
     const offset = model.getOffsetAt(position);
     const worker = await this._worker(resource);
@@ -1150,13 +1138,13 @@ export class FormatOnTypeAdapter extends FormatHelper implements languages.OnTyp
 
 // --- code actions ------
 
-export class CodeActionAdaptor extends FormatHelper implements languages.CodeActionProvider {
+export class CodeActionAdaptor extends FormatHelper implements monacoNS.languages.CodeActionProvider {
   public async provideCodeActions(
-    model: editor.ITextModel,
-    range: Range,
-    context: languages.CodeActionContext,
-    token: CancellationToken,
-  ): Promise<languages.CodeActionList | undefined> {
+    model: monacoNS.editor.ITextModel,
+    range: monacoNS.Range,
+    context: monacoNS.languages.CodeActionContext,
+    token: monacoNS.CancellationToken,
+  ): Promise<monacoNS.languages.CodeActionList | undefined> {
     const resource = model.uri;
     const start = model.getOffsetAt({
       lineNumber: range.startLineNumber,
@@ -1205,11 +1193,11 @@ export class CodeActionAdaptor extends FormatHelper implements languages.CodeAct
   }
 
   private _tsCodeFixActionToMonacoCodeAction(
-    model: editor.ITextModel,
-    context: languages.CodeActionContext,
+    model: monacoNS.editor.ITextModel,
+    context: monacoNS.languages.CodeActionContext,
     codeFix: ts.CodeFixAction,
-  ): languages.CodeAction {
-    const edits: languages.IWorkspaceTextEdit[] = [];
+  ): monacoNS.languages.CodeAction {
+    const edits: monacoNS.languages.IWorkspaceTextEdit[] = [];
     for (const change of codeFix.changes) {
       for (const textChange of change.textChanges) {
         edits.push({
@@ -1223,7 +1211,7 @@ export class CodeActionAdaptor extends FormatHelper implements languages.CodeAct
       }
     }
 
-    const action: languages.CodeAction = {
+    const action: monacoNS.languages.CodeAction = {
       title: codeFix.description,
       edit: { edits: edits },
       diagnostics: context.markers,
@@ -1236,18 +1224,18 @@ export class CodeActionAdaptor extends FormatHelper implements languages.CodeAct
 
 // --- rename ----
 
-export class RenameAdapter extends Adapter implements languages.RenameProvider {
+export class RenameAdapter extends Adapter implements monacoNS.languages.RenameProvider {
   constructor(
-    worker: (...uris: Uri[]) => Promise<TypeScriptWorker>,
+    worker: (...uris: monacoNS.Uri[]) => Promise<TypeScriptWorker>,
   ) {
     super(worker);
   }
   public async provideRenameEdits(
-    model: editor.ITextModel,
-    position: Position,
+    model: monacoNS.editor.ITextModel,
+    position: monacoNS.Position,
     newName: string,
-    token: CancellationToken,
-  ): Promise<(languages.WorkspaceEdit & languages.Rejection) | undefined> {
+    token: monacoNS.CancellationToken,
+  ): Promise<(monacoNS.languages.WorkspaceEdit & monacoNS.languages.Rejection) | undefined> {
     const resource = model.uri;
     const fileName = resource.toString();
     const offset = model.getOffsetAt(position);
@@ -1283,7 +1271,7 @@ export class RenameAdapter extends Adapter implements languages.RenameProvider {
       return;
     }
 
-    const edits: languages.IWorkspaceTextEdit[] = [];
+    const edits: monacoNS.languages.IWorkspaceTextEdit[] = [];
     for (const renameLocation of renameLocations) {
       const model = types.getOrCreateModel(renameLocation.fileName);
       if (model) {
@@ -1306,12 +1294,12 @@ export class RenameAdapter extends Adapter implements languages.RenameProvider {
 
 // --- inlay hints ----
 
-export class InlayHintsAdapter extends Adapter implements languages.InlayHintsProvider {
+export class InlayHintsAdapter extends Adapter implements monacoNS.languages.InlayHintsProvider {
   public async provideInlayHints(
-    model: editor.ITextModel,
-    range: Range,
-    token: CancellationToken,
-  ): Promise<languages.InlayHintList | null> {
+    model: monacoNS.editor.ITextModel,
+    range: monacoNS.Range,
+    token: monacoNS.CancellationToken,
+  ): Promise<monacoNS.languages.InlayHintList | null> {
     const resource = model.uri;
     const fileName = resource.toString();
     const start = model.getOffsetAt({
@@ -1328,7 +1316,7 @@ export class InlayHintsAdapter extends Adapter implements languages.InlayHintsPr
     }
 
     const tsHints = await worker.provideInlayHints(fileName, start, end);
-    const hints: languages.InlayHint[] = tsHints.map((hint) => {
+    const hints: monacoNS.languages.InlayHint[] = tsHints.map((hint) => {
       return {
         ...hint,
         label: hint.text,

@@ -5,7 +5,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import ts from "typescript";
-import type * as monacoNS from "monaco-editor-core";
+import type monacoNS from "monaco-editor-core";
 import { initialize } from "monaco-editor-core/esm/vs/editor/editor.worker";
 import { type ImportMap, isBlank, resolve } from "../../import-map";
 import { vfetch } from "../../vfs";

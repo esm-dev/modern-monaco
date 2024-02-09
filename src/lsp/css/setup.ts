@@ -1,4 +1,4 @@
-import type * as monacoNS from "monaco-editor-core";
+import type monacoNS from "monaco-editor-core";
 import * as lf from "../language-features.js";
 import type { CreateData, CSSWorker } from "./worker";
 

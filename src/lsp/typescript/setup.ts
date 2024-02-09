@@ -1,4 +1,4 @@
-import type * as monacoNS from "monaco-editor-core";
+import type monacoNS from "monaco-editor-core";
 import type ts from "typescript";
 import { blankImportMap, isBlank } from "../../import-map";
 import { ImportMap, parseImportMapFromJson } from "../../import-map";

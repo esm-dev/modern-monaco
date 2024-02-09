@@ -4,8 +4,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as monacoNS from "monaco-editor-core";
-import * as worker from "monaco-editor-core/esm/vs/editor/editor.worker";
+import type monacoNS from "monaco-editor-core";
+import { initialize } from "monaco-editor-core/esm/vs/editor/editor.worker";
 import * as cssService from "vscode-css-languageservice";
 
 export interface CSSDataConfiguration {
@@ -36,7 +36,7 @@ export interface CreateData {
 }
 
 export class CSSWorker {
-  private _ctx: worker.IWorkerContext;
+  private _ctx: monacoNS.worker.IWorkerContext;
   private _languageId: string;
   private _languageSettings: Options;
   private _languageService: cssService.LanguageService;
@@ -312,7 +312,7 @@ export class CSSWorker {
 
 globalThis.onmessage = () => {
   // ignore the first message
-  worker.initialize((ctx, createData) => {
+  initialize((ctx, createData) => {
     return new CSSWorker(ctx, createData);
   });
 };

@@ -1,4 +1,4 @@
-import type * as monacoNS from "monaco-editor-core";
+import type monacoNS from "monaco-editor-core";
 import type { VFS } from "../vfs";
 
 export interface LSPLoader {
