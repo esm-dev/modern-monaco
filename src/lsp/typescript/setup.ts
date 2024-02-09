@@ -55,21 +55,19 @@ function parseJsonc(text: string) {
   }
 }
 
-/** Load compiler options from tsconfig.json in VFS if exists. */
-async function loadCompilerOptions(vfs: VFS) {
-  const compilerOptions: ts.CompilerOptions = {};
-  try {
-    const tconfigjson = await vfs.readTextFile("tsconfig.json");
-    const tconfig = parseJsonc(tconfigjson);
-    const types = tconfig.compilerOptions.types;
-    delete tconfig.compilerOptions.types;
-    Array.isArray(types) && await Promise.all(types.map(async (type) => {
+/** Resolve types of the compiler options. */
+async function resolveTypes(compilerOptions: ts.CompilerOptions, vfs?: VFS) {
+  const fetcher = vfs?.fetch ?? globalThis.fetch; // use global fetch if vfs is not available
+  const types = compilerOptions.types;
+  if (Array.isArray(types)) {
+    delete compilerOptions.types;
+    await Promise.all(types.map(async (type) => {
       if (/^https?:\/\//.test(type)) {
-        const res = await vfs.fetch(type);
+        const res = await fetcher(type);
         const dtsUrl = res.headers.get("x-typescript-types");
         if (dtsUrl) {
           res.body.cancel?.();
-          const res2 = await vfs.fetch(dtsUrl);
+          const res2 = await fetcher(dtsUrl);
           if (res2.ok) {
             return [dtsUrl, await res2.text()];
           } else {
@@ -84,7 +82,7 @@ async function loadCompilerOptions(vfs: VFS) {
             `Failed to fetch "${dtsUrl}": ` + await res.text(),
           );
         }
-      } else if (typeof type === "string") {
+      } else if (typeof type === "string" && vfs) {
         const dtsUrl = toUrl(type.replace(/\.d\.ts$/, "") + ".d.ts");
         try {
           return [dtsUrl.href, await vfs.readTextFile(dtsUrl)];
@@ -96,11 +94,23 @@ async function loadCompilerOptions(vfs: VFS) {
       }
       return null;
     })).then((entries) => {
-      compilerOptions.$types = entries.map(([url]) => url).filter((url) => url.startsWith("file://"));
+      if (vfs) {
+        compilerOptions.$types = entries.map(([url]) => url).filter((url) => url.startsWith("file://"));
+      }
       lf.types.setTypes(Object.fromEntries(entries.filter(Boolean)));
     });
+  }
+}
+
+/** Load compiler options from tsconfig.json in VFS if exists. */
+async function loadCompilerOptions(vfs: VFS) {
+  const compilerOptions: ts.CompilerOptions = {};
+  try {
+    const tsconfigjson = await vfs.readTextFile("tsconfig.json");
+    const tsconfig = parseJsonc(tsconfigjson);
+    await resolveTypes(tsconfig.compilerOptions, vfs);
     compilerOptions.$src = toUrl("tsconfig.json").href;
-    Object.assign(compilerOptions, tconfig.compilerOptions);
+    Object.assign(compilerOptions, tsconfig.compilerOptions);
   } catch (error) {
     if (error instanceof vfs.ErrorNotFound) {
       // ignore
@@ -166,11 +176,16 @@ async function createWorker(
     };
   };
 
-  // @ts-expect-error 'libs.js' is generated at build time
-  const promises = [import("./libs.js").then((m) => m.default)];
+  // resolve types of the default compiler options
+  await resolveTypes(defaultCompilerOptions, vfs);
 
   let compilerOptions: ts.CompilerOptions = { ...defaultCompilerOptions };
   let importMap = { ...defaultImportMap };
+
+  const promises = [
+    // @ts-expect-error 'libs.js' is generated at build time
+    import("./libs.js").then((m) => lf.types.setLibs(m.default)),
+  ];
 
   if (vfs) {
     promises.push(
@@ -183,12 +198,12 @@ async function createWorker(
     );
   }
 
-  const [libs] = await Promise.all(promises);
-  lf.types.setLibs(libs);
+  // wait for all promises to resolve
+  await Promise.all(promises);
 
   const createData: CreateData = {
     compilerOptions,
-    libs,
+    libs: lf.types.libs,
     types: lf.types.types,
     importMap,
     formatOptions: {
