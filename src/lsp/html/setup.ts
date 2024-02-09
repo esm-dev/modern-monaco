@@ -1,5 +1,5 @@
 import type * as monacoNS from "monaco-editor-core";
-import * as lf from "../language-features";
+import * as lf from "../language-features.js";
 import type { CreateData, HTMLWorker } from "./worker";
 
 export function setup(
