@@ -5,12 +5,18 @@ export interface VFSOptions {
   initial?: Record<string, string[] | string | Uint8Array>;
 }
 
+export interface VFSState {
+  [key: string]: any;
+  activeFile?: string;
+}
+
 export class ErrorNotFound extends Error {}
 
 export class VFS {
   constructor(options?: VFSOptions);
   readonly ErrorNotFound: ErrorNotFound;
-  openModel(name: string | URL): Promise<monacoNS.editor.ITextModel>;
+  readonly state: VFSState;
+  openModel(name: string | URL, attachTo?: editor.ICodeEditor | number | string | boolean): Promise<editor.ITextModel>;
   exists(name: string | URL): Promise<boolean>;
   list(): Promise<string[]>;
   readFile(name: string | URL): Promise<Uint8Array>;

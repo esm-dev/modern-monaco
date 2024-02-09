@@ -23,14 +23,13 @@ interface VFSOptions {
 export class VFS {
   #monaco: typeof monacoNS;
   #db: Promise<IDBDatabase> | IDBDatabase;
-  #watchHandlers = new Map<
-    string,
-    Set<(evt: { kind: string; path: string }) => void>
-  >();
+  #watchHandlers = new Map<string, Set<(evt: WatchEvent) => void>>();
+  #state: Record<string, any> = {};
 
   constructor(options: VFSOptions) {
+    const dbName = "monaco-vfs:" + (options.scope ?? "main");
     const req = openDB(
-      "vfs:monaco-app/" + (options.scope ?? "main"),
+      dbName,
       async (store) => {
         for (const [name, data] of Object.entries(options.initial ?? {})) {
           const url = toUrl(name);
@@ -47,55 +46,116 @@ export class VFS {
       },
     );
     this.#db = req.then((db) => this.#db = db);
+    if (globalThis.localStorage) {
+      const state = {};
+      const storeKey = "monaco-state:" + (options.scope ?? "main");
+      let storeTimer: number | null = null;
+      const store = () => {
+        if (storeTimer !== null) {
+          return;
+        }
+        storeTimer = setTimeout(() => {
+          storeTimer = null;
+          localStorage.setItem(storeKey, JSON.stringify(state));
+        }, 100);
+      };
+      const stateJson = localStorage.getItem(storeKey);
+      if (stateJson) {
+        try {
+          Object.assign(state, JSON.parse(stateJson));
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      this.#state = new Proxy(Object.create(null), {
+        get(target, key) {
+          return state[key];
+        },
+        set(target, key, value) {
+          state[key] = value;
+          store();
+          return true;
+        },
+      }) as Record<string, any>;
+    }
   }
 
   get ErrorNotFound() {
     return ErrorNotFound;
   }
 
-  async #begin(readonly = false) {
-    const db = await this.#db;
-    return db.transaction("files", readonly ? "readonly" : "readwrite")
-      .objectStore("files");
+  get state() {
+    return this.#state;
   }
 
-  async openModel(name: string | URL) {
+  async #begin(readonly = false) {
+    const db = await this.#db;
+    return db.transaction("files", readonly ? "readonly" : "readwrite").objectStore("files");
+  }
+
+  async openModel(name: string | URL, attachTo: monacoNS.editor.ICodeEditor | number | string | boolean) {
     const monaco = this.#monaco;
     if (!monaco) {
       throw new Error("monaco is not bound");
     }
     const url = toUrl(name);
     const uri = monaco.Uri.parse(url.href);
-    let model = monaco.editor.getModel(uri);
-    if (model) {
-      return model;
-    }
     const { content, version } = await this.#read(url);
-    model = monaco.editor.getModel(uri) ??
-      monaco.editor.createModel(toString(content), undefined, uri);
-    let writeTimer: number | null = null;
-    const askToExit = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = true;
-    };
-    const onDidChange = model.onDidChangeContent((e) => {
-      if (writeTimer !== null) {
-        return;
+    const model = monaco.editor.getModel(uri) ?? monaco.editor.createModel(toString(content), undefined, uri);
+    if (!Reflect.has(model, "__VFS__")) {
+      let writeTimer: number | null = null;
+      const askToExit = (e: BeforeUnloadEvent) => {
+        e.preventDefault();
+        e.returnValue = true;
+      };
+      const onDidChange = model.onDidChangeContent((e) => {
+        if (writeTimer !== null) {
+          return;
+        }
+        globalThis.addEventListener("beforeunload", askToExit);
+        writeTimer = setTimeout(() => {
+          writeTimer = null;
+          this.writeFile(
+            uri.path,
+            model.getValue(),
+            version + model.getVersionId(),
+          );
+          globalThis.removeEventListener("beforeunload", askToExit);
+        }, 500);
+      });
+      model.onWillDispose(() => {
+        Reflect.deleteProperty(model, "__VFS__");
+        onDidChange.dispose();
+      });
+      Reflect.set(model, "__VFS__", true);
+    }
+    if (attachTo) {
+      let editor: monacoNS.editor.ICodeEditor;
+      if (attachTo === true) {
+        editor = monaco.editor.getEditors()[0];
+      } else if (typeof attachTo === "number") {
+        editor = monaco.editor.getEditors()[attachTo];
+      } else if (typeof attachTo === "string") {
+        for (const e of monaco.editor.getEditors()) {
+          const container = e.getContainerDomNode();
+          if (
+            container.id === attachTo.slice(1) || (
+              container.parentElement?.tagName === "MONACO-EDITOR" &&
+              container.parentElement.id === attachTo.slice(1)
+            )
+          ) {
+            editor = e;
+            break;
+          }
+        }
+      } else if (typeof attachTo === "object" && attachTo !== null && attachTo.setModel) {
+        editor = attachTo;
       }
-      globalThis.addEventListener("beforeunload", askToExit);
-      writeTimer = setTimeout(() => {
-        writeTimer = null;
-        this.writeFile(
-          uri.path,
-          model.getValue(),
-          version + model.getVersionId(),
-        );
-        globalThis.removeEventListener("beforeunload", askToExit);
-      }, 500);
-    });
-    model.onWillDispose(() => {
-      onDidChange.dispose();
-    });
+      if (editor) {
+        editor.setModel(model);
+        this.#state.activeFile = url.href;
+      }
+    }
     return model;
   }
 
@@ -243,7 +303,7 @@ export async function vfetch(url: string | URL): Promise<Response> {
     // non-browser environment
     return fetch(url);
   }
-  const db = await (cacheDb ?? (cacheDb = openDB("vfs:monaco-cache")));
+  const db = await (cacheDb ?? (cacheDb = openDB("monaco-cache")));
   const tx = db.transaction("files", "readonly").objectStore("files");
   const caceUrl = toUrl(url).href;
   const ret = await waitIDBRequest<VFile>(tx.get(caceUrl));

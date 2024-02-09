@@ -153,6 +153,7 @@ export function init(options: InitOption = {}): Promise<typeof monacoNS> {
 
 /** Render a mock editor, then load the monaco editor in background. */
 export function lazy(options?: InitOption) {
+  const vfs = options?.vfs;
   let monacoCore: typeof monacoNS | Promise<typeof monacoNS> | null = null;
   let workerPromise: Promise<void> | null = null;
 
@@ -243,14 +244,22 @@ export function lazy(options?: InitOption) {
 
         // crreate a highlighter instance for the renderer/editor
         const preloadGrammars = options?.preloadGrammars ?? [];
-        const file = renderOptions.filename ?? this.getAttribute("file");
+        let file = renderOptions.filename;
+        if (!file && vfs) {
+          if (vfs.state.activeFile) {
+            file = vfs.state.activeFile;
+          } else {
+            const list = await vfs.list();
+            file = list[0];
+            vfs.state.activeFile = file;
+          }
+        }
         if (renderOptions.lang || file) {
           preloadGrammars.push(
             renderOptions.lang ?? getLanguageIdFromPath(file),
           );
         }
         const highlighter = await initShiki({ ...options, preloadGrammars });
-        const vfs = options?.vfs;
 
         // check the pre-rendered content, if not exists, render one
         let preRenderEl = this.querySelector<HTMLElement>(
@@ -290,7 +299,7 @@ export function lazy(options?: InitOption) {
           const monaco = await loadMonacoCore(highlighter);
           const editor = monaco.editor.create(containerEl, renderOptions);
           if (vfs && file) {
-            const model = await vfs.openModel(file);
+            const model = await vfs.openModel(file, editor);
             if (
               renderOptions.filename === file &&
               renderOptions.code &&
@@ -299,7 +308,6 @@ export function lazy(options?: InitOption) {
               // update the model value with the code from SSR
               model.setValue(renderOptions.code);
             }
-            editor.setModel(model);
           } else if ((renderOptions.code && renderOptions.lang)) {
             const model = monaco.editor.createModel(
               renderOptions.code,
