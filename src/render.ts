@@ -55,14 +55,16 @@ export function renderMockEditor(
     lang,
     code,
     padding,
+    fontMaxDigitWidth,
     fontWeight = EDITOR_FONT_DEFAULTS.fontWeight,
     fontSize = EDITOR_FONT_DEFAULTS.fontSize,
     lineHeight = 0,
     letterSpacing = EDITOR_FONT_DEFAULTS.letterSpacing,
     lineNumbersMinChars = 5,
     lineDecorationsWidth = 10,
-    fontMaxDigitWidth,
   } = options;
+  const fontLigatures = options.fontLigatures && options.fontLigatures !== "false" ? "1" : "0";
+  const fontVariations = options.fontVariations && options.fontVariations !== "false" && /^\d+$/.test(fontWeight);
   const fontFamily = [
     options.fontFamily ? normalizeFontFamily(options.fontFamily) : null,
     EDITOR_FONT_DEFAULTS.fontFamily,
@@ -96,10 +98,10 @@ export function renderMockEditor(
     "overflow-y:hidden",
     "margin:0",
     "padding:0",
+    "font-family:'SF Mono',Monaco,Menlo,Consolas,'Ubuntu Mono','Liberation Mono','DejaVu Sans Mono','Courier New',monospace",
+    `font-feature-settings:'liga' ${fontLigatures}, 'calt' ${fontLigatures}`,
+    "font-variation-settings:" + (fontVariations ? "'wght' " + Number(fontWeight) : "normal"),
     "-webkit-text-size-adjust:100%",
-    "font-feature-settings: 'liga' 0, 'calt' 0",
-    "font-variation-settings: normal",
-    "'SF Mono',Monaco,Menlo,Consolas,'Ubuntu Mono','Liberation Mono','DejaVu Sans Mono','Courier New',monospace",
   ];
   if (padding?.top) {
     style.push(`padding-top:${padding.top}px`);
@@ -132,11 +134,12 @@ export function renderMockEditor(
     `color:${LINE_NUMBERS_COLOR}`,
     `width:${lineNumbersWidth}px`,
   ];
+  const clasName = `mock-monaco-editor-${hashCode(lineNumbers.join(";")).toString(36)}`;
   const shikiStyle = html.slice(styleIndex, html.indexOf('"', styleIndex));
   const finHtml = html.slice(0, styleIndex) + lineStyle.join(";") + ";" + html.slice(styleIndex);
   style.push(shikiStyle);
-  return `<div style="${style.join(";")}">
-<style>.shiki code {${lineStyle.join(";")}}</style>
+  return `<div class="${clasName}" style="${style.join(";")}">
+<style>.${clasName} code {${lineStyle.join(";")}}</style>
 <div style="${lineNumbersStyle.join(";")}">
 ${lineNumbers.join("")}
 </div>
@@ -158,6 +161,9 @@ function getMaxDigitWidth(font: string) {
   }
   return Math.max(...widths);
 }
+
+/** Hash code for strings */
+export const hashCode = (s: string) => [...s].reduce((hash, c) => (Math.imul(31, hash) + c.charCodeAt(0)) | 0, 0);
 
 function countLines(str: string) {
   let n = 1;
