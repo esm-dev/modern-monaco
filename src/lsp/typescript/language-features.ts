@@ -216,15 +216,6 @@ enum DiagnosticCategory {
   Message = 3,
 }
 
-/**
- * temporary interface until the editor API exposes
- * `IModel.isAttachedToEditor` and `IModel.onDidChangeAttached`
- */
-interface IInternalEditorModel extends monacoNS.editor.IModel {
-  onDidChangeAttached(listener: () => void): monacoNS.IDisposable;
-  isAttachedToEditor(): boolean;
-}
-
 export class DiagnosticsAdapter extends Adapter {
   // private _disposables: monacoNS.IDisposable[] = [];
   private _listeners: { [uri: string]: monacoNS.IDisposable } = Object.create(null);
@@ -238,7 +229,7 @@ export class DiagnosticsAdapter extends Adapter {
     super(worker);
 
     const editor = M.editor;
-    const onModelAdd = (model: IInternalEditorModel): void => {
+    const validateModel = (model: monacoNS.editor.IModel): void => {
       if (model.getLanguageId() !== _selector) {
         return;
       }
@@ -290,29 +281,31 @@ export class DiagnosticsAdapter extends Adapter {
 
       maybeValidate();
     };
-    const onModelRemoved = (model: monacoNS.editor.IModel): void => {
+    const dispose = (model: monacoNS.editor.IModel): void => {
       const key = model.uri.toString();
       if (this._listeners[key]) {
         this._listeners[key].dispose();
         delete this._listeners[key];
       }
-      editor.setModelMarkers(model, this._selector, []);
     };
 
-    editor.onDidCreateModel((model) => onModelAdd(<IInternalEditorModel> model));
-    editor.onWillDisposeModel(onModelRemoved);
+    editor.onDidCreateModel((model) => validateModel(model));
+    editor.onWillDisposeModel((model) => {
+      dispose(model);
+      editor.setModelMarkers(model, this._selector, []);
+    });
     editor.onDidChangeModelLanguage((event) => {
-      onModelRemoved(event.model);
-      onModelAdd(<IInternalEditorModel> event.model);
+      dispose(event.model);
+      validateModel(event.model);
     });
     onRefreshDiagnostic(() => {
       for (const model of editor.getModels()) {
-        onModelRemoved(model);
-        onModelAdd(<IInternalEditorModel> model);
+        dispose(model);
+        validateModel(model);
       }
     });
 
-    editor.getModels().forEach((model) => onModelAdd(<IInternalEditorModel> model));
+    editor.getModels().forEach((model) => validateModel(model));
   }
 
   // public dispose(): void {

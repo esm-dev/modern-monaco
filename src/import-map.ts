@@ -29,7 +29,7 @@ export function resolve(
   importMap: ImportMap,
   specifier: string,
   scriptUrlRaw: string,
-) {
+): string {
   const { $baseURL, imports, scopes } = importMap;
   const scriptUrl = new URL(scriptUrlRaw);
   const sameOriginScopes = Object.entries(scopes)
@@ -41,16 +41,16 @@ export function resolve(
       if (scriptUrl.pathname.startsWith(scopeUrl.pathname)) {
         const match = matchImports(specifier, scopeImports);
         if (match) {
-          return new URL(match, scopeUrl);
+          return match;
         }
       }
     }
   }
   const match = matchImports(specifier, imports);
   if (match) {
-    return new URL(match, scriptUrl);
+    return match;
   }
-  return new URL(specifier, scriptUrl);
+  return specifier;
 }
 
 /** Parse the import map from JSON. */

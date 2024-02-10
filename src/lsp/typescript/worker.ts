@@ -56,8 +56,10 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   private _httpLibs = new Map<string, string>();
   private _httpModules = new Map<string, string>();
   private _dtsMap = new Map<string, string>();
-  private _badHttpRequests = new Set<string>();
+  private _unknownModules = new Set<string>();
+  private _openPromises = new Map<string, Promise<void>>();
   private _fetchPromises = new Map<string, Promise<void>>();
+  private _refreshDiagnosticsTimeout: number | null = null;
 
   constructor(
     ctx: monacoNS.worker.IWorkerContext<Host>,
@@ -216,24 +218,29 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     containingSourceFile: ts.SourceFile,
     reusedNames: readonly ts.StringLiteralLike[] | undefined,
   ): readonly ts.ResolvedModuleWithFailedLookupLocations[] {
-    return moduleLiterals.map((
-      literal,
-    ): ts.ResolvedModuleWithFailedLookupLocations["resolvedModule"] => {
+    return moduleLiterals.map((literal): ts.ResolvedModuleWithFailedLookupLocations["resolvedModule"] => {
       let moduleName = literal.text;
       if (!this._isBlankImportMap) {
         const resolved = resolve(this._importMap, moduleName, containingFile);
-        moduleName = resolved.href;
+        moduleName = resolved;
       }
-      if (TypeScriptWorker.getScriptExtension(moduleName, null) === null) {
-        // use the extension of the containing file which is a dts file
-        const ext = TypeScriptWorker.getScriptExtension(containingFile, null);
-        if (ext === ".d.ts" || ext === ".d.mts" || ext === ".d.cts") {
-          moduleName += ext;
-        }
+      if (!/^(((file|https?):\/\/)|\.{0,2}\/)/.test(moduleName)) {
+        return undefined;
       }
       const moduleUrl = new URL(moduleName, containingFile);
+      if (TypeScriptWorker.getScriptExtension(moduleUrl.pathname, null) === null) {
+        const ext = TypeScriptWorker.getScriptExtension(containingFile, null);
+        if (ext === ".d.ts" || ext === ".d.mts" || ext === ".d.cts") {
+          // use the extension of the containing file which is a dts file
+          // when the module name has no extension.
+          moduleUrl.pathname += ext;
+        }
+      }
+      if (this._unknownModules.has(moduleUrl.href)) {
+        return undefined;
+      }
       if (this._httpModules.has(containingFile)) {
-        // ignore dependencies of http js modules
+        // ignore dependencies of http modules
         return {
           resolvedFileName: moduleUrl.href,
           extension: ".js",
@@ -249,19 +256,22 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
             };
           }
         }
-        this._ctx.host.tryOpenModel(moduleHref).then((ok) => {
-          if (ok) {
-            this._ctx.host.refreshDiagnostics();
-          }
-        });
-      } else if (
-        (
-          moduleUrl.protocol === "http:" ||
-          moduleUrl.protocol === "https:"
-        ) &&
-        moduleUrl.pathname !== "/" &&
-        !/[@./-]$/.test(moduleUrl.pathname)
-      ) {
+        if (!this._openPromises.has(moduleHref)) {
+          this._openPromises.set(
+            moduleHref,
+            this._ctx.host.tryOpenModel(moduleHref).then((ok) => {
+              if (!ok) {
+                this._unknownModules.add(moduleHref);
+              }
+            }).finally(() => {
+              this._openPromises.delete(moduleHref);
+              if (this._openPromises.size === 0) {
+                this._refreshDiagnostics();
+              }
+            }),
+          );
+        }
+      } else if (moduleUrl.pathname !== "/" && !/[@,.-]$/.test(moduleUrl.pathname)) {
         const moduleHref = moduleUrl.href;
         if (this._dtsMap.has(moduleHref)) {
           return {
@@ -281,10 +291,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
             extension: ".js",
           };
         }
-        if (
-          !this._fetchPromises.has(moduleHref) &&
-          !this._badHttpRequests.has(moduleHref)
-        ) {
+        if (!this._fetchPromises.has(moduleHref)) {
           this._fetchPromises.set(
             moduleHref,
             vfetch(moduleUrl).then(async (res) => {
@@ -315,26 +322,31 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
                 } else {
                   // not a typescript or javascript file
                   res.body?.cancel();
-                  this._badHttpRequests.add(moduleHref);
+                  this._unknownModules.add(moduleHref);
                 }
               } else {
                 res.body?.cancel();
-                if (res.status >= 400 && res.status < 500) {
-                  this._badHttpRequests.add(moduleHref);
+                if (res.status >= 400) {
+                  this._unknownModules.add(moduleHref);
                 }
               }
-              this._ctx.host.refreshDiagnostics();
             }).finally(() => {
               this._fetchPromises.delete(moduleHref);
+              if (this._fetchPromises.size === 0) {
+                this._refreshDiagnostics();
+              }
             }),
           );
         }
       }
+      // hide diagnostics for unresolved modules`
       return {
         resolvedFileName: moduleName,
-        extension: TypeScriptWorker.getScriptExtension(moduleName),
+        extension: ".js",
       };
-    }).map((resolvedModule) => ({ resolvedModule }));
+    }).map((resolvedModule) => {
+      return { resolvedModule };
+    });
   }
 
   /*** language features ***/
@@ -488,7 +500,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     ) {
       const moduleName = displayParts[2].text;
       if (
-        // show full path for `file:` specifiers
+        // show pathname for `file:` specifiers
         moduleName.startsWith('"file:') && fileName.startsWith("file:")
       ) {
         const model = this._getModel(fileName);
@@ -511,7 +523,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
               name: "types",
               text: [{ kind: "text", text: dts }],
             }];
-            if (url.startsWith("https://esm.sh/")) {
+            if (/^https:\/\/esm\.sh\//.test(url)) {
               const { pathname } = new URL(url);
               const pathSegments = pathname.split("/").slice(1);
               if (/^v\d$/.test(pathSegments[0])) {
@@ -786,6 +798,16 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
       diagnostics.push(diagnostic);
     }
     return diagnostics;
+  }
+
+  private _refreshDiagnostics(): void {
+    if (this._refreshDiagnosticsTimeout !== null) {
+      return;
+    }
+    this._refreshDiagnosticsTimeout = setTimeout(() => {
+      this._refreshDiagnosticsTimeout = null;
+      this._ctx.host.refreshDiagnostics();
+    }, 500);
   }
 
   private _fileExists(fileName: string): boolean {
