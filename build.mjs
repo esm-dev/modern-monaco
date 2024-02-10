@@ -6,8 +6,8 @@ import { themes as tmThemes } from "tm-themes";
 // add some aliases for javascript and typescript
 const javascriptGrammar = tmGrammars.find((g) => g.name === "javascript");
 const typescriptGrammar = tmGrammars.find((g) => g.name === "typescript");
-javascriptGrammar.aliases?.push("mjs", "cjs", "jsx");
-typescriptGrammar.aliases?.push("mts", "cts", "tsx");
+javascriptGrammar.aliases.push("mjs", "cjs", "jsx");
+typescriptGrammar.aliases.push("mts", "cts", "tsx");
 
 const tmDefine = {
   "TM_THEMES": JSON.stringify(tmThemes.map((v) => v.name)),

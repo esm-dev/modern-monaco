@@ -96,8 +96,8 @@ async function loadMonaco(highlighter: HighlighterCore, options?: InitOption) {
     document.head.appendChild(styleEl);
   }
 
-  for (const id of grammarRegistry) {
-    monaco.languages.register({ id });
+  grammarRegistry.forEach(({ name: id, aliases }) => {
+    monaco.languages.register({ id, aliases });
     monaco.languages.onLanguage(id, () => {
       if (!loadedGrammars.has(id)) {
         loadedGrammars.add(id);
@@ -116,7 +116,7 @@ async function loadMonaco(highlighter: HighlighterCore, options?: InitOption) {
         lsp.import().then(({ setup }) => setup(id, monaco, formatOptions, vfs));
       }
     });
-  }
+  });
   shikiToMonaco(highlighter, monaco);
 
   return monaco;
@@ -234,7 +234,7 @@ export function lazy(options?: InitOption) {
         containerEl.className = "monaco-editor-container";
         containerEl.style.width = "100%";
         containerEl.style.height = "100%";
-        this.insertBefore(containerEl, this.firstChild);
+        this.appendChild(containerEl);
 
         // crreate a highlighter instance for the renderer/editor
         const preloadGrammars = options?.preloadGrammars ?? [];
@@ -255,11 +255,11 @@ export function lazy(options?: InitOption) {
         const highlighter = await initShiki({ ...options, preloadGrammars });
 
         // check the pre-rendered content, if not exists, render one
-        let preRenderEl = this.querySelector<HTMLElement>(
+        let mockEl = this.querySelector<HTMLElement>(
           ".monaco-editor-prerender",
         );
         if (
-          !preRenderEl &&
+          !mockEl &&
           ((file && vfs) || (renderOptions.code && renderOptions.lang))
         ) {
           let code = renderOptions.code;
@@ -268,18 +268,18 @@ export function lazy(options?: InitOption) {
             code = await vfs.readTextFile(file);
             lang = getLanguageIdFromPath(file);
           }
-          preRenderEl = containerEl.cloneNode(true) as HTMLElement;
-          preRenderEl.className = "monaco-editor-prerender";
-          preRenderEl.style.position = "absolute";
-          preRenderEl.style.top = "0";
-          preRenderEl.style.left = "0";
-          preRenderEl.innerHTML = renderMockEditor(highlighter, {
+          mockEl = containerEl.cloneNode(true) as HTMLElement;
+          mockEl.className = "monaco-editor-prerender";
+          mockEl.innerHTML = renderMockEditor(highlighter, {
             ...renderOptions,
             lang,
             code,
           });
-          this.appendChild(preRenderEl);
         }
+        mockEl.style.position = "absolute";
+        mockEl.style.top = "0";
+        mockEl.style.left = "0";
+        this.appendChild(mockEl);
 
         // load monaco editor
         (async () => {
@@ -306,15 +306,17 @@ export function lazy(options?: InitOption) {
             editor.setModel(model);
           }
           // hide the prerender element if exists
-          if (preRenderEl && workerPromise) {
+          if (mockEl && workerPromise) {
             workerPromise.then(() => {
-              const animate = preRenderEl.animate?.([{ opacity: 1 }, { opacity: 0 }], { duration: 200 });
-              if (animate) {
-                animate.finished.then(() => preRenderEl.remove());
-              } else {
-                // don't suuport animation api
-                preRenderEl.remove();
-              }
+              setTimeout(() => {
+                const animate = mockEl.animate?.([{ opacity: 1 }, { opacity: 0 }], { duration: 200 });
+                if (animate) {
+                  animate.finished.then(() => mockEl.remove());
+                } else {
+                  // don't support animation api
+                  setTimeout(() => mockEl.remove(), 200);
+                }
+              }, 300);
             });
           }
           // load required grammars in background
@@ -350,7 +352,7 @@ export async function renderToString(options: RenderOptions): Promise<string> {
   return [
     `<monaco-editor>`,
     `<script type="application/json" class="monaco-editor-options">${JSON.stringify(options)}</script>`,
-    `<div class="monaco-editor-prerender" style="width:100%;height:100%;position:absolute;top:0px;left:0px">`,
+    `<div class="monaco-editor-prerender" style="width:100%;height:100%;">`,
     renderMockEditor(highlighter, options),
     `</div>`,
     `</monaco-editor>`,

@@ -28,7 +28,7 @@
       align-items: center;
       gap: 6px;
       position: fixed;
-      right: 20px;
+      left: 20px;
       bottom: 20px;
       background-color: rgba(255, 255, 255, 0.05);
       color: rgba(255, 255, 255, 0.6);
@@ -41,6 +41,8 @@
       line-height: 1;
       cursor: pointer;
       transition: all 0.3s ease-in-out;
+      backdrop-filter: blur(16px);
+      user-select: none;
     }
 
     button.folder:hover {
@@ -76,7 +78,6 @@
       bottom: 40px;
       opacity: 0;
       font-weight: 400;
-      border-color: rgba(255, 255, 255, 0.2);
     }
 
     ul.selector.open {
@@ -123,6 +124,7 @@
       gap: 6px;
       height: 32px;
       transition: color 0.3s ease-in-out;
+      user-select: none;
     }
 
     ul.selector li:hover,
@@ -147,7 +149,7 @@
 </head>
 
 <body>
-  <monaco-editor fontSize="18" fontFamily="dank mono" padding="8"></monaco-editor>
+  <monaco-editor fontSize="16" fontFamily="dank mono" padding="8"></monaco-editor>
   <button class="folder"></button>
   <ul class="selector"></ul>
   <template class="icons">

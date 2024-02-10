@@ -11,7 +11,7 @@ const tmGrammars: { name: string; aliases?: string[] }[] = TM_GRAMMARS;
 // @ts-expect-error `TM_THEMES` is defined at build time
 const tmThemes: Set<string> = new Set(TM_THEMES);
 
-export const grammarRegistry = new Set(tmGrammars.map((l) => l.name));
+export const grammarRegistry = new Map(tmGrammars.map((g) => [g.name, g]));
 export const loadedGrammars = new Set<string>();
 
 export interface ShikiInitOptions {
@@ -50,7 +50,7 @@ export async function initShiki({
         typeof lang === "object" && lang !== null && lang.name &&
         !grammarRegistry.has(lang.name)
       ) {
-        grammarRegistry.add(lang.name);
+        grammarRegistry.set(lang.name, lang);
         loadedGrammars.add(lang.name);
         langs.push(lang as LanguageRegistration);
       }
