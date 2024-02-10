@@ -93,7 +93,7 @@ export class VFS {
     return db.transaction("files", readonly ? "readonly" : "readwrite").objectStore("files");
   }
 
-  async openModel(name: string | URL, attachTo: monacoNS.editor.ICodeEditor | number | string | boolean) {
+  async openModel(name: string | URL, attachTo?: monacoNS.editor.ICodeEditor | number | string | boolean) {
     const monaco = this.#monaco;
     if (!monaco) {
       throw new Error("monaco is not bound");
