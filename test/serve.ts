@@ -1,19 +1,79 @@
 import { renderToString } from "../dist/index.js";
 
-const appTsx = `import confetti from "https://esm.sh/canvas-confetti@1.6.0"
-import { useEffect } from "react"
-import { message } from "./greeting.ts"
+const files = {
+  "log.d.ts": [
+    "/** log a message. */",
+    "declare function log(message:string): void;",
+  ],
+  "greeting.ts": [
+    'export const message = "Hello world!" as const;',
+  ],
+  "index.html": [
+    "<!DOCTYPE html>",
+    "<html>",
+    "<head>",
+    '  <meta charset="utf-8">',
+    "  <title>React App</title>",
+    '  <link rel="stylesheet" href="./style.css">',
+    '  \<script type="importmap" src="import_map.json"><\/script>',
+    "</head>",
+    "<body>",
+    '  <div id="root"></div>',
+    '  <script type="module" src="./main.tsx"><\/script>',
+    "</body>",
+    "</html>",
+  ],
+  "style.css": [
+    "h1 {",
+    "  font-style: italic;",
+    "}",
+  ],
+  "App.tsx": [
+    'import confetti from "https://esm.sh/canvas-confetti@1.6.0"',
+    'import { useEffect } from "react"',
+    'import { message } from "./greeting.ts"',
+    "",
+    "export default function App() {",
+    "  useEffect(() => {",
+    "    confetti()",
+    "    log(message)",
+    "  }, [])",
+    "  return <h1>{message}</h1>;",
+    "}",
+  ],
+  "main.jsx": [
+    'import { createRoot } from "react-dom/client"',
+    'import App from "./App.tsx"',
+    "",
+    'const root = createRoot(document.getElementById("root"))',
+    "root.render(<App />)",
+  ],
+  "import_map.json": JSON.stringify(
+    {
+      imports: {
+        "@jsxImportSource": "https://esm.sh/react@18.2.0",
+        "react": "https://esm.sh/react@18.2.0",
+        "react-dom/": "https://esm.sh/react-dom@18.2.0/",
+      },
+    },
+    null,
+    2,
+  ),
+  "tsconfig.json": JSON.stringify(
+    {
+      compilerOptions: {
+        types: [
+          "log.d.ts",
+          "https://raw.githubusercontent.com/vitejs/vite/main/packages/vite/types/importMeta.d.ts",
+        ],
+      },
+    },
+    null,
+    2,
+  ),
+};
 
-export default function App() {
-  useEffect(() => {
-    confetti()
-    log(message)
-  }, [])
-  return <h1>{message}</h1>;
-}
-`;
-
-async function serveDist(url, req, notFound) {
+async function serveDist(url: URL, req: Request, notFound: (url: URL, req: Request) => Promise<Response>) {
   if (url.pathname === "/") {
     return notFound(url, req);
   }
@@ -66,7 +126,7 @@ async function serveDist(url, req, notFound) {
   }
 }
 
-async function servePages(url, req) {
+async function servePages(url: URL, req: Request) {
   const filename = url.pathname.slice(1) || "index.html";
   try {
     const fileUrl = new URL(filename, import.meta.url);
@@ -75,7 +135,7 @@ async function servePages(url, req) {
       let replaced = false;
       const ssrOutput = await renderToString({
         filename: "App.tsx",
-        code: appTsx,
+        code: files["App.tsx"],
         padding: {
           top: 8,
           bottom: 8,
@@ -85,7 +145,7 @@ async function servePages(url, req) {
       });
       body = body.pipeThrough(
         new TransformStream({
-          transform: async (chunk, controller) => {
+          transform: (chunk, controller) => {
             if (replaced) {
               controller.enqueue(chunk);
               return;
@@ -123,7 +183,7 @@ async function servePages(url, req) {
   }
 }
 
-function getContentType(pathname) {
+function getContentType(pathname: string) {
   if (pathname.endsWith(".css")) {
     return "text/css; utf-8";
   }
@@ -136,10 +196,28 @@ function getContentType(pathname) {
   return "application/octet-stream";
 }
 
-Deno.serve(async (req) => {
+const cmd = new Deno.Command(Deno.execPath(), {
+  args: ["run", "-A", "build.ts", "--watch"],
+  cwd: new URL("../", import.meta.url).pathname,
+});
+cmd.spawn();
+
+Deno.serve((req) => {
   let url = new URL(req.url);
   if (url.pathname.startsWith("/dist/")) {
     url = new URL(url.pathname.slice(5), url);
+  }
+  if (url.pathname === "/vfs.js") {
+    const headers = new Headers({
+      "cache-control": "public, max-age=0, revalidate",
+      "content-type": getContentType(url.pathname),
+    });
+    return new Response(
+      `import { VFS } from "/index.js";export const vfs = new VFS({ scope: "test", initial: ${
+        JSON.stringify(files, null, 2)
+      } });`,
+      { headers },
+    );
   }
   return serveDist(url, req, servePages);
 });

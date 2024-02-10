@@ -12,9 +12,9 @@
     }
   },
   "scripts": {
-    "prepublishOnly": "node build.mjs",
+    "prepublishOnly": "deno run -A build.ts",
     "fmt": "deno fmt -c ./.vscode/deno.json src/",
-    "test": "node build.mjs && deno run -A test/serve.mjs"
+    "test": "deno run -A test/serve.ts"
   },
   "files": [
     "dist/",

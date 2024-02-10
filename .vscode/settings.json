@@ -1,4 +1,8 @@
 {
   "deno.enable": false,
+  "deno.enablePaths": [
+    "./build.ts",
+    "./test/serve.ts"
+  ],
   "deno.config": "./.vscode/deno.json"
 }
