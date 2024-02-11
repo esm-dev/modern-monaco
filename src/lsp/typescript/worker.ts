@@ -301,7 +301,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
                 const contentType = res.headers.get("content-type");
                 const dts = res.headers.get("x-typescript-types");
                 if (dts) {
-                  const dtsRes = await vfetch(dts);
+                  const dtsRes = await vfetch(new URL(dts, moduleUrl));
                   if (dtsRes.ok) {
                     res.body?.cancel();
                     this._httpLibs.set(dts, await dtsRes.text());
