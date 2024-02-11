@@ -3,8 +3,9 @@ import * as lf from "../language-features.js";
 import type { CreateData, CSSWorker } from "./worker";
 
 export function setup(
-  languageId: string,
   monaco: typeof monacoNS,
+  languageId: string,
+  languageSettings?: Record<string, unknown>,
   format?: Record<string, unknown>,
 ) {
   const languages = monaco.languages;

@@ -5,9 +5,10 @@ export interface LSPLoader {
   aliases?: string[];
   import: () => Promise<{
     setup: (
-      languageId: string,
       monaco: typeof monacoNS,
-      formatOptions: Record<string, unknown>,
+      languageId: string,
+      langaugeSettings?: Record<string, unknown>,
+      formatOptions?: Record<string, unknown>,
       vfs?: VFS,
     ) => Promise<void>;
     workerUrl: () => URL;
@@ -17,11 +18,11 @@ export interface LSPLoader {
 export function normalizeFormatOptions(
   label: string,
   formatOptions?: Record<string, unknown>,
-): Record<string, unknown> {
-  const options: Record<string, unknown> = {};
+): Record<string, unknown> | undefined {
   if (!formatOptions) {
-    return options;
+    return undefined;
   }
+  const options: Record<string, unknown> = {};
   if (label in formatOptions) {
     Object.assign(options, formatOptions[label]);
   }
@@ -41,11 +42,13 @@ export function normalizeFormatOptions(
         value = !value;
       }
     } else if (key === "tabSize" || key === "trimTrailingWhitespace") {
-      // ignore
+      // keep
     } else {
       continue;
     }
-    options[key] = value;
+    if (!(key in options)) {
+      options[key] = value;
+    }
   }
   return options;
 }

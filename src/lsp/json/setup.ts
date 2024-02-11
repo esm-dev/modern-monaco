@@ -4,8 +4,9 @@ import type { CreateData, JSONWorker } from "./worker";
 import { schemas } from "./schemas";
 
 export function setup(
-  languageId: string,
   monaco: typeof monacoNS,
+  languageId: string,
+  languageSettings?: Record<string, unknown>,
   format?: Record<string, unknown>,
 ) {
   const languages = monaco.languages;
@@ -16,7 +17,7 @@ export function setup(
       settings: {
         validate: true,
         allowComments: false,
-        schemas,
+        schemas: Array.isArray(languageSettings?.schemas) ? schemas.concat(languageSettings.schemas) : schemas,
         schemaRequest: "warning",
         schemaValidation: "warning",
         comments: "error",

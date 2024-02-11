@@ -152,6 +152,7 @@ async function loadImportMap(vfs: VFS, postLoad?: (im: ImportMap) => ImportMap) 
 /** Create the typescript worker. */
 async function createWorker(
   monaco: typeof monacoNS,
+  languageSettings?: Record<string, unknown>,
   format?: Record<string, unknown>,
   vfs?: VFS,
 ) {
@@ -162,11 +163,9 @@ async function createWorker(
     moduleResolution: 100, // ModuleResolutionKind.Bundler,
     target: 99, // ScriptTarget.ESNext,
     noEmit: true,
-    ...Reflect.get(monaco.languages, "compilerOptions"),
+    ...(languageSettings?.compilerOptions as ts.CompilerOptions),
   };
-  const defaultImportMap = parseImportMapFromJson(
-    Reflect.get(monaco.languages, "importMapJSON") ?? "{}",
-  );
+  const defaultImportMap = blankImportMap();
   const remixImportMap = (im: ImportMap): ImportMap => {
     if (isBlank(defaultImportMap)) {
       return im;
@@ -181,6 +180,12 @@ async function createWorker(
     // @ts-expect-error 'libs.js' is generated at build time
     import("./libs.js").then((m) => lf.types.setLibs(m.default)),
   ];
+
+  if (languageSettings?.importMap) {
+    const { imports, scopes } = languageSettings.importMap as ImportMap;
+    defaultImportMap.imports = Object.assign({}, imports);
+    defaultImportMap.scopes = Object.assign({}, scopes);
+  }
 
   // resolve types of the default compiler options
   await resolveTypes(defaultCompilerOptions, vfs);
@@ -335,8 +340,9 @@ let worker: TSWorker | Promise<TSWorker> | null = null;
 let refreshDiagnosticEventEmitter: EventTrigger | null = null;
 
 export async function setup(
-  languageId: string,
   monaco: typeof monacoNS,
+  languageId: string,
+  languageSettings?: Record<string, unknown>,
   format?: Record<string, unknown>,
   vfs?: VFS,
 ) {
@@ -347,7 +353,7 @@ export async function setup(
   }
 
   if (!worker) {
-    worker = createWorker(monaco, format, vfs);
+    worker = createWorker(monaco, languageSettings, format, vfs);
   }
   if (worker instanceof Promise) {
     worker = await worker;

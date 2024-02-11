@@ -2,7 +2,8 @@
 node_modules/
 dist/
 *.log
-monaco.d.ts
-tm.d.ts
-tm-grammars.d.ts
-tm-themes.d.ts
+types/monaco.d.ts
+types/tm.d.ts
+types/tm-grammars.d.ts
+types/tm-themes.d.ts
+types/jsonSchema.d.ts

@@ -104,6 +104,7 @@ const buildTypes = async () => {
     ["tm-themes/index.d.ts", "tm-themes.d.ts"],
     ["tm-grammars/index.d.ts", "tm-grammars.d.ts"],
     ["monaco-editor-core/esm/vs/editor/editor.api.d.ts", "monaco.d.ts"],
+    ["vscode-json-languageservice/lib/esm/jsonSchema.d.ts", "jsonSchema.d.ts"],
   );
   await createTmDts();
 };

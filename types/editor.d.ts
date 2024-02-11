@@ -1,111 +1,34 @@
 import type ts from "typescript";
+import type monacoNS from "./monaco";
+import type { FormatOptions } from "./format";
+import type { JSONSchema } from "./jsonSchema";
 import type { TmGrammar, TmTheme } from "./tm";
 import type { GrammarInfo } from "./tm-grammars";
 import type { ThemeInfo } from "./tm-themes";
 import type { VFS } from "./vfs";
-import type monacoNS from "./monaco";
 
-export interface FormatOptions {
-  tabSize?: number;
-  insertSpaces?: boolean;
-  trimTrailingWhitespace?: boolean;
-  insertFinalNewline?: boolean;
-  trimFinalNewlines?: boolean;
-
-  // HTML
-  html: {
-    contentUnformatted?: string;
-    endWithNewline?: boolean;
-    extraLiners?: string;
-    indentEmptyLines?: boolean;
-    indentHandlebars?: boolean;
-    indentInnerHtml?: boolean;
-    indentScripts?: "keep" | "separate" | "normal";
-    insertSpaces?: boolean;
-    maxPreserveNewLines?: number;
-    preserveNewLines?: boolean;
-    tabSize?: number;
-    templating?: boolean;
-    unformatted?: string;
-    unformattedContentDelimiter?: string;
-    wrapAttributes?:
-      | "auto"
-      | "force"
-      | "force-aligned"
-      | "force-expand-multiline"
-      | "aligned-multiple"
-      | "preserve"
-      | "preserve-aligned";
-    wrapAttributesIndentSize?: number;
-    wrapLineLength?: number;
-  };
-
-  // CSS
-  css: {
-    /** indentation size. Default: 4 */
-    tabSize?: number;
-    /** Whether to use spaces or tabs */
-    insertSpaces?: boolean;
-    /** end with a newline: Default: false */
-    insertFinalNewline?: boolean;
-    /** separate selectors with newline (e.g. "a,\nbr" or "a, br"): Default: true */
-    newlineBetweenSelectors?: boolean;
-    /** add a new line after every css rule: Default: true */
-    newlineBetweenRules?: boolean;
-    /** ensure space around selector separators:  '>', '+', '~' (e.g. "a>b" -> "a > b"): Default: false */
-    spaceAroundSelectorSeparator?: boolean;
-    /** put braces on the same line as rules (`collapse`), or put braces on own line, Allman / ANSI style (`expand`). Default `collapse` */
-    braceStyle?: "collapse" | "expand";
-    /** whether existing line breaks before elements should be preserved. Default: true */
-    preserveNewLines?: boolean;
-    /** maximum number of line breaks to be preserved in one chunk. Default: unlimited */
-    maxPreserveNewLines?: number;
-    /** maximum amount of characters per line (0/undefined = disabled). Default: disabled. */
-    wrapLineLength?: number;
-    /** add indenting whitespace to empty lines. Default: false */
-    indentEmptyLines?: boolean;
-  };
-
-  // JSON
-  json: {
-    insertFinalNewline?: boolean;
-    insertSpaces?: boolean;
-    keepLines?: boolean;
-    tabSize?: number;
-    trimFinalNewlines?: boolean;
-    trimTrailingWhitespace?: boolean;
-  };
-
-  // TypeScript
-  typescript: {
-    indentMultiLineObjectLiteralBeginningOnBlankLine?: boolean;
-    indentSwitchCase?: boolean;
-    insertSpaceAfterCommaDelimiter?: boolean;
-    insertSpaceAfterConstructor?: boolean;
-    insertSpaceAfterFunctionKeywordForAnonymousFunctions?: boolean;
-    insertSpaceAfterKeywordsInControlFlowStatements?: boolean;
-    insertSpaceAfterOpeningAndBeforeClosingEmptyBraces?: boolean;
-    insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces?: boolean;
-    insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces?: boolean;
-    insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets?: boolean;
-    insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis?: boolean;
-    insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces?: boolean;
-    insertSpaceAfterSemicolonInForStatements?: boolean;
-    insertSpaceAfterTypeAssertion?: boolean;
-    insertSpaceBeforeAndAfterBinaryOperators?: boolean;
-    insertSpaceBeforeFunctionParenthesis?: boolean;
-    insertSpaceBeforeTypeAnnotation?: boolean;
-    placeOpenBraceOnNewLineForControlBlocks?: boolean;
-    placeOpenBraceOnNewLineForFunctions?: boolean;
-    semicolons?: "ignore" | "insert" | "remove";
-    baseIndentSize?: number;
-    convertTabsToSpaces?: boolean;
-    indentSize?: number;
-    indentStyle?: number;
-    newLineCharacter?: string;
-    tabSize?: number;
-    trimTrailingWhitespace?: boolean;
-  };
+export interface SchemaConfiguration {
+  /**
+   * The URI of the schema, which is also the identifier of the schema.
+   */
+  uri: string;
+  /**
+   * A list of glob patterns that describe for which file URIs the JSON schema will be used.
+   * '*' and '**' wildcards are supported. Exclusion patterns start with '!'.
+   * For example '*.schema.json', 'package.json', '!foo*.schema.json', 'foo/**\/BADRESP.json'.
+   * A match succeeds when there is at least one pattern matching and last matching pattern does not start with '!'.
+   */
+  fileMatch?: string[];
+  /**
+   * The schema for the given URI.
+   * If no schema is provided, the schema will be fetched with the schema request service (if available).
+   */
+  schema?: JSONSchema;
+  /**
+   * A parent folder for folder specifc associations. An association that has a folder URI set is only used
+   * if the document that is validated has the folderUri as parent
+   */
+  folderUri?: string;
 }
 
 export interface ImportMap {
@@ -122,12 +45,20 @@ export interface ShikiInitOptions {
 export interface InitOptions extends ShikiInitOptions {
   vfs?: VFS;
   format?: FormatOptions;
-  compilerOptions?: ts.CompilerOptions;
-  importMap?: ImportMap;
+  json: {
+    schemas?: SchemaConfiguration[];
+  };
+  typescript?: {
+    /** The compiler options */
+    compilerOptions?: ts.CompilerOptions;
+    /** The global import maps */
+    importMap?: ImportMap;
+    /** The version of the typescript module from CDN */
+    version?: string;
+  };
 }
 
-export interface RenderOptions
-  extends monacoNS.editor.IStandaloneEditorConstructionOptions {
+export interface RenderOptions extends monacoNS.editor.IStandaloneEditorConstructionOptions {
   lang: string;
   code: string;
   filename?: string;

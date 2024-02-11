@@ -43,13 +43,12 @@ const editorOptionKeys = [
 export interface InitOption extends ShikiInitOptions {
   vfs?: VFS;
   format?: Record<string, unknown>;
-  compilerOptions?: Record<string, unknown>;
-  importMap?: Record<string, unknown>;
-  onWorkerMessage?: () => void;
+  json?: Record<string, unknown>;
+  typescript?: Record<string, unknown>;
 }
 
 /** Load the monaco editor and use shiki as the tokenizer. */
-async function loadMonaco(highlighter: HighlighterCore, options?: InitOption) {
+async function loadMonaco(highlighter: HighlighterCore, options?: InitOption, onEditorWorkerReady?: () => void) {
   const monaco = await import("./editor-core.js");
   const editorWorkerUrl = monaco.workerUrl();
 
@@ -66,7 +65,7 @@ async function loadMonaco(highlighter: HighlighterCore, options?: InitOption) {
       const worker = await createWorker(url);
       if (!lsp) {
         const onMessage = () => {
-          options?.onWorkerMessage?.();
+          onEditorWorkerReady?.();
           worker.removeEventListener("message", onMessage);
         };
         worker.addEventListener("message", onMessage);
@@ -76,13 +75,7 @@ async function loadMonaco(highlighter: HighlighterCore, options?: InitOption) {
     getLanguageIdFromUri: (uri: monacoNS.Uri) => getLanguageIdFromPath(uri.path),
   });
 
-  const { vfs, compilerOptions, importMap } = options ?? {};
-  if (compilerOptions) {
-    Reflect.set(monaco.languages, "compilerOptions", compilerOptions);
-  }
-  if (importMap) {
-    Reflect.set(monaco.languages, "importMapJSON", JSON.stringify(importMap));
-  }
+  const { vfs } = options ?? {};
   if (vfs) {
     vfs._bindMonaco(monaco);
   }
@@ -113,7 +106,7 @@ async function loadMonaco(highlighter: HighlighterCore, options?: InitOption) {
       }
       if (lsp) {
         const formatOptions = normalizeFormatOptions(label, options?.format);
-        lsp.import().then(({ setup }) => setup(id, monaco, formatOptions, vfs));
+        lsp.import().then(({ setup }) => setup(monaco, id, options?.[label], formatOptions, vfs));
       }
     });
   });
@@ -149,20 +142,17 @@ export function init(options: InitOption = {}): Promise<typeof monacoNS> {
 export function lazy(options?: InitOption) {
   const vfs = options?.vfs;
   let monacoCore: typeof monacoNS | Promise<typeof monacoNS> | null = null;
-  let workerPromise: Promise<void> | null = null;
+  let editorWorkerPromise: Promise<void> | null = null;
 
   function loadMonacoCore(highlighter: HighlighterCore) {
     if (monacoCore) {
       return monacoCore;
     }
-    let onWorkerMessage: (() => void) | undefined;
-    workerPromise = new Promise<void>((resolve) => {
-      onWorkerMessage = resolve;
+    let onEditorWorkerReady: (() => void) | undefined;
+    editorWorkerPromise = new Promise<void>((resolve) => {
+      onEditorWorkerReady = resolve;
     });
-    return monacoCore = loadMonaco(highlighter, {
-      ...options,
-      onWorkerMessage,
-    }).then((m) => monacoCore = m);
+    return monacoCore = loadMonaco(highlighter, options, onEditorWorkerReady).then((m) => monacoCore = m);
   }
 
   customElements.define(
@@ -306,8 +296,8 @@ export function lazy(options?: InitOption) {
             editor.setModel(model);
           }
           // hide the prerender element if exists
-          if (mockEl && workerPromise) {
-            workerPromise.then(() => {
+          if (mockEl && editorWorkerPromise) {
+            editorWorkerPromise.then(() => {
               setTimeout(() => {
                 const animate = mockEl.animate?.([{ opacity: 1 }, { opacity: 0 }], { duration: 200 });
                 if (animate) {
