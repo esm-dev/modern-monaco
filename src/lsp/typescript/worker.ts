@@ -261,6 +261,8 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
             moduleHref,
             this._ctx.host.tryOpenModel(moduleHref).then((ok) => {
               if (!ok) {
+                // @ts-expect-error force reinvoke `resolveModuleNameLiterals` method
+                this._getModel(containingFile)._versionId--;
                 this._unknownModules.add(moduleHref);
               }
             }).finally(() => {
@@ -271,7 +273,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
             }),
           );
         }
-      } else if (moduleUrl.pathname !== "/" && !/[@,.-]$/.test(moduleUrl.pathname)) {
+      } else if (moduleUrl.pathname !== "/" && !/[@.,-]$/.test(moduleUrl.pathname)) {
         const moduleHref = moduleUrl.href;
         if (this._dtsMap.has(moduleHref)) {
           return {
@@ -330,6 +332,10 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
                   this._unknownModules.add(moduleHref);
                 }
               }
+              if (containingFile.startsWith("file://")) {
+                // @ts-expect-error force reinvoke `resolveModuleNameLiterals` method
+                this._getModel(containingFile)._versionId--;
+              }
             }).finally(() => {
               this._fetchPromises.delete(moduleHref);
               if (this._fetchPromises.size === 0) {
@@ -362,15 +368,11 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   }
 
   async getSuggestionDiagnostics(fileName: string): Promise<Diagnostic[]> {
-    const diagnostics = this._languageService.getSuggestionDiagnostics(
-      fileName,
-    );
+    const diagnostics = this._languageService.getSuggestionDiagnostics(fileName);
     return TypeScriptWorker.clearFiles(diagnostics);
   }
 
-  async getCompilerOptionsDiagnostics(
-    fileName: string,
-  ): Promise<Diagnostic[]> {
+  async getCompilerOptionsDiagnostics(fileName: string): Promise<Diagnostic[]> {
     const diagnostics = this._languageService.getCompilerOptionsDiagnostics();
     return TypeScriptWorker.clearFiles(diagnostics);
   }
@@ -480,10 +482,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     );
   }
 
-  async getQuickInfoAtPosition(
-    fileName: string,
-    position: number,
-  ): Promise<ts.QuickInfo | undefined> {
+  async getQuickInfoAtPosition(fileName: string, position: number): Promise<ts.QuickInfo | undefined> {
     const info = this._languageService.getQuickInfoAtPosition(
       fileName,
       position,
@@ -580,9 +579,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     return this._languageService.getReferencesAtPosition(fileName, position);
   }
 
-  async getNavigationTree(
-    fileName: string,
-  ): Promise<ts.NavigationTree | undefined> {
+  async getNavigationTree(fileName: string): Promise<ts.NavigationTree | undefined> {
     return this._languageService.getNavigationTree(fileName);
   }
 
@@ -659,17 +656,52 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     errorCodes: number[],
     formatOptions: ts.FormatCodeSettings,
   ): Promise<ReadonlyArray<ts.CodeFixAction>> {
-    const preferences = {};
+    const importMapSrc = this._importMap.$src;
+    if (errorCodes.includes(2307) && importMapSrc) {
+      let span = [start + 1, end - 1] as [number, number];
+      if (start === end) {
+        const a = this._languageService.getReferencesAtPosition(fileName, start);
+        if (a.length > 0) {
+          const b = a[0];
+          span = [b.textSpan.start, b.textSpan.start + b.textSpan.length];
+        }
+      }
+      const model = this._getModel(fileName);
+      const specifier = model.getValue().slice(...span);
+      if (/^@?[a-zA-Z0-9][\w.-]*(\/|$)/.test(specifier)) {
+        const res = await vfetch(`https://esm.sh/${specifier}`);
+        if (res.ok && res.redirected) {
+          res.body?.cancel();
+          const segments = new URL(res.url).pathname.split("/");
+          const pkgNameWithVersion = segments[1].startsWith("@") ? segments.slice(1, 3).join("/") : segments[1];
+          const pkgName = pkgNameWithVersion.slice(0, pkgNameWithVersion.lastIndexOf("@"));
+          const fixName = `Add "https://esm.sh/${pkgNameWithVersion}" to import map`;
+          return [
+            {
+              fixName,
+              description: fixName,
+              changes: [],
+              commands: [{
+                id: "importmap.add",
+                title: "Add module to import map",
+                arguments: [importMapSrc, pkgName, `https://esm.sh/${pkgNameWithVersion}`],
+              }],
+            },
+          ];
+        }
+      }
+    }
     try {
-      return this._languageService.getCodeFixesAtPosition(
+      const fixes = this._languageService.getCodeFixesAtPosition(
         fileName,
         start,
         end,
         errorCodes,
         this._mergeFormatOptions(formatOptions),
-        preferences,
+        {},
       );
-    } catch {
+      return fixes;
+    } catch (err) {
       return [];
     }
   }
@@ -774,11 +806,11 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
       fileName.endsWith(".d.cts");
   }
 
+  // Clear the `file` field, which cannot be JSON stringified because it
+  // contains cyclic data structures, except for the `fileName`
+  // property.
+  // Do a deep clone so we don't mutate the ts.Diagnostic object (see https://github.com/microsoft/monaco-editor/issues/2392)
   private static clearFiles(tsDiagnostics: ts.Diagnostic[]): Diagnostic[] {
-    // Clear the `file` field, which cannot be JSON stringified because it
-    // contains cyclic data structures, except for the `fileName`
-    // property.
-    // Do a deep clone so we don't mutate the ts.Diagnostic object (see https://github.com/microsoft/monaco-editor/issues/2392)
     const diagnostics: Diagnostic[] = [];
     for (const tsDiagnostic of tsDiagnostics) {
       const diagnostic: Diagnostic = {

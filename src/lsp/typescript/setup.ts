@@ -122,7 +122,7 @@ async function loadCompilerOptions(vfs: VFS) {
 }
 
 /** Load import maps from the root index.html or external json file. */
-async function loadImportMap(vfs: VFS, postload: (im: ImportMap) => ImportMap) {
+async function loadImportMap(vfs: VFS, postLoad?: (im: ImportMap) => ImportMap) {
   try {
     const indexHtml = await vfs.readTextFile("index.html");
     const tplEl = document.createElement("template");
@@ -135,7 +135,7 @@ async function loadImportMap(vfs: VFS, postload: (im: ImportMap) => ImportMap) {
         scriptEl.src ? await vfs.readTextFile(scriptEl.src) : scriptEl.textContent,
       );
       im.$src = toUrl(scriptEl.src ? scriptEl.src : "index.html").href;
-      return postload(im);
+      return postLoad ? postLoad(im) : im;
     }
   } catch (error) {
     if (error instanceof vfs.ErrorNotFound) {
@@ -263,9 +263,15 @@ async function createWorker(
           if (e.kind === "remove") {
             importMap = { ...defaultImportMap };
           } else {
-            const content = await vfs.readTextFile($src);
-            const im = parseImportMapFromJson(content);
-            importMap = im;
+            try {
+              const content = await vfs.readTextFile($src);
+              const im = parseImportMapFromJson(content);
+              im.$src = $src;
+              importMap = remixImportMap(im);
+            } catch (error) {
+              console.error("Failed to read import map:", error);
+              importMap = { ...defaultImportMap };
+            }
           }
           updateCompilerOptions({ importMap });
         });
@@ -313,6 +319,21 @@ export async function setup(
   vfs?: VFS,
 ) {
   const languages = monaco.languages;
+
+  monaco.editor.addCommand({
+    id: "importmap.add",
+    run: async (_: unknown, src: string, specifier: string, uri: string) => {
+      if (vfs) {
+        const content = await vfs.readTextFile(src);
+        if (src.endsWith(".json")) {
+          const { imports, scopes } = parseImportMapFromJson(content);
+          imports[specifier] = uri;
+          imports[specifier + "/"] = uri + "/";
+          await vfs.writeFile(src, JSON.stringify({ imports, scopes }, null, 2));
+        }
+      }
+    },
+  });
 
   if (!refreshDiagnosticEventEmitter) {
     refreshDiagnosticEventEmitter = new EventTrigger(new monaco.Emitter());

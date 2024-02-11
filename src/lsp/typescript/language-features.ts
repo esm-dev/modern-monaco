@@ -388,9 +388,7 @@ export class DiagnosticsAdapter extends Adapter {
     }
 
     return {
-      severity: DiagnosticsAdapter._tsDiagnosticCategoryToMarkerSeverity(
-        diag.category,
-      ),
+      severity: DiagnosticsAdapter._tsDiagnosticCategoryToMarkerSeverity(diag.category),
       startLineNumber,
       startColumn,
       endLineNumber,
@@ -1190,26 +1188,37 @@ export class CodeActionAdaptor extends FormatHelper implements monacoNS.language
     context: monacoNS.languages.CodeActionContext,
     codeFix: ts.CodeFixAction,
   ): monacoNS.languages.CodeAction {
-    const edits: monacoNS.languages.IWorkspaceTextEdit[] = [];
-    for (const change of codeFix.changes) {
-      for (const textChange of change.textChanges) {
-        edits.push({
-          resource: model.uri,
-          versionId: undefined,
-          textEdit: {
-            range: this._textSpanToRange(model, textChange.span),
-            text: textChange.newText,
-          },
-        });
-      }
-    }
-
     const action: monacoNS.languages.CodeAction = {
       title: codeFix.description,
-      edit: { edits: edits },
       diagnostics: context.markers,
       kind: "quickfix",
     };
+
+    if (codeFix.changes.length > 0) {
+      const edits: monacoNS.languages.IWorkspaceTextEdit[] = [];
+      for (const change of codeFix.changes) {
+        for (const textChange of change.textChanges) {
+          edits.push({
+            resource: model.uri,
+            versionId: undefined,
+            textEdit: {
+              range: this._textSpanToRange(model, textChange.span),
+              text: textChange.newText,
+            },
+          });
+        }
+      }
+      action.edit = { edits };
+    }
+
+    if (codeFix.commands?.length > 0) {
+      const command: any = codeFix.commands[0];
+      action.command = {
+        id: command.id,
+        title: command.title,
+        arguments: command.arguments,
+      };
+    }
 
     return action;
   }
