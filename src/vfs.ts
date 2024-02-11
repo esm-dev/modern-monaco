@@ -96,7 +96,7 @@ export class VFS {
   async openModel(name: string | URL, attachTo?: monacoNS.editor.ICodeEditor | number | string | boolean) {
     const monaco = this.#monaco;
     if (!monaco) {
-      throw new Error("monaco is not bound");
+      throw new Error("monaco is undefined");
     }
     const url = toUrl(name);
     const uri = monaco.Uri.parse(url.href);
@@ -108,7 +108,7 @@ export class VFS {
         e.preventDefault();
         e.returnValue = true;
       };
-      const onDidChange = model.onDidChangeContent((e) => {
+      const onDidChange = (e) => {
         if (writeTimer !== null) {
           return;
         }
@@ -122,10 +122,25 @@ export class VFS {
           );
           globalThis.removeEventListener("beforeunload", askToExit);
         }, 500);
+      };
+      let disposable = model.onDidChangeContent(onDidChange);
+      const unwatch = this.watch(url.href, async (evt) => {
+        if (evt.kind === "remove") {
+          model.dispose();
+        } else if (evt.kind === "modify") {
+          const { content } = await this.#read(url);
+          if (model.getValue() !== toString(content)) {
+            disposable.dispose();
+            model.setValue(toString(content));
+            model.pushStackElement();
+            disposable = model.onDidChangeContent(onDidChange);
+          }
+        }
       });
       model.onWillDispose(() => {
         Reflect.deleteProperty(model, "__VFS__");
-        onDidChange.dispose();
+        disposable.dispose();
+        unwatch();
       });
       Reflect.set(model, "__VFS__", true);
     }
@@ -299,14 +314,15 @@ let cacheDb: Promise<IDBDatabase> | IDBDatabase | null = null;
 
 /** Fetch with vfs cache. */
 export async function vfetch(url: string | URL): Promise<Response> {
+  url = toUrl(url);
   if (!globalThis.indexedDB) {
     // non-browser environment
     return fetch(url);
   }
   const db = await (cacheDb ?? (cacheDb = openDB("monaco-cache")));
   const tx = db.transaction("files", "readonly").objectStore("files");
-  const caceUrl = toUrl(url).href;
-  const ret = await waitIDBRequest<VFile>(tx.get(caceUrl));
+  const cacheUrl = url.href;
+  const ret = await waitIDBRequest<VFile>(tx.get(cacheUrl));
   if (ret && ret.headers) {
     const headers = new Headers(ret.headers);
     const cc = headers.get("cache-control");
@@ -323,7 +339,15 @@ export async function vfetch(url: string | URL): Promise<Response> {
       }
     }
     if (hit) {
-      return new Response(ret.content, { headers });
+      const res = new Response(ret.content, { headers });
+      if (headers.has("x-redirected-url")) {
+        defineProperty(res, "url", headers.get("x-redirected-url"));
+        defineProperty(res, "redirected", true);
+        headers.delete("x-redirected-url");
+      } else {
+        defineProperty(res, "url", cacheUrl);
+      }
+      return res;
     }
   }
   const res = await fetch(url);
@@ -331,12 +355,20 @@ export async function vfetch(url: string | URL): Promise<Response> {
   if (res.ok && cc && (cc.includes("max-age=") || cc.includes("immutable"))) {
     const content = new Uint8Array(await res.arrayBuffer());
     const headers = [...res.headers.entries()].filter(([k]) =>
-      ["content-type", "content-length", "cache-control", "x-typescript-types"]
+      ["content-type", "content-length", "x-typescript-types", "x-esm-id"]
         .includes(k)
     );
+    if (cc.includes("immutable") && url.hostname === "esm.sh" && res.redirected) {
+      headers.push(["cache-control", "max-age=600"]);
+    } else {
+      headers.push(["cache-control", cc]);
+    }
+    if (res.redirected) {
+      headers.push(["x-redirected-url", res.url]);
+    }
     const now = Date.now();
     const file: VFile = {
-      url: caceUrl,
+      url: cacheUrl,
       version: 1,
       content,
       headers,
@@ -345,9 +377,17 @@ export async function vfetch(url: string | URL): Promise<Response> {
     };
     const tx = db.transaction("files", "readwrite").objectStore("files");
     await waitIDBRequest<VFile>(tx.put(file));
-    return new Response(content, { headers });
+    const resp = new Response(content, { headers });
+    defineProperty(resp, "url", res.url);
+    defineProperty(resp, "redirected", res.redirected);
+    return resp;
   }
   return res;
+}
+
+/** Define property with value. */
+function defineProperty(obj: any, prop: string, value: any) {
+  Object.defineProperty(obj, prop, { value });
 }
 
 /** Convert string to URL. */
