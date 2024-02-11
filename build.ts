@@ -107,23 +107,23 @@ const buildTypes = async () => {
   );
   await createTmDts();
 };
-const debounce = <T extends (...args: unknown[]) => unknown>(fn: T, ms: number) => {
-  let timeout: number;
-  return (...args: Parameters<T>) => {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => fn(...args), ms);
-  };
-};
 
 await bundleTypescriptLibs();
 await buildTypes();
 await buildDist();
 
 if (Deno.args.includes("--watch")) {
-  const rebuildDist = debounce(buildDist, 500);
   const watcher = Deno.watchFs("src", { recursive: true });
   console.log("Watching for file changes...");
+  let timer: number | null = null;
   for await (const _event of watcher) {
-    rebuildDist();
+    timer = timer ?? setTimeout(async () => {
+      timer = null;
+      try {
+        await buildDist();
+      } catch (error) {
+        console.error(error);
+      }
+    }, 100);
   }
 }
