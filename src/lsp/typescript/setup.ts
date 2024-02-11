@@ -131,11 +131,11 @@ async function loadImportMap(vfs: VFS, postLoad?: (im: ImportMap) => ImportMap) 
       'script[type="importmap"]',
     );
     if (scriptEl) {
-      const im = parseImportMapFromJson(
+      const importMap = parseImportMapFromJson(
         scriptEl.src ? await vfs.readTextFile(scriptEl.src) : scriptEl.textContent,
       );
-      im.$src = toUrl(scriptEl.src ? scriptEl.src : "index.html").href;
-      return postLoad ? postLoad(im) : im;
+      importMap.$src = toUrl(scriptEl.src ? scriptEl.src : "index.html").href;
+      return postLoad?.(importMap) ?? importMap;
     }
   } catch (error) {
     if (error instanceof vfs.ErrorNotFound) {
@@ -144,7 +144,9 @@ async function loadImportMap(vfs: VFS, postLoad?: (im: ImportMap) => ImportMap) 
       console.error(error);
     }
   }
-  return blankImportMap();
+  const importMap = blankImportMap();
+  importMap.$src = toUrl("index.html").href;
+  return postLoad?.(importMap) ?? importMap;
 }
 
 /** Create the typescript worker. */
@@ -175,17 +177,16 @@ async function createWorker(
       scopes: Object.assign({}, defaultImportMap.scopes, im.scopes),
     };
   };
+  const promises = [
+    // @ts-expect-error 'libs.js' is generated at build time
+    import("./libs.js").then((m) => lf.types.setLibs(m.default)),
+  ];
 
   // resolve types of the default compiler options
   await resolveTypes(defaultCompilerOptions, vfs);
 
   let compilerOptions: ts.CompilerOptions = { ...defaultCompilerOptions };
   let importMap = { ...defaultImportMap };
-
-  const promises = [
-    // @ts-expect-error 'libs.js' is generated at build time
-    import("./libs.js").then((m) => lf.types.setLibs(m.default)),
-  ];
 
   if (vfs) {
     promises.push(
@@ -237,13 +238,12 @@ async function createWorker(
     } satisfies Host,
   });
 
-  const updateCompilerOptions: TypeScriptWorker["updateCompilerOptions"] = async (options) => {
-    const proxy = await worker.getProxy();
-    await proxy.updateCompilerOptions(options);
-    refreshDiagnosticEventEmitter?.fire();
-  };
-
   if (vfs) {
+    const updateCompilerOptions: TypeScriptWorker["updateCompilerOptions"] = async (options) => {
+      const proxy = await worker.getProxy();
+      await proxy.updateCompilerOptions(options);
+      refreshDiagnosticEventEmitter?.fire();
+    };
     const watchTypes = () =>
       (compilerOptions.$types as string[] ?? []).map((url) =>
         vfs.watch(url, async (e) => {
@@ -256,9 +256,9 @@ async function createWorker(
           updateCompilerOptions({ types: lf.types.types });
         })
       );
-    const watchImportMap = () => {
+    const watchImportMapJSON = () => {
       const { $src } = importMap;
-      if ($src && $src !== "file:///index.html") {
+      if ($src && $src.endsWith(".json")) {
         return vfs.watch($src, async (e) => {
           if (e.kind === "remove") {
             importMap = { ...defaultImportMap };
@@ -278,7 +278,8 @@ async function createWorker(
       }
     };
     let disposes = watchTypes();
-    let dispose = watchImportMap();
+    let dispose = watchImportMapJSON();
+
     vfs.watch("tsconfig.json", async (e) => {
       disposes.forEach((dispose) => dispose());
       loadCompilerOptions(vfs).then((options) => {
@@ -293,6 +294,7 @@ async function createWorker(
         disposes = watchTypes();
       });
     });
+
     vfs.watch("index.html", async (e) => {
       dispose?.();
       loadImportMap(vfs, remixImportMap).then((im) => {
@@ -300,8 +302,28 @@ async function createWorker(
           importMap = im;
           updateCompilerOptions({ importMap });
         }
-        dispose = watchImportMap();
+        dispose = watchImportMapJSON();
       });
+    });
+
+    monaco.editor.addCommand({
+      id: "importmap.add",
+      run: async (_: unknown, src: string, specifier: string, uri: string) => {
+        const { imports, scopes } = globalThis.structuredClone?.(importMap) ?? JSON.parse(JSON.stringify(importMap));
+        imports[specifier] = uri;
+        imports[specifier + "/"] = uri + "/";
+        const json = JSON.stringify({ imports, scopes }, null, 2);
+        if (src.endsWith(".json")) {
+          await vfs.writeFile(src, json);
+        } else if (src.endsWith(".html")) {
+          const html = await vfs.readTextFile(src);
+          const newHtml = html.replace(
+            /<script\s+type="importmap"\s*>[^]*?<\/script>/,
+            ['<script type="importmap">', ...json.split("\n"), "</script>"].join("\n  "),
+          );
+          await vfs.writeFile(src, newHtml);
+        }
+      },
     });
   }
 
@@ -319,21 +341,6 @@ export async function setup(
   vfs?: VFS,
 ) {
   const languages = monaco.languages;
-
-  monaco.editor.addCommand({
-    id: "importmap.add",
-    run: async (_: unknown, src: string, specifier: string, uri: string) => {
-      if (vfs) {
-        const content = await vfs.readTextFile(src);
-        if (src.endsWith(".json")) {
-          const { imports, scopes } = parseImportMapFromJson(content);
-          imports[specifier] = uri;
-          imports[specifier + "/"] = uri + "/";
-          await vfs.writeFile(src, JSON.stringify({ imports, scopes }, null, 2));
-        }
-      }
-    },
-  });
 
   if (!refreshDiagnosticEventEmitter) {
     refreshDiagnosticEventEmitter = new EventTrigger(new monaco.Emitter());
