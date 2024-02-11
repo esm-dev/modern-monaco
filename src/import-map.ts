@@ -28,10 +28,10 @@ export function isBlank(importMap: ImportMap) {
 export function resolve(
   importMap: ImportMap,
   specifier: string,
-  scriptUrlRaw: string,
+  containingFile: string,
 ): string {
   const { $baseURL, imports, scopes } = importMap;
-  const scriptUrl = new URL(scriptUrlRaw);
+  const scriptUrl = new URL(containingFile);
   const sameOriginScopes = Object.entries(scopes)
     .map(([scope, imports]) => [new URL(scope, $baseURL), imports] as const)
     .filter(([scopeUrl]) => scopeUrl.origin === scriptUrl.origin)
@@ -46,9 +46,11 @@ export function resolve(
       }
     }
   }
-  const match = matchImports(specifier, imports);
-  if (match) {
-    return match;
+  if (scriptUrl.origin === new URL($baseURL).origin) {
+    const match = matchImports(specifier, imports);
+    if (match) {
+      return match;
+    }
   }
   return specifier;
 }
