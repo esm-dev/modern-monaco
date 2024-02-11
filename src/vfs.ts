@@ -395,6 +395,7 @@ function toUrl(name: string | URL) {
   return typeof name === "string" ? new URL(name, "file:///") : name;
 }
 
+// global text encoder and decoder
 const enc = new TextEncoder();
 const dec = new TextDecoder();
 
