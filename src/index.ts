@@ -245,37 +245,46 @@ export function lazy(options?: InitOption) {
         const highlighter = await initShiki({ ...options, preloadGrammars });
 
         // check the pre-rendered content, if not exists, render one
-        let mockEl = this.querySelector<HTMLElement>(
-          ".monaco-editor-prerender",
-        );
-        if (
-          !mockEl &&
-          ((file && vfs) || (renderOptions.code && renderOptions.lang))
-        ) {
-          let code = renderOptions.code;
-          let lang = renderOptions.lang;
-          if (vfs && file) {
-            code = await vfs.readTextFile(file);
-            lang = getLanguageIdFromPath(file);
-          }
+        let mockEl = this.querySelector<HTMLElement>(".monaco-editor-prerender");
+        if (!mockEl && file && vfs) {
+          const code = await vfs.readTextFile(file);
+          const lang = getLanguageIdFromPath(file);
           mockEl = containerEl.cloneNode(true) as HTMLElement;
           mockEl.className = "monaco-editor-prerender";
           mockEl.innerHTML = renderMockEditor(highlighter, {
             ...renderOptions,
-            lang,
             code,
+            lang,
           });
         }
-        mockEl.style.position = "absolute";
-        mockEl.style.top = "0";
-        mockEl.style.left = "0";
-        this.appendChild(mockEl);
+        if (mockEl) {
+          mockEl.style.position = "absolute";
+          mockEl.style.top = "0";
+          mockEl.style.left = "0";
+          this.appendChild(mockEl);
+
+          if (vfs && file) {
+            const scrollPosition = vfs.state.scrollHistory?.[new URL(file, "file:///").href];
+            if (scrollPosition) {
+              const mockEditor = mockEl.querySelector(".mock-monaco-editor");
+              mockEditor?.scrollBy(scrollPosition.scrollLeft, scrollPosition.scrollTop);
+            }
+          }
+        }
 
         // load monaco editor
         (async () => {
           const monaco = await loadMonacoCore(highlighter);
           const editor = monaco.editor.create(containerEl, renderOptions);
           if (vfs && file) {
+            editor.onDidScrollChange((e) => {
+              const scrollHistory = vfs.state.scrollHistory ?? (vfs.state.scrollHistory = {});
+              scrollHistory[editor.getModel().uri.toString()] = {
+                scrollTop: e.scrollTop,
+                scrollLeft: e.scrollLeft,
+              };
+              vfs.state.scrollHistory = scrollHistory;
+            });
             const model = await vfs.openModel(file, editor);
             if (
               renderOptions.filename === file &&

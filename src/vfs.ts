@@ -12,6 +12,7 @@ interface VFile {
 interface WatchEvent {
   kind: "create" | "modify" | "remove";
   path: string;
+  isModelChange?: boolean;
 }
 
 interface VFSOptions {
@@ -49,16 +50,9 @@ export class VFS {
     if (globalThis.localStorage) {
       const state = {};
       const storeKey = "monaco-state:" + (options.scope ?? "main");
-      let storeTimer: number | null = null;
-      const store = () => {
-        if (storeTimer !== null) {
-          return;
-        }
-        storeTimer = setTimeout(() => {
-          storeTimer = null;
-          localStorage.setItem(storeKey, JSON.stringify(state));
-        }, 100);
-      };
+      const persist = createPersitTask(() => {
+        localStorage.setItem(storeKey, JSON.stringify(state));
+      }, 500);
       const stateJson = localStorage.getItem(storeKey);
       if (stateJson) {
         try {
@@ -73,7 +67,7 @@ export class VFS {
         },
         set(target, key, value) {
           state[key] = value;
-          store();
+          persist();
           return true;
         },
       }) as Record<string, any>;
@@ -103,37 +97,18 @@ export class VFS {
     const { content, version } = await this.#read(url);
     const model = monaco.editor.getModel(uri) ?? monaco.editor.createModel(toString(content), undefined, uri);
     if (!Reflect.has(model, "__VFS__")) {
-      let writeTimer: number | null = null;
-      const askToExit = (e: BeforeUnloadEvent) => {
-        e.preventDefault();
-        e.returnValue = true;
-      };
-      const onDidChange = (e) => {
-        if (writeTimer !== null) {
-          return;
-        }
-        globalThis.addEventListener("beforeunload", askToExit);
-        writeTimer = setTimeout(() => {
-          writeTimer = null;
-          this.writeFile(
-            uri.path,
-            model.getValue(),
-            version + model.getVersionId(),
-          );
-          globalThis.removeEventListener("beforeunload", askToExit);
-        }, 500);
-      };
-      let disposable = model.onDidChangeContent(onDidChange);
+      const onDidChange = createPersitTask(() => {
+        return this.writeFile(uri.toString(), model.getValue(), version + model.getVersionId(), true);
+      }, 500);
+      const disposable = model.onDidChangeContent(onDidChange);
       const unwatch = this.watch(url.href, async (evt) => {
         if (evt.kind === "remove") {
           model.dispose();
-        } else if (evt.kind === "modify") {
+        } else if (evt.kind === "modify" && !evt.isModelChange) {
           const { content } = await this.#read(url);
           if (model.getValue() !== toString(content)) {
-            disposable.dispose();
             model.setValue(toString(content));
             model.pushStackElement();
-            disposable = model.onDidChangeContent(onDidChange);
           }
         }
       });
@@ -167,7 +142,11 @@ export class VFS {
         editor = attachTo;
       }
       if (editor) {
+        const scrollPosition = this.#state.scrollHistory?.[url.href];
         editor.setModel(model);
+        if (scrollPosition) {
+          editor.setScrollPosition(scrollPosition);
+        }
         this.#state.activeFile = url.href;
       }
     }
@@ -206,16 +185,13 @@ export class VFS {
     return toString(content);
   }
 
-  async writeFile(
-    name: string | URL,
+  async #write(
+    url: string,
     content: string | Uint8Array,
     version?: number,
   ) {
-    const { pathname, href: url } = toUrl(name);
     const db = await this.#begin();
-    const old = await waitIDBRequest<VFile>(
-      db.get(url),
-    );
+    const old = await waitIDBRequest<VFile>(db.get(url));
     const now = Date.now();
     const file: VFile = {
       url,
@@ -225,12 +201,23 @@ export class VFS {
       mtime: now,
     };
     await waitIDBRequest(db.put(file));
+    return old ? "modify" : "create";
+  }
+
+  async writeFile(
+    name: string | URL,
+    content: string | Uint8Array,
+    version?: number,
+    isModelChange?: boolean,
+  ) {
+    const url = toUrl(name);
+    const kind = await this.#write(url.href, content, version);
     setTimeout(() => {
-      for (const key of [url, "*"]) {
+      for (const key of [url.href, "*"]) {
         const handlers = this.#watchHandlers.get(key);
         if (handlers) {
           for (const handler of handlers) {
-            handler({ kind: old ? "modify" : "create", path: pathname });
+            handler({ kind, path: url.href, isModelChange });
           }
         }
       }
@@ -383,6 +370,25 @@ export async function vfetch(url: string | URL): Promise<Response> {
     return resp;
   }
   return res;
+}
+
+function createPersitTask(doTask: () => void | Promise<void>, delay = 500) {
+  let timer: number | null = null;
+  const askToExit = (e: BeforeUnloadEvent) => {
+    e.preventDefault();
+    e.returnValue = true;
+  };
+  return () => {
+    if (timer !== null) {
+      return;
+    }
+    globalThis.addEventListener("beforeunload", askToExit);
+    timer = setTimeout(async () => {
+      timer = null;
+      await doTask();
+      globalThis.removeEventListener("beforeunload", askToExit);
+    }, delay);
+  };
 }
 
 /** Define property with value. */

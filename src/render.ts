@@ -7,6 +7,7 @@ const DEFAULT_LINUX_FONT_FAMILY = "'Droid Sans Mono', 'monospace', monospace";
 const LINE_NUMBERS_COLOR = "rgba(222, 220, 213, 0.31)";
 const MINIMUM_LINE_HEIGHT = 8;
 const MINIMUM_MAX_DIGIT_WIDTH = 5;
+const RENDER_MAX_LINES = 10000;
 
 export interface RenderOptions extends editor.IStandaloneEditorConstructionOptions {
   lang: string;
@@ -75,10 +76,10 @@ export function renderMockEditor(
     computedlineHeight = computedlineHeight * fontSize;
   }
 
-  const lines = countLines(code);
+  const lines = code.split("\n");
   const lineNumbers = Array.from(
-    { length: lines },
-    (_, i) => `<span>${i + 1}</span>`,
+    { length: Math.min(lines.length, RENDER_MAX_LINES) },
+    (_, i) => `<div>${i + 1}</div>`,
   );
   const maxDigitWidth = Math.max(
     fontMaxDigitWidth ??
@@ -86,16 +87,20 @@ export function renderMockEditor(
     MINIMUM_MAX_DIGIT_WIDTH,
   );
   const lineNumbersWidth = Math.round(
-    Math.max(lineNumbersMinChars, String(lines).length) * maxDigitWidth,
+    Math.max(lineNumbersMinChars, String(lines.length).length) * maxDigitWidth,
   );
   const decorationsWidth = Number(lineDecorationsWidth) + 16;
-
+  const html = highlighter.codeToHtml(lines.splice(0, RENDER_MAX_LINES).join("\n"), {
+    lang,
+    theme: options.theme ?? highlighter.getLoadedThemes()[0],
+  });
+  const styleIndex = html.indexOf('style="') + 7;
   const style = [
     "display:flex",
     "width:100%",
     "height:100%",
     "overflow-x:auto",
-    "overflow-y:hidden",
+    "overflow-y:auto",
     "margin:0",
     "padding:0",
     "font-family:'SF Mono',Monaco,Menlo,Consolas,'Ubuntu Mono','Liberation Mono','DejaVu Sans Mono','Courier New',monospace",
@@ -103,18 +108,6 @@ export function renderMockEditor(
     "font-variation-settings:" + (fontVariations ? "'wght' " + Number(fontWeight) : "normal"),
     "-webkit-text-size-adjust:100%",
   ];
-  if (padding?.top) {
-    style.push(`padding-top:${padding.top}px`);
-  }
-  if (padding?.bottom) {
-    style.push(`padding-bottom:${padding.bottom}px`);
-  }
-
-  const html = highlighter.codeToHtml(code, {
-    lang,
-    theme: options.theme ?? highlighter.getLoadedThemes()[0],
-  });
-  const styleIndex = html.indexOf('style="') + 7;
   const lineStyle = [
     "margin:0",
     "padding:0",
@@ -126,10 +119,8 @@ export function renderMockEditor(
   ];
   const lineNumbersStyle = [
     ...lineStyle,
-    "display:flex",
-    "flex-direction:column",
     "flex-shrink:0",
-    "align-items:flex-end",
+    "text-align:right",
     "user-select:none",
     `color:${LINE_NUMBERS_COLOR}`,
     `width:${lineNumbersWidth}px`,
@@ -137,10 +128,21 @@ export function renderMockEditor(
   const clasName = `mock-monaco-editor-${hashCode(lineNumbers.join(";")).toString(36)}`;
   const shikiStyle = html.slice(styleIndex, html.indexOf('"', styleIndex));
   const finHtml = html.slice(0, styleIndex) + lineStyle.join(";") + ";" + html.slice(styleIndex);
+  const css = [`.${clasName} code {${lineStyle.join(";")}}`];
+  const addPadding = (padding: number, side: string) => {
+    const style = `{display:block;height:${padding}px;content:' '}`;
+    css.push(`.${clasName} .line-numbers:${side}, .${clasName} .shiki:${side} ${style}`);
+  };
   style.push(shikiStyle);
-  return `<div class="${clasName}" style="${style.join(";")}">
-<style>.${clasName} code {${lineStyle.join(";")}}</style>
-<div style="${lineNumbersStyle.join(";")}">
+  if (padding?.top) {
+    addPadding(padding.top, "before");
+  }
+  if (padding?.bottom) {
+    addPadding(padding.bottom, "after");
+  }
+  return `<div class="mock-monaco-editor ${clasName}" style="${style.join(";")}">
+<style>${css.join('')}</style>
+<div class="line-numbers" style="${lineNumbersStyle.join(";")}">
 ${lineNumbers.join("")}
 </div>
 <div style="flex-shrink:0;width:${decorationsWidth}px"></div>
@@ -164,15 +166,6 @@ function getMaxDigitWidth(font: string) {
 
 /** Hash code for strings */
 export const hashCode = (s: string) => [...s].reduce((hash, c) => (Math.imul(31, hash) + c.charCodeAt(0)) | 0, 0);
-
-function countLines(str: string) {
-  let n = 1;
-  for (let i = 0; i < str.length; i++) {
-    if (str[i] === "\r" && str[i + 1] === "\n") i++;
-    if (str[i] === "\n" || str[i] === "\r") n++;
-  }
-  return n;
-}
 
 function normalizeFontFamily(fontFamily: string) {
   return fontFamily
