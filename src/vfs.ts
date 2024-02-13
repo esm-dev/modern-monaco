@@ -50,27 +50,18 @@ export class VFS {
     if (globalThis.localStorage) {
       const state = {};
       const storeKey = "monaco-state:" + (options.scope ?? "main");
-      const persist = createPersitTask(() => {
-        localStorage.setItem(storeKey, JSON.stringify(state));
+      const persist = createPersistTask(() => {
+        localStorage.setItem(storeKey, JSON.stringify(this.#state));
       }, 500);
-      const stateJson = localStorage.getItem(storeKey);
-      if (stateJson) {
+      const storeValue = localStorage.getItem(storeKey);
+      if (storeValue) {
         try {
-          Object.assign(state, JSON.parse(stateJson));
+          Object.assign(state, JSON.parse(storeValue));
         } catch (e) {
           console.error(e);
         }
       }
-      this.#state = new Proxy(Object.create(null), {
-        get(target, key) {
-          return state[key];
-        },
-        set(target, key, value) {
-          state[key] = value;
-          persist();
-          return true;
-        },
-      }) as Record<string, any>;
+      this.#state = createProxy(state, persist);
     }
   }
 
@@ -93,15 +84,16 @@ export class VFS {
       throw new Error("monaco is undefined");
     }
     const url = toUrl(name);
-    const uri = monaco.Uri.parse(url.href);
+    const href = url.href;
+    const uri = monaco.Uri.parse(href);
     const { content, version } = await this.#read(url);
     const model = monaco.editor.getModel(uri) ?? monaco.editor.createModel(toString(content), undefined, uri);
     if (!Reflect.has(model, "__VFS__")) {
-      const onDidChange = createPersitTask(() => {
+      const onDidChange = createPersistTask(() => {
         return this.writeFile(uri.toString(), model.getValue(), version + model.getVersionId(), true);
       }, 500);
       const disposable = model.onDidChangeContent(onDidChange);
-      const unwatch = this.watch(url.href, async (evt) => {
+      const unwatch = this.watch(href, async (evt) => {
         if (evt.kind === "remove") {
           model.dispose();
         } else if (evt.kind === "modify" && !evt.isModelChange) {
@@ -142,12 +134,21 @@ export class VFS {
         editor = attachTo;
       }
       if (editor) {
-        const scrollPosition = this.#state.scrollHistory?.[url.href];
         editor.setModel(model);
+        const scrollPosition = this.#state.scrollHistory?.[href];
         if (scrollPosition) {
-          editor.setScrollPosition(scrollPosition);
+          const [scrollTop, scrollLeft] = scrollPosition;
+          editor.setScrollPosition({ scrollTop, scrollLeft });
         }
-        this.#state.activeFile = url.href;
+        const cursorPosition = this.#state.cursorHistory?.[href];
+        if (cursorPosition) {
+          const [lineNumber, column] = cursorPosition;
+          editor.setPosition({ lineNumber, column });
+          editor.focus();
+        }
+        if (this.#state.activeFile !== href) {
+          this.#state.activeFile = href;
+        }
       }
     }
     return model;
@@ -372,7 +373,7 @@ export async function vfetch(url: string | URL): Promise<Response> {
   return res;
 }
 
-function createPersitTask(doTask: () => void | Promise<void>, delay = 500) {
+function createPersistTask(persist: () => void | Promise<void>, delay = 500) {
   let timer: number | null = null;
   const askToExit = (e: BeforeUnloadEvent) => {
     e.preventDefault();
@@ -385,10 +386,34 @@ function createPersitTask(doTask: () => void | Promise<void>, delay = 500) {
     globalThis.addEventListener("beforeunload", askToExit);
     timer = setTimeout(async () => {
       timer = null;
-      await doTask();
+      await persist();
       globalThis.removeEventListener("beforeunload", askToExit);
     }, delay);
   };
+}
+
+function createProxy(obj: object, onChange: () => void) {
+  let filled = false;
+  const proxy = new Proxy(Object.create(null), {
+    get(target, key) {
+      return Reflect.get(target, key);
+    },
+    set(target, key, value) {
+      if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+        value = createProxy(value, onChange);
+      }
+      const ok = Reflect.set(target, key, value);
+      if (ok && filled) {
+        onChange();
+      }
+      return ok;
+    },
+  }) as Record<string, any>;
+  for (const [key, value] of Object.entries(obj)) {
+    proxy[key] = value;
+  }
+  filled = true;
+  return proxy;
 }
 
 /** Define property with value. */

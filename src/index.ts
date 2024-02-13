@@ -265,9 +265,10 @@ export function lazy(options?: InitOption) {
 
           if (vfs && file) {
             const scrollPosition = vfs.state.scrollHistory?.[new URL(file, "file:///").href];
-            if (scrollPosition) {
+            if (Array.isArray(scrollPosition)) {
+              const [scrollTop, scrollLeft] = scrollPosition;
               const mockEditor = mockEl.querySelector(".mock-monaco-editor");
-              mockEditor?.scrollBy(scrollPosition.scrollLeft, scrollPosition.scrollTop);
+              mockEditor?.scrollBy(scrollLeft, scrollTop);
             }
           }
         }
@@ -277,13 +278,15 @@ export function lazy(options?: InitOption) {
           const monaco = await loadMonacoCore(highlighter);
           const editor = monaco.editor.create(containerEl, renderOptions);
           if (vfs && file) {
+            editor.onDidChangeCursorPosition((e) => {
+              const currentModel = editor.getModel();
+              const cursorHistory = vfs.state.cursorHistory ?? (vfs.state.cursorHistory = {});
+              cursorHistory[currentModel.uri.toString()] = [e.position.lineNumber, e.position.column];
+            });
             editor.onDidScrollChange((e) => {
+              const currentModel = editor.getModel();
               const scrollHistory = vfs.state.scrollHistory ?? (vfs.state.scrollHistory = {});
-              scrollHistory[editor.getModel().uri.toString()] = {
-                scrollTop: e.scrollTop,
-                scrollLeft: e.scrollLeft,
-              };
-              vfs.state.scrollHistory = scrollHistory;
+              scrollHistory[currentModel.uri.toString()] = [e.scrollTop, e.scrollLeft];
             });
             const model = await vfs.openModel(file, editor);
             if (
