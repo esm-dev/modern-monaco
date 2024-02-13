@@ -1,4 +1,4 @@
-import { renderToString } from "../dist/index.js";
+import { renderToWebComponent } from "../dist/index.js";
 
 const files = {
   "log.d.ts": [
@@ -131,17 +131,13 @@ async function servePages(url: URL, req: Request) {
   try {
     const fileUrl = new URL(filename, import.meta.url);
     let body = (await Deno.open(fileUrl)).readable;
-    if (filename === "lazy-ssr.html") {
+    if (filename === "ssr.html") {
       let replaced = false;
-      const ssrOutput = await renderToString({
+      const ssrOutput = await renderToWebComponent({
         filename: "App.tsx",
-        code: files["App.tsx"],
-        padding: {
-          top: 8,
-          bottom: 8,
-        },
+        code: files["App.tsx"].join("\n"),
+        padding: { top: 8, bottom: 8 },
         userAgent: req.headers.get("user-agent"),
-        fontMaxDigitWidth: 7.22,
       });
       body = body.pipeThrough(
         new TransformStream({

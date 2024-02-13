@@ -12,7 +12,6 @@ const tmGrammars: { name: string; aliases?: string[] }[] = TM_GRAMMARS;
 const tmThemes: Set<string> = new Set(TM_THEMES);
 
 export const grammarRegistry = new Map(tmGrammars.map((g) => [g.name, g]));
-export const loadedGrammars = new Set<string>();
 
 export interface ShikiInitOptions {
   theme?: string | { name: string };
@@ -36,10 +35,7 @@ export async function initShiki({
           src.startsWith("https://")
             ? { name: src }
             : tmGrammars.find((g) => g.name === src || g.aliases?.includes(src))
-        ).filter(Boolean).map(({ name }) => {
-          loadedGrammars.add(name);
-          return loadTMGrammer(name);
-        }),
+        ).filter(Boolean).map(({ name }) => loadTMGrammer(name)),
       ),
     );
   }
@@ -51,7 +47,6 @@ export async function initShiki({
         !grammarRegistry.has(lang.name)
       ) {
         grammarRegistry.set(lang.name, lang);
-        loadedGrammars.add(lang.name);
         langs.push(lang as LanguageRegistration);
       }
     }

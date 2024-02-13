@@ -7,34 +7,26 @@ const DEFAULT_LINUX_FONT_FAMILY = "'Droid Sans Mono', 'monospace', monospace";
 const LINE_NUMBERS_COLOR = "rgba(222, 220, 213, 0.31)";
 const MINIMUM_LINE_HEIGHT = 8;
 const MINIMUM_MAX_DIGIT_WIDTH = 5;
-const RENDER_MAX_LINES = 10000;
 
 export interface RenderOptions extends editor.IStandaloneEditorConstructionOptions {
-  lang: string;
   code: string;
+  lang?: string;
   filename?: string;
   theme?: string;
   userAgent?: string;
-  fontMaxDigitWidth?: number;
+  fontDigitWidth?: number;
 }
 
 /** Renders a mock monaco editor. */
-export function renderMockEditor(
+export function render(
   highlighter: HighlighterCore,
   options: RenderOptions,
 ): string {
-  // non-browser environment
-  if (!globalThis.document?.createElement) {
-    if (!options.userAgent) {
-      throw new Error(
-        "`userAgent` option is required in non-browser environment",
-      );
-    }
-    if (!options.fontMaxDigitWidth) {
-      throw new Error(
-        "`fontMaxDigitWidth` option is required in non-browser environment",
-      );
-    }
+  const isBrowser = typeof globalThis.document?.createElement === "function";
+  if (!options.userAgent && !isBrowser) {
+    throw new Error(
+      "`userAgent` option is required in non-browser environment",
+    );
   }
 
   const userAgent = options.userAgent ?? globalThis.navigator?.userAgent ?? "";
@@ -56,11 +48,11 @@ export function renderMockEditor(
     lang,
     code,
     padding,
-    fontMaxDigitWidth,
     fontWeight = EDITOR_FONT_DEFAULTS.fontWeight,
     fontSize = EDITOR_FONT_DEFAULTS.fontSize,
     lineHeight = 0,
     letterSpacing = EDITOR_FONT_DEFAULTS.letterSpacing,
+    lineNumbers = "on",
     lineNumbersMinChars = 5,
     lineDecorationsWidth = 10,
   } = options;
@@ -76,25 +68,45 @@ export function renderMockEditor(
     computedlineHeight = computedlineHeight * fontSize;
   }
 
-  const lines = code.split("\n");
-  const lineNumbers = Array.from(
-    { length: Math.min(lines.length, RENDER_MAX_LINES) },
-    (_, i) => `<div>${i + 1}</div>`,
-  );
-  const maxDigitWidth = Math.max(
-    fontMaxDigitWidth ??
-      getMaxDigitWidth([fontWeight, fontSize + "px", fontFamily].join(" ")),
-    MINIMUM_MAX_DIGIT_WIDTH,
-  );
-  const lineNumbersWidth = Math.round(
-    Math.max(lineNumbersMinChars, String(lines.length).length) * maxDigitWidth,
-  );
+  let lineNumbersHtml = "";
+  if (lineNumbers !== "off") {
+    let fontDigitWidth = options.fontDigitWidth;
+    if (!fontDigitWidth && !isBrowser) {
+      fontDigitWidth = options.fontDigitWidth = (fontSize * 60) / 100;
+    }
+    const lines = countLines(code);
+    const lineNumbersElements = Array.from(
+      { length: lines },
+      (_, i) => `<code>${i + 1}</code>`,
+    );
+    const maxDigitWidth = Math.max(
+      fontDigitWidth ?? getDigitWidth([fontWeight, fontSize + "px", fontFamily].join(" ")),
+      MINIMUM_MAX_DIGIT_WIDTH,
+    );
+    const lineNumbersWidth = Math.round(
+      Math.max(lineNumbersMinChars, String(lines).length) * maxDigitWidth,
+    );
+    const lineNumbersStyle = [
+      "display:flex",
+      "flex-direction:column",
+      "flex-shrink:0",
+      "text-align:right",
+      "user-select:none",
+      `color:${LINE_NUMBERS_COLOR}`,
+      `width:${lineNumbersWidth}px`,
+    ];
+    lineNumbersHtml = [
+      `<div class="line-numbers" style="${lineNumbersStyle.join(";")}">`,
+      ...lineNumbersElements,
+      "</div>",
+    ].join("");
+  }
+
   const decorationsWidth = Number(lineDecorationsWidth) + 16;
-  const html = highlighter.codeToHtml(lines.splice(0, RENDER_MAX_LINES).join("\n"), {
+  const html = highlighter.codeToHtml(code, {
     lang,
     theme: options.theme ?? highlighter.getLoadedThemes()[0],
   });
-  const styleIndex = html.indexOf('style="') + 7;
   const style = [
     "display:flex",
     "width:100%",
@@ -105,7 +117,7 @@ export function renderMockEditor(
     "padding:0",
     "font-family:'SF Mono',Monaco,Menlo,Consolas,'Ubuntu Mono','Liberation Mono','DejaVu Sans Mono','Courier New',monospace",
     `font-feature-settings:'liga' ${fontLigatures}, 'calt' ${fontLigatures}`,
-    "font-variation-settings:" + (fontVariations ? "'wght' " + Number(fontWeight) : "normal"),
+    `font-variation-settings:${fontVariations ? "'wght' " + Number(fontWeight) : "normal"}`,
     "-webkit-text-size-adjust:100%",
   ];
   const lineStyle = [
@@ -114,20 +126,13 @@ export function renderMockEditor(
     `font-family:${fontFamily}`,
     `font-weight:${fontWeight}`,
     `font-size:${fontSize}px`,
-    `line-height: ${computedlineHeight}px`,
-    `letter-spacing: ${letterSpacing}px`,
+    `line-height:${computedlineHeight}px`,
+    `letter-spacing:${letterSpacing}px`,
   ];
-  const lineNumbersStyle = [
-    ...lineStyle,
-    "flex-shrink:0",
-    "text-align:right",
-    "user-select:none",
-    `color:${LINE_NUMBERS_COLOR}`,
-    `width:${lineNumbersWidth}px`,
-  ];
-  const clasName = `mock-monaco-editor-${hashCode(lineNumbers.join(";")).toString(36)}`;
-  const shikiStyle = html.slice(styleIndex, html.indexOf('"', styleIndex));
-  const finHtml = html.slice(0, styleIndex) + lineStyle.join(";") + ";" + html.slice(styleIndex);
+  const clasName = `mock-monaco-editor-${hashCode(lineStyle.join(";")).toString(36)}`;
+  const shikiStyleIndex = html.indexOf('style="') + 7;
+  const shikiStyle = html.slice(shikiStyleIndex, html.indexOf('"', shikiStyleIndex));
+  const finHtml = html.slice(0, shikiStyleIndex) + lineStyle.join(";") + ";" + html.slice(shikiStyleIndex);
   const css = [`.${clasName} code {${lineStyle.join(";")}}`];
   const addPadding = (padding: number, side: string) => {
     const style = `{display:block;height:${padding}px;content:' '}`;
@@ -140,33 +145,44 @@ export function renderMockEditor(
   if (padding?.bottom) {
     addPadding(padding.bottom, "after");
   }
-  return `<div class="mock-monaco-editor ${clasName}" style="${style.join(";")}">
-<style>${css.join('')}</style>
-<div class="line-numbers" style="${lineNumbersStyle.join(";")}">
-${lineNumbers.join("")}
-</div>
-<div style="flex-shrink:0;width:${decorationsWidth}px"></div>
-${finHtml}
-</div>`;
+  return [
+    `<div class="${clasName}" style="${style.join(";")}">`,
+    `<style>${css.join("")}</style>`,
+    lineNumbersHtml,
+    `<div style="flex-shrink:0;width:${decorationsWidth}px"></div>`,
+    `${finHtml}`,
+    `</div>`,
+  ].join("");
 }
 
-// Get the maximum width of a digit in the given font.
+/** Count the number of lines in the given text. */
+function countLines(text: string) {
+  let n = 1;
+  for (let i = 0; i < text.length; i++) {
+    const char = text.charCodeAt(i);
+    if (char === 10 || (char === 13 && text.charCodeAt(i + 1) !== 10)) {
+      n++;
+    }
+  }
+  return n;
+}
+
+// Get the width of a digit in the given font.
 // https://stackoverflow.com/questions/118241/calculate-text-width-with-javascript
-function getMaxDigitWidth(font: string) {
+function getDigitWidth(font: string) {
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d");
   const widths: number[] = [];
   context.font = font;
-  for (let i = 0; i < 10; i++) {
-    const metrics = context.measureText(i.toString());
-    widths.push(metrics.width);
-  }
-  return Math.max(...widths);
+  return context.measureText("0").width;
 }
 
 /** Hash code for strings */
-export const hashCode = (s: string) => [...s].reduce((hash, c) => (Math.imul(31, hash) + c.charCodeAt(0)) | 0, 0);
+function hashCode(s: string) {
+  return [...s].reduce((hash, c) => (Math.imul(31, hash) + c.charCodeAt(0)) | 0, 0);
+}
 
+/** Normalize font family string */
 function normalizeFontFamily(fontFamily: string) {
   return fontFamily
     .split(",")

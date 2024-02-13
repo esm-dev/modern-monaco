@@ -3,41 +3,32 @@ import type { HighlighterCore } from "@shikijs/core";
 import { shikiToMonaco } from "@shikijs/monaco";
 import type { ShikiInitOptions } from "./shiki";
 import { getGrammarsInVFS, getLanguageIdFromPath, initShiki } from "./shiki";
-import { grammarRegistry, loadedGrammars, loadTMGrammer } from "./shiki";
+import { grammarRegistry, loadTMGrammer, loadTMTheme } from "./shiki";
 import lspIndex, { createWorker, normalizeFormatOptions } from "./lsp/index";
-import { renderMockEditor, type RenderOptions } from "./render";
+import { render, type RenderOptions } from "./render";
 import { VFS } from "./vfs";
 
-const editorOptionKeys = [
+const editorProps = [
   "autoDetectHighContrast",
   "automaticLayout",
   "contextmenu",
   "cursorBlinking",
-  "detectIndentation",
-  "extraEditorClassName",
   "fontFamily",
   "fontLigatures",
   "fontSize",
   "fontVariations",
   "fontWeight",
-  "insertSpaces",
   "letterSpacing",
   "lineHeight",
   "lineNumbers",
-  "linkedEditing",
   "minimap",
   "padding",
   "readOnly",
   "rulers",
   "scrollbar",
-  "smoothScrolling",
-  "tabIndex",
   "tabSize",
-  "theme",
-  "trimAutoWhitespace",
   "wordWrap",
   "wordWrapColumn",
-  "wrappingIndent",
 ];
 
 export interface InitOption extends ShikiInitOptions {
@@ -92,8 +83,7 @@ async function loadMonaco(highlighter: HighlighterCore, options?: InitOption, on
   grammarRegistry.forEach(({ name: id, aliases }) => {
     monaco.languages.register({ id, aliases });
     monaco.languages.onLanguage(id, () => {
-      if (!loadedGrammars.has(id)) {
-        loadedGrammars.add(id);
+      if (!highlighter.getLoadedLanguages().includes(id)) {
         highlighter.loadLanguage(loadTMGrammer(id)).then(() => {
           // activate the highlighter for the language
           shikiToMonaco(highlighter, monaco);
@@ -169,7 +159,7 @@ export function lazy(options?: InitOption) {
 
         // check editor/render options from attributes
         for (const attrName of this.getAttributeNames()) {
-          const key = editorOptionKeys.find((k) => k.toLowerCase() === attrName);
+          const key = editorProps.find((k) => k.toLowerCase() === attrName);
           if (key) {
             let value: any = this.getAttribute(attrName);
             if (value === "") {
@@ -196,14 +186,14 @@ export function lazy(options?: InitOption) {
           optionsScript.type === "application/json"
         ) {
           const opts = JSON.parse(optionsScript.textContent);
-          // we pass the `fontMaxDigitWidth` option to the editor as a
+          // we pass the `fontDigitWidth` option to the editor as a
           // custom class name. this is used for keeping the line numbers
           // layout consistent between the SSR render and the client pre-render.
-          if (opts.fontMaxDigitWidth) {
+          if (opts.fontDigitWidth) {
             opts.extraEditorClassName = [
               opts.extraEditorClassName,
-              "font-max-digit-width-" +
-              opts.fontMaxDigitWidth.toString().replace(".", "_"),
+              "font-digit-width-" +
+              opts.fontDigitWidth.toString().replace(".", "_"),
             ].filter(Boolean).join(" ");
           }
           Object.assign(renderOptions, opts);
@@ -251,7 +241,7 @@ export function lazy(options?: InitOption) {
           const lang = getLanguageIdFromPath(file);
           mockEl = containerEl.cloneNode(true) as HTMLElement;
           mockEl.className = "monaco-editor-prerender";
-          mockEl.innerHTML = renderMockEditor(highlighter, {
+          mockEl.innerHTML = render(highlighter, {
             ...renderOptions,
             code,
             lang,
@@ -325,8 +315,7 @@ export function lazy(options?: InitOption) {
           if (vfs) {
             const grammars = await getGrammarsInVFS(vfs);
             for (const grammar of grammars) {
-              if (!loadedGrammars.has(grammar)) {
-                loadedGrammars.add(grammar);
+              if (!highlighter.getLoadedLanguages().includes(grammar)) {
                 await highlighter.loadLanguage(loadTMGrammer(grammar));
                 shikiToMonaco(highlighter, monaco);
               }
@@ -338,27 +327,47 @@ export function lazy(options?: InitOption) {
   );
 }
 
-/** Render a monaco editor on the server side. */
-export async function renderToString(options: RenderOptions): Promise<string> {
+async function initRenderHighlighter(options: RenderOptions): Promise<HighlighterCore> {
   if (options.filename && !options.lang) {
     options.lang = getLanguageIdFromPath(options.filename);
   }
   const highlighter = await (ssrHighlighter ?? (ssrHighlighter = initShiki({
     theme: options.theme,
-    preloadGrammars: [options.lang],
+    preloadGrammars: options.lang ? [options.lang] : [],
   })));
-  if (!loadedGrammars.has(options.lang)) {
-    loadedGrammars.add(options.lang);
-    await highlighter.loadLanguage(loadTMGrammer(options.lang));
-  }
+  await Promise.all([
+    (async () => {
+      if (options.lang && !highlighter.getLoadedLanguages().includes(options.lang)) {
+        await highlighter.loadLanguage(loadTMGrammer(options.lang));
+      }
+    })(),
+    (async () => {
+      if (options.theme && !highlighter.getLoadedThemes().includes(options.theme)) {
+        await highlighter.loadLanguage(loadTMTheme(options.theme));
+      }
+    })(),
+  ]);
+  return highlighter;
+}
+
+/** Render a read-only(mock) editor in HTML string. */
+export async function renderToString(options: RenderOptions): Promise<string> {
+  const highlighter = await initRenderHighlighter(options);
+  return render(highlighter, options);
+}
+
+/** Render a `<monaco-editor>` component in HTML string. */
+export async function renderToWebComponent(options: RenderOptions): Promise<string> {
+  const highlighter = await initRenderHighlighter(options);
+  const prerender = render(highlighter, options);
   return [
     `<monaco-editor>`,
     `<script type="application/json" class="monaco-editor-options">${JSON.stringify(options)}</script>`,
     `<div class="monaco-editor-prerender" style="width:100%;height:100%;">`,
-    renderMockEditor(highlighter, options),
+    prerender,
     `</div>`,
     `</monaco-editor>`,
   ].join("");
 }
 
-export { renderMockEditor, VFS };
+export { render, VFS };
