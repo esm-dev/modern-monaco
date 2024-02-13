@@ -56,7 +56,6 @@ const bundleTypescriptLibs = async () => {
   );
 };
 const modifyEditorJs = async () => {
-  const css = await Deno.readTextFile("dist/editor-core.css");
   const js = (await Deno.readTextFile("dist/editor-core.js"))
     // patch: try to get the `fontMaxDigitWidth` value from the `extraEditorClassName` option
     // the option `fontMaxDigitWidth` uaually is set with SSR mode to keep the line numbers
@@ -65,9 +64,14 @@ const modifyEditorJs = async () => {
       "* maxDigitWidth)",
       "* (Number(options2.get(140).match(/font-max-digit-width-([\\d\\_]+)/)?.[1].replace('_','.')) || maxDigitWidth))",
     );
+  const ret = await esbuild({
+    entryPoints: ["dist/editor-core.css"],
+    minify: true,
+    write: false,
+  });
   await Deno.writeTextFile(
     "dist/editor-core.js",
-    "export const _CSS = " + JSON.stringify(css) + "\n" + js,
+    "export const _CSS = " + JSON.stringify(ret.outputFiles[0].text) + "\n" + js,
   );
 };
 const copyDts = (...files: [src: string, dest: string][]) => {
