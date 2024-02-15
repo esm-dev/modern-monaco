@@ -47,6 +47,7 @@ export interface InitOption extends ShikiInitOptions {
 
 /** Load the monaco editor and use shiki as the tokenizer. */
 async function loadMonaco(highlighter: HighlighterCore, options?: InitOption, onEditorWorkerReady?: () => void) {
+  const vfs = options?.vfs;
   const monaco = await import("./editor-core.js");
   const editorWorkerUrl = monaco.workerUrl();
 
@@ -73,7 +74,6 @@ async function loadMonaco(highlighter: HighlighterCore, options?: InitOption, on
     getLanguageIdFromUri: (uri: monacoNS.Uri) => getLanguageIdFromPath(uri.path),
   });
 
-  const { vfs } = options ?? {};
   if (vfs) {
     vfs._bindMonaco(monaco);
   }

@@ -8,11 +8,13 @@ const typescriptGrammar = tmGrammars.find((g) => g.name === "typescript");
 javascriptGrammar!.aliases!.push("mjs", "cjs", "jsx");
 typescriptGrammar!.aliases!.push("mts", "cts", "tsx");
 
+const defaultTheme = "vitesse-dark";
 const tmDefine = {
   TM_THEMES: JSON.stringify(tmThemes.map((v) => v.name)),
   TM_GRAMMARS: JSON.stringify(tmGrammars.map((v) => ({ name: v.name, aliases: v.aliases }))),
-  DEFAULT_THEME: Deno.readTextFileSync("node_modules/tm-themes/themes/vitesse-dark.json"),
+  DEFAULT_THEME: Deno.readTextFileSync("node_modules/tm-themes/themes/" + defaultTheme + ".json"),
 };
+
 const build = (entryPoints: string[], define?: Record<string, string>) => {
   return esbuild({
     target: "esnext",
