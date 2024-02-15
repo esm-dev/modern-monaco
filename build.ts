@@ -9,8 +9,9 @@ javascriptGrammar!.aliases!.push("mjs", "cjs", "jsx");
 typescriptGrammar!.aliases!.push("mts", "cts", "tsx");
 
 const tmDefine = {
-  "TM_THEMES": JSON.stringify(tmThemes.map((v) => v.name)),
-  "TM_GRAMMARS": JSON.stringify(tmGrammars.map((v) => ({ name: v.name, aliases: v.aliases }))),
+  TM_THEMES: JSON.stringify(tmThemes.map((v) => v.name)),
+  TM_GRAMMARS: JSON.stringify(tmGrammars.map((v) => ({ name: v.name, aliases: v.aliases }))),
+  DEFAULT_THEME: Deno.readTextFileSync("node_modules/tm-themes/themes/vitesse-dark.json"),
 };
 const build = (entryPoints: string[], define?: Record<string, string>) => {
   return esbuild({
