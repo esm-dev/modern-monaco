@@ -862,30 +862,29 @@ export class DefinitionAdapter extends Adapter {
       return;
     }
 
-    const entries = await worker.getDefinitionAtPosition(
+    const res = await worker.getDefinitionAndBoundSpan(
       resource.toString(),
       offset,
     );
 
-    if (!entries || model.isDisposed()) {
+    if (!res || model.isDisposed()) {
       return;
     }
 
-    if (model.isDisposed()) {
-      return;
-    }
-
-    const result: monacoNS.languages.Location[] = [];
-    for (let entry of entries) {
-      const refModel = types.getOrCreateModel(entry.fileName);
-      if (refModel) {
-        result.push({
-          uri: refModel.uri,
-          range: this._textSpanToRange(refModel, entry.textSpan),
-        });
+    const definition: monacoNS.languages.LocationLink[] = [];
+    if (res.definitions) {
+      for (let entry of res.definitions) {
+        const refModel = types.getOrCreateModel(entry.fileName);
+        if (refModel) {
+          definition.push({
+            originSelectionRange: this._textSpanToRange(model, res.textSpan),
+            uri: refModel.uri,
+            range: this._textSpanToRange(refModel, entry.textSpan),
+          });
+        }
       }
     }
-    return result;
+    return definition;
   }
 }
 
@@ -1339,5 +1338,31 @@ export class InlayHintsAdapter extends Adapter implements monacoNS.languages.Inl
       default:
         return languages.InlayHintKind.Type;
     }
+  }
+}
+
+// --- linked editing range ---
+
+export class LinkedEditingRangeAdapter extends Adapter implements monacoNS.languages.LinkedEditingRangeProvider {
+  async provideLinkedEditingRanges(
+    model: monacoNS.editor.ITextModel,
+    position: monacoNS.Position,
+    token: monacoNS.CancellationToken,
+  ): Promise<monacoNS.languages.LinkedEditingRanges | undefined> {
+    const resource = model.uri;
+    const fileName = resource.toString();
+    const worker = await this._worker(resource);
+    if (model.isDisposed()) {
+      return;
+    }
+    const linkedEditingRange = await worker.getLinkedEditingRangeAtPosition(fileName, model.getOffsetAt(position));
+    if (!linkedEditingRange) {
+      return;
+    }
+    const { wordPattern, ranges } = linkedEditingRange;
+    return {
+      ranges: ranges.map((range) => this._textSpanToRange(model, range)),
+      wordPattern: wordPattern ? new RegExp(wordPattern) : undefined,
+    };
   }
 }

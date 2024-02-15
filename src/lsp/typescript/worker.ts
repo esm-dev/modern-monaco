@@ -565,11 +565,11 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     );
   }
 
-  async getDefinitionAtPosition(
+  async getDefinitionAndBoundSpan(
     fileName: string,
     position: number,
-  ): Promise<ReadonlyArray<ts.DefinitionInfo> | undefined> {
-    return this._languageService.getDefinitionAtPosition(fileName, position);
+  ): Promise<ts.DefinitionInfoAndBoundSpan | undefined> {
+    return this._languageService.getDefinitionAndBoundSpan(fileName, position);
   }
 
   async getReferencesAtPosition(
@@ -635,6 +635,13 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
       findInComments,
       providePrefixAndSuffixTextForRename,
     );
+  }
+
+  async getLinkedEditingRangeAtPosition(
+    fileName: string,
+    position: number,
+  ): Promise<ts.LinkedEditingInfo | undefined> {
+    return this._languageService.getLinkedEditingRangeAtPosition(fileName, position);
   }
 
   async getRenameInfo(

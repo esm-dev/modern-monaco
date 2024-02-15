@@ -359,7 +359,7 @@ export async function setup(
     worker = await worker;
   }
 
-  const workerWithResources = (
+  const getWorker = (
     ...uris: monacoNS.Uri[]
   ): Promise<TypeScriptWorker> => {
     return (worker as TSWorker).withSyncedResources(uris);
@@ -369,51 +369,55 @@ export async function setup(
   lf.prelude(monaco);
   languages.registerCompletionItemProvider(
     languageId,
-    new lf.SuggestAdapter(workerWithResources),
+    new lf.SuggestAdapter(getWorker),
   );
   languages.registerSignatureHelpProvider(
     languageId,
-    new lf.SignatureHelpAdapter(workerWithResources),
+    new lf.SignatureHelpAdapter(getWorker),
   );
   languages.registerHoverProvider(
     languageId,
-    new lf.QuickInfoAdapter(workerWithResources),
+    new lf.QuickInfoAdapter(getWorker),
   );
   languages.registerDocumentHighlightProvider(
     languageId,
-    new lf.DocumentHighlightAdapter(workerWithResources),
+    new lf.DocumentHighlightAdapter(getWorker),
   );
   languages.registerDefinitionProvider(
     languageId,
-    new lf.DefinitionAdapter(workerWithResources),
+    new lf.DefinitionAdapter(getWorker),
   );
   languages.registerReferenceProvider(
     languageId,
-    new lf.ReferenceAdapter(workerWithResources),
+    new lf.ReferenceAdapter(getWorker),
   );
   languages.registerDocumentSymbolProvider(
     languageId,
-    new lf.OutlineAdapter(workerWithResources),
+    new lf.OutlineAdapter(getWorker),
   );
   languages.registerRenameProvider(
     languageId,
-    new lf.RenameAdapter(workerWithResources),
+    new lf.RenameAdapter(getWorker),
   );
   languages.registerDocumentRangeFormattingEditProvider(
     languageId,
-    new lf.FormatAdapter(workerWithResources),
+    new lf.FormatAdapter(getWorker),
   );
   languages.registerOnTypeFormattingEditProvider(
     languageId,
-    new lf.FormatOnTypeAdapter(workerWithResources),
+    new lf.FormatOnTypeAdapter(getWorker),
   );
   languages.registerCodeActionProvider(
     languageId,
-    new lf.CodeActionAdaptor(workerWithResources),
+    new lf.CodeActionAdaptor(getWorker),
   );
   languages.registerInlayHintsProvider(
     languageId,
-    new lf.InlayHintsAdapter(workerWithResources),
+    new lf.InlayHintsAdapter(getWorker),
+  );
+  languages.registerLinkedEditingRangeProvider(
+    languageId,
+    new lf.LinkedEditingRangeAdapter(getWorker),
   );
 
   const diagnosticsOptions: lf.DiagnosticsOptions = {
@@ -425,7 +429,7 @@ export async function setup(
     diagnosticsOptions,
     refreshDiagnosticEventEmitter.event,
     languageId,
-    workerWithResources,
+    getWorker,
   );
 }
 
