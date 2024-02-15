@@ -146,7 +146,7 @@ export function render(
     addPadding(padding.bottom, "after");
   }
   return [
-    `<div class="${clasName}" style="${style.join(";")}">`,
+    `<div class="mock-monaco-editor ${clasName}" style="${style.join(";")}">`,
     `<style>${css.join("")}</style>`,
     lineNumbersHtml,
     `<div style="flex-shrink:0;width:${decorationsWidth}px"></div>`,

@@ -266,7 +266,7 @@ export function lazy(options?: InitOption) {
             if (Array.isArray(scrollPosition)) {
               const [scrollTop, scrollLeft] = scrollPosition;
               const mockEditor = mockEl.querySelector(".mock-monaco-editor");
-              mockEditor?.scrollBy(scrollLeft, scrollTop);
+              mockEditor?.scroll(scrollLeft, scrollTop);
             }
           }
         }
