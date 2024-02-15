@@ -72,9 +72,10 @@ const modifyEditorJs = async () => {
     minify: true,
     write: false,
   });
+  const miniCss = ret.outputFiles[0].text.replace("font-size:140%", "font-size:100%");
   await Deno.writeTextFile(
     "dist/editor-core.js",
-    "export const _CSS = " + JSON.stringify(ret.outputFiles[0].text) + "\n" + js,
+    "export const _CSS = " + JSON.stringify(miniCss) + "\n" + js,
   );
 };
 const copyDts = (...files: [src: string, dest: string][]) => {
