@@ -78,7 +78,11 @@ export class VFS {
     return db.transaction("files", readonly ? "readonly" : "readwrite").objectStore("files");
   }
 
-  async openModel(name: string | URL, attachTo?: monacoNS.editor.ICodeEditor | number | string | boolean) {
+  async openModel(
+    name: string | URL,
+    attachTo?: monacoNS.editor.ICodeEditor | number | string | boolean,
+    selectionOrPosition?: monacoNS.IRange | monacoNS.IPosition,
+  ) {
     const monaco = this.#monaco;
     if (!monaco) {
       throw new Error("monaco is undefined");
@@ -130,7 +134,7 @@ export class VFS {
             break;
           }
         }
-      } else if (typeof attachTo === "object" && attachTo !== null && attachTo.setModel) {
+      } else if (typeof attachTo === "object" && attachTo !== null && typeof attachTo.setModel === "function") {
         editor = attachTo;
       }
       if (editor) {
@@ -140,11 +144,22 @@ export class VFS {
           const [scrollTop, scrollLeft] = scrollPosition;
           editor.setScrollPosition({ scrollTop, scrollLeft });
         }
-        const cursorPosition = this.#state.cursorHistory?.[href];
-        if (cursorPosition) {
-          const [lineNumber, column] = cursorPosition;
-          editor.setPosition({ lineNumber, column });
-          editor.focus();
+        if (selectionOrPosition) {
+          const cursorHistory = this.#state.cursorHistory ?? (this.#state.cursorHistory = {});
+          if ("endLineNumber" in selectionOrPosition) {
+            cursorHistory[href] = [selectionOrPosition.startLineNumber, selectionOrPosition.startColumn];
+            editor.setSelection(selectionOrPosition);
+          } else {
+            cursorHistory[href] = [selectionOrPosition.lineNumber, selectionOrPosition.column];
+            editor.setPosition(selectionOrPosition);
+          }
+        } else {
+          const cursorPosition = this.#state.cursorHistory?.[href];
+          if (cursorPosition) {
+            const [lineNumber, column] = cursorPosition;
+            editor.setPosition({ lineNumber, column });
+            editor.focus();
+          }
         }
         if (this.#state.activeFile !== href) {
           this.#state.activeFile = href;
@@ -262,6 +277,19 @@ export class VFS {
   }
 
   _bindMonaco(monaco: typeof monacoNS) {
+    monaco.editor.registerEditorOpener({
+      openCodeEditor: async (editor, resource, selectionOrPosition) => {
+        try {
+          await this.openModel(resource.toString(), editor, selectionOrPosition);
+          return true;
+        } catch (err) {
+          if (err instanceof ErrorNotFound) {
+            return false;
+          }
+          throw err;
+        }
+      },
+    });
     this.#monaco = monaco;
   }
 }
