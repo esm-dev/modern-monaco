@@ -22,10 +22,11 @@ interface VFSOptions {
 
 /** Virtual file system for monaco editor. */
 export class VFS {
-  #monaco: typeof monacoNS;
   #db: Promise<IDBDatabase> | IDBDatabase;
-  #watchHandlers = new Map<string, Set<(evt: WatchEvent) => void>>();
+  #monaco: typeof monacoNS;
   #state: Record<string, any> = {};
+  #stateOnChangeHandlers = new Set<() => void>();
+  #watchHandlers = new Map<string, Set<(evt: WatchEvent) => void>>();
 
   constructor(options: VFSOptions) {
     const dbName = "monaco-vfs:" + (options.scope ?? "main");
@@ -61,7 +62,10 @@ export class VFS {
           console.error(e);
         }
       }
-      this.#state = createProxy(state, persist);
+      this.#state = createProxy(state, () => {
+        this.#stateOnChangeHandlers.forEach((handler) => handler());
+        persist();
+      });
     }
   }
 
@@ -272,11 +276,18 @@ export class VFS {
     };
   }
 
+  watchState(handler: () => void): () => void {
+    this.#stateOnChangeHandlers.add(handler);
+    return () => {
+      this.#stateOnChangeHandlers.delete(handler);
+    };
+  }
+
   fetch(url: string | URL) {
     return vfetch(url);
   }
 
-  _bindMonaco(monaco: typeof monacoNS) {
+  bindMonaco(monaco: typeof monacoNS) {
     monaco.editor.registerEditorOpener({
       openCodeEditor: async (editor, resource, selectionOrPosition) => {
         try {

@@ -75,7 +75,7 @@ async function loadMonaco(highlighter: HighlighterCore, options?: InitOption, on
   });
 
   if (vfs) {
-    vfs._bindMonaco(monaco);
+    vfs.bindMonaco(monaco);
   }
 
   if (!document.getElementById("monaco-editor-core-css")) {

@@ -1,4 +1,4 @@
-import { editor } from "./monaco";
+import { editor, IPosition, IRange } from "./monaco";
 
 export interface VFSOptions {
   scope?: string;
@@ -16,18 +16,19 @@ export class VFS {
   constructor(options?: VFSOptions);
   readonly ErrorNotFound: ErrorNotFound;
   readonly state: VFSState;
-  openModel(name: string | URL, attachTo?: editor.ICodeEditor | number | string | boolean): Promise<editor.ITextModel>;
+  openModel(
+    name: string | URL,
+    attachTo?: editor.ICodeEditor | number | string | boolean,
+    selectionOrPosition?: IRange | IPosition,
+  ): Promise<editor.ITextModel>;
   exists(name: string | URL): Promise<boolean>;
   list(): Promise<string[]>;
   readFile(name: string | URL): Promise<Uint8Array>;
   readTextFile(name: string | URL): Promise<string>;
-  writeFile(
-    name: string | URL,
-    content: string | Uint8Array,
-    version?: number,
-  ): Promise<void>;
+  writeFile(name: string | URL, content: string | Uint8Array, version?: number): Promise<void>;
   removeFile(name: string | URL): Promise<void>;
   watch(name: string | URL, handler: (evt: WatchEvent) => void): () => void;
+  watchState(handler: () => void): () => void;
 }
 
 interface WatchEvent {
