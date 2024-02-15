@@ -210,6 +210,13 @@
       if (activeFile !== currentFile) {
         currentFile = activeFile
         folderButton.childNodes[2].textContent = currentFile
+        selector.querySelectorAll('li').forEach(li => {
+          if (li.childNodes[2].textContent === currentFile) {
+            li.classList.add('selected')
+          } else {
+            li.classList.remove('selected')
+          }
+        })
       }
     })
     folderButton.prepend(...icons.querySelectorAll('.folder-icon, .folder-icon-open'), currentFile)
@@ -224,10 +231,6 @@
         option.classList.add('selected')
       }
       option.addEventListener('click', () => {
-        selector.querySelectorAll('li').forEach(li => {
-          li.classList.remove('selected')
-        })
-        option.classList.add('selected')
         toggleFolder()
         vfs.openModel(file, true)
       })
