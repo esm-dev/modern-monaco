@@ -13,6 +13,9 @@ const editorProps = [
   "automaticLayout",
   "contextmenu",
   "cursorBlinking",
+  "cursorSmoothCaretAnimation",
+  "cursorStyle",
+  "cursorWidth",
   "fontFamily",
   "fontLigatures",
   "fontSize",
@@ -21,9 +24,13 @@ const editorProps = [
   "letterSpacing",
   "lineHeight",
   "lineNumbers",
+  "lineNumbersMinChars",
   "minimap",
+  "mouseStyle",
+  "multiCursorModifier",
   "padding",
   "readOnly",
+  "readOnlyMessage",
   "rulers",
   "scrollbar",
   "tabSize",
@@ -131,6 +138,7 @@ export function init(options: InitOption = {}): Promise<typeof monacoNS> {
 /** Render a mock editor, then load the monaco editor in background. */
 export function lazy(options?: InitOption) {
   const vfs = options?.vfs;
+
   let monacoCore: typeof monacoNS | Promise<typeof monacoNS> | null = null;
   let editorWorkerPromise: Promise<void> | null = null;
 
@@ -279,20 +287,20 @@ export function lazy(options?: InitOption) {
               scrollHistory[currentModel.uri.toString()] = [e.scrollTop, e.scrollLeft];
             });
             const model = await vfs.openModel(file, editor);
+            // update the model value with the code from SSR if exists
             if (
               renderOptions.filename === file &&
               renderOptions.code &&
               renderOptions.code !== model.getValue()
             ) {
-              // update the model value with the code from SSR
               model.setValue(renderOptions.code);
             }
-          } else if ((renderOptions.code && renderOptions.lang)) {
+          } else if ((renderOptions.code && (renderOptions.lang || renderOptions.filename))) {
             const model = monaco.editor.createModel(
               renderOptions.code,
               renderOptions.lang,
               // @ts-expect-error the overwrited `createModel` method supports
-              // path as the third argument(URI)
+              // path(string) as the third argument(URI)
               renderOptions.filename,
             );
             editor.setModel(model);
@@ -336,17 +344,17 @@ async function initRenderHighlighter(options: RenderOptions): Promise<Highlighte
     preloadGrammars: options.lang ? [options.lang] : [],
   })));
   await Promise.all([
-    (async () => {
+    () => {
       if (options.lang && !highlighter.getLoadedLanguages().includes(options.lang)) {
-        await highlighter.loadLanguage(loadTMGrammer(options.lang));
+        return highlighter.loadLanguage(loadTMGrammer(options.lang));
       }
-    })(),
-    (async () => {
+    },
+    () => {
       if (options.theme && !highlighter.getLoadedThemes().includes(options.theme)) {
-        await highlighter.loadLanguage(loadTMTheme(options.theme));
+        return highlighter.loadLanguage(loadTMTheme(options.theme));
       }
-    })(),
-  ]);
+    },
+  ].map((fn) => fn()));
   return highlighter;
 }
 
