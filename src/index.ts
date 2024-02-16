@@ -63,10 +63,8 @@ async function loadMonaco(highlighter: HighlighterCore, options?: InitOption, on
       const worker = await createWorker(url);
       if (!lsp) {
         const onMessage = (e: MessageEvent) => {
-          if (e.data.seq === "4") {
-            onEditorWorkerReady?.();
-            worker.removeEventListener("message", onMessage);
-          }
+          onEditorWorkerReady?.();
+          worker.removeEventListener("message", onMessage);
         };
         worker.addEventListener("message", onMessage);
       }
@@ -329,7 +327,7 @@ export function lazy(options?: InitOption) {
                   // don't support animation api
                   setTimeout(() => mockEl.remove(), 200);
                 }
-              }, 400);
+              }, 500);
             });
           }
           // load required grammars in background
