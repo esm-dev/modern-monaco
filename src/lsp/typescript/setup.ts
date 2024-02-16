@@ -8,145 +8,110 @@ import * as lf from "./language-features";
 
 type TSWorker = monacoNS.editor.MonacoWebWorker<TypeScriptWorker>;
 
-class EventTrigger {
-  private _fireTimer = null;
+// javascript and typescript share the same worker
+let worker: TSWorker | Promise<TSWorker> | null = null;
+let refreshDiagnosticEventEmitter: lf.EventTrigger | null = null;
 
-  constructor(private _emitter: monacoNS.Emitter<void>) {}
+export async function setup(
+  monaco: typeof monacoNS,
+  languageId: string,
+  languageSettings?: Record<string, unknown>,
+  format?: Record<string, unknown>,
+  vfs?: VFS,
+) {
+  const languages = monaco.languages;
 
-  public get event() {
-    return this._emitter.event;
+  if (!refreshDiagnosticEventEmitter) {
+    refreshDiagnosticEventEmitter = new lf.EventTrigger(new monaco.Emitter());
   }
 
-  public fire() {
-    if (this._fireTimer !== null) {
-      // already fired
-      return;
-    }
-    this._fireTimer = setTimeout(() => {
-      this._fireTimer = null;
-      this._emitter.fire();
-    }, 0) as any;
+  if (!worker) {
+    worker = createWorker(monaco, languageSettings, format, vfs);
   }
+  if (worker instanceof Promise) {
+    worker = await worker;
+  }
+
+  const getWorker = (
+    ...uris: monacoNS.Uri[]
+  ): Promise<TypeScriptWorker> => {
+    return (worker as TSWorker).withSyncedResources(uris);
+  };
+
+  // register language features
+  lf.prelude(monaco);
+  languages.registerCompletionItemProvider(
+    languageId,
+    new lf.SuggestAdapter(getWorker),
+  );
+  languages.registerSignatureHelpProvider(
+    languageId,
+    new lf.SignatureHelpAdapter(getWorker),
+  );
+  languages.registerHoverProvider(
+    languageId,
+    new lf.QuickInfoAdapter(getWorker),
+  );
+  languages.registerDocumentHighlightProvider(
+    languageId,
+    new lf.DocumentHighlightAdapter(getWorker),
+  );
+  languages.registerDefinitionProvider(
+    languageId,
+    new lf.DefinitionAdapter(getWorker),
+  );
+  languages.registerReferenceProvider(
+    languageId,
+    new lf.ReferenceAdapter(getWorker),
+  );
+  languages.registerDocumentSymbolProvider(
+    languageId,
+    new lf.OutlineAdapter(getWorker),
+  );
+  languages.registerRenameProvider(
+    languageId,
+    new lf.RenameAdapter(getWorker),
+  );
+  languages.registerDocumentRangeFormattingEditProvider(
+    languageId,
+    new lf.FormatAdapter(getWorker),
+  );
+  languages.registerOnTypeFormattingEditProvider(
+    languageId,
+    new lf.FormatOnTypeAdapter(getWorker),
+  );
+  languages.registerCodeActionProvider(
+    languageId,
+    new lf.CodeActionAdaptor(getWorker),
+  );
+  languages.registerInlayHintsProvider(
+    languageId,
+    new lf.InlayHintsAdapter(getWorker),
+  );
+  languages.registerLinkedEditingRangeProvider(
+    languageId,
+    new lf.LinkedEditingRangeAdapter(getWorker),
+  );
+
+  const diagnosticsOptions: lf.DiagnosticsOptions = {
+    noSemanticValidation: languageId === "javascript",
+    noSyntaxValidation: false,
+    onlyVisible: false,
+  };
+  new lf.DiagnosticsAdapter(
+    diagnosticsOptions,
+    refreshDiagnosticEventEmitter.event,
+    languageId,
+    getWorker,
+  );
 }
 
-/** Convert string to URL. */
-function toUrl(name: string | URL) {
-  return typeof name === "string" ? new URL(name, "file:///") : name;
-}
-
-/**
- * Parse JSONC.
- * @source: https://www.npmjs.com/package/tiny-jsonc
- */
-const stringOrCommentRe = /("(?:\\?[^])*?")|(\/\/.*)|(\/\*[^]*?\*\/)/g;
-const stringOrTrailingCommaRe = /("(?:\\?[^])*?")|(,\s*)(?=]|})/g;
-function parseJsonc(text: string) {
-  try {
-    // Fast path for valid JSON
-    return JSON.parse(text);
-  } catch {
-    // Slow path for JSONC and invalid inputs
-    return JSON.parse(
-      text.replace(stringOrCommentRe, "$1").replace(
-        stringOrTrailingCommaRe,
-        "$1",
-      ),
-    );
-  }
-}
-
-/** Resolve types of the compiler options. */
-async function resolveTypes(compilerOptions: ts.CompilerOptions, vfs?: VFS) {
-  const fetcher = vfs?.fetch ?? globalThis.fetch; // use global fetch if vfs is not available
-  const types = compilerOptions.types;
-  if (Array.isArray(types)) {
-    delete compilerOptions.types;
-    await Promise.all(types.map(async (type) => {
-      if (/^https?:\/\//.test(type)) {
-        const res = await fetcher(type);
-        const dtsUrl = res.headers.get("x-typescript-types");
-        if (dtsUrl) {
-          res.body.cancel?.();
-          const res2 = await fetcher(dtsUrl);
-          if (res2.ok) {
-            return [dtsUrl, await res2.text()];
-          } else {
-            console.error(
-              `Failed to fetch "${dtsUrl}": ` + await res2.text(),
-            );
-          }
-        } else if (res.ok) {
-          return [type, await res.text()];
-        } else {
-          console.error(
-            `Failed to fetch "${dtsUrl}": ` + await res.text(),
-          );
-        }
-      } else if (typeof type === "string" && vfs) {
-        const dtsUrl = toUrl(type.replace(/\.d\.ts$/, "") + ".d.ts");
-        try {
-          return [dtsUrl.href, await vfs.readTextFile(dtsUrl)];
-        } catch (error) {
-          console.error(
-            `Failed to read "${dtsUrl.href}": ` + error.message,
-          );
-        }
-      }
-      return null;
-    })).then((entries) => {
-      if (vfs) {
-        compilerOptions.$types = entries.map(([url]) => url).filter((url) => url.startsWith("file://"));
-      }
-      lf.types.setTypes(Object.fromEntries(entries.filter(Boolean)));
-    });
-  }
-}
-
-/** Load compiler options from tsconfig.json in VFS if exists. */
-async function loadCompilerOptions(vfs: VFS) {
-  const compilerOptions: ts.CompilerOptions = {};
-  try {
-    const tsconfigjson = await vfs.readTextFile("tsconfig.json");
-    const tsconfig = parseJsonc(tsconfigjson);
-    await resolveTypes(tsconfig.compilerOptions, vfs);
-    compilerOptions.$src = toUrl("tsconfig.json").href;
-    Object.assign(compilerOptions, tsconfig.compilerOptions);
-  } catch (error) {
-    if (error instanceof vfs.ErrorNotFound) {
-      // ignore
-    } else {
-      console.error(error);
-    }
-  }
-  return compilerOptions;
-}
-
-/** Load import maps from the root index.html or external json file. */
-async function loadImportMap(vfs: VFS, postLoad?: (im: ImportMap) => ImportMap) {
-  try {
-    const indexHtml = await vfs.readTextFile("index.html");
-    const tplEl = document.createElement("template");
-    tplEl.innerHTML = indexHtml;
-    const scriptEl: HTMLScriptElement = tplEl.content.querySelector(
-      'script[type="importmap"]',
-    );
-    if (scriptEl) {
-      const importMap = parseImportMapFromJson(
-        scriptEl.src ? await vfs.readTextFile(scriptEl.src) : scriptEl.textContent,
-      );
-      importMap.$src = toUrl(scriptEl.src ? scriptEl.src : "index.html").href;
-      return postLoad?.(importMap) ?? importMap;
-    }
-  } catch (error) {
-    if (error instanceof vfs.ErrorNotFound) {
-      // ignore
-    } else {
-      console.error(error);
-    }
-  }
-  const importMap = blankImportMap();
-  importMap.$src = toUrl("index.html").href;
-  return postLoad?.(importMap) ?? importMap;
+export function workerUrl() {
+  const m = workerUrl.toString().match(/import\(['"](.+?)['"]\)/);
+  if (!m) throw new Error("worker url not found");
+  const url = new URL(m[1], import.meta.url);
+  Reflect.set(url, "import", () => import("./worker.js")); // trick for bundlers
+  return url;
 }
 
 /** Create the typescript worker. */
@@ -335,108 +300,122 @@ async function createWorker(
   return worker;
 }
 
-// javascript and typescript share the same worker
-let worker: TSWorker | Promise<TSWorker> | null = null;
-let refreshDiagnosticEventEmitter: EventTrigger | null = null;
-
-export async function setup(
-  monaco: typeof monacoNS,
-  languageId: string,
-  languageSettings?: Record<string, unknown>,
-  format?: Record<string, unknown>,
-  vfs?: VFS,
-) {
-  const languages = monaco.languages;
-
-  if (!refreshDiagnosticEventEmitter) {
-    refreshDiagnosticEventEmitter = new EventTrigger(new monaco.Emitter());
-  }
-
-  if (!worker) {
-    worker = createWorker(monaco, languageSettings, format, vfs);
-  }
-  if (worker instanceof Promise) {
-    worker = await worker;
-  }
-
-  const getWorker = (
-    ...uris: monacoNS.Uri[]
-  ): Promise<TypeScriptWorker> => {
-    return (worker as TSWorker).withSyncedResources(uris);
-  };
-
-  // register language features
-  lf.prelude(monaco);
-  languages.registerCompletionItemProvider(
-    languageId,
-    new lf.SuggestAdapter(getWorker),
-  );
-  languages.registerSignatureHelpProvider(
-    languageId,
-    new lf.SignatureHelpAdapter(getWorker),
-  );
-  languages.registerHoverProvider(
-    languageId,
-    new lf.QuickInfoAdapter(getWorker),
-  );
-  languages.registerDocumentHighlightProvider(
-    languageId,
-    new lf.DocumentHighlightAdapter(getWorker),
-  );
-  languages.registerDefinitionProvider(
-    languageId,
-    new lf.DefinitionAdapter(getWorker),
-  );
-  languages.registerReferenceProvider(
-    languageId,
-    new lf.ReferenceAdapter(getWorker),
-  );
-  languages.registerDocumentSymbolProvider(
-    languageId,
-    new lf.OutlineAdapter(getWorker),
-  );
-  languages.registerRenameProvider(
-    languageId,
-    new lf.RenameAdapter(getWorker),
-  );
-  languages.registerDocumentRangeFormattingEditProvider(
-    languageId,
-    new lf.FormatAdapter(getWorker),
-  );
-  languages.registerOnTypeFormattingEditProvider(
-    languageId,
-    new lf.FormatOnTypeAdapter(getWorker),
-  );
-  languages.registerCodeActionProvider(
-    languageId,
-    new lf.CodeActionAdaptor(getWorker),
-  );
-  languages.registerInlayHintsProvider(
-    languageId,
-    new lf.InlayHintsAdapter(getWorker),
-  );
-  languages.registerLinkedEditingRangeProvider(
-    languageId,
-    new lf.LinkedEditingRangeAdapter(getWorker),
-  );
-
-  const diagnosticsOptions: lf.DiagnosticsOptions = {
-    noSemanticValidation: languageId === "javascript",
-    noSyntaxValidation: false,
-    onlyVisible: false,
-  };
-  new lf.DiagnosticsAdapter(
-    diagnosticsOptions,
-    refreshDiagnosticEventEmitter.event,
-    languageId,
-    getWorker,
-  );
+/** Convert string to URL. */
+function toUrl(name: string | URL) {
+  return typeof name === "string" ? new URL(name, "file:///") : name;
 }
 
-export function workerUrl() {
-  const m = workerUrl.toString().match(/import\(['"](.+?)['"]\)/);
-  if (!m) throw new Error("worker url not found");
-  const url = new URL(m[1], import.meta.url);
-  Reflect.set(url, "import", () => import("./worker.js")); // trick for bundlers
-  return url;
+/**
+ * Parse JSONC.
+ * @source: https://www.npmjs.com/package/tiny-jsonc
+ */
+const stringOrCommentRe = /("(?:\\?[^])*?")|(\/\/.*)|(\/\*[^]*?\*\/)/g;
+const stringOrTrailingCommaRe = /("(?:\\?[^])*?")|(,\s*)(?=]|})/g;
+function parseJsonc(text: string) {
+  try {
+    // Fast path for valid JSON
+    return JSON.parse(text);
+  } catch {
+    // Slow path for JSONC and invalid inputs
+    return JSON.parse(
+      text.replace(stringOrCommentRe, "$1").replace(
+        stringOrTrailingCommaRe,
+        "$1",
+      ),
+    );
+  }
+}
+
+/** Resolve types of the compiler options. */
+async function resolveTypes(compilerOptions: ts.CompilerOptions, vfs?: VFS) {
+  const fetcher = vfs?.fetch ?? globalThis.fetch; // use global fetch if vfs is not available
+  const types = compilerOptions.types;
+  if (Array.isArray(types)) {
+    delete compilerOptions.types;
+    await Promise.all(types.map(async (type) => {
+      if (/^https?:\/\//.test(type)) {
+        const res = await fetcher(type);
+        const dtsUrl = res.headers.get("x-typescript-types");
+        if (dtsUrl) {
+          res.body.cancel?.();
+          const res2 = await fetcher(dtsUrl);
+          if (res2.ok) {
+            return [dtsUrl, await res2.text()];
+          } else {
+            console.error(
+              `Failed to fetch "${dtsUrl}": ` + await res2.text(),
+            );
+          }
+        } else if (res.ok) {
+          return [type, await res.text()];
+        } else {
+          console.error(
+            `Failed to fetch "${dtsUrl}": ` + await res.text(),
+          );
+        }
+      } else if (typeof type === "string" && vfs) {
+        const dtsUrl = toUrl(type.replace(/\.d\.ts$/, "") + ".d.ts");
+        try {
+          return [dtsUrl.href, await vfs.readTextFile(dtsUrl)];
+        } catch (error) {
+          console.error(
+            `Failed to read "${dtsUrl.href}": ` + error.message,
+          );
+        }
+      }
+      return null;
+    })).then((entries) => {
+      if (vfs) {
+        compilerOptions.$types = entries.map(([url]) => url).filter((url) => url.startsWith("file://"));
+      }
+      lf.types.setTypes(Object.fromEntries(entries.filter(Boolean)));
+    });
+  }
+}
+
+/** Load compiler options from tsconfig.json in VFS if exists. */
+async function loadCompilerOptions(vfs: VFS) {
+  const compilerOptions: ts.CompilerOptions = {};
+  try {
+    const tsconfigjson = await vfs.readTextFile("tsconfig.json");
+    const tsconfig = parseJsonc(tsconfigjson);
+    await resolveTypes(tsconfig.compilerOptions, vfs);
+    compilerOptions.$src = toUrl("tsconfig.json").href;
+    Object.assign(compilerOptions, tsconfig.compilerOptions);
+  } catch (error) {
+    if (error instanceof vfs.ErrorNotFound) {
+      // ignore
+    } else {
+      console.error(error);
+    }
+  }
+  return compilerOptions;
+}
+
+/** Load import maps from the root index.html or external json file. */
+async function loadImportMap(vfs: VFS, postLoad?: (im: ImportMap) => ImportMap) {
+  try {
+    const indexHtml = await vfs.readTextFile("index.html");
+    const tplEl = document.createElement("template");
+    tplEl.innerHTML = indexHtml;
+    const scriptEl: HTMLScriptElement = tplEl.content.querySelector(
+      'script[type="importmap"]',
+    );
+    if (scriptEl) {
+      const importMap = parseImportMapFromJson(
+        scriptEl.src ? await vfs.readTextFile(scriptEl.src) : scriptEl.textContent,
+      );
+      importMap.$src = toUrl(scriptEl.src ? scriptEl.src : "index.html").href;
+      return postLoad?.(importMap) ?? importMap;
+    }
+  } catch (error) {
+    if (error instanceof vfs.ErrorNotFound) {
+      // ignore
+    } else {
+      console.error(error);
+    }
+  }
+  const importMap = blankImportMap();
+  importMap.$src = toUrl("index.html").href;
+  return postLoad?.(importMap) ?? importMap;
 }

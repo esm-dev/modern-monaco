@@ -82,17 +82,15 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     if (!this._compilerOptions.jsxImportSource) {
       const jsxImportSource = this._importMap.imports["@jsxImportSource"];
       if (jsxImportSource) {
-        this._compilerOptions.jsxImportSource = jsxImportSource;
-        if (!this._compilerOptions.jsx) {
-          this._compilerOptions.jsx = ts.JsxEmit.ReactJSX;
+        const compilerOptions = { ...this._compilerOptions };
+        compilerOptions.jsxImportSource = jsxImportSource;
+        if (!compilerOptions.jsx) {
+          compilerOptions.jsx = ts.JsxEmit.ReactJSX;
         }
+        return compilerOptions;
       }
     }
     return this._compilerOptions;
-  }
-
-  getLanguageService(): ts.LanguageService {
-    return this._languageService;
   }
 
   getScriptFileNames(): string[] {
@@ -125,7 +123,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     if (text === undefined) {
       return;
     }
-    return <ts.IScriptSnapshot> {
+    return {
       getText: (start, end) => text.substring(start, end),
       getLength: () => text.length,
       getChangeRange: () => undefined,
@@ -150,10 +148,12 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     }
     const ext = basename.substring(dotIndex + 1);
     switch (ext) {
+      case "mts":
       case "ts":
         return ts.ScriptKind.TS;
       case "tsx":
         return ts.ScriptKind.TSX;
+      case "mjs":
       case "js":
         return ts.ScriptKind.JS;
       case "jsx":
