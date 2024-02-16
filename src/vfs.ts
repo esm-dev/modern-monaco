@@ -53,7 +53,7 @@ export class VFS {
       const storeKey = "monaco-state:" + (options.scope ?? "main");
       const persist = createPersistTask(() => {
         localStorage.setItem(storeKey, JSON.stringify(this.#state));
-      }, 500);
+      }, 100);
       const storeValue = localStorage.getItem(storeKey);
       if (storeValue) {
         try {
@@ -102,9 +102,7 @@ export class VFS {
       }, 500);
       const disposable = model.onDidChangeContent(onDidChange);
       const unwatch = this.watch(href, async (evt) => {
-        if (evt.kind === "remove") {
-          model.dispose();
-        } else if (evt.kind === "modify" && !evt.isModelChange) {
+        if (evt.kind === "modify" && !evt.isModelChange) {
           const { content } = await this.#read(url);
           if (model.getValue() !== toString(content)) {
             model.setValue(toString(content));

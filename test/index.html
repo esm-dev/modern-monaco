@@ -52,6 +52,12 @@
       box-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
     }
 
+    button.folder .delete-tag {
+      display: none;
+      color: rgba(255, 0, 0, 0.8);
+      font-size: 12px;
+    }
+
     button.folder svg {
       width: 20px;
       height: 20px;
@@ -121,6 +127,7 @@
       width: 100%;
       display: flex;
       align-items: center;
+      justify-content: space-between;
       gap: 6px;
       height: 32px;
       transition: color 0.3s ease-in-out;
@@ -132,12 +139,46 @@
       color: rgba(255, 255, 255, 1);
     }
 
+    ul.selector li span {
+      flex-grow: 1;
+      width: 100%;
+    }
+
     ul.selector li svg {
       display: none;
       width: 18px;
       height: 18px;
+      flex-shrink: 0;
     }
 
+    ul.selector li svg.file-icon-empty {
+      color: rgba(255, 255, 255, 0.6);
+    }
+
+    ul.selector li svg.file-icon-trash {
+      color: rgba(255, 255, 255, 0);
+      transition: color 0.3s ease-in-out;
+    }
+
+    ul.selector li:hover svg.file-icon-trash {
+      color: rgba(255, 255, 255, 0.5);
+    }
+
+    ul.selector li:hover svg.file-icon-trash:hover {
+      color: rgba(255, 255, 255, 0.9);
+    }
+
+    ul.selector li input {
+      background-color: transparent;
+      border: none;
+      outline: none;
+      color: rgba(255, 255, 255, 0.9);
+      padding: 0;
+      margin: 0;
+    }
+
+    ul.selector li svg.file-icon-empty,
+    ul.selector li svg.file-icon-trash,
     ul.selector li:not(.selected) svg.file-icon {
       display: block;
     }
@@ -178,16 +219,24 @@
       <path fill="currentColor"
         d="m20.71 16.71l-2.42-2.42a1 1 0 0 0-1.42 0l-3.58 3.58a1 1 0 0 0-.29.71V21a1 1 0 0 0 1 1h2.42a1 1 0 0 0 .71-.29l3.58-3.58a1 1 0 0 0 0-1.42M16 20h-1v-1l2.58-2.58l1 1Zm-6 0H6a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h5v3a3 3 0 0 0 3 3h3v1a1 1 0 0 0 2 0V8.94a1.31 1.31 0 0 0-.06-.27v-.09a1.07 1.07 0 0 0-.19-.28l-6-6a1.07 1.07 0 0 0-.28-.19a.32.32 0 0 0-.09 0L12.06 2H6a3 3 0 0 0-3 3v14a3 3 0 0 0 3 3h4a1 1 0 0 0 0-2m3-14.59L15.59 8H14a1 1 0 0 1-1-1ZM8 14h6a1 1 0 0 0 0-2H8a1 1 0 0 0 0 2m0-4h1a1 1 0 0 0 0-2H8a1 1 0 0 0 0 2m2 6H8a1 1 0 0 0 0 2h2a1 1 0 0 0 0-2" />
     </svg>
+    <svg class="file-icon-empty" xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24">
+      <path fill="currentColor"
+        d="M20 8.94a1.31 1.31 0 0 0-.06-.27v-.09a1.07 1.07 0 0 0-.19-.28l-6-6a1.07 1.07 0 0 0-.28-.19h-.09L13.06 2H7a3 3 0 0 0-3 3v14a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3V9zm-6-3.53L16.59 8H14ZM18 19a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h5v5a1 1 0 0 0 1 1h5Z" />
+    </svg>
+    <svg class="file-icon-trash" xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24">
+      <path fill="currentColor"
+        d="M10 18a1 1 0 0 0 1-1v-6a1 1 0 0 0-2 0v6a1 1 0 0 0 1 1M20 6h-4V5a3 3 0 0 0-3-3h-2a3 3 0 0 0-3 3v1H4a1 1 0 0 0 0 2h1v11a3 3 0 0 0 3 3h8a3 3 0 0 0 3-3V8h1a1 1 0 0 0 0-2M10 5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1h-4Zm7 14a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V8h10Zm-3-1a1 1 0 0 0 1-1v-6a1 1 0 0 0-2 0v6a1 1 0 0 0 1 1" />
+    </svg>
   </template>
   <script type="module">
     import { lazy } from '/index.js';
     import { vfs } from '/vfs.js';
     lazy({ vfs });
 
-    const list = await vfs.list()
     const folderButton = document.querySelector('button.folder')
     const selector = document.querySelector('ul.selector')
     const icons = document.querySelector('template.icons').content
+    const deleteTag = document.createElement('span')
     const toggleFolder = () => {
       folderButton.classList.toggle('open')
       selector.classList.toggle('open')
@@ -204,14 +253,66 @@
       }
     }
     const getActiveFile = () => vfs.state.activeFile.slice('file:///'.length)
+    const renderList = async () => {
+      selector.replaceChildren()
+      const list = await vfs.list()
+      list.forEach(file => {
+        const option = document.createElement('li')
+        const span = document.createElement('span')
+        const deleteIcon = icons.querySelector('.file-icon-trash').cloneNode(true)
+        const filename = file.slice('file:///'.length)
+        span.textContent = filename
+        option.append(icons.querySelector('.file-icon').cloneNode(true))
+        option.append(icons.querySelector('.file-icon-edit').cloneNode(true))
+        option.append(span)
+        option.append(deleteIcon)
+        deleteIcon.addEventListener('click', async (e) => {
+          e.stopPropagation()
+          vfs.removeFile(filename)
+        })
+        if (filename === currentFile) {
+          option.classList.add('selected')
+        }
+        option.addEventListener('click', () => {
+          toggleFolder()
+          vfs.openModel(file, true)
+        })
+        selector.appendChild(option)
+      })
+      const add = document.createElement('li')
+      const input = document.createElement('input')
+      add.className = 'add'
+      add.appendChild(icons.querySelector('.file-icon-empty').cloneNode(true))
+      add.appendChild(input)
+      input.placeholder = 'New File'
+      input.addEventListener('keydown', async e => {
+        if (e.key === 'Enter') {
+          const name = input.value.trim()
+          if (name) {
+            vfs.writeFile(name, '').then(() => {
+              vfs.openModel(name, true)
+              toggleFolder()
+            })
+          }
+        }
+      })
+      selector.appendChild(add)
+      if (!list.includes(vfs.state.activeFile)) {
+        deleteTag.style.display = 'inline-block'
+        toggleFolder()
+      } else {
+        deleteTag.style.display = 'none'
+      }
+    }
     let currentFile = getActiveFile()
     vfs.watchState(() => {
       const activeFile = getActiveFile()
       if (activeFile !== currentFile) {
         currentFile = activeFile
         folderButton.childNodes[2].textContent = currentFile
+        deleteTag.style.display = 'none'
         selector.querySelectorAll('li').forEach(li => {
-          if (li.childNodes[2].textContent === currentFile) {
+          if (!li.classList.contains('add') && li.childNodes[2].textContent === currentFile) {
             li.classList.add('selected')
           } else {
             li.classList.remove('selected')
@@ -219,23 +320,16 @@
         })
       }
     })
-    folderButton.prepend(...icons.querySelectorAll('.folder-icon, .folder-icon-open'), currentFile)
+    deleteTag.className = 'delete-tag'
+    deleteTag.textContent = 'Deleted'
+    folderButton.prepend(...icons.querySelectorAll('.folder-icon, .folder-icon-open'), currentFile, deleteTag)
     folderButton.addEventListener('click', toggleFolder)
-    list.forEach(file => {
-      const option = document.createElement('li')
-      const filename = file.slice('file:///'.length)
-      option.textContent = filename
-      option.prepend(icons.querySelector('.file-icon').cloneNode(true))
-      option.prepend(icons.querySelector('.file-icon-edit').cloneNode(true))
-      if (filename === currentFile) {
-        option.classList.add('selected')
+    vfs.watch("*", (e) => {
+      if (e.kind === 'remove' || e.kind === 'create') {
+        renderList()
       }
-      option.addEventListener('click', () => {
-        toggleFolder()
-        vfs.openModel(file, true)
-      })
-      selector.appendChild(option)
     })
+    renderList()
   </script>
 </body>
 

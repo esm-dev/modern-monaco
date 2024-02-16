@@ -247,15 +247,23 @@ export function lazy(options?: InitOption) {
         // check the pre-rendered content, if not exists, render one
         let mockEl = this.querySelector<HTMLElement>(".monaco-editor-prerender");
         if (!mockEl && file && vfs) {
-          const code = await vfs.readTextFile(file);
-          const lang = getLanguageIdFromPath(file);
-          mockEl = containerEl.cloneNode(true) as HTMLElement;
-          mockEl.className = "monaco-editor-prerender";
-          mockEl.innerHTML = render(highlighter, {
-            ...renderOptions,
-            code,
-            lang,
-          });
+          try {
+            const code = await vfs.readTextFile(file);
+            const lang = getLanguageIdFromPath(file);
+            mockEl = containerEl.cloneNode(true) as HTMLElement;
+            mockEl.className = "monaco-editor-prerender";
+            mockEl.innerHTML = render(highlighter, {
+              ...renderOptions,
+              code,
+              lang,
+            });
+          } catch (error) {
+            if (error instanceof vfs.ErrorNotFound) {
+              // ignore
+            } else {
+              throw error;
+            }
+          }
         }
         if (mockEl) {
           mockEl.style.position = "absolute";
@@ -277,7 +285,7 @@ export function lazy(options?: InitOption) {
         (async () => {
           const monaco = await loadMonacoCore(highlighter);
           const editor = monaco.editor.create(containerEl, renderOptions);
-          if (vfs && file) {
+          if (vfs) {
             let timer: number | null = null;
             const saveViewState = () => {
               const currentModel = editor.getModel();
@@ -297,14 +305,30 @@ export function lazy(options?: InitOption) {
             };
             editor.onDidChangeCursorPosition(onViewStateChange);
             editor.onDidScrollChange(onViewStateChange);
-            const model = await vfs.openModel(file, editor);
-            // update the model value with the code from SSR if exists
-            if (
-              renderOptions.filename === file &&
-              renderOptions.code &&
-              renderOptions.code !== model.getValue()
-            ) {
-              model.setValue(renderOptions.code);
+          }
+          if (vfs && file) {
+            try {
+              const model = await vfs.openModel(file, editor);
+              // update the model value with the code from SSR if exists
+              if (
+                renderOptions.filename === file &&
+                renderOptions.code &&
+                renderOptions.code !== model.getValue()
+              ) {
+                model.setValue(renderOptions.code);
+              }
+            } catch (error) {
+              if (error instanceof vfs.ErrorNotFound) {
+                if ((renderOptions.code && renderOptions.filename)) {
+                  await vfs.writeFile(renderOptions.filename, renderOptions.code);
+                  vfs.openModel(renderOptions.filename);
+                } else {
+                  // open an empty model
+                  editor.setModel(monaco.editor.createModel(""));
+                }
+              } else {
+                throw new Error(`[vfs] Failed to open file: ${file}`);
+              }
             }
           } else if ((renderOptions.code && (renderOptions.lang || renderOptions.filename))) {
             const model = monaco.editor.createModel(
@@ -315,6 +339,9 @@ export function lazy(options?: InitOption) {
               renderOptions.filename,
             );
             editor.setModel(model);
+          } else {
+            // open an empty model
+            editor.setModel(monaco.editor.createModel(""));
           }
           // hide the prerender element if exists
           if (mockEl && editorWorkerPromise) {
