@@ -5,8 +5,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type monacoNS from "monaco-editor-core";
-import { initialize } from "monaco-editor-core/esm/vs/editor/editor.worker";
 import * as cssService from "vscode-css-languageservice";
+import { initializeWorker } from "../../editor-worker.js";
 
 export interface CSSDataConfiguration {
   /**
@@ -310,9 +310,4 @@ export class CSSWorker {
   }
 }
 
-globalThis.onmessage = () => {
-  // ignore the first message
-  initialize((ctx, createData) => {
-    return new CSSWorker(ctx, createData);
-  });
-};
+initializeWorker(CSSWorker);

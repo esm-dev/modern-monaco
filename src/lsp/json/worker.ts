@@ -5,8 +5,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type monacoNS from "monaco-editor-core";
-import { initialize } from "monaco-editor-core/esm/vs/editor/editor.worker";
 import * as jsonService from "vscode-json-languageservice";
+import { initializeWorker } from "../../editor-worker.js";
 
 export interface Options {
   /**
@@ -231,9 +231,4 @@ export class JSONWorker {
   }
 }
 
-globalThis.onmessage = () => {
-  // ignore the first message
-  initialize((ctx, createData) => {
-    return new JSONWorker(ctx, createData);
-  });
-};
+initializeWorker(JSONWorker);

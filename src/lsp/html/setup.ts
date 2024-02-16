@@ -30,7 +30,6 @@ export function setup(
         extraLiners: "head, body, /html",
         wrapAttributes: "auto",
         ...format,
-        ...format?.html as Record<string, unknown>,
       },
     },
   };

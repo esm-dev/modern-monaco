@@ -6,7 +6,7 @@
 
 import ts from "typescript";
 import type monacoNS from "monaco-editor-core";
-import { initialize } from "monaco-editor-core/esm/vs/editor/editor.worker";
+import { initializeWorker } from "../../editor-worker.js";
 import { type ImportMap, isBlank, resolve } from "../../import-map";
 import { vfetch } from "../../vfs";
 
@@ -914,11 +914,4 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   }
 }
 
-globalThis.onmessage = () => {
-  // ignore the first message
-  initialize((ctx, createData) => {
-    return new TypeScriptWorker(ctx, createData);
-  });
-};
-
-export { ts as TS };
+initializeWorker(TypeScriptWorker);

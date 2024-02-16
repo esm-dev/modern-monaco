@@ -5,8 +5,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type monacoNS from "monaco-editor-core";
-import { initialize } from "monaco-editor-core/esm/vs/editor/editor.worker";
 import * as htmlService from "vscode-html-languageservice";
+import { initializeWorker } from "../../editor-worker.js";
 
 export interface HTMLDataConfiguration {
   /**
@@ -224,9 +224,4 @@ export class HTMLWorker {
   }
 }
 
-globalThis.onmessage = () => {
-  // ignore the first message
-  initialize((ctx, createData) => {
-    return new HTMLWorker(ctx, createData);
-  });
-};
+initializeWorker(HTMLWorker);
