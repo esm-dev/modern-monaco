@@ -35,7 +35,6 @@ const editorProps = [
   "scrollbar",
   "tabSize",
   "wordWrap",
-  "wordWrapColumn",
 ];
 
 export interface InitOption extends ShikiInitOptions {
@@ -63,9 +62,11 @@ async function loadMonaco(highlighter: HighlighterCore, options?: InitOption, on
       }
       const worker = await createWorker(url);
       if (!lsp) {
-        const onMessage = () => {
-          onEditorWorkerReady?.();
-          worker.removeEventListener("message", onMessage);
+        const onMessage = (e: MessageEvent) => {
+          if (e.data.seq === "4") {
+            onEditorWorkerReady?.();
+            worker.removeEventListener("message", onMessage);
+          }
         };
         worker.addEventListener("message", onMessage);
       }
@@ -182,6 +183,9 @@ export function lazy(options?: InitOption) {
             if (key === "padding" && typeof value === "number") {
               value = { top: value, bottom: value };
             }
+            if (key === "wordWrap" && (value === "on" || value === true)) {
+              value = "on";
+            }
             renderOptions[key] = value;
           }
         }
@@ -262,9 +266,9 @@ export function lazy(options?: InitOption) {
           this.appendChild(mockEl);
 
           if (vfs && file) {
-            const scrollPosition = vfs.state.scrollHistory?.[new URL(file, "file:///").href];
-            if (Array.isArray(scrollPosition)) {
-              const [scrollTop, scrollLeft] = scrollPosition;
+            const viewState = vfs.state.viewState?.[new URL(file, "file:///").href];
+            if (viewState) {
+              const { scrollTop, scrollLeft } = viewState.viewState;
               const mockEditor = mockEl.querySelector(".mock-monaco-editor");
               mockEditor?.scroll(scrollLeft, scrollTop);
             }
@@ -276,16 +280,25 @@ export function lazy(options?: InitOption) {
           const monaco = await loadMonacoCore(highlighter);
           const editor = monaco.editor.create(containerEl, renderOptions);
           if (vfs && file) {
-            editor.onDidChangeCursorPosition((e) => {
+            let timer: number | null = null;
+            const saveViewState = () => {
               const currentModel = editor.getModel();
-              const cursorHistory = vfs.state.cursorHistory ?? (vfs.state.cursorHistory = {});
-              cursorHistory[currentModel.uri.toString()] = [e.position.lineNumber, e.position.column];
-            });
-            editor.onDidScrollChange((e) => {
-              const currentModel = editor.getModel();
-              const scrollHistory = vfs.state.scrollHistory ?? (vfs.state.scrollHistory = {});
-              scrollHistory[currentModel.uri.toString()] = [e.scrollTop, e.scrollLeft];
-            });
+              const viewStateStore = vfs.state.viewState ?? (vfs.state.viewState = {});
+              const viewState = editor.saveViewState();
+              viewState.viewState.scrollTop = editor.getScrollTop();
+              viewStateStore[currentModel.uri.toString()] = viewState;
+            };
+            const onViewStateChange = () => {
+              if (timer !== null) {
+                return;
+              }
+              timer = setTimeout(() => {
+                timer = null;
+                saveViewState();
+              }, 100);
+            };
+            editor.onDidChangeCursorPosition(onViewStateChange);
+            editor.onDidScrollChange(onViewStateChange);
             const model = await vfs.openModel(file, editor);
             // update the model value with the code from SSR if exists
             if (
@@ -316,7 +329,7 @@ export function lazy(options?: InitOption) {
                   // don't support animation api
                   setTimeout(() => mockEl.remove(), 200);
                 }
-              }, 300);
+              }, 400);
             });
           }
           // load required grammars in background

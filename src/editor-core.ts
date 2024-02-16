@@ -6,7 +6,6 @@ export const defaultEditorOptions: editor.IStandaloneEditorConstructionOptions =
   scrollBeyondLastLine: false,
   smoothScrolling: true,
   theme: "vitesse-dark",
-  wordWrap: "off",
 };
 
 const _create = editor.create;

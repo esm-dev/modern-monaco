@@ -55,6 +55,8 @@ export function render(
     lineNumbers = "on",
     lineNumbersMinChars = 5,
     lineDecorationsWidth = 10,
+    scrollbar,
+    wordWrap,
   } = options;
   const fontLigatures = options.fontLigatures && options.fontLigatures !== "false" ? "1" : "0";
   const fontVariations = options.fontVariations && options.fontVariations !== "false" && /^\d+$/.test(fontWeight);
@@ -63,12 +65,19 @@ export function render(
     EDITOR_FONT_DEFAULTS.fontFamily,
   ].filter(Boolean).join(", ");
 
+  if (wordWrap === "wordWrapColumn" || wordWrap === "bounded") {
+    throw new Error("`wordWrapColumn` and `bounded` word-wrap modes are not supported");
+  }
+
+  let verticalScrollbarWidth = scrollbar?.verticalScrollbarSize ?? 14;
   let computedlineHeight = lineHeight || fontSize * GOLDEN_LINE_HEIGHT_RATIO;
+  let lineNumbersHtml = "";
+  let lineNumbersWidth = 0;
+
   if (computedlineHeight < MINIMUM_LINE_HEIGHT) {
     computedlineHeight = computedlineHeight * fontSize;
   }
 
-  let lineNumbersHtml = "";
   if (lineNumbers !== "off") {
     let fontDigitWidth = options.fontDigitWidth;
     if (!fontDigitWidth && !isBrowser) {
@@ -83,10 +92,12 @@ export function render(
       fontDigitWidth ?? getDigitWidth([fontWeight, fontSize + "px", fontFamily].join(" ")),
       MINIMUM_MAX_DIGIT_WIDTH,
     );
-    const lineNumbersWidth = Math.round(
+    lineNumbersWidth = Math.round(
       Math.max(lineNumbersMinChars, String(lines).length) * maxDigitWidth,
     );
     const lineNumbersStyle = [
+      "position:sticky",
+      "left:0",
       "display:flex",
       "flex-direction:column",
       "flex-shrink:0",
@@ -111,7 +122,6 @@ export function render(
     "display:flex",
     "width:100%",
     "height:100%",
-    "overflow-x:auto",
     "overflow-y:auto",
     "margin:0",
     "padding:0",
@@ -119,26 +129,39 @@ export function render(
     `font-feature-settings:'liga' ${fontLigatures}, 'calt' ${fontLigatures}`,
     `font-variation-settings:${fontVariations ? "'wght' " + Number(fontWeight) : "normal"}`,
     "-webkit-text-size-adjust:100%",
+    "scrollbar-width:none",
   ];
-  const lineStyle = [
-    "margin:0",
-    "padding:0",
+  const fontStyle = [
+    "margin:0;padding:0", // reset margin and padding
     `font-family:${fontFamily}`,
     `font-weight:${fontWeight}`,
     `font-size:${fontSize}px`,
     `line-height:${computedlineHeight}px`,
     `letter-spacing:${letterSpacing}px`,
   ];
-  const clasName = `mock-monaco-editor-${hashCode(lineStyle.join(";")).toString(36)}`;
+  const editorStyle = [...fontStyle];
+  const className = `mock-monaco-editor-${hashCode(fontStyle.join(";")).toString(36)}`;
+  const css = [
+    `.${className} code { ${fontStyle.join(";")} }`,
+    `.${className}::-webkit-scrollbar { display: none }`,
+  ];
+  if (wordWrap === "on") {
+    style.push("overflow-x:hidden");
+    editorStyle.push("word-break:break-all;white-space:pre-wrap;hyphens:none");
+  } else {
+    verticalScrollbarWidth = 0;
+    style.push("overflow-x:auto");
+    editorStyle.push(`white-space:pre;padding-right:${lineNumbersWidth + decorationsWidth}px`);
+  }
   const shikiStyleIndex = html.indexOf('style="') + 7;
   const shikiStyle = html.slice(shikiStyleIndex, html.indexOf('"', shikiStyleIndex));
-  const finHtml = html.slice(0, shikiStyleIndex) + lineStyle.join(";") + ";" + html.slice(shikiStyleIndex);
-  const css = [`.${clasName} code {${lineStyle.join(";")}}`];
+  const finHtml = html.slice(0, shikiStyleIndex) + editorStyle.join(";") + ";" + html.slice(shikiStyleIndex);
   const addPadding = (padding: number, side: string) => {
-    const style = `{display:block;height:${padding}px;content:' '}`;
-    css.push(`.${clasName} .line-numbers:${side}, .${clasName} .shiki:${side} ${style}`);
+    const style = `{ display:block;height:${padding}px;content:'.';opacity:0 }`;
+    css.push(`.${className} .line-numbers:${side}, .${className} .shiki:${side} ${style}`);
   };
   style.push(shikiStyle);
+  css.push(`.${className} .line-numbers { ${shikiStyle} }`);
   if (padding?.top) {
     addPadding(padding.top, "before");
   }
@@ -146,11 +169,12 @@ export function render(
     addPadding(padding.bottom, "after");
   }
   return [
-    `<div class="mock-monaco-editor ${clasName}" style="${style.join(";")}">`,
     `<style>${css.join("")}</style>`,
+    `<div class="mock-monaco-editor ${className}" style="${style.join(";")}">`,
     lineNumbersHtml,
-    `<div style="flex-shrink:0;width:${decorationsWidth}px"></div>`,
+    `<div style="position:sticky;top:0;left:${lineNumbersWidth}px;flex-shrink:0;width:${decorationsWidth}px;${shikiStyle}"></div>`,
     `${finHtml}`,
+    verticalScrollbarWidth > 0 ? `<div style="flex-shrink:0;width:${verticalScrollbarWidth}px"></div>` : "",
     `</div>`,
   ].join("");
 }

@@ -143,25 +143,16 @@ export class VFS {
       }
       if (editor) {
         editor.setModel(model);
-        const scrollPosition = this.#state.scrollHistory?.[href];
-        if (scrollPosition) {
-          const [scrollTop, scrollLeft] = scrollPosition;
-          editor.setScrollPosition({ scrollTop, scrollLeft });
-        }
         if (selectionOrPosition) {
-          const cursorHistory = this.#state.cursorHistory ?? (this.#state.cursorHistory = {});
           if ("endLineNumber" in selectionOrPosition) {
-            cursorHistory[href] = [selectionOrPosition.startLineNumber, selectionOrPosition.startColumn];
             editor.setSelection(selectionOrPosition);
           } else {
-            cursorHistory[href] = [selectionOrPosition.lineNumber, selectionOrPosition.column];
             editor.setPosition(selectionOrPosition);
           }
         } else {
-          const cursorPosition = this.#state.cursorHistory?.[href];
-          if (cursorPosition) {
-            const [lineNumber, column] = cursorPosition;
-            editor.setPosition({ lineNumber, column });
+          const viewState = this.#state.viewState?.[href];
+          if (viewState) {
+            editor.restoreViewState(viewState);
             editor.focus();
           }
         }
