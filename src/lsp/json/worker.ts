@@ -63,6 +63,7 @@ export class JSONWorker {
     }
     return Promise.resolve([]);
   }
+
   async doComplete(
     uri: string,
     position: jsonService.Position,
@@ -74,11 +75,13 @@ export class JSONWorker {
     let jsonDocument = this._languageService.parseJSONDocument(document);
     return this._languageService.doComplete(document, position, jsonDocument);
   }
+
   async doResolve(
     item: jsonService.CompletionItem,
   ): Promise<jsonService.CompletionItem> {
     return this._languageService.doResolve(item);
   }
+
   async doHover(
     uri: string,
     position: jsonService.Position,
@@ -90,6 +93,7 @@ export class JSONWorker {
     let jsonDocument = this._languageService.parseJSONDocument(document);
     return this._languageService.doHover(document, position, jsonDocument);
   }
+
   async format(
     uri: string,
     range: jsonService.Range | null,
@@ -106,9 +110,11 @@ export class JSONWorker {
     );
     return Promise.resolve(textEdits);
   }
+
   async resetSchema(uri: string): Promise<boolean> {
     return Promise.resolve(this._languageService.resetSchema(uri));
   }
+
   async findDocumentSymbols(
     uri: string,
   ): Promise<jsonService.DocumentSymbol[]> {
@@ -123,6 +129,7 @@ export class JSONWorker {
     );
     return Promise.resolve(symbols);
   }
+
   async findDocumentColors(
     uri: string,
   ): Promise<jsonService.ColorInformation[]> {
@@ -137,6 +144,7 @@ export class JSONWorker {
     );
     return Promise.resolve(colorSymbols);
   }
+
   async getColorPresentations(
     uri: string,
     color: jsonService.Color,
@@ -155,6 +163,7 @@ export class JSONWorker {
     );
     return Promise.resolve(colorPresentations);
   }
+
   async getFoldingRanges(
     uri: string,
     context?: { rangeLimit?: number },
@@ -166,6 +175,7 @@ export class JSONWorker {
     let ranges = this._languageService.getFoldingRanges(document, context);
     return Promise.resolve(ranges);
   }
+
   async getSelectionRanges(
     uri: string,
     positions: jsonService.Position[],
@@ -182,6 +192,7 @@ export class JSONWorker {
     );
     return Promise.resolve(ranges);
   }
+
   async parseJSONDocument(
     uri: string,
   ): Promise<jsonService.JSONDocument | null> {
@@ -192,6 +203,7 @@ export class JSONWorker {
     let jsonDocument = this._languageService.parseJSONDocument(document);
     return Promise.resolve(jsonDocument);
   }
+
   async getMatchingSchemas(uri: string): Promise<jsonService.MatchingSchema[]> {
     let document = this._getTextDocument(uri);
     if (!document) {
@@ -202,6 +214,7 @@ export class JSONWorker {
       this._languageService.getMatchingSchemas(document, jsonDocument),
     );
   }
+
   private _getTextDocument(uri: string): jsonService.TextDocument | null {
     let models = this._ctx.getMirrorModels();
     for (let model of models) {

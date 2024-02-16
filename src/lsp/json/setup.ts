@@ -17,11 +17,12 @@ export function setup(
       settings: {
         validate: true,
         allowComments: false,
-        schemas: Array.isArray(languageSettings?.schemas) ? schemas.concat(languageSettings.schemas) : schemas,
         schemaRequest: "warning",
         schemaValidation: "warning",
         comments: "error",
         trailingCommas: "error",
+        ...languageSettings,
+        schemas: Array.isArray(languageSettings?.schemas) ? schemas.concat(languageSettings.schemas) : schemas,
       },
       format: {
         tabSize: 4,

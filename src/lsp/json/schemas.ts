@@ -23,6 +23,7 @@ export const schemas: SchemaConfiguration[] = [
             "@jsxImportSource": {
               description: "The key is the specifier for JSX runtime.",
               type: "string",
+              default: "https://esm.sh/react@18.2.0",
             },
           },
           additionalProperties: {
