@@ -6,11 +6,11 @@ settings:
 
 devDependencies:
   '@shikijs/core':
-    specifier: 1.1.1
-    version: 1.1.1
+    specifier: 1.1.3
+    version: 1.1.3
   '@shikijs/monaco':
-    specifier: 1.1.1
-    version: 1.1.1
+    specifier: 1.1.3
+    version: 1.1.3
   esbuild:
     specifier: 0.20.0
     version: 0.20.0
@@ -18,8 +18,8 @@ devDependencies:
     specifier: 0.46.0
     version: 0.46.0
   tm-grammars:
-    specifier: 1.2.0
-    version: 1.2.0
+    specifier: 1.3.2
+    version: 1.3.2
   tm-themes:
     specifier: 1.1.3
     version: 1.1.3
@@ -248,14 +248,14 @@ packages:
     dev: true
     optional: true
 
-  /@shikijs/core@1.1.1:
-    resolution: {integrity: sha512-WSHuW0i4W04+UZgim378oxHBAp4S5X3hVI2zXh+t5v2fx2u/7QXz9VNisoOD/CA4O9Lc6Zs97TrKiDbWyZua6Q==}
+  /@shikijs/core@1.1.3:
+    resolution: {integrity: sha512-1QWSvWcPbvZXsDxB1F7ejW+Kuxp3z/JHs944hp/f8BYOlFd5gplzseFIkE/GTu/qytFef3zNME4qw1oHbQ0j2A==}
     dev: true
 
-  /@shikijs/monaco@1.1.1:
-    resolution: {integrity: sha512-HdQnDhj/I3Yf/G14ls1YrmAUUYsDFLqqzaf7oMjpGiDTI48W65dbwPH5X+m3Ol2K4hxkR0QcCQKSAWxxLbEV6w==}
+  /@shikijs/monaco@1.1.3:
+    resolution: {integrity: sha512-RKilFGAUByOpq7WCqRb/ryFgEgRyN74Ro+7UcvsqnIWmC0CfcuZDgtO53zPipgit1jE0lBmT9nO/wOZWHH01yA==}
     dependencies:
-      '@shikijs/core': 1.1.1
+      '@shikijs/core': 1.1.3
     dev: true
 
   /@vscode/l10n@0.0.18:
@@ -301,8 +301,8 @@ packages:
     resolution: {integrity: sha512-JA5BzCaC0nUB5zUhzGUfecNhVNxEXpJxp6YNBYLr0SPyv0DKSIeBpF21WVkpwYm00UJaVc4m3TTcwB9/Gzd/nw==}
     dev: true
 
-  /tm-grammars@1.2.0:
-    resolution: {integrity: sha512-3MB5e61KyAwMOeZEQM1n8+RAFlk3Gxyw+BJgpeM0kQDJf0IAAS+/QEj2k2pXpQzbVOwuMpZP5yQntYik+kSjUA==}
+  /tm-grammars@1.3.2:
+    resolution: {integrity: sha512-GJdA6ckK2phXEc0Fmt2/efJyxRHZRBGGEMS5WE7s+1Ypva3n8FcqrJIzr12M4Bhj9q8JhHnXg8Qop1mz0YrZmg==}
     dev: true
 
   /tm-themes@1.1.3:
