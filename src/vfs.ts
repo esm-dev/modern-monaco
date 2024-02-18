@@ -272,6 +272,33 @@ export class VFS {
     };
   }
 
+  useList(handler: (list: string[]) => void): () => void {
+    const unwatch = this.watch("*", (evt) => {
+      if (evt.kind === "create" || evt.kind === "remove") {
+        this.list().then(handler);
+      }
+    });
+    this.list().then(handler);
+    return () => {
+      unwatch();
+    };
+  }
+
+  useState<T>(get: (state: any) => T, handler: (value: T) => void): () => void {
+    let value = get(this.#state);
+    handler(value);
+    const unwatch = this.watchState(() => {
+      const newValue = get(this.#state);
+      if (newValue !== value) {
+        value = newValue;
+        handler(value);
+      }
+    });
+    return () => {
+      unwatch();
+    };
+  }
+
   fetch(url: string | URL) {
     return vfetch(url);
   }

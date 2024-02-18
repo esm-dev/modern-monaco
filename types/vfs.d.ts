@@ -29,6 +29,8 @@ export class VFS {
   removeFile(name: string | URL): Promise<void>;
   watch(name: string | URL, handler: (evt: WatchEvent) => void): () => void;
   watchState(handler: () => void): () => void;
+  useList(handler: (list: string[]) => void): () => void;
+  useState<T>(get: (state: VFSState) => T, handler: (value: T) => void): () => void;
 }
 
 interface WatchEvent {

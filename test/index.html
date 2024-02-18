@@ -252,15 +252,14 @@
         }, 300);
       }
     }
-    const getActiveFile = () => vfs.state.activeFile.slice('file:///'.length)
-    const renderList = async () => {
+    const renderList = (list) => {
       selector.replaceChildren()
-      const list = await vfs.list()
       list.forEach(file => {
         const option = document.createElement('li')
         const span = document.createElement('span')
         const deleteIcon = icons.querySelector('.file-icon-trash').cloneNode(true)
         const filename = file.slice('file:///'.length)
+        const isActive = file === vfs.state.activeFile
         span.textContent = filename
         option.append(icons.querySelector('.file-icon').cloneNode(true))
         option.append(icons.querySelector('.file-icon-edit').cloneNode(true))
@@ -269,8 +268,11 @@
         deleteIcon.addEventListener('click', async (e) => {
           e.stopPropagation()
           vfs.removeFile(filename)
+          if (isActive) {
+            toggleFolder()
+          }
         })
-        if (filename === currentFile) {
+        if (isActive) {
           option.classList.add('selected')
         }
         option.addEventListener('click', () => {
@@ -290,8 +292,8 @@
           const name = input.value.trim()
           if (name) {
             vfs.writeFile(name, '').then(() => {
-              vfs.openModel(name, true)
               toggleFolder()
+              vfs.openModel(name, true)
             })
           }
         }
@@ -299,37 +301,28 @@
       selector.appendChild(add)
       if (!list.includes(vfs.state.activeFile)) {
         deleteTag.style.display = 'inline-block'
-        toggleFolder()
       } else {
         deleteTag.style.display = 'none'
       }
     }
-    let currentFile = getActiveFile()
-    vfs.watchState(() => {
-      const activeFile = getActiveFile()
-      if (activeFile !== currentFile) {
-        currentFile = activeFile
-        folderButton.childNodes[2].textContent = currentFile
-        deleteTag.style.display = 'none'
-        selector.querySelectorAll('li').forEach(li => {
-          if (!li.classList.contains('add') && li.childNodes[2].textContent === currentFile) {
-            li.classList.add('selected')
-          } else {
-            li.classList.remove('selected')
-          }
-        })
-      }
-    })
+
     deleteTag.className = 'delete-tag'
     deleteTag.textContent = 'Deleted'
-    folderButton.prepend(...icons.querySelectorAll('.folder-icon, .folder-icon-open'), currentFile, deleteTag)
+    folderButton.prepend(...icons.querySelectorAll('.folder-icon, .folder-icon-open'), '', deleteTag)
     folderButton.addEventListener('click', toggleFolder)
-    vfs.watch("*", (e) => {
-      if (e.kind === 'remove' || e.kind === 'create') {
-        renderList()
-      }
+
+    vfs.useState((state) => state.activeFile?.slice('file:///'.length), (activeFile) => {
+      deleteTag.style.display = 'none'
+      folderButton.childNodes[2].textContent = activeFile
+      selector.querySelectorAll('li:not(.add)').forEach(li => {
+        if (li.childNodes[2].textContent === activeFile) {
+          li.classList.add('selected')
+        } else {
+          li.classList.remove('selected')
+        }
+      })
     })
-    renderList()
+    vfs.useList(renderList)
   </script>
 </body>
 
