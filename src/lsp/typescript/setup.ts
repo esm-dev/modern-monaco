@@ -277,6 +277,14 @@ async function createWorker(
     });
 
     monaco.editor.addCommand({
+      id: "cache-http-module",
+      run: async (_: unknown, url: string, containingFile: string) => {
+        const proxy = await worker.getProxy();
+        await proxy.cacheHttpModule(url, containingFile);
+      },
+    });
+
+    monaco.editor.addCommand({
       id: "importmap.add",
       run: async (_: unknown, src: string, specifier: string, uri: string) => {
         const { imports, scopes } = globalThis.structuredClone?.(importMap) ?? JSON.parse(JSON.stringify(importMap));

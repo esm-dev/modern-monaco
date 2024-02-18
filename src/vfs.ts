@@ -361,62 +361,29 @@ export async function vfetch(url: string | URL): Promise<Response> {
     // non-browser environment
     return fetch(url);
   }
-  const db = await (cacheDb ?? (cacheDb = openDB("monaco-cache")));
-  const tx = db.transaction("files", "readonly").objectStore("files");
-  const cacheUrl = url.href;
-  const ret = await waitIDBRequest<VFile>(tx.get(cacheUrl));
-  if (ret && ret.headers) {
-    const headers = new Headers(ret.headers);
-    const cc = headers.get("cache-control");
-    let hit = false;
-    if (cc) {
-      if (cc.includes("immutable")) {
-        hit = true;
-      } else {
-        const m = cc.match(/max-age=(\d+)/);
-        if (m) {
-          const maxAgeMs = Number(m[1]) * 1000;
-          hit = ret.mtime + maxAgeMs > Date.now();
-        }
-      }
-    }
-    if (hit) {
-      const res = new Response(ret.content, { headers });
-      if (headers.has("x-redirected-url")) {
-        defineProperty(res, "url", headers.get("x-redirected-url"));
-        defineProperty(res, "redirected", true);
-        headers.delete("x-redirected-url");
-      } else {
-        defineProperty(res, "url", cacheUrl);
-      }
-      return res;
-    }
+  const cachedRes = await vfetch.queryCache(url);
+  if (cachedRes) {
+    return cachedRes;
   }
   const res = await fetch(url);
-  const cc = res.headers.get("cache-control");
-  if (res.ok && cc && (cc.includes("max-age=") || cc.includes("immutable"))) {
+  if (res.ok) {
     const content = new Uint8Array(await res.arrayBuffer());
     const headers = [...res.headers.entries()].filter(([k]) =>
-      ["content-type", "content-length", "x-typescript-types", "x-esm-id"]
-        .includes(k)
+      ["cache-control", "content-type", "content-length", "x-typescript-types"].includes(k)
     );
-    if (cc.includes("immutable") && url.hostname === "esm.sh" && res.redirected) {
-      headers.push(["cache-control", "max-age=600"]);
-    } else {
-      headers.push(["cache-control", cc]);
-    }
     if (res.redirected) {
       headers.push(["x-redirected-url", res.url]);
     }
     const now = Date.now();
     const file: VFile = {
-      url: cacheUrl,
+      url: url.href,
       version: 1,
       content,
       headers,
       ctime: now,
       mtime: now,
     };
+    const db = await (cacheDb ?? (cacheDb = openDB("monaco-cache")));
     const tx = db.transaction("files", "readwrite").objectStore("files");
     await waitIDBRequest<VFile>(tx.put(file));
     const resp = new Response(content, { headers });
@@ -426,6 +393,25 @@ export async function vfetch(url: string | URL): Promise<Response> {
   }
   return res;
 }
+vfetch.queryCache = async (url: string | URL): Promise<Response | null> => {
+  url = toUrl(url);
+  const db = await (cacheDb ?? (cacheDb = openDB("monaco-cache")));
+  const tx = db.transaction("files", "readonly").objectStore("files");
+  const ret = await waitIDBRequest<VFile>(tx.get(url.href));
+  if (ret && ret.headers) {
+    const headers = new Headers(ret.headers);
+    const res = new Response(ret.content, { headers });
+    if (headers.has("x-redirected-url")) {
+      defineProperty(res, "url", headers.get("x-redirected-url"));
+      defineProperty(res, "redirected", true);
+      headers.delete("x-redirected-url");
+    } else {
+      defineProperty(res, "url", url.href);
+    }
+    return res;
+  }
+  return null;
+};
 
 function createPersistTask(persist: () => void | Promise<void>, delay = 500) {
   let timer: number | null = null;

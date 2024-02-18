@@ -55,8 +55,10 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   private _languageService = ts.createLanguageService(this);
   private _httpLibs = new Map<string, string>();
   private _httpModules = new Map<string, string>();
+  private _httpTsModules = new Map<string, string>();
   private _dtsMap = new Map<string, string>();
-  private _unknownModules = new Set<string>();
+  private _maybeModules = new Set<string>();
+  private _noModules = new Set<string>();
   private _openPromises = new Map<string, Promise<void>>();
   private _fetchPromises = new Map<string, Promise<void>>();
   private _refreshDiagnosticsTimeout: number | null = null;
@@ -100,6 +102,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
         Object.keys(this._types),
         [...this._httpLibs.keys()],
         [...this._httpModules.keys()],
+        [...this._httpTsModules.keys()],
       );
   }
 
@@ -218,11 +221,18 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     containingSourceFile: ts.SourceFile,
     reusedNames: readonly ts.StringLiteralLike[] | undefined,
   ): readonly ts.ResolvedModuleWithFailedLookupLocations[] {
+    const jsxImportUrl = this._getJsxImportUrl(containingFile);
     return moduleLiterals.map((literal): ts.ResolvedModuleWithFailedLookupLocations["resolvedModule"] => {
       let moduleName = literal.text;
+      let isJsxImportSource = moduleName === jsxImportUrl;
+      let inImportMap = false;
       if (!this._isBlankImportMap) {
-        const resolved = resolve(this._importMap, moduleName, containingFile);
-        moduleName = resolved;
+        if (!isJsxImportSource) {
+          isJsxImportSource = moduleName === jsxImportUrl;
+        }
+        const url = resolve(this._importMap, moduleName, containingFile);
+        inImportMap = url !== moduleName;
+        moduleName = url;
       }
       if (!/^(((file|https?):\/\/)|\.{0,2}\/)/.test(moduleName)) {
         return undefined;
@@ -235,9 +245,6 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
           // when the module name has no extension.
           moduleUrl.pathname += ext;
         }
-      }
-      if (this._unknownModules.has(moduleUrl.href)) {
-        return undefined;
       }
       if (this._httpModules.has(containingFile)) {
         // ignore dependencies of http modules
@@ -261,9 +268,8 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
             moduleHref,
             this._ctx.host.tryOpenModel(moduleHref).then((ok) => {
               if (!ok) {
-                // @ts-expect-error force reinvoke `resolveModuleNameLiterals` method
-                this._getModel(containingFile)._versionId--;
-                this._unknownModules.add(moduleHref);
+                this._rollbackVersion(containingFile);
+                this._noModules.add(moduleHref);
               }
             }).finally(() => {
               this._openPromises.delete(moduleHref);
@@ -273,8 +279,23 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
             }),
           );
         }
-      } else if (moduleUrl.pathname !== "/" && !/[@.,-]$/.test(moduleUrl.pathname)) {
+      } else {
         const moduleHref = moduleUrl.href;
+        if (this._noModules.has(moduleUrl.href) || this._maybeModules.has(moduleHref)) {
+          return undefined;
+        }
+        if (this._httpModules.has(moduleHref)) {
+          return {
+            resolvedFileName: moduleHref,
+            extension: TypeScriptWorker.getScriptExtension(moduleUrl, ".js"),
+          };
+        }
+        if (this._httpTsModules.has(moduleHref)) {
+          return {
+            resolvedFileName: moduleHref,
+            extension: TypeScriptWorker.getScriptExtension(moduleUrl, ".ts"),
+          };
+        }
         if (this._dtsMap.has(moduleHref)) {
           return {
             resolvedFileName: this._dtsMap.get(moduleHref),
@@ -287,17 +308,15 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
             extension: ".d.ts",
           };
         }
-        if (this._httpModules.has(moduleHref)) {
-          return {
-            resolvedFileName: moduleHref,
-            extension: ".js",
-          };
-        }
         if (!this._fetchPromises.has(moduleHref)) {
+          console.log(moduleHref, /^https?:\/\//.test(containingFile) || isJsxImportSource || inImportMap);
+          const promise = /^https?:\/\//.test(containingFile) || isJsxImportSource || inImportMap
+            ? vfetch(moduleUrl)
+            : vfetch.queryCache(moduleUrl);
           this._fetchPromises.set(
             moduleHref,
-            vfetch(moduleUrl).then(async (res) => {
-              if (res.ok) {
+            promise.then(async (res) => {
+              if (res?.ok) {
                 const contentType = res.headers.get("content-type");
                 const dts = res.headers.get("x-typescript-types");
                 if (dts) {
@@ -312,30 +331,31 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
                     res.body?.cancel();
                   }
                 } else if (
-                  /\.(c|m)?tsx?$/.test(moduleUrl.pathname) ||
-                  /^(application|text)\/typescript/.test(contentType)
-                ) {
-                  this._httpLibs.set(moduleHref, await res.text());
-                } else if (
                   /\.(c|m)?jsx?$/.test(moduleUrl.pathname) ||
-                  /^(application|text)\/javascript/.test(contentType)
+                  /^(application|text)\/(javascript|jsx)/.test(contentType)
                 ) {
                   this._httpModules.set(moduleHref, await res.text());
+                } else if (
+                  /\.(c|m)?tsx?$/.test(moduleUrl.pathname) ||
+                  /^(application|text)\/(typescript|tsx)/.test(contentType)
+                ) {
+                  if (/\.d\.(c|m)?ts$/.test(moduleUrl.pathname)) {
+                    this._httpLibs.set(moduleHref, await res.text());
+                  } else {
+                    this._httpTsModules.set(moduleHref, await res.text());
+                  }
                 } else {
-                  // not a typescript or javascript file
+                  // not a javascript or typescript module
                   res.body?.cancel();
-                  this._unknownModules.add(moduleHref);
+                  this._noModules.add(moduleHref);
                 }
-              } else {
+              } else if (res) {
                 res.body?.cancel();
-                if (res.status >= 400) {
-                  this._unknownModules.add(moduleHref);
-                }
+                this._noModules.add(moduleHref);
+              } else {
+                this._maybeModules.add(moduleHref);
               }
-              if (containingFile.startsWith("file://")) {
-                // @ts-expect-error force reinvoke `resolveModuleNameLiterals` method
-                this._getModel(containingFile)._versionId--;
-              }
+              this._rollbackVersion(containingFile);
             }).finally(() => {
               this._fetchPromises.delete(moduleHref);
               if (this._fetchPromises.size === 0) {
@@ -663,10 +683,10 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     errorCodes: number[],
     formatOptions: ts.FormatCodeSettings,
   ): Promise<ReadonlyArray<ts.CodeFixAction>> {
-    const importMapSrc = this._importMap.$src;
-    if (errorCodes.includes(2307) && importMapSrc) {
+    if (errorCodes.includes(2307)) {
       let span = [start + 1, end - 1] as [number, number];
       if (start === end) {
+        // fix link span
         const a = this._languageService.getReferencesAtPosition(fileName, start);
         if (a.length > 0) {
           const b = a[0];
@@ -675,26 +695,38 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
       }
       const model = this._getModel(fileName);
       const specifier = model.getValue().slice(...span);
-      if (/^@?[a-zA-Z0-9][\w.-]*(\/|$)/.test(specifier)) {
-        const res = await vfetch(`https://esm.sh/${specifier}`);
-        if (res.ok && res.redirected) {
+      const importMapSrc = this._importMap.$src;
+      if (this._maybeModules.has(specifier)) {
+        const fixName = `Cache module from '${specifier}'`;
+        return [{
+          fixName,
+          description: fixName,
+          changes: [],
+          commands: [{
+            id: "cache-http-module",
+            title: "Try to cache the module from the network",
+            arguments: [specifier, fileName],
+          }],
+        }];
+      } else if (importMapSrc && /^@?\w[\w.-]*(\/|$)/.test(specifier)) {
+        const url = `https://esm.sh/${specifier}`;
+        const res = await vfetch(url);
+        if (res.ok && res.url.startsWith(url + "@")) {
           res.body?.cancel();
           const segments = new URL(res.url).pathname.split("/");
           const pkgNameWithVersion = segments[1].startsWith("@") ? segments.slice(1, 3).join("/") : segments[1];
           const pkgName = pkgNameWithVersion.slice(0, pkgNameWithVersion.lastIndexOf("@"));
-          const fixName = `Add "https://esm.sh/${pkgNameWithVersion}" to import map`;
-          return [
-            {
-              fixName,
-              description: fixName,
-              changes: [],
-              commands: [{
-                id: "importmap.add",
-                title: "Add module to import map",
-                arguments: [importMapSrc, pkgName, `https://esm.sh/${pkgNameWithVersion}`],
-              }],
-            },
-          ];
+          const fixName = `Add ${specifier}(https://esm.sh/${pkgNameWithVersion}) to import map`;
+          return [{
+            fixName,
+            description: fixName,
+            changes: [],
+            commands: [{
+              id: "importmap.add",
+              title: "Add module to import map",
+              arguments: [importMapSrc, pkgName, `https://esm.sh/${pkgNameWithVersion}`],
+            }],
+          }];
         }
       }
     }
@@ -710,6 +742,20 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
       return fixes;
     } catch (err) {
       return [];
+    }
+  }
+
+  async cacheHttpModule(specifier: string, containingFile: string): Promise<void> {
+    if (this._maybeModules.has(specifier)) {
+      const res = await vfetch(specifier);
+      res.body?.cancel();
+      if (!res.ok) {
+        this._noModules.add(specifier);
+      }
+      this._maybeModules.delete(specifier);
+      console.log(specifier,containingFile);
+      this._rollbackVersion(containingFile);
+      this._refreshDiagnostics();
     }
   }
 
@@ -849,6 +895,15 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     }, 500);
   }
 
+  /** rollback the version to force reinvoke `resolveModuleNameLiterals` method. */
+  private _rollbackVersion(fileName: string) {
+    const model = this._getModel(fileName);
+    if (model) {
+      // @ts-expect-error private field
+      model._versionId--;
+    }
+  }
+
   private _fileExists(fileName: string): boolean {
     let models = this._ctx.getMirrorModels();
     for (let i = 0; i < models.length; i++) {
@@ -862,7 +917,8 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
       `lib.${fileName}.d.ts` in this._libs ||
       fileName in this._types ||
       this._httpLibs.has(fileName) ||
-      this._httpModules.has(fileName)
+      this._httpModules.has(fileName) ||
+      this._httpTsModules.has(fileName)
     );
   }
 
@@ -875,7 +931,8 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
       this._libs[`lib.${fileName}.d.ts`] ??
       this._types[fileName]?.content ??
       this._httpLibs.get(fileName) ??
-      this._httpModules.get(fileName);
+      this._httpModules.get(fileName) ??
+      this._httpTsModules.get(fileName);
   }
 
   private _getModel(fileName: string): monacoNS.worker.IMirrorModel | null {
@@ -902,6 +959,19 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
         return specifier;
       }
     }
+  }
+
+  private _getJsxImportUrl(containingFile: string): string | null {
+    let runtimePath = "/jsx-runtime";
+    if (this._compilerOptions.jsx === ts.JsxEmit.ReactJSXDev) {
+      runtimePath = "/jsx-dev-runtime";
+    }
+    if (this._compilerOptions.jsxImportSource) {
+      return new URL(this._compilerOptions.jsxImportSource + runtimePath, containingFile).href;
+    } else if (!this._isBlankImportMap) {
+      return new URL(this._importMap.imports["@jsxImportSource"] + runtimePath, containingFile).href;
+    }
+    return null;
   }
 
   private _mergeFormatOptions(
