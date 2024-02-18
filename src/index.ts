@@ -303,6 +303,7 @@ export function lazy(options?: InitOption) {
                 saveViewState();
               }, 100);
             };
+            editor.onDidChangeCursorSelection(onViewStateChange);
             editor.onDidChangeCursorPosition(onViewStateChange);
             editor.onDidScrollChange(onViewStateChange);
           }

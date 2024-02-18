@@ -151,7 +151,6 @@ export class VFS {
           const viewState = this.#state.viewState?.[href];
           if (viewState) {
             editor.restoreViewState(viewState);
-            editor.focus();
           }
         }
         if (this.#state.activeFile !== href) {
@@ -455,7 +454,10 @@ function createProxy(obj: object, onChange: () => void) {
     },
     set(target, key, value) {
       if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-        value = createProxy(value, onChange);
+        // don't proxy view state of monaco editor
+        if (!value.viewState) {
+          value = createProxy(value, onChange);
+        }
       }
       const ok = Reflect.set(target, key, value);
       if (ok && filled) {
