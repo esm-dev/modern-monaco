@@ -6,10 +6,11 @@ import { version as tmGrammersVersion } from "../node_modules/tm-grammars/packag
 import { version as tmThemesVersion } from "../node_modules/tm-themes/package.json";
 import { vfetch, type VFS } from "./vfs";
 
-const defaultTheme = "vitesse-dark"
+const defaultTheme = "vitesse-dark";
+const regHttpURL = /^https?:\/\//;
 
 // @ts-expect-error `TM_GRAMMARS` is defined at build time
-const tmGrammars: { name: string; aliases?: string[] }[] = TM_GRAMMARS;
+const tmGrammars: { name: string; aliases?: string[]; embedded?: [] }[] = TM_GRAMMARS;
 // @ts-expect-error `TM_THEMES` is defined at build time
 const tmThemes: Set<string> = new Set(TM_THEMES);
 
@@ -18,26 +19,24 @@ export const grammarRegistry = new Map(tmGrammars.map((g) => [g.name, g]));
 export interface ShikiInitOptions {
   theme?: string | { name: string };
   preloadGrammars?: string[];
-  customGrammars?: { name: string }[];
+  customGrammars?: { name: string; scopeName: string; embeddedLanguages?: Record<string, string> }[];
 }
 
 /** Initialize shiki with the given options. */
 export async function initShiki({
   theme = defaultTheme,
-  preloadGrammars = [],
+  preloadGrammars,
   customGrammars,
 }: ShikiInitOptions) {
   const langs: LanguageInput = [];
   const themes: ThemeInput[] = [];
 
-  if (preloadGrammars.length > 0) {
+  if (preloadGrammars?.length > 0) {
     langs.push(
       ...await Promise.all(
         Array.from(new Set(preloadGrammars)).map((src) =>
-          src.startsWith("https://")
-            ? { name: src }
-            : tmGrammars.find((g) => g.name === src || g.aliases?.includes(src))
-        ).filter(Boolean).map(({ name }) => loadTMGrammer(name)),
+          regHttpURL.test(src) ? { src } : tmGrammars.find((g) => g.name === src || g.aliases?.includes(src))
+        ).filter(Boolean).map((g) => loadTMGrammer(g)),
       ),
     );
   }
@@ -51,11 +50,20 @@ export async function initShiki({
         grammarRegistry.set(lang.name, lang);
         langs.push(lang as LanguageRegistration);
       }
+      if (lang.embeddedLanguages) {
+        langs.push(
+          ...await Promise.all(
+            Object.values(lang.embeddedLanguages)
+              .filter((name) => tmGrammars.some((g) => g.name === name))
+              .map((name) => loadTMGrammer({ name })),
+          ),
+        );
+      }
     }
   }
 
   if (typeof theme === "string") {
-    if (tmThemes.has(theme) || theme.startsWith("https://")) {
+    if (tmThemes.has(theme) || regHttpURL.test(theme)) {
       themes.push(loadTMTheme(theme));
     }
   } else if (typeof theme === "object" && theme !== null && theme.name) {
@@ -69,16 +77,21 @@ export async function initShiki({
 export function loadTMTheme(src: string) {
   if (src === defaultTheme) {
     // @ts-expect-error `DEFAULT_THEME` is defined at build time
-    return DEFAULT_THEME
+    return DEFAULT_THEME;
   }
   const url = tmThemes.has(src) ? `https://esm.sh/tm-themes@${tmThemesVersion}/themes/${src}.json` : src;
   return vfetch(url).then((res) => res.json());
 }
 
 /** Load a TextMate grammar from the given source. */
-export function loadTMGrammer(src: string) {
-  const grammar = tmGrammars.find((g) => g.name === src || g.aliases?.includes(src));
-  const url = grammar ? `https://esm.sh/tm-grammars@${tmGrammersVersion}/grammars/${grammar.name}.json` : src;
+export function loadTMGrammer(info: { name?: string; src?: string; embedded?: string[]; injectTo?: string[] }) {
+  const url = info.src ?? `https://esm.sh/tm-grammars@${tmGrammersVersion}/grammars/${info.name}.json`;
+  if (info.name && info.embedded) {
+    return Promise.all([
+      vfetch(url).then((res) => res.json()).then((grammar) => ({ injectTo: info.injectTo, ...grammar })),
+      ...info.embedded.map((name) => loadTMGrammer({ name })),
+    ]);
+  }
   return vfetch(url).then((res) => res.json());
 }
 

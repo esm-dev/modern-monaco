@@ -2,19 +2,6 @@ import { build as esbuild } from "https://deno.land/x/esbuild@v0.20.0/mod.js";
 import { grammars as tmGrammars } from "tm-grammars";
 import { themes as tmThemes } from "tm-themes";
 
-// add aliases for javascript and typescript
-const javascriptGrammar = tmGrammars.find((g) => g.name === "javascript");
-const typescriptGrammar = tmGrammars.find((g) => g.name === "typescript");
-javascriptGrammar!.aliases!.push("mjs", "cjs", "jsx");
-typescriptGrammar!.aliases!.push("mts", "cts", "tsx");
-
-const defaultTheme = "vitesse-dark";
-const tmDefine = {
-  TM_THEMES: JSON.stringify(tmThemes.map((v) => v.name)),
-  TM_GRAMMARS: JSON.stringify(tmGrammars.map((v) => ({ name: v.name, aliases: v.aliases }))),
-  DEFAULT_THEME: Deno.readTextFileSync("node_modules/tm-themes/themes/" + defaultTheme + ".json"),
-};
-
 const build = (entryPoints: string[], define?: Record<string, string>) => {
   return esbuild({
     target: "esnext",
@@ -90,6 +77,24 @@ const createTmDts = () => {
     ].join("\n"),
   );
 };
+const tmDefine = () => {
+  const defaultTheme = "vitesse-dark";
+  const grammarKeys = ["name", "scopeName", "aliases", "embedded", "embeddedIn", "injectTo"];
+
+  // add aliases for javascript and typescript
+  const javascriptGrammar = tmGrammars.find((g) => g.name === "javascript");
+  const typescriptGrammar = tmGrammars.find((g) => g.name === "typescript");
+  javascriptGrammar!.aliases!.push("mjs", "cjs", "jsx");
+  typescriptGrammar!.aliases!.push("mts", "cts", "tsx");
+
+  return {
+    TM_THEMES: JSON.stringify(tmThemes.map((v) => v.name)),
+    TM_GRAMMARS: JSON.stringify(
+      tmGrammars.map((v) => Object.fromEntries(grammarKeys.map((k) => [k, v[k as keyof typeof v]]))),
+    ),
+    DEFAULT_THEME: Deno.readTextFileSync("node_modules/tm-themes/themes/" + defaultTheme + ".json"),
+  };
+};
 const buildDist = async () => {
   await build([
     "src/editor-core.ts",
@@ -104,7 +109,7 @@ const buildDist = async () => {
     "src/lsp/typescript/setup.ts",
     "src/lsp/typescript/worker.ts",
   ]);
-  await build(["src/index.ts"], tmDefine);
+  await build(["src/index.ts"], tmDefine());
   await modifyEditorJs();
 };
 const buildTypes = async () => {

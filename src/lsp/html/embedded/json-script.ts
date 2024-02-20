@@ -1,0 +1,91 @@
+// based on https://github.com/bahrus/json-in-html/blob/baseline/syntax/script-json.embedded.json
+export default {
+  "name": "JSON Script Tag",
+  "scopeName": "source.json.embedded",
+  "injectTo": [
+    "text.html",
+  ],
+  "embeddedLanguages": {
+    "meta.embedded.block.json.html": "json",
+  },
+  "injectionSelector": "L:text.html",
+  "patterns": [
+    {
+      "include": "#script-json-tag",
+    },
+  ],
+  "repository": {
+    "script-json-tag": {
+      "begin":
+        "(<)(script)\\b(?=[^>]*type=(importmap|'importmap'|\"importmap\"|json|'json'|\"json\"|'application/(ld\\+)?json'|\"application/(ld\\+)?json\"))(?![^/>]*/>\\s*$)",
+      "beginCaptures": {
+        "1": {
+          "name": "punctuation.definition.tag.begin.html",
+        },
+        "2": {
+          "name": "entity.name.tag.html",
+        },
+      },
+      "end": "(</)(script)(>)",
+      "endCaptures": {
+        "1": {
+          "name": "punctuation.definition.tag.begin.html",
+        },
+        "2": {
+          "name": "entity.name.tag.html",
+        },
+        "3": {
+          "name": "punctuation.definition.tag.end.html",
+        },
+      },
+      "patterns": [
+        {
+          "include": "#attribute-name",
+        },
+        {
+          "include": "#attribute-equal",
+        },
+        {
+          "include": "#attribute-value",
+        },
+        {
+          "include": "#source-json",
+        },
+      ],
+    },
+    "source-json": {
+      "begin": "(>)",
+      "beginCaptures": {
+        "0": {
+          "name": "meta.tag.metadata.json.start.html",
+        },
+        "1": {
+          "name": "punctuation.definition.tag.end.html",
+        },
+      },
+      "end": "(?=</script>)",
+      "endCaptures": {
+        "0": {
+          "name": "meta.tag.metadata.json.end.html",
+        },
+      },
+      "patterns": [
+        {
+          "include": "source.json",
+        },
+      ],
+    },
+    "attribute-name": {
+      "name": "entity.other.attribute-name.html",
+      "match": "\\b([a-zA-Z\\-:_]+)",
+    },
+    "attribute-equal": {
+      "name": "punctuation.separator.key-value.html",
+      "match": "=",
+    },
+    "attribute-value": {
+      "name": "string.quoted.double.html",
+      "match": "(\"|').*?(\"|')",
+    },
+  },
+};
