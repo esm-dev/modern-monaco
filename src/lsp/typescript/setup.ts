@@ -287,19 +287,20 @@ async function createWorker(
     monaco.editor.addCommand({
       id: "importmap.add",
       run: async (_: unknown, src: string, specifier: string, uri: string) => {
+        const model = monaco.editor.getModel(monaco.Uri.parse(src));
         const { imports, scopes } = globalThis.structuredClone?.(importMap) ?? JSON.parse(JSON.stringify(importMap));
         imports[specifier] = uri;
         imports[specifier + "/"] = uri + "/";
         const json = JSON.stringify({ imports, scopes }, null, 2);
         if (src.endsWith(".json")) {
-          await vfs.writeFile(src, json);
+          await vfs.writeFile(src, model?.normalizeIndentation(json) ?? json);
         } else if (src.endsWith(".html")) {
-          const html = await vfs.readTextFile(src);
+          const html = model?.getValue() ?? await vfs.readTextFile(src);
           const newHtml = html.replace(
-            /<script\s+type="importmap"\s*>[^]*?<\/script>/,
-            ['<script type="importmap">', ...json.split("\n"), "</script>"].join("\n  "),
+            /<script[^>]*?\s+type="importmap"\s*[^>]*>[^]*?<\/script>/,
+            ['<script type="importmap">', ...json.split("\n").map((l) => "  " + l), "</script>"].join("\n  "),
           );
-          await vfs.writeFile(src, newHtml);
+          await vfs.writeFile(src, model?.normalizeIndentation(newHtml) ?? newHtml);
         }
       },
     });
