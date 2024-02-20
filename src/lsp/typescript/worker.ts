@@ -309,7 +309,6 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
           };
         }
         if (!this._fetchPromises.has(moduleHref)) {
-          console.log(moduleHref, /^https?:\/\//.test(containingFile) || isJsxImportSource || inImportMap);
           const promise = /^https?:\/\//.test(containingFile) || isJsxImportSource || inImportMap
             ? vfetch(moduleUrl)
             : vfetch.queryCache(moduleUrl);
@@ -753,7 +752,6 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
         this._noModules.add(specifier);
       }
       this._maybeModules.delete(specifier);
-      console.log(specifier,containingFile);
       this._rollbackVersion(containingFile);
       this._refreshDiagnostics();
     }
