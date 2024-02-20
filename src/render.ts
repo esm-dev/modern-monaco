@@ -57,6 +57,7 @@ export function render(
     lineDecorationsWidth = 10,
     scrollbar,
     wordWrap,
+    maxTokenizationLineLength = 20000,
   } = options;
   const fontLigatures = options.fontLigatures && options.fontLigatures !== "false" ? "1" : "0";
   const fontVariations = options.fontVariations && options.fontVariations !== "false" && /^\d+$/.test(fontWeight);
@@ -117,6 +118,7 @@ export function render(
   const html = highlighter.codeToHtml(code, {
     lang,
     theme: options.theme ?? highlighter.getLoadedThemes()[0],
+    tokenizeMaxLineLength: maxTokenizationLineLength,
   });
   const style = [
     "display:flex",
