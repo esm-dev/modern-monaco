@@ -27,6 +27,7 @@ export class VFS {
   #db: Promise<IDBDatabase> | IDBDatabase;
   #monaco: typeof monacoNS;
   #state: Record<string, any> = {};
+  #viewState: Record<string, monacoNS.editor.ICodeEditorViewState> = {};
   #stateOnChangeHandlers = new Set<() => void>();
   #watchHandlers = new Map<string, Set<(evt: WatchEvent) => void>>();
 
@@ -79,13 +80,17 @@ export class VFS {
     return this.#state;
   }
 
+  get viewState() {
+    return this.#viewState;
+  }
+
   async #begin(readonly = false) {
     const db = await this.#db;
     return db.transaction("files", readonly ? "readonly" : "readwrite").objectStore("files");
   }
 
   bindMonaco(monaco: typeof monacoNS) {
-    monaco.editor.addCommand({
+     monaco.editor.addCommand({
       id: "vfs.importmap.add_module",
       run: async (_: unknown, importMapSrc: string, specifier: string, uri: string) => {
         const model = monaco.editor.getModel(monaco.Uri.parse(importMapSrc));
@@ -107,6 +112,7 @@ export class VFS {
         }
       },
     });
+
     monaco.editor.registerEditorOpener({
       openCodeEditor: async (editor, resource, selectionOrPosition) => {
         try {
@@ -120,6 +126,7 @@ export class VFS {
         }
       },
     });
+
     this.#monaco = monaco;
   }
 
@@ -189,10 +196,7 @@ export class VFS {
             editor.setPosition(selectionOrPosition);
           }
         } else {
-          const viewState = this.#state.viewState?.[href];
-          if (viewState) {
-            editor.restoreViewState(viewState);
-          }
+          this.#viewState[href] && editor.restoreViewState(this.#viewState[href]);
         }
         if (this.#state.activeFile !== href) {
           this.#state.activeFile = href;

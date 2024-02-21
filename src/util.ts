@@ -2,6 +2,13 @@
 const enc = new TextEncoder();
 const dec = new TextDecoder();
 
+/**
+ * Create a task that persists the data to the storage.
+ * It will ask the user to confirm before leaving the page if the data is not persisted.
+ * @param persist - The function that persists the data.
+ * @param delay - The delay in milliseconds before persisting the data. Default is 500ms.
+ * @returns The persist trigger function.
+ */
 export function createPersistTask(persist: () => void | Promise<void>, delay = 500) {
   let timer: number | null = null;
   const askToExit = (e: BeforeUnloadEvent) => {
@@ -21,6 +28,7 @@ export function createPersistTask(persist: () => void | Promise<void>, delay = 5
   };
 }
 
+/** Create a proxy object that triggers onChange when the object is modified. */
 export function createProxy(obj: object, onChange: () => void) {
   let filled = false;
   const proxy = new Proxy(Object.create(null), {
@@ -29,10 +37,8 @@ export function createProxy(obj: object, onChange: () => void) {
     },
     set(target, key, value) {
       if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-        // don't proxy view state of monaco editor
-        if (!value.viewState) {
-          value = createProxy(value, onChange);
-        }
+        // proxy nested object
+        value = createProxy(value, onChange);
       }
       const ok = Reflect.set(target, key, value);
       if (ok && filled) {

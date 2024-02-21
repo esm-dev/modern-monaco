@@ -282,15 +282,6 @@ export function lazy(options?: InitOption) {
           mockEl.style.top = "0";
           mockEl.style.left = "0";
           this.appendChild(mockEl);
-
-          if (vfs && file) {
-            const viewState = vfs.state.viewState?.[new URL(file, "file:///").href];
-            if (viewState) {
-              const { scrollTop, scrollLeft } = viewState.viewState;
-              const mockEditor = mockEl.querySelector(".mock-monaco-editor");
-              mockEditor?.scroll(scrollLeft, scrollTop);
-            }
-          }
         }
 
         // load monaco editor
@@ -298,26 +289,9 @@ export function lazy(options?: InitOption) {
           const monaco = await loadMonacoCore(highlighter);
           const editor = monaco.editor.create(containerEl, renderOptions);
           if (vfs) {
-            let timer: number | null = null;
-            const saveViewState = () => {
-              const currentModel = editor.getModel();
-              const viewStateStore = vfs.state.viewState ?? (vfs.state.viewState = {});
-              const viewState = editor.saveViewState();
-              viewState.viewState.scrollTop = editor.getScrollTop();
-              viewStateStore[currentModel.uri.toString()] = viewState;
-            };
-            const onViewStateChange = () => {
-              if (timer !== null) {
-                return;
-              }
-              timer = setTimeout(() => {
-                timer = null;
-                saveViewState();
-              }, 100);
-            };
-            editor.onDidChangeCursorSelection(onViewStateChange);
-            editor.onDidChangeCursorPosition(onViewStateChange);
-            editor.onDidScrollChange(onViewStateChange);
+            editor.onWillChangeModel((e) => {
+              vfs.viewState[e.oldModelUrl.toString()] = editor.saveViewState();
+            });
           }
           if (vfs && file) {
             try {
