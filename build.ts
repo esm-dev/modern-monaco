@@ -59,10 +59,13 @@ const modifyEditorJs = async () => {
     minify: true,
     write: false,
   });
-  const miniCss = ret.outputFiles[0].text.replace("font-size:140%", "font-size:100%");
+  // patch: replace "font-size: 140%" to 100% to fix the size of folding icons
+  const css = ret.outputFiles[0].text.replace("font-size:140%", "font-size:100%");
+  // patch: fix the outline color of the input box
+  const addonCss = `.monaco-inputbox input{outline: 1px solid var(--vscode-focusBorder,rgba(127, 127, 127, 0.5))}`;
   await Deno.writeTextFile(
     "dist/editor-core.js",
-    "export const _CSS = " + JSON.stringify(miniCss) + "\n" + js,
+    "export const _CSS = " + JSON.stringify(css + addonCss) + "\n" + js,
   );
 };
 const copyDts = (...files: [src: string, dest: string][]) => {
