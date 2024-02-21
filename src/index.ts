@@ -4,7 +4,7 @@ import { shikiToMonaco } from "@shikijs/monaco";
 import type { ShikiInitOptions } from "./shiki";
 import { getGrammarsInVFS, getLanguageIdFromPath, initShiki } from "./shiki";
 import { grammarRegistry, loadTMGrammer, loadTMTheme } from "./shiki";
-import { createWorker, lspIndex, normalizeFormatOptions } from "./lsp/index";
+import { createWorker, lspConfig, normalizeFormatOptions } from "./lsp/index";
 import { render, type RenderOptions } from "./render";
 import { VFS } from "./vfs";
 
@@ -50,12 +50,21 @@ async function loadMonaco(highlighter: HighlighterCore, options?: InitOption, on
   const monaco = await import("./editor-core.js");
   const editorWorkerUrl = monaco.workerUrl();
 
+  if (!document.getElementById("monaco-editor-core-css")) {
+    const styleEl = document.createElement("style");
+    styleEl.id = "monaco-editor-core-css";
+    styleEl.media = "screen";
+    // @ts-expect-error `_CSS` is defined at build time
+    styleEl.textContent = monaco._CSS;
+    document.head.appendChild(styleEl);
+  }
+
   Reflect.set(globalThis, "MonacoEnvironment", {
     getWorker: async (_workerId: string, label: string) => {
       let url = editorWorkerUrl;
-      let lsp = lspIndex[label];
+      let lsp = lspConfig[label];
       if (!lsp) {
-        lsp = Object.values(lspIndex).find((lsp) => lsp.aliases?.includes(label));
+        lsp = Object.values(lspConfig).find((lsp) => lsp.aliases?.includes(label));
       }
       if (lsp) {
         url = (await (lsp.import())).workerUrl();
@@ -77,14 +86,13 @@ async function loadMonaco(highlighter: HighlighterCore, options?: InitOption, on
     vfs.bindMonaco(monaco);
   }
 
-  if (!document.getElementById("monaco-editor-core-css")) {
-    const styleEl = document.createElement("style");
-    styleEl.id = "monaco-editor-core-css";
-    styleEl.media = "screen";
-    // @ts-expect-error `_CSS` is defined at build time
-    styleEl.textContent = monaco._CSS;
-    document.head.appendChild(styleEl);
-  }
+  let isPreloaded = false;
+  const preloadDeps = () => {
+    if (!isPreloaded) {
+      import("./lsp/language-features.js");
+      isPreloaded = true;
+    }
+  };
 
   grammarRegistry.forEach(({ name: id, aliases }) => {
     monaco.languages.register({ id, aliases });
@@ -96,12 +104,13 @@ async function loadMonaco(highlighter: HighlighterCore, options?: InitOption, on
         });
       }
       let label = id;
-      let lsp = lspIndex[label];
+      let lsp = lspConfig[label];
       if (!lsp) {
-        [label, lsp] = Object.entries(lspIndex).find(([, lsp]) => lsp.aliases?.includes(id));
+        [label, lsp] = Object.entries(lspConfig).find(([, lsp]) => lsp.aliases?.includes(id)) ?? [];
       }
       if (lsp) {
         const formatOptions = normalizeFormatOptions(label, options?.format);
+        preloadDeps();
         lsp.import().then(({ setup }) => setup(monaco, id, options?.[label], formatOptions, vfs));
       }
     });
@@ -127,7 +136,7 @@ export function init(options: InitOption = {}): Promise<typeof monacoNS> {
           preloadGrammars.push(...grammars);
         }
       }
-      for (const l of Object.values(lspIndex)) {
+      for (const l of Object.values(lspConfig)) {
         if (l.embeddedGrammars) {
           customGrammars.push(...l.embeddedGrammars);
         }
@@ -249,7 +258,7 @@ export function lazy(options?: InitOption) {
             renderOptions.lang ?? getLanguageIdFromPath(file),
           );
         }
-        for (const l of Object.values(lspIndex)) {
+        for (const l of Object.values(lspConfig)) {
           if (l.embeddedGrammars) {
             customGrammars.push(...l.embeddedGrammars);
           }

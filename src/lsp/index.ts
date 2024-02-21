@@ -2,7 +2,7 @@ import type monacoNS from "monaco-editor-core";
 import type { VFS } from "../vfs";
 import jsonScript from "./html/embedded/json-script";
 
-export interface LSPLoader {
+export interface LSPConfig {
   embeddedGrammars?: { name: string; scopeName: string }[];
   aliases?: string[];
   import: () => Promise<{
@@ -65,7 +65,7 @@ export async function createWorker(url: URL): Promise<Worker> {
   return new Worker(url, { type: "module" });
 }
 
-export const lspIndex: Record<string, LSPLoader> = {
+export const lspConfig: Record<string, LSPConfig> = {
   html: {
     embeddedGrammars: [jsonScript],
     // @ts-expect-error 'setup.js' is generated at build time

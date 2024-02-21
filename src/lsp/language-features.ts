@@ -7,9 +7,15 @@
 import type monacoNS from "monaco-editor-core";
 import * as lsTypes from "vscode-languageserver-types";
 
-let M = {} as unknown as typeof import("monaco-editor-core");
-export function prelude(monaco: typeof M) {
-  M = monaco;
+let Monaco: typeof monacoNS;
+export function prelude(monaco: typeof monacoNS) {
+  monaco.editor.addCommand({
+    id: "search-npm-modules",
+    run: async (_, importMapSrc: string) => {
+      alert("TODO: search-npm-modules");
+    },
+  });
+  Monaco = monaco;
 }
 
 export interface WorkerAccessor<T> {
@@ -52,7 +58,7 @@ export class DiagnosticsAdapter<T extends ILanguageWorkerWithDiagnostics> {
     };
 
     const onModelRemoved = (model: monacoNS.editor.IModel): void => {
-      M.editor.setModelMarkers(model, this._languageId, []);
+      Monaco.editor.setModelMarkers(model, this._languageId, []);
 
       let uriStr = model.uri.toString();
       let listener = this._listener[uriStr];
@@ -62,10 +68,10 @@ export class DiagnosticsAdapter<T extends ILanguageWorkerWithDiagnostics> {
       }
     };
 
-    this._disposables.push(M.editor.onDidCreateModel(onModelAdd));
-    this._disposables.push(M.editor.onWillDisposeModel(onModelRemoved));
+    this._disposables.push(Monaco.editor.onDidCreateModel(onModelAdd));
+    this._disposables.push(Monaco.editor.onWillDisposeModel(onModelRemoved));
     this._disposables.push(
-      M.editor.onDidChangeModelLanguage((event) => {
+      Monaco.editor.onDidChangeModelLanguage((event) => {
         onModelRemoved(event.model);
         onModelAdd(event.model);
       }),
@@ -73,7 +79,7 @@ export class DiagnosticsAdapter<T extends ILanguageWorkerWithDiagnostics> {
 
     this._disposables.push(
       configChangeEvent((_) => {
-        M.editor.getModels().forEach((model) => {
+        Monaco.editor.getModels().forEach((model) => {
           if (model.getLanguageId() === this._languageId) {
             onModelRemoved(model);
             onModelAdd(model);
@@ -84,14 +90,14 @@ export class DiagnosticsAdapter<T extends ILanguageWorkerWithDiagnostics> {
 
     this._disposables.push({
       dispose: () => {
-        M.editor.getModels().forEach(onModelRemoved);
+        Monaco.editor.getModels().forEach(onModelRemoved);
         for (let key in this._listener) {
           this._listener[key].dispose();
         }
       },
     });
 
-    M.editor.getModels().forEach(onModelAdd);
+    Monaco.editor.getModels().forEach(onModelAdd);
   }
 
   public dispose(): void {
@@ -106,9 +112,9 @@ export class DiagnosticsAdapter<T extends ILanguageWorkerWithDiagnostics> {
       })
       .then((diagnostics) => {
         const markers = diagnostics.map((d) => toDiagnostics(resource, d));
-        let model = M.editor.getModel(resource);
+        let model = Monaco.editor.getModel(resource);
         if (model && model.getLanguageId() === languageId) {
-          M.editor.setModelMarkers(model, languageId, markers);
+          Monaco.editor.setModelMarkers(model, languageId, markers);
         }
       })
       .then(undefined, (err) => {
@@ -120,15 +126,15 @@ export class DiagnosticsAdapter<T extends ILanguageWorkerWithDiagnostics> {
 function toSeverity(lsSeverity: number | undefined): monacoNS.MarkerSeverity {
   switch (lsSeverity) {
     case lsTypes.DiagnosticSeverity.Error:
-      return M.MarkerSeverity.Error;
+      return Monaco.MarkerSeverity.Error;
     case lsTypes.DiagnosticSeverity.Warning:
-      return M.MarkerSeverity.Warning;
+      return Monaco.MarkerSeverity.Warning;
     case lsTypes.DiagnosticSeverity.Information:
-      return M.MarkerSeverity.Info;
+      return Monaco.MarkerSeverity.Info;
     case lsTypes.DiagnosticSeverity.Hint:
-      return M.MarkerSeverity.Hint;
+      return Monaco.MarkerSeverity.Hint;
     default:
-      return M.MarkerSeverity.Info;
+      return Monaco.MarkerSeverity.Info;
   }
 }
 
@@ -189,7 +195,7 @@ export class CompletionAdapter<T extends ILanguageWorkerWithCompletions>
           return;
         }
         const wordInfo = model.getWordUntilPosition(position);
-        const wordRange = new M.Range(
+        const wordRange = new Monaco.Range(
           position.lineNumber,
           wordInfo.startColumn,
           position.lineNumber,
@@ -225,7 +231,7 @@ export class CompletionAdapter<T extends ILanguageWorkerWithCompletions>
             >(toTextEdit);
           }
           if (entry.insertTextFormat === lsTypes.InsertTextFormat.Snippet) {
-            item.insertTextRules = M.languages.CompletionItemInsertTextRule.InsertAsSnippet;
+            item.insertTextRules = Monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
           }
           return item;
         });
@@ -276,7 +282,7 @@ export function toRange(range: lsTypes.Range | undefined): monacoNS.Range | unde
   if (!range) {
     return void 0;
   }
-  return new M.Range(
+  return new Monaco.Range(
     range.start.line + 1,
     range.start.character + 1,
     range.end.line + 1,
@@ -296,7 +302,7 @@ function isInsertReplaceEdit(
 function toCompletionItemKind(
   kind: number | undefined,
 ): monacoNS.languages.CompletionItemKind {
-  const mItemKind = M.languages.CompletionItemKind;
+  const mItemKind = Monaco.languages.CompletionItemKind;
 
   switch (kind) {
     case lsTypes.CompletionItemKind.Text:
@@ -494,13 +500,13 @@ function toDocumentHighlightKind(
 ): monacoNS.languages.DocumentHighlightKind {
   switch (kind) {
     case lsTypes.DocumentHighlightKind.Read:
-      return M.languages.DocumentHighlightKind.Read;
+      return Monaco.languages.DocumentHighlightKind.Read;
     case lsTypes.DocumentHighlightKind.Write:
-      return M.languages.DocumentHighlightKind.Write;
+      return Monaco.languages.DocumentHighlightKind.Write;
     case lsTypes.DocumentHighlightKind.Text:
-      return M.languages.DocumentHighlightKind.Text;
+      return Monaco.languages.DocumentHighlightKind.Text;
   }
-  return M.languages.DocumentHighlightKind.Text;
+  return Monaco.languages.DocumentHighlightKind.Text;
 }
 
 //#endregion
@@ -543,7 +549,7 @@ export class DefinitionAdapter<T extends ILanguageWorkerWithDefinitions>
 
 function toLocation(location: lsTypes.Location): monacoNS.languages.Location {
   return {
-    uri: M.Uri.parse(location.uri),
+    uri: Monaco.Uri.parse(location.uri),
     range: toRange(location.range),
   };
 }
@@ -631,7 +637,7 @@ function toWorkspaceEdit(
   }
   let resourceEdits: monacoNS.languages.IWorkspaceTextEdit[] = [];
   for (let uri in edit.changes) {
-    const _uri = M.Uri.parse(uri);
+    const _uri = Monaco.Uri.parse(uri);
     for (let e of edit.changes[uri]) {
       resourceEdits.push({
         resource: _uri,
@@ -713,7 +719,7 @@ function toDocumentSymbol(
 }
 
 function toSymbolKind(kind: lsTypes.SymbolKind): monacoNS.languages.SymbolKind {
-  let mKind = M.languages.SymbolKind;
+  let mKind = Monaco.languages.SymbolKind;
 
   switch (kind) {
     case lsTypes.SymbolKind.File:
@@ -989,11 +995,11 @@ function toFoldingRangeKind(
 ): monacoNS.languages.FoldingRangeKind | undefined {
   switch (kind) {
     case lsTypes.FoldingRangeKind.Comment:
-      return M.languages.FoldingRangeKind.Comment;
+      return Monaco.languages.FoldingRangeKind.Comment;
     case lsTypes.FoldingRangeKind.Imports:
-      return M.languages.FoldingRangeKind.Imports;
+      return Monaco.languages.FoldingRangeKind.Imports;
     case lsTypes.FoldingRangeKind.Region:
-      return M.languages.FoldingRangeKind.Region;
+      return Monaco.languages.FoldingRangeKind.Region;
   }
   return void 0;
 }

@@ -10,6 +10,9 @@ export function setup(
   languageSettings?: Record<string, unknown>,
   format?: Record<string, unknown>,
 ) {
+  // register monacoNS for language features module
+  lf.prelude(monaco);
+
   const languages = monaco.languages;
   const createData: CreateData = {
     languageId,
@@ -46,7 +49,6 @@ export function setup(
     return worker.withSyncedResources(uris);
   };
 
-  lf.prelude(monaco);
   languages.registerCompletionItemProvider(
     languageId,
     new lf.CompletionAdapter(workerAccessor, [".", ":", "<", '"', "=", "/"]),
@@ -116,10 +118,11 @@ export function setup(
           lenses: [
             {
               range: (m2 ?? m).range,
-              id: "search-modules",
+              id: "search-npm-modules",
               command: {
-                id: "search-modules",
+                id: "search-npm-modules",
                 title: "✦ Search modules on NPM",
+                arguments: [model.uri.toString()],
               },
             },
           ],

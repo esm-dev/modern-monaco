@@ -10,8 +10,9 @@ export const defaultEditorOptions: editor.IStandaloneEditorConstructionOptions =
 
 const _create = editor.create;
 const _createModel = editor.createModel;
+const _getModel = editor.getModel;
 
-// override default create and createModel methods
+// override some monaco editor inner methods
 Object.assign(editor, {
   create: (
     container: HTMLElement,
@@ -30,17 +31,31 @@ Object.assign(editor, {
     language?: string,
     uri?: string | URL | Uri,
   ) => {
-    if (typeof uri === "string" || uri instanceof URL) {
-      const url = new URL(uri, "file:///");
-      uri = Uri.parse(url.href);
-    }
+    uri = normalizeUri(uri);
     if (!language && uri) {
       // @ts-ignore getLanguageIdFromUri added by esm-monaco
       language = MonacoEnvironment.getLanguageIdFromUri?.(uri);
     }
     return _createModel(value, language, uri);
   },
+  getModel: (uri: string | URL | Uri) => {
+    return _getModel(normalizeUri(uri));
+  },
 });
+
+function normalizeUri(uri?: string | URL | Uri) {
+  if (typeof uri === "string" || uri instanceof URL) {
+    const url = new URL(uri, "file:///");
+    uri = Uri.from({
+      scheme: url.protocol.slice(0, -1),
+      authority: url.host,
+      path: url.pathname,
+      query: url.search.slice(1),
+      fragment: url.hash.slice(1),
+    });
+  }
+  return uri;
+}
 
 export function workerUrl() {
   const m = workerUrl.toString().match(/import\(['"](.+?)['"]\)/);

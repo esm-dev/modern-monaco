@@ -11,6 +11,9 @@ export function setup(
   languageSettings?: Record<string, unknown>,
   format?: Record<string, unknown>,
 ) {
+  // register monacoNS for language features module
+  lf.prelude(monaco);
+
   const languages = monaco.languages;
   const events = new monaco.Emitter<void>();
   const createData: CreateData = {
@@ -68,7 +71,6 @@ export function setup(
     }
   }
 
-  lf.prelude(monaco);
   languages.registerDocumentFormattingEditProvider(
     languageId,
     new lf.DocumentFormattingEditProvider(workerAccessor),
@@ -126,10 +128,11 @@ export function setup(
           lenses: [
             {
               range: m2?.range ?? new monaco.Range(1, 1, 1, 1),
-              id: "search-modules",
+              id: "search-npm-modules",
               command: {
-                id: "search-modules",
+                id: "search-npm-modules",
                 title: "✦ Search modules on NPM",
+                arguments: [model.uri.toString()],
               },
             },
           ],
