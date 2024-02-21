@@ -1,4 +1,6 @@
 import type monacoNS from "monaco-editor-core";
+import { parseImportMapFromJson, readImportMap } from "./import-map";
+import { createPersistTask, createProxy, decode, defineProperty, encode, toUrl } from "./util";
 
 interface VFile {
   url: string;
@@ -82,6 +84,45 @@ export class VFS {
     return db.transaction("files", readonly ? "readonly" : "readwrite").objectStore("files");
   }
 
+  bindMonaco(monaco: typeof monacoNS) {
+    monaco.editor.addCommand({
+      id: "vfs.importmap.add_module",
+      run: async (_: unknown, importMapSrc: string, specifier: string, uri: string) => {
+        const model = monaco.editor.getModel(monaco.Uri.parse(importMapSrc));
+        const { imports, scopes } = model && importMapSrc.endsWith(".json")
+          ? parseImportMapFromJson(model.getValue())
+          : await readImportMap(this);
+        imports[specifier] = uri;
+        imports[specifier + "/"] = uri + "/";
+        const json = JSON.stringify({ imports, scopes }, null, 2);
+        if (importMapSrc.endsWith(".json")) {
+          await this.writeFile(importMapSrc, model?.normalizeIndentation(json) ?? json);
+        } else if (importMapSrc.endsWith(".html")) {
+          const html = model?.getValue() ?? await this.readTextFile(importMapSrc);
+          const newHtml = html.replace(
+            /<script[^>]*?\s+type="importmap"\s*[^>]*>[^]*?<\/script>/,
+            ['<script type="importmap">', ...json.split("\n").map((l) => "  " + l), "</script>"].join("\n  "),
+          );
+          await this.writeFile(importMapSrc, model?.normalizeIndentation(newHtml) ?? newHtml);
+        }
+      },
+    });
+    monaco.editor.registerEditorOpener({
+      openCodeEditor: async (editor, resource, selectionOrPosition) => {
+        try {
+          await this.openModel(resource.toString(), editor, selectionOrPosition);
+          return true;
+        } catch (err) {
+          if (err instanceof ErrorNotFound) {
+            return false;
+          }
+          throw err;
+        }
+      },
+    });
+    this.#monaco = monaco;
+  }
+
   async openModel(
     name: string | URL,
     attachTo?: monacoNS.editor.ICodeEditor | number | string | boolean,
@@ -95,7 +136,7 @@ export class VFS {
     const href = url.href;
     const uri = monaco.Uri.parse(href);
     const { content, version } = await this.#read(url);
-    const model = monaco.editor.getModel(uri) ?? monaco.editor.createModel(toString(content), undefined, uri);
+    const model = monaco.editor.getModel(uri) ?? monaco.editor.createModel(decode(content), undefined, uri);
     if (!Reflect.has(model, "__VFS__")) {
       const onDidChange = createPersistTask(() => {
         return this.writeFile(uri.toString(), model.getValue(), version + model.getVersionId(), true);
@@ -104,8 +145,8 @@ export class VFS {
       const unwatch = this.watch(href, async (evt) => {
         if (evt.kind === "modify" && !evt.isModelChange) {
           const { content } = await this.#read(url);
-          if (model.getValue() !== toString(content)) {
-            model.setValue(toString(content));
+          if (model.getValue() !== decode(content)) {
+            model.setValue(decode(content));
             model.pushStackElement();
           }
         }
@@ -185,12 +226,12 @@ export class VFS {
 
   async readFile(name: string | URL) {
     const { content } = await this.#read(name);
-    return toUint8Array(content);
+    return encode(content);
   }
 
   async readTextFile(name: string | URL) {
     const { content } = await this.#read(name);
-    return toString(content);
+    return decode(content);
   }
 
   async #write(
@@ -301,23 +342,6 @@ export class VFS {
   fetch(url: string | URL) {
     return vfetch(url);
   }
-
-  bindMonaco(monaco: typeof monacoNS) {
-    monaco.editor.registerEditorOpener({
-      openCodeEditor: async (editor, resource, selectionOrPosition) => {
-        try {
-          await this.openModel(resource.toString(), editor, selectionOrPosition);
-          return true;
-        } catch (err) {
-          if (err instanceof ErrorNotFound) {
-            return false;
-          }
-          throw err;
-        }
-      },
-    });
-    this.#monaco = monaco;
-  }
 }
 
 /** Error for file not found. */
@@ -412,73 +436,3 @@ vfetch.queryCache = async (url: string | URL): Promise<Response | null> => {
   }
   return null;
 };
-
-function createPersistTask(persist: () => void | Promise<void>, delay = 500) {
-  let timer: number | null = null;
-  const askToExit = (e: BeforeUnloadEvent) => {
-    e.preventDefault();
-    e.returnValue = true;
-  };
-  return () => {
-    if (timer !== null) {
-      return;
-    }
-    globalThis.addEventListener("beforeunload", askToExit);
-    timer = setTimeout(async () => {
-      timer = null;
-      await persist();
-      globalThis.removeEventListener("beforeunload", askToExit);
-    }, delay);
-  };
-}
-
-function createProxy(obj: object, onChange: () => void) {
-  let filled = false;
-  const proxy = new Proxy(Object.create(null), {
-    get(target, key) {
-      return Reflect.get(target, key);
-    },
-    set(target, key, value) {
-      if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-        // don't proxy view state of monaco editor
-        if (!value.viewState) {
-          value = createProxy(value, onChange);
-        }
-      }
-      const ok = Reflect.set(target, key, value);
-      if (ok && filled) {
-        onChange();
-      }
-      return ok;
-    },
-  }) as Record<string, any>;
-  for (const [key, value] of Object.entries(obj)) {
-    proxy[key] = value;
-  }
-  filled = true;
-  return proxy;
-}
-
-/** Define property with value. */
-function defineProperty(obj: any, prop: string, value: any) {
-  Object.defineProperty(obj, prop, { value });
-}
-
-/** Convert string to URL. */
-function toUrl(name: string | URL) {
-  return typeof name === "string" ? new URL(name, "file:///") : name;
-}
-
-// global text encoder and decoder
-const enc = new TextEncoder();
-const dec = new TextDecoder();
-
-/** Convert string to Uint8Array. */
-function toUint8Array(data: string | Uint8Array): Uint8Array {
-  return typeof data === "string" ? enc.encode(data) : data;
-}
-
-/** Convert Uint8Array to string. */
-function toString(data: string | Uint8Array) {
-  return data instanceof Uint8Array ? dec.decode(data) : data;
-}

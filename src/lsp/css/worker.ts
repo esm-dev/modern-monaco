@@ -6,7 +6,6 @@
 
 import type monacoNS from "monaco-editor-core";
 import * as cssService from "vscode-css-languageservice";
-import { initializeWorker } from "../../editor-worker.js";
 
 export interface CSSDataConfiguration {
   /**
@@ -310,4 +309,6 @@ export class CSSWorker {
   }
 }
 
+// don't change below code, the 'editor-worker.js' is an external module generated at build time.
+import { initializeWorker } from "../../editor-worker.js";
 initializeWorker(CSSWorker);

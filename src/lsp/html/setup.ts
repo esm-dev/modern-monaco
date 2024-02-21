@@ -1,6 +1,8 @@
 import type monacoNS from "monaco-editor-core";
-import * as lf from "../language-features.js";
 import type { CreateData, HTMLWorker } from "./worker";
+
+// don't change below code, the 'language-features.js' is an external module generated at build time.
+import * as lf from "../language-features.js";
 
 export function setup(
   monaco: typeof monacoNS,
@@ -85,6 +87,47 @@ export function setup(
     languageId,
     new lf.DocumentRangeFormattingEditProvider(workerAccessor),
   );
+
+  const codeLensEmitter = new monaco.Emitter<monacoNS.languages.CodeLensProvider>();
+  languages.registerCodeLensProvider(languageId, {
+    onDidChange: codeLensEmitter.event,
+    resolveCodeLens: (model, codeLens, token) => {
+      return codeLens;
+    },
+    provideCodeLenses: function (model, token) {
+      const m = model.findNextMatch(
+        `type=['"]importmap['"]`,
+        { lineNumber: 4, column: 1 },
+        true,
+        false,
+        null,
+        false,
+      );
+      if (m) {
+        const m2 = model.findNextMatch(
+          `"imports":\\s*\\{`,
+          m.range.getEndPosition(),
+          true,
+          false,
+          null,
+          false,
+        );
+        return {
+          lenses: [
+            {
+              range: (m2 ?? m).range,
+              id: "search-modules",
+              command: {
+                id: "search-modules",
+                title: "✦ Search modules on NPM",
+              },
+            },
+          ],
+          dispose: () => {},
+        };
+      }
+    },
+  });
 }
 
 export function workerUrl() {

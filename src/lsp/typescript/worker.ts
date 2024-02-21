@@ -6,12 +6,12 @@
 
 import ts from "typescript";
 import type monacoNS from "monaco-editor-core";
-import { initializeWorker } from "../../editor-worker.js";
-import { type ImportMap, isBlank, resolve } from "../../import-map";
-import { vfetch } from "../../vfs";
+import type { ImportMap } from "~/import-map";
+import { isBlank, resolve } from "~/import-map";
+import { vfetch } from "~/vfs";
 
 export interface Host {
-  tryOpenModel(uri: string): Promise<boolean>;
+  openModel(uri: string): Promise<boolean>;
   refreshDiagnostics: () => Promise<void>;
 }
 
@@ -22,9 +22,10 @@ export interface VersionedContent {
 
 export interface CreateData {
   compilerOptions: ts.CompilerOptions;
+  importMap: ImportMap;
   libs: Record<string, string>;
   types: Record<string, VersionedContent>;
-  importMap: ImportMap;
+  hasVFS: boolean;
   formatOptions?: ts.FormatCodeSettings;
   inlayHintsOptions?: ts.UserPreferences;
 }
@@ -50,6 +51,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   private _isBlankImportMap: boolean;
   private _libs: Record<string, string>;
   private _types: Record<string, VersionedContent>;
+  private _hasVFS: boolean;
   private _formatOptions?: ts.FormatCodeSettings;
   private _inlayHintsOptions?: ts.UserPreferences;
   private _languageService = ts.createLanguageService(this);
@@ -61,7 +63,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   private _noModules = new Set<string>();
   private _openPromises = new Map<string, Promise<void>>();
   private _fetchPromises = new Map<string, Promise<void>>();
-  private _refreshDiagnosticsTimeout: number | null = null;
+  private _refreshDiagnosticsTimer: number | null = null;
 
   constructor(
     ctx: monacoNS.worker.IWorkerContext<Host>,
@@ -72,6 +74,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     this._importMap = createData.importMap;
     this._importMapVersion = 0;
     this._isBlankImportMap = isBlank(createData.importMap);
+    this._hasVFS = createData.hasVFS;
     this._libs = createData.libs;
     this._types = createData.types;
     this._formatOptions = createData.formatOptions;
@@ -263,13 +266,16 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
             };
           }
         }
+        if (!this._hasVFS) {
+          return undefined;
+        }
         if (!this._openPromises.has(moduleHref)) {
           this._openPromises.set(
             moduleHref,
-            this._ctx.host.tryOpenModel(moduleHref).then((ok) => {
+            this._ctx.host.openModel(moduleHref).then((ok) => {
               if (!ok) {
-                this._rollbackVersion(containingFile);
                 this._noModules.add(moduleHref);
+                this._rollbackVersion(containingFile);
               }
             }).finally(() => {
               this._openPromises.delete(moduleHref);
@@ -707,7 +713,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
             arguments: [specifier, fileName],
           }],
         }];
-      } else if (importMapSrc && /^@?\w[\w.-]*(\/|$)/.test(specifier)) {
+      } else if (/^@?\w[\w.-]*(\/|$)/.test(specifier) && importMapSrc) {
         const url = `https://esm.sh/${specifier}`;
         const res = await vfetch(url);
         if (res.ok && res.url.startsWith(url + "@")) {
@@ -721,7 +727,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
             description: fixName,
             changes: [],
             commands: [{
-              id: "importmap.add",
+              id: "vfs.importmap.add_module",
               title: "Add module to import map",
               arguments: [importMapSrc, pkgName, `https://esm.sh/${pkgNameWithVersion}`],
             }],
@@ -748,10 +754,10 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     if (this._maybeModules.has(specifier)) {
       const res = await vfetch(specifier);
       res.body?.cancel();
+      this._maybeModules.delete(specifier);
       if (!res.ok) {
         this._noModules.add(specifier);
       }
-      this._maybeModules.delete(specifier);
       this._rollbackVersion(containingFile);
       this._refreshDiagnostics();
     }
@@ -884,11 +890,11 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   }
 
   private _refreshDiagnostics(): void {
-    if (this._refreshDiagnosticsTimeout !== null) {
+    if (this._refreshDiagnosticsTimer !== null) {
       return;
     }
-    this._refreshDiagnosticsTimeout = setTimeout(() => {
-      this._refreshDiagnosticsTimeout = null;
+    this._refreshDiagnosticsTimer = setTimeout(() => {
+      this._refreshDiagnosticsTimer = null;
       this._ctx.host.refreshDiagnostics();
     }, 500);
   }
@@ -982,4 +988,6 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   }
 }
 
+// don't change below code, the 'editor-worker.js' is an external module generated at build time.
+import { initializeWorker } from "../../editor-worker.js";
 initializeWorker(TypeScriptWorker);

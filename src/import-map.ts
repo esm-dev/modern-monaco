@@ -1,3 +1,6 @@
+import type { VFS } from "./vfs";
+import { isObject, toUrl } from "./util";
+
 /** The import maps follow the spec at https://wicg.github.io/import-maps/. */
 export interface ImportMap {
   $src?: string;
@@ -81,6 +84,36 @@ export function parseImportMapFromJson(
   return importMap;
 }
 
+/** Load import maps from the root index.html or external json file. */
+export async function readImportMap(vfs: VFS, map?: (im: ImportMap) => ImportMap) {
+  let src: string;
+  try {
+    const indexHtml = await vfs.readTextFile("index.html");
+    const tplEl = document.createElement("template");
+    tplEl.innerHTML = indexHtml;
+    src = toUrl("index.html").href;
+    const scriptEl: HTMLScriptElement = tplEl.content.querySelector(
+      'script[type="importmap"]',
+    );
+    if (scriptEl) {
+      if (scriptEl.src) {
+        src = new URL(scriptEl.src, src).href;
+      }
+      const importMap = parseImportMapFromJson(
+        scriptEl.src ? await vfs.readTextFile(scriptEl.src) : scriptEl.textContent,
+      );
+      importMap.$src = src;
+      return map?.(importMap) ?? importMap;
+    }
+  } catch (error) {
+    // ignore error, fallback to a blank import map
+    console.error(`Failed to read import map from "${src}":` + error);
+  }
+  const importMap = blankImportMap();
+  importMap.$src = src;
+  return map?.(importMap) ?? importMap;
+}
+
 function matchImports(specifier: string, imports: ImportMap["imports"]) {
   if (specifier in imports) {
     return imports[specifier];
@@ -109,8 +142,4 @@ function validateScopes(imports: Record<string, unknown>) {
       delete imports[k];
     }
   }
-}
-
-function isObject(v: unknown): v is Record<string, unknown> {
-  return v && typeof v === "object" && !Array.isArray(v);
 }

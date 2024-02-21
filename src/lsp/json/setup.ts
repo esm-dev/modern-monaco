@@ -1,7 +1,9 @@
 import type monacoNS from "monaco-editor-core";
-import * as lf from "../language-features.js";
 import type { CreateData, JSONWorker } from "./worker";
 import { schemas } from "./schemas";
+
+// don't change below code, the 'language-features.js' is an external module generated at build time.
+import * as lf from "../language-features.js";
 
 export function setup(
   monaco: typeof monacoNS,
@@ -100,6 +102,42 @@ export function setup(
     new lf.SelectionRangeAdapter(workerAccessor),
   );
   new JSONDiagnosticsAdapter(languageId, workerAccessor);
+
+  const codeLensEmitter = new monaco.Emitter<monacoNS.languages.CodeLensProvider>();
+  languages.registerCodeLensProvider(languageId, {
+    onDidChange: codeLensEmitter.event,
+    resolveCodeLens: (model, codeLens, token) => {
+      return codeLens;
+    },
+    provideCodeLenses: function (model, token) {
+      const isImportMap = ["importmap.json", "import_map.json", "import-map.json", "importMap.json"].some((name) =>
+        model.uri.path === "/" + name
+      );
+      if (isImportMap) {
+        const m2 = model.findNextMatch(
+          `"imports":\\s*\\{`,
+          { column: 1, lineNumber: 1 },
+          true,
+          false,
+          null,
+          false,
+        );
+        return {
+          lenses: [
+            {
+              range: m2?.range ?? new monaco.Range(1, 1, 1, 1),
+              id: "search-modules",
+              command: {
+                id: "search-modules",
+                title: "✦ Search modules on NPM",
+              },
+            },
+          ],
+          dispose: () => {},
+        };
+      }
+    },
+  });
 }
 
 export function workerUrl() {
