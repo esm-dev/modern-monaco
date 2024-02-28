@@ -2,6 +2,31 @@
 const enc = new TextEncoder();
 const dec = new TextDecoder();
 
+/** Define property with value. */
+export function defineProperty(obj: any, prop: string, value: any) {
+  Object.defineProperty(obj, prop, { value });
+}
+
+/** Convert string to URL. */
+export function toUrl(name: string | URL) {
+  return typeof name === "string" ? new URL(name, "file:///") : name;
+}
+
+/** Convert string to Uint8Array. */
+export function encode(data: string | Uint8Array): Uint8Array {
+  return typeof data === "string" ? enc.encode(data) : data;
+}
+
+/** Convert Uint8Array to string. */
+export function decode(data: string | Uint8Array) {
+  return data instanceof Uint8Array ? dec.decode(data) : data;
+}
+
+/** Check if the value is an object. */
+export function isObject(v: unknown): v is Record<string, unknown> {
+  return v && typeof v === "object" && !Array.isArray(v);
+}
+
 /**
  * Create a task that persists the data to the storage.
  * It will ask the user to confirm before leaving the page if the data is not persisted.
@@ -54,27 +79,26 @@ export function createProxy(obj: object, onChange: () => void) {
   return proxy;
 }
 
-/** Define property with value. */
-export function defineProperty(obj: any, prop: string, value: any) {
-  Object.defineProperty(obj, prop, { value });
+/** open the given indexedDB for VFS. */
+export function openVFSiDB(
+  name: string,
+  onStoreCreate?: (store: IDBObjectStore) => void | Promise<void>,
+) {
+  const req = indexedDB.open(name, 1);
+  req.onupgradeneeded = () => {
+    const db = req.result;
+    if (!db.objectStoreNames.contains("files")) {
+      const store = db.createObjectStore("files", { keyPath: "url" });
+      onStoreCreate?.(store);
+    }
+  };
+  return waitIDBRequest<IDBDatabase>(req);
 }
 
-/** Convert string to URL. */
-export function toUrl(name: string | URL) {
-  return typeof name === "string" ? new URL(name, "file:///") : name;
-}
-
-/** Convert string to Uint8Array. */
-export function encode(data: string | Uint8Array): Uint8Array {
-  return typeof data === "string" ? enc.encode(data) : data;
-}
-
-/** Convert Uint8Array to string. */
-export function decode(data: string | Uint8Array) {
-  return data instanceof Uint8Array ? dec.decode(data) : data;
-}
-
-/** Check if the value is an object. */
-export function isObject(v: unknown): v is Record<string, unknown> {
-  return v && typeof v === "object" && !Array.isArray(v);
+/** wait for the given IDBRequest. */
+export function waitIDBRequest<T>(req: IDBRequest): Promise<T> {
+  return new Promise((resolve, reject) => {
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
 }

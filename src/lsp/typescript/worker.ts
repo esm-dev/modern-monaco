@@ -8,7 +8,7 @@ import ts from "typescript";
 import type monacoNS from "monaco-editor-core";
 import type { ImportMap } from "~/import-map";
 import { isBlank, resolve } from "~/import-map";
-import { vfetch } from "~/vfs";
+import { cache } from "~/cache";
 
 export interface Host {
   openModel(uri: string): Promise<boolean>;
@@ -316,8 +316,8 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
         }
         if (!this._fetchPromises.has(moduleHref)) {
           const promise = /^https?:\/\//.test(containingFile) || isJsxImportSource || inImportMap
-            ? vfetch(moduleUrl)
-            : vfetch.queryCache(moduleUrl);
+            ? cache.fetch(moduleUrl)
+            : cache.query(moduleUrl);
           this._fetchPromises.set(
             moduleHref,
             promise.then(async (res) => {
@@ -325,7 +325,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
                 const contentType = res.headers.get("content-type");
                 const dts = res.headers.get("x-typescript-types");
                 if (dts) {
-                  const dtsRes = await vfetch(new URL(dts, moduleUrl));
+                  const dtsRes = await cache.fetch(new URL(dts, moduleUrl));
                   if (dtsRes.ok) {
                     res.body?.cancel();
                     this._httpLibs.set(dts, await dtsRes.text());
@@ -715,7 +715,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
         }];
       } else if (/^@?\w[\w.-]*(\/|$)/.test(specifier) && importMapSrc) {
         const url = `https://esm.sh/${specifier}`;
-        const res = await vfetch(url);
+        const res = await cache.fetch(url);
         if (res.ok && res.url.startsWith(url + "@")) {
           res.body?.cancel();
           const segments = new URL(res.url).pathname.split("/");
@@ -752,7 +752,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
 
   async cacheHttpModule(specifier: string, containingFile: string): Promise<void> {
     if (this._maybeModules.has(specifier)) {
-      const res = await vfetch(specifier);
+      const res = await cache.fetch(specifier);
       res.body?.cancel();
       this._maybeModules.delete(specifier);
       if (!res.ok) {

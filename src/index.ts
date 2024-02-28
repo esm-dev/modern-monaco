@@ -48,7 +48,7 @@ export interface InitOption extends ShikiInitOptions {
 async function loadMonaco(highlighter: HighlighterCore, options?: InitOption, onEditorWorkerReady?: () => void) {
   const vfs = options?.vfs;
   const monaco = await import("./editor-core.js");
-  const editorWorkerUrl = monaco.workerUrl();
+  const editorWorkerUrl = monaco.getWorkerUrl();
 
   if (!document.getElementById("monaco-editor-core-css")) {
     const styleEl = document.createElement("style");
@@ -67,7 +67,7 @@ async function loadMonaco(highlighter: HighlighterCore, options?: InitOption, on
         lsp = Object.values(lspConfig).find((lsp) => lsp.aliases?.includes(label));
       }
       if (lsp) {
-        url = (await (lsp.import())).workerUrl();
+        url = (await (lsp.import())).getWorkerUrl();
       }
       const worker = await createWorker(url);
       if (!lsp) {

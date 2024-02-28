@@ -4,6 +4,7 @@ import type { VFS } from "~/vfs";
 import type { CreateData, Host, TypeScriptWorker } from "./worker";
 import type { ImportMap } from "~/import-map";
 import { blankImportMap, isBlank, parseImportMapFromJson, readImportMap } from "~/import-map";
+import { cache } from "~/cache";
 import { toUrl } from "~/util";
 import * as lf from "./language-features";
 
@@ -57,12 +58,11 @@ export async function setup(
   new lf.DiagnosticsAdapter(diagnosticsOptions, refreshDiagnosticEventEmitter.event, languageId, getWorker);
 }
 
-export function workerUrl() {
-  const m = workerUrl.toString().match(/import\(['"](.+?)['"]\)/);
-  if (!m) throw new Error("worker url not found");
-  const url = new URL(m[1], import.meta.url);
-  Reflect.set(url, "import", () => import("./worker.js")); // trick for bundlers
-  return url;
+export function getWorkerUrl() {
+  const i = () => import("./worker.js"); // trick for bundlers
+  const m = getWorkerUrl.toString().match(/import\(['"](.+?)['"]\)/);
+  if (!m) throw new Error("worker url not found", { cause: i });
+  return new URL(m[1], import.meta.url);
 }
 
 /** Create the typescript worker. */
@@ -244,17 +244,16 @@ async function createWorker(
 
 /** Resolve types of the compiler options. */
 async function resolveTypes(compilerOptions: ts.CompilerOptions, vfs?: VFS) {
-  const fetcher = vfs?.fetch ?? globalThis.fetch; // use global fetch if vfs is not available
   const types = compilerOptions.types;
   if (Array.isArray(types)) {
     delete compilerOptions.types;
     await Promise.all(types.map(async (type) => {
       if (/^https?:\/\//.test(type)) {
-        const res = await fetcher(type);
+        const res = await cache.fetch(type);
         const dtsUrl = res.headers.get("x-typescript-types");
         if (dtsUrl) {
           res.body.cancel?.();
-          const res2 = await fetcher(dtsUrl);
+          const res2 = await cache.fetch(dtsUrl);
           if (res2.ok) {
             return [dtsUrl, await res2.text()];
           } else {

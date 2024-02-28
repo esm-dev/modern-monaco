@@ -57,12 +57,11 @@ function normalizeUri(uri?: string | URL | Uri) {
   return uri;
 }
 
-export function workerUrl() {
-  const m = workerUrl.toString().match(/import\(['"](.+?)['"]\)/);
-  if (!m) throw new Error("worker url not found");
-  const url = new URL(m[1], import.meta.url);
-  Reflect.set(url, "import", () => import("./editor-worker.js")); // trick for bundlers
-  return url;
+export function getWorkerUrl() {
+  const i = () => import("./editor-worker.js"); // trick for bundlers
+  const m = getWorkerUrl.toString().match(/import\(['"](.+?)['"]\)/);
+  if (!m) throw new Error("worker url not found", { cause: i });
+  return new URL(m[1], import.meta.url);
 }
 
 export * from "monaco-editor-core";

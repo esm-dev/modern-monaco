@@ -13,7 +13,7 @@ export interface LSPConfig {
       formatOptions?: Record<string, unknown>,
       vfs?: VFS,
     ) => Promise<void>;
-    workerUrl: () => URL;
+    getWorkerUrl: () => URL;
   }>;
 }
 

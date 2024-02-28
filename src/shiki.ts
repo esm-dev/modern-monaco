@@ -4,7 +4,8 @@ import loadWasm from "@shikijs/core/wasm-inlined";
 import { getHighlighterCore } from "@shikijs/core";
 import { version as tmGrammersVersion } from "../node_modules/tm-grammars/package.json";
 import { version as tmThemesVersion } from "../node_modules/tm-themes/package.json";
-import { vfetch, type VFS } from "./vfs";
+import { cache } from "./cache";
+import type { VFS } from "./vfs";
 
 const defaultTheme = "vitesse-dark";
 const regHttpURL = /^https?:\/\//;
@@ -80,7 +81,7 @@ export function loadTMTheme(src: string) {
     return DEFAULT_THEME;
   }
   const url = tmThemes.has(src) ? `https://esm.sh/tm-themes@${tmThemesVersion}/themes/${src}.json` : src;
-  return vfetch(url).then((res) => res.json());
+  return cache.fetch(url).then((res) => res.json());
 }
 
 /** Load a TextMate grammar from the given source. */
@@ -88,11 +89,11 @@ export function loadTMGrammer(info: { name?: string; src?: string; embedded?: st
   const url = info.src ?? `https://esm.sh/tm-grammars@${tmGrammersVersion}/grammars/${info.name}.json`;
   if (info.name && info.embedded) {
     return Promise.all([
-      vfetch(url).then((res) => res.json()).then((grammar) => ({ injectTo: info.injectTo, ...grammar })),
+      cache.fetch(url).then((res) => res.json()).then((grammar) => ({ injectTo: info.injectTo, ...grammar })),
       ...info.embedded.map((name) => loadTMGrammer({ name })),
     ]);
   }
-  return vfetch(url).then((res) => res.json());
+  return cache.fetch(url).then((res) => res.json());
 }
 
 /** Get language ID from file path. */

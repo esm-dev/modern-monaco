@@ -1,6 +1,6 @@
 import type monacoNS from "monaco-editor-core";
 import { parseImportMapFromJson, readImportMap } from "./import-map";
-import { createPersistTask, createProxy, decode, defineProperty, encode, toUrl } from "./util";
+import { createPersistTask, createProxy, decode, encode, openVFSiDB, toUrl, waitIDBRequest } from "./util";
 
 interface VFile {
   url: string;
@@ -32,8 +32,8 @@ export class VFS {
   #watchHandlers = new Map<string, Set<(evt: WatchEvent) => void>>();
 
   constructor(options: VFSOptions) {
-    const dbName = "monaco-vfs:" + (options.scope ?? "main");
-    const req = openDB(
+    const dbName = "monaco-vfs:" + (options.scope ?? "");
+    const req = openVFSiDB(
       dbName,
       async (store) => {
         for (const [name, data] of Object.entries(options.initial ?? {})) {
@@ -86,11 +86,12 @@ export class VFS {
 
   async #begin(readonly = false) {
     const db = await this.#db;
-    return db.transaction("files", readonly ? "readonly" : "readwrite").objectStore("files");
+    const storeKey = "files";
+    return db.transaction(storeKey, readonly ? "readonly" : "readwrite").objectStore(storeKey);
   }
 
   bindMonaco(monaco: typeof monacoNS) {
-     monaco.editor.addCommand({
+    monaco.editor.addCommand({
       id: "vfs.importmap.add_module",
       run: async (_: unknown, importMapSrc: string, specifier: string, uri: string) => {
         const model = monaco.editor.getModel(monaco.Uri.parse(importMapSrc));
@@ -342,10 +343,6 @@ export class VFS {
       unwatch();
     };
   }
-
-  fetch(url: string | URL) {
-    return vfetch(url);
-  }
 }
 
 /** Error for file not found. */
@@ -354,89 +351,3 @@ export class ErrorNotFound extends Error {
     super("file not found: " + name.toString());
   }
 }
-
-/** Open the given IndexedDB database. */
-export function openDB(
-  name: string,
-  onStoreCreate?: (store: IDBObjectStore) => void | Promise<void>,
-) {
-  const req = indexedDB.open(name, 1);
-  req.onupgradeneeded = () => {
-    const db = req.result;
-    if (!db.objectStoreNames.contains("files")) {
-      const store = db.createObjectStore("files", { keyPath: "url" });
-      onStoreCreate?.(store);
-    }
-  };
-  return waitIDBRequest<IDBDatabase>(req);
-}
-
-/** wait for the given IDBRequest. */
-export function waitIDBRequest<T>(req: IDBRequest): Promise<T> {
-  return new Promise((resolve, reject) => {
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-/** The cache storage in IndexedDB. */
-let cacheDb: Promise<IDBDatabase> | IDBDatabase | null = null;
-
-/** Fetch with vfs cache. */
-export async function vfetch(url: string | URL): Promise<Response> {
-  url = toUrl(url);
-  if (!globalThis.indexedDB) {
-    // non-browser environment
-    return fetch(url);
-  }
-  const cachedRes = await vfetch.queryCache(url);
-  if (cachedRes) {
-    return cachedRes;
-  }
-  const res = await fetch(url);
-  if (res.ok) {
-    const content = new Uint8Array(await res.arrayBuffer());
-    const headers = [...res.headers.entries()].filter(([k]) =>
-      ["cache-control", "content-type", "content-length", "x-typescript-types"].includes(k)
-    );
-    if (res.redirected) {
-      headers.push(["x-redirected-url", res.url]);
-    }
-    const now = Date.now();
-    const file: VFile = {
-      url: url.href,
-      version: 1,
-      content,
-      headers,
-      ctime: now,
-      mtime: now,
-    };
-    const db = await (cacheDb ?? (cacheDb = openDB("monaco-cache")));
-    const tx = db.transaction("files", "readwrite").objectStore("files");
-    await waitIDBRequest<VFile>(tx.put(file));
-    const resp = new Response(content, { headers });
-    defineProperty(resp, "url", res.url);
-    defineProperty(resp, "redirected", res.redirected);
-    return resp;
-  }
-  return res;
-}
-vfetch.queryCache = async (url: string | URL): Promise<Response | null> => {
-  url = toUrl(url);
-  const db = await (cacheDb ?? (cacheDb = openDB("monaco-cache")));
-  const tx = db.transaction("files", "readonly").objectStore("files");
-  const ret = await waitIDBRequest<VFile>(tx.get(url.href));
-  if (ret && ret.headers) {
-    const headers = new Headers(ret.headers);
-    const res = new Response(ret.content, { headers });
-    if (headers.has("x-redirected-url")) {
-      defineProperty(res, "url", headers.get("x-redirected-url"));
-      defineProperty(res, "redirected", true);
-      headers.delete("x-redirected-url");
-    } else {
-      defineProperty(res, "url", url.href);
-    }
-    return res;
-  }
-  return null;
-};
