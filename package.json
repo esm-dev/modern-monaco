@@ -14,7 +14,7 @@
   "scripts": {
     "prepublishOnly": "deno run -A build.ts",
     "fmt": "deno fmt -c ./.vscode/deno.json src/",
-    "test": "deno run -A test/serve.ts"
+    "dev": "deno run -A dev.ts"
   },
   "files": [
     "dist/",

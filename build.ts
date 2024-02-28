@@ -9,6 +9,7 @@ const build = (entryPoints: string[], define?: Record<string, string>) => {
     platform: "browser",
     outdir: "dist",
     bundle: true,
+    treeShaking: true,
     logLevel: "info",
     define,
     loader: {

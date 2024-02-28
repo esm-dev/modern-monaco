@@ -1,5 +1,3 @@
-import { renderToWebComponent } from "../dist/index.js";
-
 const files = {
   "log.d.ts": [
     "/** log a message. */",
@@ -83,7 +81,7 @@ async function serveDist(url: URL, req: Request, notFound: (url: URL, req: Reque
     });
   }
   try {
-    const fileUrl = new URL("../dist" + url.pathname, import.meta.url);
+    const fileUrl = new URL("dist" + url.pathname, import.meta.url);
     let body = (await Deno.open(fileUrl)).readable;
     if (url.pathname === "/lsp/typescript/worker.js") {
       let replaced = false;
@@ -129,10 +127,12 @@ async function serveDist(url: URL, req: Request, notFound: (url: URL, req: Reque
 async function servePages(url: URL, req: Request) {
   const filename = url.pathname.slice(1) || "index.html";
   try {
-    const fileUrl = new URL(filename, import.meta.url);
+    const fileUrl = new URL("test/" + filename, import.meta.url);
     let body = (await Deno.open(fileUrl)).readable;
     if (filename === "ssr.html") {
       let replaced = false;
+      const murl = "./dist/index.js";
+      const { renderToWebComponent } = await import(murl);
       const ssrOutput = await renderToWebComponent({
         filename: "App.tsx",
         code: files["App.tsx"].join("\n"),
@@ -194,7 +194,7 @@ function getContentType(pathname: string) {
 
 const cmd = new Deno.Command(Deno.execPath(), {
   args: ["run", "-A", "build.ts", "--watch"],
-  cwd: new URL("../", import.meta.url).pathname,
+  cwd: new URL(".", import.meta.url).pathname,
 });
 cmd.spawn();
 
