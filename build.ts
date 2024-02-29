@@ -126,9 +126,9 @@ const buildTypes = async () => {
   await createTmDts();
 };
 
+await buildDist();
 await bundleTypescriptLibs();
 await buildTypes();
-await buildDist();
 
 if (Deno.args.includes("--watch")) {
   const watcher = Deno.watchFs("src", { recursive: true });
