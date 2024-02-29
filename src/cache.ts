@@ -26,7 +26,6 @@ class Cache {
     const res = await fetch(url);
     if (res.ok && this.#db) {
       const db = await this.#db;
-      const tx = db.transaction("files", "readwrite").objectStore("files");
       const file: CacheFile = {
         url: url.href,
         content: null,
@@ -34,6 +33,7 @@ class Cache {
         ctime: Date.now(),
       };
       if (res.redirected) {
+        const tx = db.transaction("files", "readwrite").objectStore("files");
         file.headers.push(["location", res.url]);
         await waitIDBRequest<CacheFile>(tx.put(file));
       }
@@ -41,6 +41,7 @@ class Cache {
       const headers = [...res.headers.entries()].filter(([k]) =>
         ["cache-control", "content-type", "content-length", "x-typescript-types"].includes(k)
       );
+      const tx = db.transaction("files", "readwrite").objectStore("files");
       file.url = res.url;
       file.content = content;
       file.headers = headers;
