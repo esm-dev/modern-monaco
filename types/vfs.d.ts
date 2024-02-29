@@ -1,6 +1,14 @@
 import type { editor, IPosition, IRange } from "./monaco";
 import type { ImportMap } from "./importmap";
 
+export interface VFile {
+  url: string;
+  version: number;
+  content: string | Uint8Array;
+  ctime: number;
+  mtime: number;
+}
+
 export interface VFSOptions {
   scope?: string;
   initial?: Record<string, string[] | string | Uint8Array>;

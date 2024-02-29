@@ -8,7 +8,6 @@ interface VFile {
   content: string | Uint8Array;
   ctime: number;
   mtime: number;
-  headers?: [string, string][];
 }
 
 interface WatchEvent {
@@ -210,7 +209,7 @@ export class VFS {
   async exists(name: string | URL): Promise<boolean> {
     const url = toUrl(name);
     const db = await this.#begin(true);
-    return waitIDBRequest<string>(db.getKey(url.href)).then((key) => !!key);
+    return waitIDBRequest<string>(db.getKey(url.href)).then((key) => key === url.href);
   }
 
   async list() {
@@ -222,7 +221,7 @@ export class VFS {
   async #read(name: string | URL) {
     const url = toUrl(name);
     const db = await this.#begin(true);
-    const ret = await waitIDBRequest<VFile>(db.get(url.href));
+    const ret = await waitIDBRequest<VFile | undefined>(db.get(url.href));
     if (!ret) {
       throw new ErrorNotFound(name);
     }
@@ -275,7 +274,7 @@ export class VFS {
     version?: number,
   ) {
     const db = await this.#begin();
-    const old = await waitIDBRequest<VFile>(db.get(url));
+    const old = await waitIDBRequest<VFile | undefined>(db.get(url));
     const now = Date.now();
     const file: VFile = {
       url,
@@ -324,10 +323,7 @@ export class VFS {
     }, 0);
   }
 
-  watch(
-    name: string | URL,
-    handler: (evt: WatchEvent) => void,
-  ): () => void {
+  watch(name: string | URL, handler: (evt: WatchEvent) => void): () => void {
     const url = name == "*" ? name : toUrl(name).href;
     let handlers = this.#watchHandlers.get(url);
     if (!handlers) {
