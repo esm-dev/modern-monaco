@@ -31,25 +31,22 @@ export class VFS {
   #watchHandlers = new Map<string, Set<(evt: VFSEvent) => void>>();
 
   constructor(options: VFSOptions) {
-    const dbName = "monaco-vfs:" + (options.scope ?? "");
-    const req = openVFSiDB(
-      dbName,
-      async (store) => {
-        for (const [name, data] of Object.entries(options.initial ?? {})) {
-          const url = toUrl(name);
-          const now = Date.now();
-          const item: VFile = {
-            url: url.href,
-            version: 1,
-            content: Array.isArray(data) && !(data instanceof Uint8Array) ? data.join("\n") : data,
-            ctime: now,
-            mtime: now,
-          };
-          await waitIDBRequest(store.add(item));
-        }
-      },
-    );
-    this.#db = req.then((db) => this.#db = db);
+    const dbName = ["monaco-vfs", options.scope].filter(Boolean).join("/");
+    const req = openVFSiDB(dbName, 1, (store) => {
+      for (const [name, data] of Object.entries(options.initial ?? {})) {
+        const url = toUrl(name);
+        const now = Date.now();
+        const item: VFile = {
+          url: url.href,
+          version: 1,
+          content: Array.isArray(data) && !(data instanceof Uint8Array) ? data.join("\n") : data,
+          ctime: now,
+          mtime: now,
+        };
+        store.add(item);
+      }
+    });
+    this.#db = req.then(async (db) => this.#db = db);
     if (globalThis.localStorage) {
       const state = {};
       const storeKey = "monaco-state:" + (options.scope ?? "main");
@@ -87,47 +84,6 @@ export class VFS {
     const db = await this.#db;
     const storeKey = "files";
     return db.transaction(storeKey, readonly ? "readonly" : "readwrite").objectStore(storeKey);
-  }
-
-  bindMonaco(monaco: typeof monacoNS) {
-    monaco.editor.addCommand({
-      id: "vfs.importmap.add_module",
-      run: async (_: unknown, importMapSrc: string, specifier: string, uri: string) => {
-        const model = monaco.editor.getModel(monaco.Uri.parse(importMapSrc));
-        const { imports, scopes } = model && importMapSrc.endsWith(".json")
-          ? parseImportMapFromJson(model.getValue())
-          : await this.loadImportMap();
-        imports[specifier] = uri;
-        imports[specifier + "/"] = uri + "/";
-        const json = JSON.stringify({ imports, scopes }, null, 2);
-        if (importMapSrc.endsWith(".json")) {
-          await this.writeFile(importMapSrc, model?.normalizeIndentation(json) ?? json);
-        } else if (importMapSrc.endsWith(".html")) {
-          const html = model?.getValue() ?? await this.readTextFile(importMapSrc);
-          const newHtml = html.replace(
-            /<script[^>]*?\s+type="importmap"\s*[^>]*>[^]*?<\/script>/,
-            ['<script type="importmap">', ...json.split("\n").map((l) => "  " + l), "</script>"].join("\n  "),
-          );
-          await this.writeFile(importMapSrc, model?.normalizeIndentation(newHtml) ?? newHtml);
-        }
-      },
-    });
-
-    monaco.editor.registerEditorOpener({
-      openCodeEditor: async (editor, resource, selectionOrPosition) => {
-        try {
-          await this.openModel(resource.toString(), editor, selectionOrPosition);
-          return true;
-        } catch (err) {
-          if (err instanceof ErrorNotFound) {
-            return false;
-          }
-          throw err;
-        }
-      },
-    });
-
-    this.#monaco = monaco;
   }
 
   async openModel(
@@ -368,6 +324,47 @@ export class VFS {
     return () => {
       unwatch();
     };
+  }
+
+  bindMonaco(monaco: typeof monacoNS) {
+    monaco.editor.addCommand({
+      id: "vfs.importmap.add_module",
+      run: async (_: unknown, importMapSrc: string, specifier: string, uri: string) => {
+        const model = monaco.editor.getModel(monaco.Uri.parse(importMapSrc));
+        const { imports, scopes } = model && importMapSrc.endsWith(".json")
+          ? parseImportMapFromJson(model.getValue())
+          : await this.loadImportMap();
+        imports[specifier] = uri;
+        imports[specifier + "/"] = uri + "/";
+        const json = JSON.stringify({ imports, scopes }, null, 2);
+        if (importMapSrc.endsWith(".json")) {
+          await this.writeFile(importMapSrc, model?.normalizeIndentation(json) ?? json);
+        } else if (importMapSrc.endsWith(".html")) {
+          const html = model?.getValue() ?? await this.readTextFile(importMapSrc);
+          const newHtml = html.replace(
+            /<script[^>]*?\s+type="importmap"\s*[^>]*>[^]*?<\/script>/,
+            ['<script type="importmap">', ...json.split("\n").map((l) => "  " + l), "</script>"].join("\n  "),
+          );
+          await this.writeFile(importMapSrc, model?.normalizeIndentation(newHtml) ?? newHtml);
+        }
+      },
+    });
+
+    monaco.editor.registerEditorOpener({
+      openCodeEditor: async (editor, resource, selectionOrPosition) => {
+        try {
+          await this.openModel(resource.toString(), editor, selectionOrPosition);
+          return true;
+        } catch (err) {
+          if (err instanceof ErrorNotFound) {
+            return false;
+          }
+          throw err;
+        }
+      },
+    });
+
+    this.#monaco = monaco;
   }
 }
 

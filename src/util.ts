@@ -82,9 +82,10 @@ export function createProxy(obj: object, onChange: () => void) {
 /** open the given indexedDB for VFS. */
 export function openVFSiDB(
   name: string,
-  onStoreCreate?: (store: IDBObjectStore) => void | Promise<void>,
+  version?: number,
+  onStoreCreate?: (store: IDBObjectStore) => void,
 ) {
-  const req = indexedDB.open(name, 1);
+  const req = indexedDB.open(name, version);
   req.onupgradeneeded = () => {
     const db = req.result;
     if (!db.objectStoreNames.contains("files")) {
