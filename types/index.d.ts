@@ -71,5 +71,3 @@ export function init(options?: InitOptions): Promise<typeof monacoNS>;
 export function lazy(options?: InitOptions): void;
 export function renderToString(options: RenderOptions): Promise<string>;
 export function renderToWebComponent(options: RenderOptions): Promise<string>;
-
-export * from "./vfs";

@@ -411,5 +411,3 @@ export async function renderToWebComponent(options: RenderOptions): Promise<stri
     `</monaco-editor>`,
   ].join("");
 }
-
-export * from "./vfs";

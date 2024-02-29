@@ -1,5 +1,5 @@
 import type monacoNS from "monaco-editor-core";
-import { parseImportMapFromJson, readImportMap } from "./import-map";
+import { blankImportMap, type ImportMap, parseImportMapFromJson } from "./import-map";
 import { createPersistTask, createProxy, decode, encode, openVFSiDB, toUrl, waitIDBRequest } from "./util";
 
 interface VFile {
@@ -97,7 +97,7 @@ export class VFS {
         const model = monaco.editor.getModel(monaco.Uri.parse(importMapSrc));
         const { imports, scopes } = model && importMapSrc.endsWith(".json")
           ? parseImportMapFromJson(model.getValue())
-          : await readImportMap(this);
+          : await this.loadImportMap();
         imports[specifier] = uri;
         imports[specifier + "/"] = uri + "/";
         const json = JSON.stringify({ imports, scopes }, null, 2);
@@ -237,6 +237,36 @@ export class VFS {
   async readTextFile(name: string | URL) {
     const { content } = await this.#read(name);
     return decode(content);
+  }
+
+  /** Load import maps from the root index.html or external json file. */
+  async loadImportMap(verify?: (im: ImportMap) => ImportMap) {
+    let src: string;
+    try {
+      const indexHtml = await this.readTextFile("index.html");
+      const tplEl = document.createElement("template");
+      tplEl.innerHTML = indexHtml;
+      src = toUrl("index.html").href;
+      const scriptEl: HTMLScriptElement = tplEl.content.querySelector(
+        'script[type="importmap"]',
+      );
+      if (scriptEl) {
+        if (scriptEl.src) {
+          src = new URL(scriptEl.src, src).href;
+        }
+        const importMap = parseImportMapFromJson(
+          scriptEl.src ? await this.readTextFile(scriptEl.src) : scriptEl.textContent,
+        );
+        importMap.$src = src;
+        return verify?.(importMap) ?? importMap;
+      }
+    } catch (error) {
+      // ignore error, fallback to a blank import map
+      console.error(`Failed to read import map from "${src}":` + error.message);
+    }
+    const importMap = blankImportMap();
+    importMap.$src = src;
+    return verify?.(importMap) ?? importMap;
   }
 
   async #write(

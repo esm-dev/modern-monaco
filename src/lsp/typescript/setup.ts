@@ -3,7 +3,7 @@ import type ts from "typescript";
 import type { VFS } from "~/vfs";
 import type { CreateData, Host, TypeScriptWorker } from "./worker";
 import type { ImportMap } from "~/import-map";
-import { blankImportMap, isBlank, parseImportMapFromJson, readImportMap } from "~/import-map";
+import { blankImportMap, isBlank, parseImportMapFromJson } from "~/import-map";
 import { cache } from "~/cache";
 import { toUrl } from "~/util";
 import * as lf from "./language-features";
@@ -114,7 +114,7 @@ async function createWorker(
       readCompilerOptions(vfs).then((options) => {
         compilerOptions = { ...defaultCompilerOptions, ...options };
       }),
-      readImportMap(vfs, remixImportMap).then((im) => {
+      vfs.loadImportMap(remixImportMap).then((im) => {
         importMap = im;
       }),
     );
@@ -220,7 +220,7 @@ async function createWorker(
 
     vfs.watch("index.html", async (e) => {
       dispose?.();
-      readImportMap(vfs, remixImportMap).then((im) => {
+      vfs.loadImportMap(remixImportMap).then((im) => {
         if (JSON.stringify(im) !== JSON.stringify(importMap)) {
           importMap = im;
           updateCompilerOptions({ importMap });

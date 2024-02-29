@@ -5,8 +5,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ESM&gt;Monaco</title>
-  <link rel="modulepreload" href="/vfs.js">
+  <link rel="modulepreload" href="/init.js">
   <link rel="modulepreload" href="/index.js">
+  <link rel="modulepreload" href="/vfs.js">
   <link rel="modulepreload" href="/editor-core.js">
   <style>
     html,
@@ -230,7 +231,7 @@
   </template>
   <script type="module">
     import { lazy } from '/index.js';
-    import { vfs } from '/vfs.js';
+    import { vfs } from '/init.js';
     lazy({ vfs });
 
     const folderButton = document.querySelector('button.folder')

@@ -203,13 +203,13 @@ Deno.serve((req) => {
   if (url.pathname.startsWith("/dist/")) {
     url = new URL(url.pathname.slice(5), url);
   }
-  if (url.pathname === "/vfs.js") {
+  if (url.pathname === "/init.js") {
     const headers = new Headers({
       "cache-control": "public, max-age=0, revalidate",
       "content-type": getContentType(url.pathname),
     });
     return new Response(
-      `import { VFS } from "/index.js";export const vfs = new VFS({ scope: "test", initial: ${
+      `import { VFS } from "/vfs.js";export const vfs = new VFS({ scope: "test", initial: ${
         JSON.stringify(files, null, 2)
       } });`,
       { headers },

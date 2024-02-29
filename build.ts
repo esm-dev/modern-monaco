@@ -103,6 +103,7 @@ const buildDist = async () => {
   await build([
     "src/editor-core.ts",
     "src/editor-worker.ts",
+    "src/vfs.ts",
     "src/lsp/language-features.ts",
     "src/lsp/html/setup.ts",
     "src/lsp/html/worker.ts",
