@@ -37,3 +37,10 @@ interface WatchEvent {
   kind: "create" | "modify" | "remove";
   path: string;
 }
+
+export function openVFSiDB(
+  name: string,
+  onStoreCreate?: (store: IDBObjectStore) => void | Promise<void>,
+): Promise<IDBDatabase>;
+
+export function waitIDBRequest<T>(req: IDBRequest): Promise<T>;

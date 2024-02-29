@@ -6,7 +6,7 @@ import { getGrammarsInVFS, getLanguageIdFromPath, initShiki } from "./shiki";
 import { grammarRegistry, loadTMGrammer, loadTMTheme } from "./shiki";
 import { createWorker, lspConfig, normalizeFormatOptions } from "./lsp/index";
 import { render, type RenderOptions } from "./render";
-import { VFS } from "./vfs";
+import type { VFS } from "./vfs";
 
 const editorProps = [
   "autoDetectHighContrast",
@@ -412,4 +412,4 @@ export async function renderToWebComponent(options: RenderOptions): Promise<stri
   ].join("");
 }
 
-export { render, VFS };
+export * from "./vfs";

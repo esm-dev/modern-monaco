@@ -351,3 +351,5 @@ export class ErrorNotFound extends Error {
     super("file not found: " + name.toString());
   }
 }
+
+export { openVFSiDB, waitIDBRequest };
