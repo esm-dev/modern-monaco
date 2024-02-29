@@ -127,6 +127,7 @@ const buildTypes = async () => {
   await createTmDts();
 };
 
+await Deno.remove("dist", { recursive: true }).catch(() => {});
 await buildDist();
 await bundleTypescriptLibs();
 await buildTypes();
