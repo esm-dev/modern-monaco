@@ -23,7 +23,7 @@ export class ErrorNotFound extends Error {}
 
 export class VFS {
   constructor(options?: VFSOptions);
-  readonly ErrorNotFound: ErrorNotFound;
+  readonly ErrorNotFound: typeof ErrorNotFound;
   readonly state: VFSState;
   openModel(
     name: string | URL,
