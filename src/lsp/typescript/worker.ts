@@ -727,7 +727,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
             description: fixName,
             changes: [],
             commands: [{
-              id: "importmap.add_module",
+              id: "vfs.importmap.add_module",
               title: "Add module to import map",
               arguments: [importMapSrc, pkgName, `https://esm.sh/${pkgNameWithVersion}`],
             }],
