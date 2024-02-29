@@ -9,6 +9,12 @@ export interface VFile {
   mtime: number;
 }
 
+export interface VFSEvent {
+  kind: "create" | "modify" | "remove";
+  path: string;
+  isModelChange?: boolean;
+}
+
 export interface VFSOptions {
   scope?: string;
   initial?: Record<string, string[] | string | Uint8Array>;
@@ -18,8 +24,6 @@ export interface VFSState {
   [key: string]: any;
   activeFile?: string;
 }
-
-export class ErrorNotFound extends Error {}
 
 export class VFS {
   constructor(options?: VFSOptions);
@@ -37,20 +41,13 @@ export class VFS {
   loadImportMap(map?: (im: ImportMap) => ImportMap): Promise<ImportMap>;
   writeFile(name: string | URL, content: string | Uint8Array, version?: number): Promise<void>;
   removeFile(name: string | URL): Promise<void>;
-  watch(name: string | URL, handler: (evt: WatchEvent) => void): () => void;
+  watch(name: string | URL, handler: (evt: VFSEvent) => void): () => void;
   watchState(handler: () => void): () => void;
   useList(handler: (list: string[]) => void): () => void;
   useState<T>(get: (state: VFSState) => T, handler: (value: T) => void): () => void;
 }
 
-interface WatchEvent {
-  kind: "create" | "modify" | "remove";
-  path: string;
-}
+export class ErrorNotFound extends Error {}
 
-export function openVFSiDB(
-  name: string,
-  onStoreCreate?: (store: IDBObjectStore) => void | Promise<void>,
-): Promise<IDBDatabase>;
-
-export function waitIDBRequest<T>(req: IDBRequest): Promise<T>;
+export function parseImportMapFromJson(json: string, baseURL?: string): ImportMap;
+export function blankImportMap(): ImportMap;

@@ -10,7 +10,7 @@ interface VFile {
   mtime: number;
 }
 
-interface WatchEvent {
+interface VFSEvent {
   kind: "create" | "modify" | "remove";
   path: string;
   isModelChange?: boolean;
@@ -28,7 +28,7 @@ export class VFS {
   #state: Record<string, any> = {};
   #viewState: Record<string, monacoNS.editor.ICodeEditorViewState> = {};
   #stateOnChangeHandlers = new Set<() => void>();
-  #watchHandlers = new Map<string, Set<(evt: WatchEvent) => void>>();
+  #watchHandlers = new Map<string, Set<(evt: VFSEvent) => void>>();
 
   constructor(options: VFSOptions) {
     const dbName = "monaco-vfs:" + (options.scope ?? "");
@@ -323,7 +323,7 @@ export class VFS {
     }, 0);
   }
 
-  watch(name: string | URL, handler: (evt: WatchEvent) => void): () => void {
+  watch(name: string | URL, handler: (evt: VFSEvent) => void): () => void {
     const url = name == "*" ? name : toUrl(name).href;
     let handlers = this.#watchHandlers.get(url);
     if (!handlers) {
@@ -378,4 +378,4 @@ export class ErrorNotFound extends Error {
   }
 }
 
-export { openVFSiDB, waitIDBRequest };
+export { blankImportMap, parseImportMapFromJson };
