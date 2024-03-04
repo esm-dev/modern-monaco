@@ -18,11 +18,11 @@ devDependencies:
     specifier: 0.46.0
     version: 0.46.0
   tm-grammars:
-    specifier: 1.4.7
-    version: 1.4.7
+    specifier: 1.4.10
+    version: 1.4.10
   tm-themes:
-    specifier: 1.2.1
-    version: 1.2.1
+    specifier: 1.2.2
+    version: 1.2.2
   typescript:
     specifier: 5.3.3
     version: 5.3.3
@@ -301,12 +301,12 @@ packages:
     resolution: {integrity: sha512-JA5BzCaC0nUB5zUhzGUfecNhVNxEXpJxp6YNBYLr0SPyv0DKSIeBpF21WVkpwYm00UJaVc4m3TTcwB9/Gzd/nw==}
     dev: true
 
-  /tm-grammars@1.4.7:
-    resolution: {integrity: sha512-uumwGNVIemw4TMYiy/jG46g3d7zgeq5+Dtg9oVNwTrrrX7FXknVDvJZX+/Rat6eDxCqsF71G320y5ecEfLWQ8Q==}
+  /tm-grammars@1.4.10:
+    resolution: {integrity: sha512-mCMy1p0euhSe02Jm77+7lX9KUEsRTFNOG1G73BMiygVc8vtE7hRczVxy0jZH9rlI8wXfTFr1m1Erx84Tby0r7A==}
     dev: true
 
-  /tm-themes@1.2.1:
-    resolution: {integrity: sha512-PeEvUFC8DSXncOHflYf29oCJZ23qaw01gTtg0vy+MF63W307crTO0Jn6ia34q74l0K0OAO1CGboz6luohptdXA==}
+  /tm-themes@1.2.2:
+    resolution: {integrity: sha512-VUY++EsLmw9qqRicCFBuIfcllXImESOzLZ8IB9Mg1SOSGkrVPePpwf8aNnc6lNieY4SdsPU7QxAKCKp5pTsE9g==}
     dev: true
 
   /typescript@5.3.3:
