@@ -9,11 +9,11 @@ interface CacheFile {
 
 /** A simple cache for fetch requests using IndexedDB. */
 class Cache {
-  #db: Promise<IDBDatabase> | IDBDatabase | null = null;
+  private _db: Promise<IDBDatabase> | IDBDatabase | null = null;
 
   constructor(cacheName = "monaco-cache") {
     if (globalThis.indexedDB) {
-      this.#db = openVFSiDB(cacheName).then((db) => this.#db = db);
+      this._db = openVFSiDB(cacheName).then((db) => this._db = db);
     }
   }
 
@@ -24,8 +24,8 @@ class Cache {
       return storedRes;
     }
     const res = await fetch(url);
-    if (res.ok && this.#db) {
-      const db = await this.#db;
+    if (res.ok && this._db) {
+      const db = await this._db;
       const file: CacheFile = {
         url: url.href,
         content: null,
@@ -55,11 +55,11 @@ class Cache {
   }
 
   async query(key: string | URL): Promise<Response | null> {
-    if (!this.#db) {
+    if (!this._db) {
       return null;
     }
     const url = toUrl(key).href;
-    const db = await this.#db;
+    const db = await this._db;
     const tx = db.transaction("files", "readonly").objectStore("files");
     const ret = await waitIDBRequest<CacheFile>(tx.get(url));
     if (ret && ret.headers) {

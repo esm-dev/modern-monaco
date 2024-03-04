@@ -23,12 +23,12 @@ interface VFSOptions {
 
 /** Virtual file system for monaco editor. */
 export class VFS {
-  #db: Promise<IDBDatabase> | IDBDatabase;
-  #monaco: typeof monacoNS;
-  #state: Record<string, any> = {};
-  #viewState: Record<string, monacoNS.editor.ICodeEditorViewState> = {};
-  #stateOnChangeHandlers = new Set<() => void>();
-  #watchHandlers = new Map<string, Set<(evt: VFSEvent) => void>>();
+  private _db: Promise<IDBDatabase> | IDBDatabase;
+  private _monaco: typeof monacoNS;
+  private _state: Record<string, any> = {};
+  private _viewState: Record<string, monacoNS.editor.ICodeEditorViewState> = {};
+  private _stateChangeHandlers = new Set<() => void>();
+  private _watchHandlers = new Map<string, Set<(evt: VFSEvent) => void>>();
 
   constructor(options: VFSOptions) {
     const dbName = ["monaco-vfs", options.scope].filter(Boolean).join("/");
@@ -46,12 +46,12 @@ export class VFS {
         store.add(item);
       }
     });
-    this.#db = req.then(async (db) => this.#db = db);
+    this._db = req.then(async (db) => this._db = db);
     if (globalThis.localStorage) {
       const state = {};
       const storeKey = "monaco-state:" + (options.scope ?? "main");
       const persist = createPersistTask(() => {
-        localStorage.setItem(storeKey, JSON.stringify(this.#state));
+        localStorage.setItem(storeKey, JSON.stringify(this._state));
       }, 100);
       const storeValue = localStorage.getItem(storeKey);
       if (storeValue) {
@@ -61,8 +61,8 @@ export class VFS {
           console.error(e);
         }
       }
-      this.#state = createProxy(state, () => {
-        this.#stateOnChangeHandlers.forEach((handler) => handler());
+      this._state = createProxy(state, () => {
+        this._stateChangeHandlers.forEach((handler) => handler());
         persist();
       });
     }
@@ -73,15 +73,15 @@ export class VFS {
   }
 
   get state() {
-    return this.#state;
+    return this._state;
   }
 
   get viewState() {
-    return this.#viewState;
+    return this._viewState;
   }
 
-  async #begin(readonly = false) {
-    const db = await this.#db;
+  private async _tx(readonly = false) {
+    const db = await this._db;
     const storeKey = "files";
     return db.transaction(storeKey, readonly ? "readonly" : "readwrite").objectStore(storeKey);
   }
@@ -91,14 +91,14 @@ export class VFS {
     attachTo?: monacoNS.editor.ICodeEditor | number | string | boolean,
     selectionOrPosition?: monacoNS.IRange | monacoNS.IPosition,
   ) {
-    const monaco = this.#monaco;
+    const monaco = this._monaco;
     if (!monaco) {
       throw new Error("monaco is undefined");
     }
     const url = toUrl(name);
     const href = url.href;
     const uri = monaco.Uri.parse(href);
-    const { content, version } = await this.#read(url);
+    const { content, version } = await this._read(url);
     const model = monaco.editor.getModel(uri) ?? monaco.editor.createModel(decode(content), undefined, uri);
     if (!Reflect.has(model, "__VFS__")) {
       const onDidChange = createPersistTask(() => {
@@ -107,7 +107,7 @@ export class VFS {
       const disposable = model.onDidChangeContent(onDidChange);
       const unwatch = this.watch(href, async (evt) => {
         if (evt.kind === "modify" && !evt.isModelChange) {
-          const { content } = await this.#read(url);
+          const { content } = await this._read(url);
           if (model.getValue() !== decode(content)) {
             model.setValue(decode(content));
             model.pushStackElement();
@@ -152,10 +152,10 @@ export class VFS {
             editor.setPosition(selectionOrPosition);
           }
         } else {
-          this.#viewState[href] && editor.restoreViewState(this.#viewState[href]);
+          this._viewState[href] && editor.restoreViewState(this._viewState[href]);
         }
-        if (this.#state.activeFile !== href) {
-          this.#state.activeFile = href;
+        if (this._state.activeFile !== href) {
+          this._state.activeFile = href;
         }
       }
     }
@@ -164,19 +164,19 @@ export class VFS {
 
   async exists(name: string | URL): Promise<boolean> {
     const url = toUrl(name);
-    const db = await this.#begin(true);
+    const db = await this._tx(true);
     return waitIDBRequest<string>(db.getKey(url.href)).then((key) => key === url.href);
   }
 
   async list() {
-    const db = await this.#begin(true);
+    const db = await this._tx(true);
     const req = db.getAllKeys();
     return await waitIDBRequest<string[]>(req);
   }
 
-  async #read(name: string | URL) {
+  private async _read(name: string | URL) {
     const url = toUrl(name);
-    const db = await this.#begin(true);
+    const db = await this._tx(true);
     const ret = await waitIDBRequest<VFile | undefined>(db.get(url.href));
     if (!ret) {
       throw new ErrorNotFound(name);
@@ -185,12 +185,12 @@ export class VFS {
   }
 
   async readFile(name: string | URL) {
-    const { content } = await this.#read(name);
+    const { content } = await this._read(name);
     return encode(content);
   }
 
   async readTextFile(name: string | URL) {
-    const { content } = await this.#read(name);
+    const { content } = await this._read(name);
     return decode(content);
   }
 
@@ -224,12 +224,8 @@ export class VFS {
     return verify?.(importMap) ?? importMap;
   }
 
-  async #write(
-    url: string,
-    content: string | Uint8Array,
-    version?: number,
-  ) {
-    const db = await this.#begin();
+  private async _write(url: string, content: string | Uint8Array, version?: number) {
+    const db = await this._tx();
     const old = await waitIDBRequest<VFile | undefined>(db.get(url));
     const now = Date.now();
     const file: VFile = {
@@ -243,17 +239,12 @@ export class VFS {
     return old ? "modify" : "create";
   }
 
-  async writeFile(
-    name: string | URL,
-    content: string | Uint8Array,
-    version?: number,
-    isModelChange?: boolean,
-  ) {
+  async writeFile(name: string | URL, content: string | Uint8Array, version?: number, isModelChange?: boolean) {
     const url = toUrl(name);
-    const kind = await this.#write(url.href, content, version);
+    const kind = await this._write(url.href, content, version);
     setTimeout(() => {
       for (const key of [url.href, "*"]) {
-        const handlers = this.#watchHandlers.get(key);
+        const handlers = this._watchHandlers.get(key);
         if (handlers) {
           for (const handler of handlers) {
             handler({ kind, path: url.href, isModelChange });
@@ -265,11 +256,11 @@ export class VFS {
 
   async removeFile(name: string | URL): Promise<void> {
     const { pathname, href } = toUrl(name);
-    const db = await this.#begin();
+    const db = await this._tx();
     await waitIDBRequest(db.delete(href));
     setTimeout(() => {
       for (const key of [href, "*"]) {
-        const handlers = this.#watchHandlers.get(key);
+        const handlers = this._watchHandlers.get(key);
         if (handlers) {
           for (const handler of handlers) {
             handler({ kind: "remove", path: pathname });
@@ -281,10 +272,10 @@ export class VFS {
 
   watch(name: string | URL, handler: (evt: VFSEvent) => void): () => void {
     const url = name == "*" ? name : toUrl(name).href;
-    let handlers = this.#watchHandlers.get(url);
+    let handlers = this._watchHandlers.get(url);
     if (!handlers) {
       handlers = new Set();
-      this.#watchHandlers.set(url, handlers);
+      this._watchHandlers.set(url, handlers);
     }
     handlers.add(handler);
     return () => {
@@ -293,9 +284,9 @@ export class VFS {
   }
 
   watchState(handler: () => void): () => void {
-    this.#stateOnChangeHandlers.add(handler);
+    this._stateChangeHandlers.add(handler);
     return () => {
-      this.#stateOnChangeHandlers.delete(handler);
+      this._stateChangeHandlers.delete(handler);
     };
   }
 
@@ -312,10 +303,10 @@ export class VFS {
   }
 
   useState<T>(get: (state: any) => T, handler: (value: T) => void): () => void {
-    let value = get(this.#state);
+    let value = get(this._state);
     handler(value);
     const unwatch = this.watchState(() => {
-      const newValue = get(this.#state);
+      const newValue = get(this._state);
       if (newValue !== value) {
         value = newValue;
         handler(value);
@@ -364,7 +355,7 @@ export class VFS {
       },
     });
 
-    this.#monaco = monaco;
+    this._monaco = monaco;
   }
 }
 

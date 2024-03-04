@@ -27,11 +27,7 @@ export function isBlank(importMap: ImportMap) {
 }
 
 /** Resolve the specifier with the import map. */
-export function resolve(
-  importMap: ImportMap,
-  specifier: string,
-  containingFile: string,
-): string {
+export function resolve(importMap: ImportMap, specifier: string, containingFile: string): string {
   const { $baseURL, imports, scopes } = importMap;
   const scriptUrl = new URL(containingFile);
   const sameOriginScopes = Object.entries(scopes)
@@ -70,10 +66,7 @@ function matchImports(specifier: string, imports: ImportMap["imports"]) {
 }
 
 /** Parse the import map from JSON. */
-export function parseImportMapFromJson(
-  json: string,
-  baseURL?: string,
-): ImportMap {
+export function parseImportMapFromJson(json: string, baseURL?: string): ImportMap {
   const importMap: ImportMap = {
     $support: globalThis.HTMLScriptElement?.supports?.("importmap"),
     $baseURL: new URL(baseURL ?? ".", "file:///").href,

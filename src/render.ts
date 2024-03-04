@@ -18,10 +18,7 @@ export interface RenderOptions extends editor.IStandaloneEditorConstructionOptio
 }
 
 /** Renders a mock monaco editor. */
-export function render(
-  highlighter: HighlighterCore,
-  options: RenderOptions,
-): string {
+export function render(highlighter: HighlighterCore, options: RenderOptions): string {
   const isBrowser = typeof globalThis.document?.createElement === "function";
   if (!options.userAgent && !isBrowser) {
     throw new Error(
