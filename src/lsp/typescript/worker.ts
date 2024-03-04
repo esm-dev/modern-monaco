@@ -58,9 +58,10 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   private _httpLibs = new Map<string, string>();
   private _httpModules = new Map<string, string>();
   private _httpTsModules = new Map<string, string>();
+  private _httpRedirects: { node: ts.Node; url: string }[] = [];
   private _dtsMap = new Map<string, string>();
-  private _maybeModules = new Set<string>();
-  private _noModules = new Set<string>();
+  private _unknownModules = new Set<string>();
+  private _naModules = new Set<string>();
   private _openPromises = new Map<string, Promise<void>>();
   private _fetchPromises = new Map<string, Promise<void>>();
   private _refreshDiagnosticsTimer: number | null = null;
@@ -226,21 +227,21 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   ): readonly ts.ResolvedModuleWithFailedLookupLocations[] {
     const jsxImportUrl = this._getJsxImportUrl(containingFile);
     return moduleLiterals.map((literal): ts.ResolvedModuleWithFailedLookupLocations["resolvedModule"] => {
-      let moduleName = literal.text;
-      let isJsxImportSource = moduleName === jsxImportUrl;
+      let specifier = literal.text;
+      let isJsxImportSource = specifier === jsxImportUrl;
       let inImportMap = false;
       if (!this._isBlankImportMap) {
         if (!isJsxImportSource) {
-          isJsxImportSource = moduleName === jsxImportUrl;
+          isJsxImportSource = specifier === jsxImportUrl;
         }
-        const url = resolve(this._importMap, moduleName, containingFile);
-        inImportMap = url !== moduleName;
-        moduleName = url;
+        const url = resolve(this._importMap, specifier, containingFile);
+        inImportMap = url !== specifier;
+        specifier = url;
       }
-      if (!/^(((file|https?):\/\/)|\.{0,2}\/)/.test(moduleName)) {
+      if (!/^(((file|https?):\/\/)|\.{0,2}\/)/.test(specifier)) {
         return undefined;
       }
-      const moduleUrl = new URL(moduleName, containingFile);
+      const moduleUrl = new URL(specifier, containingFile);
       if (TypeScriptWorker.getScriptExtension(moduleUrl.pathname, null) === null) {
         const ext = TypeScriptWorker.getScriptExtension(containingFile, null);
         if (ext === ".d.ts" || ext === ".d.mts" || ext === ".d.cts") {
@@ -257,28 +258,28 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
         };
       }
       if (moduleUrl.protocol === "file:") {
-        const moduleHref = moduleUrl.href;
+        const moduleName = moduleUrl.href;
         for (const model of this._ctx.getMirrorModels()) {
-          if (moduleHref === model.uri.toString()) {
+          if (moduleName === model.uri.toString()) {
             return {
-              resolvedFileName: moduleHref,
-              extension: TypeScriptWorker.getScriptExtension(moduleUrl),
+              resolvedFileName: moduleName,
+              extension: TypeScriptWorker.getScriptExtension(moduleUrl.pathname),
             };
           }
         }
         if (!this._hasVFS) {
           return undefined;
         }
-        if (!this._openPromises.has(moduleHref)) {
+        if (!this._openPromises.has(moduleName)) {
           this._openPromises.set(
-            moduleHref,
-            this._ctx.host.openModel(moduleHref).then((ok) => {
+            moduleName,
+            this._ctx.host.openModel(moduleName).then((ok) => {
               if (!ok) {
-                this._noModules.add(moduleHref);
+                this._naModules.add(moduleName);
                 this._rollbackVersion(containingFile);
               }
             }).finally(() => {
-              this._openPromises.delete(moduleHref);
+              this._openPromises.delete(moduleName);
               if (this._openPromises.size === 0) {
                 this._refreshDiagnostics();
               }
@@ -286,83 +287,87 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
           );
         }
       } else {
-        const moduleHref = moduleUrl.href;
-        if (this._noModules.has(moduleUrl.href) || this._maybeModules.has(moduleHref)) {
+        const moduleName = moduleUrl.href;
+        if (this._naModules.has(moduleName) || this._unknownModules.has(moduleName)) {
           return undefined;
         }
-        if (this._httpModules.has(moduleHref)) {
+        if (this._httpModules.has(moduleName)) {
           return {
-            resolvedFileName: moduleHref,
-            extension: TypeScriptWorker.getScriptExtension(moduleUrl, ".js"),
+            resolvedFileName: moduleName,
+            extension: TypeScriptWorker.getScriptExtension(moduleUrl.pathname, ".js"),
           };
         }
-        if (this._httpTsModules.has(moduleHref)) {
+        if (this._httpTsModules.has(moduleName)) {
           return {
-            resolvedFileName: moduleHref,
-            extension: TypeScriptWorker.getScriptExtension(moduleUrl, ".ts"),
+            resolvedFileName: moduleName,
+            extension: TypeScriptWorker.getScriptExtension(moduleUrl.pathname, ".ts"),
           };
         }
-        if (this._dtsMap.has(moduleHref)) {
+        if (this._dtsMap.has(moduleName)) {
           return {
-            resolvedFileName: this._dtsMap.get(moduleHref),
+            resolvedFileName: this._dtsMap.get(moduleName),
             extension: ".d.ts",
           };
         }
-        if (this._httpLibs.has(moduleHref)) {
+        if (this._httpLibs.has(moduleName)) {
           return {
-            resolvedFileName: moduleHref,
+            resolvedFileName: moduleName,
             extension: ".d.ts",
           };
         }
-        if (!this._fetchPromises.has(moduleHref)) {
-          const promise = /^https?:\/\//.test(containingFile) || isJsxImportSource || inImportMap
+        if (!this._fetchPromises.has(moduleName)) {
+          const promise = isJsxImportSource || inImportMap || /^https?:\/\//.test(containingFile) ||
+              /\w@[~v^]?\d+(\.\d+){0,2}([&?/]|$)/.test(moduleUrl.pathname)
             ? cache.fetch(moduleUrl)
             : cache.query(moduleUrl);
           this._fetchPromises.set(
-            moduleHref,
+            moduleName,
             promise.then(async (res) => {
-              if (res?.ok) {
+              if (!res) {
+                // did not find the module in the cache
+                this._unknownModules.add(moduleName);
+                return;
+              }
+              if (res.ok) {
                 const contentType = res.headers.get("content-type");
                 const dts = res.headers.get("x-typescript-types");
+                const resUrl = new URL(res.url);
+                if (res.redirected) {
+                  this._httpRedirects.push({ node: literal, url: res.url });
+                }
                 if (dts) {
-                  const dtsRes = await cache.fetch(new URL(dts, moduleUrl));
+                  const dtsRes = await cache.fetch(new URL(dts, res.url));
+                  res.body?.cancel();
                   if (dtsRes.ok) {
-                    res.body?.cancel();
-                    this._httpLibs.set(dts, await dtsRes.text());
-                    this._dtsMap.set(moduleHref, dts);
-                  } else if (dtsRes.status >= 400 && dtsRes.status < 500) {
-                    this._httpModules.set(moduleHref, await res.text());
-                  } else {
-                    res.body?.cancel();
+                    this._httpLibs.set(dtsRes.url, await dtsRes.text());
+                    this._dtsMap.set(moduleName, dtsRes.url);
                   }
                 } else if (
-                  /\.(c|m)?jsx?$/.test(moduleUrl.pathname) ||
+                  /\.(c|m)?jsx?$/.test(resUrl.pathname) ||
                   /^(application|text)\/(javascript|jsx)/.test(contentType)
                 ) {
-                  this._httpModules.set(moduleHref, await res.text());
+                  this._httpModules.set(moduleName, await res.text());
                 } else if (
-                  /\.(c|m)?tsx?$/.test(moduleUrl.pathname) ||
+                  /\.(c|m)?tsx?$/.test(resUrl.pathname) ||
                   /^(application|text)\/(typescript|tsx)/.test(contentType)
                 ) {
-                  if (/\.d\.(c|m)?ts$/.test(moduleUrl.pathname)) {
-                    this._httpLibs.set(moduleHref, await res.text());
+                  if (/\.d\.(c|m)?ts$/.test(resUrl.pathname)) {
+                    this._httpLibs.set(moduleName, await res.text());
                   } else {
-                    this._httpTsModules.set(moduleHref, await res.text());
+                    this._httpTsModules.set(moduleName, await res.text());
                   }
                 } else {
                   // not a javascript or typescript module
                   res.body?.cancel();
-                  this._noModules.add(moduleHref);
+                  this._naModules.add(moduleName);
                 }
-              } else if (res) {
-                res.body?.cancel();
-                this._noModules.add(moduleHref);
               } else {
-                this._maybeModules.add(moduleHref);
+                res.body?.cancel();
+                this._naModules.add(moduleName);
               }
               this._rollbackVersion(containingFile);
             }).finally(() => {
-              this._fetchPromises.delete(moduleHref);
+              this._fetchPromises.delete(moduleName);
               if (this._fetchPromises.size === 0) {
                 this._refreshDiagnostics();
               }
@@ -372,7 +377,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
       }
       // hide diagnostics for unresolved modules`
       return {
-        resolvedFileName: moduleName,
+        resolvedFileName: specifier,
         extension: ".js",
       };
     }).map((resolvedModule) => {
@@ -394,7 +399,20 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
 
   async getSuggestionDiagnostics(fileName: string): Promise<Diagnostic[]> {
     const diagnostics = this._languageService.getSuggestionDiagnostics(fileName);
-    return TypeScriptWorker.clearFiles(diagnostics);
+    const finDiagnostics = TypeScriptWorker.clearFiles(diagnostics);
+    if (this._httpRedirects.length > 0) {
+      this._httpRedirects.forEach(({ node, url }) => {
+        finDiagnostics.push({
+          file: { fileName },
+          start: node.getStart(),
+          length: node.getWidth(),
+          code: 7000,
+          category: ts.DiagnosticCategory.Message,
+          messageText: `The module was redirected to ${url}`,
+        });
+      });
+    }
+    return finDiagnostics;
   }
 
   async getCompilerOptionsDiagnostics(fileName: string): Promise<Diagnostic[]> {
@@ -688,22 +706,51 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     errorCodes: number[],
     formatOptions: ts.FormatCodeSettings,
   ): Promise<ReadonlyArray<ts.CodeFixAction>> {
-    if (errorCodes.includes(2307)) {
-      let span = [start + 1, end - 1] as [number, number];
-      if (start === end) {
-        // fix link span
-        const a = this._languageService.getReferencesAtPosition(fileName, start);
-        if (a.length > 0) {
-          const b = a[0];
-          span = [b.textSpan.start, b.textSpan.start + b.textSpan.length];
-        }
+    let span = [start + 1, end - 1] as [number, number];
+    // fix link span
+    if (start === end && (this._httpRedirects.length > 0 || errorCodes.includes(2307))) {
+      const a = this._languageService.getReferencesAtPosition(fileName, start);
+      if (a && a.length > 0) {
+        const b = a[0];
+        span = [b.textSpan.start, b.textSpan.start + b.textSpan.length];
       }
+    }
+    const fixes: ts.CodeFixAction[] = [];
+    if (this._httpRedirects.length > 0) {
+      const i = this._httpRedirects.findIndex(({ node }) => {
+        return node.getStart() === span[0] - 1 && node.getEnd() === span[1] + 1;
+      });
+      if (i >= 0) {
+        const r = this._httpRedirects[i];
+        const fixName = `Update module specifier to ${r.url}`;
+        fixes.push({
+          fixName,
+          description: fixName,
+          changes: [{
+            fileName,
+            textChanges: [{
+              span: {
+                start: r.node.getStart(),
+                length: r.node.getWidth(),
+              },
+              newText: JSON.stringify(r.url),
+            }],
+          }],
+          commands: [{
+            id: "remove-http-redirect",
+            title: "Remove http redirect",
+            arguments: [i],
+          }],
+        });
+      }
+    }
+    if (errorCodes.includes(2307)) {
       const model = this._getModel(fileName);
       const specifier = model.getValue().slice(...span);
       const importMapSrc = this._importMap.$src;
-      if (this._maybeModules.has(specifier)) {
+      if (this._unknownModules.has(specifier)) {
         const fixName = `Cache module from '${specifier}'`;
-        return [{
+        fixes.push({
           fixName,
           description: fixName,
           changes: [],
@@ -712,7 +759,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
             title: "Try to cache the module from the network",
             arguments: [specifier, fileName],
           }],
-        }];
+        });
       } else if (/^@?\w[\w.-]*(\/|$)/.test(specifier) && importMapSrc) {
         const url = `https://esm.sh/${specifier}`;
         const res = await cache.fetch(url);
@@ -722,7 +769,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
           const pkgNameWithVersion = segments[1].startsWith("@") ? segments.slice(1, 3).join("/") : segments[1];
           const pkgName = pkgNameWithVersion.slice(0, pkgNameWithVersion.lastIndexOf("@"));
           const fixName = `Add ${specifier}(https://esm.sh/${pkgNameWithVersion}) to import map`;
-          return [{
+          fixes.push({
             fixName,
             description: fixName,
             changes: [],
@@ -731,12 +778,12 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
               title: "Add module to import map",
               arguments: [importMapSrc, pkgName, `https://esm.sh/${pkgNameWithVersion}`],
             }],
-          }];
+          });
         }
       }
     }
     try {
-      const fixes = this._languageService.getCodeFixesAtPosition(
+      const tsFixes = this._languageService.getCodeFixesAtPosition(
         fileName,
         start,
         end,
@@ -744,23 +791,28 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
         this._mergeFormatOptions(formatOptions),
         {},
       );
-      return fixes;
+      return fixes.concat(tsFixes);
     } catch (err) {
-      return [];
+      return fixes;
     }
   }
 
   async cacheHttpModule(specifier: string, containingFile: string): Promise<void> {
-    if (this._maybeModules.has(specifier)) {
+    if (this._unknownModules.has(specifier)) {
       const res = await cache.fetch(specifier);
       res.body?.cancel();
-      this._maybeModules.delete(specifier);
+      this._unknownModules.delete(specifier);
       if (!res.ok) {
-        this._noModules.add(specifier);
+        this._naModules.add(specifier);
       }
       this._rollbackVersion(containingFile);
       this._refreshDiagnostics();
     }
+  }
+
+  async removeHttpRedirect(index: number): Promise<void> {
+    this._httpRedirects.splice(index, 1);
+    this._refreshDiagnostics();
   }
 
   async provideInlayHints(

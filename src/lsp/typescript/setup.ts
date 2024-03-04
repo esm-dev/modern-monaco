@@ -238,6 +238,14 @@ async function createWorker(
     },
   });
 
+  monaco.editor.addCommand({
+    id: "remove-http-redirect",
+    run: async (_: unknown, index: number) => {
+      const proxy = await worker.getProxy();
+      await proxy.removeHttpRedirect(index);
+    },
+  });
+
   refreshDiagnosticEventEmitter = new lf.EventTrigger(new monaco.Emitter());
   return worker;
 }
