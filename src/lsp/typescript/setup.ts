@@ -94,7 +94,7 @@ async function createWorker(
   };
   const promises = [
     // @ts-expect-error 'libs.js' is generated at build time
-    import("./libs.js").then((m) => lf.types.setLibs(m.default)),
+    import("./libs.js").then((m) => lf.types.setLibs(Object.assign(m.default, languageSettings?.extraLibs))),
   ];
 
   if (languageSettings?.importMap) {

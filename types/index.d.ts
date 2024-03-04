@@ -49,6 +49,8 @@ export interface InitOptions extends ShikiInitOptions {
     schemas?: SchemaConfiguration[];
   };
   typescript?: {
+    /** The extra libraries to be loaded */
+    extraLibs?: Record<string, string>;
     /** The compiler options */
     compilerOptions?: ts.CompilerOptions;
     /** The global import maps */
