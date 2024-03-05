@@ -56,11 +56,9 @@ export function normalizeFormatOptions(
 }
 
 export async function createWorker(url: URL): Promise<Worker> {
-  if (url.hostname === "esm.sh") {
-    const { default: workerFactory } = await import(
-      url.href.replace(/\.js$/, ".bundle.js") + "?worker"
-    );
-    return workerFactory() as Worker;
+  if (url.origin !== location.origin) {
+    const workerBlob = new Blob([`import "${url.href}"`], { type: "application/javascript" });
+    return new Worker(URL.createObjectURL(workerBlob), { type: "module", name: url.hostname + url.pathname });
   }
   return new Worker(url, { type: "module" });
 }
