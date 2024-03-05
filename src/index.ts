@@ -86,14 +86,6 @@ async function loadMonaco(highlighter: HighlighterCore, options?: InitOption, on
     vfs.bindMonaco(monaco);
   }
 
-  let isPreloaded = false;
-  const preloadDeps = () => {
-    if (!isPreloaded) {
-      import("./lsp/language-features.js");
-      isPreloaded = true;
-    }
-  };
-
   grammarRegistry.forEach(({ name: id, aliases }) => {
     monaco.languages.register({ id, aliases });
     monaco.languages.onLanguage(id, () => {
@@ -110,7 +102,6 @@ async function loadMonaco(highlighter: HighlighterCore, options?: InitOption, on
       }
       if (lsp) {
         const formatOptions = normalizeFormatOptions(label, options?.format);
-        preloadDeps();
         lsp.import().then(({ setup }) => setup(monaco, id, options?.[label], formatOptions, vfs));
       }
     });
