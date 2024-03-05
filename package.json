@@ -13,6 +13,25 @@
     "./vfs": {
       "import": "./dist/vfs.js",
       "types": "./types/vfs.d.ts"
+    },
+    "./editor-core": {
+      "import": "./dist/editor-core.js",
+      "types": "./types/monaco.d.ts"
+    },
+    "./editor-worker": {
+      "import": "./dist/editor-worker.js"
+    },
+    "./lsp/language-features": {
+      "import": "./dist/lsp/language-features.js"
+    },
+    "./lsp/typescript/libs": {
+      "import": "./dist/lsp/typescript/libs.js"
+    },
+    "./lsp/*/setup": {
+      "import": "./dist/lsp/*/setup.js"
+    },
+    "./lsp/*/worker": {
+      "import": "./dist/lsp/*/worker.js"
     }
   },
   "scripts": {
