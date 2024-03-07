@@ -18,14 +18,14 @@ devDependencies:
     specifier: 0.46.0
     version: 0.46.0
   tm-grammars:
-    specifier: 1.4.10
-    version: 1.4.10
+    specifier: 1.4.11
+    version: 1.4.11
   tm-themes:
     specifier: 1.2.2
     version: 1.2.2
   typescript:
-    specifier: 5.3.3
-    version: 5.3.3
+    specifier: 5.4.2
+    version: 5.4.2
   vscode-css-languageservice:
     specifier: 6.2.12
     version: 6.2.12
@@ -301,16 +301,16 @@ packages:
     resolution: {integrity: sha512-JA5BzCaC0nUB5zUhzGUfecNhVNxEXpJxp6YNBYLr0SPyv0DKSIeBpF21WVkpwYm00UJaVc4m3TTcwB9/Gzd/nw==}
     dev: true
 
-  /tm-grammars@1.4.10:
-    resolution: {integrity: sha512-mCMy1p0euhSe02Jm77+7lX9KUEsRTFNOG1G73BMiygVc8vtE7hRczVxy0jZH9rlI8wXfTFr1m1Erx84Tby0r7A==}
+  /tm-grammars@1.4.11:
+    resolution: {integrity: sha512-TJaYEgYltqwKqoO7C5wH3ZtZAqajCJz12VVFAYH1LNFqXM2aCwTKob7t0TzzRJtoWQHgwwQBsmmhc0F7yXiIZQ==}
     dev: true
 
   /tm-themes@1.2.2:
     resolution: {integrity: sha512-VUY++EsLmw9qqRicCFBuIfcllXImESOzLZ8IB9Mg1SOSGkrVPePpwf8aNnc6lNieY4SdsPU7QxAKCKp5pTsE9g==}
     dev: true
 
-  /typescript@5.3.3:
-    resolution: {integrity: sha512-pXWcraxM0uxAS+tN0AG/BF2TyqmHO014Z070UsJ+pFvYuRSq8KH8DmWpnbXe0pEPDHXZV3FcAbJkijJ5oNEnWw==}
+  /typescript@5.4.2:
+    resolution: {integrity: sha512-+2/g0Fds1ERlP6JsakQQDXjZdZMM+rqpamFZJEKh4kwTIn3iDkgKtby0CeNd5ATNZ4Ry1ax15TMx0W2V+miizQ==}
     engines: {node: '>=14.17'}
     hasBin: true
     dev: true
