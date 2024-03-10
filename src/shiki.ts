@@ -1,11 +1,11 @@
 import type { ThemeInput } from "@shikijs/core";
 import type { LanguageInput, LanguageRegistration } from "@shikijs/core";
+import type { VFS } from "./vfs";
 import loadWasm from "@shikijs/core/wasm-inlined";
 import { getHighlighterCore } from "@shikijs/core";
-import { version as tmGrammersVersion } from "../node_modules/tm-grammars/package.json";
+import { version as tmGrammarsVersion } from "../node_modules/tm-grammars/package.json";
 import { version as tmThemesVersion } from "../node_modules/tm-themes/package.json";
 import { cache } from "./cache";
-import type { VFS } from "./vfs";
 
 const defaultTheme = "vitesse-dark";
 const regHttpURL = /^https?:\/\//;
@@ -37,7 +37,7 @@ export async function initShiki({
       ...await Promise.all(
         Array.from(new Set(preloadGrammars)).map((src) =>
           regHttpURL.test(src) ? { src } : tmGrammars.find((g) => g.name === src || g.aliases?.includes(src))
-        ).filter(Boolean).map((g) => loadTMGrammer(g)),
+        ).filter(Boolean).map((g) => loadTMGrammar(g)),
       ),
     );
   }
@@ -56,7 +56,7 @@ export async function initShiki({
           ...await Promise.all(
             Object.values(lang.embeddedLanguages)
               .filter((name) => tmGrammars.some((g) => g.name === name))
-              .map((name) => loadTMGrammer({ name })),
+              .map((name) => loadTMGrammar({ name })),
           ),
         );
       }
@@ -85,12 +85,12 @@ export function loadTMTheme(src: string) {
 }
 
 /** Load a TextMate grammar from the given source. */
-export function loadTMGrammer(info: { name?: string; src?: string; embedded?: string[]; injectTo?: string[] }) {
-  const url = info.src ?? `https://esm.sh/tm-grammars@${tmGrammersVersion}/grammars/${info.name}.json`;
+export function loadTMGrammar(info: { name?: string; src?: string; embedded?: string[]; injectTo?: string[] }) {
+  const url = info.src ?? `https://esm.sh/tm-grammars@${tmGrammarsVersion}/grammars/${info.name}.json`;
   if (info.name && info.embedded) {
     return Promise.all([
       cache.fetch(url).then((res) => res.json()).then((grammar) => ({ injectTo: info.injectTo, ...grammar })),
-      ...info.embedded.map((name) => loadTMGrammer({ name })),
+      ...info.embedded.map((name) => loadTMGrammar({ name })),
     ]);
   }
   return cache.fetch(url).then((res) => res.json());

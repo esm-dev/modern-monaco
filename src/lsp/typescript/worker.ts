@@ -6,8 +6,7 @@
 
 import ts from "typescript";
 import type monacoNS from "monaco-editor-core";
-import type { ImportMap } from "~/import-map";
-import { isBlank, resolve } from "~/import-map";
+import { type ImportMap, isBlank, resolve } from "~/import-map";
 import { cache } from "~/cache";
 
 export interface Host {

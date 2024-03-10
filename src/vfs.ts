@@ -1,5 +1,5 @@
 import type monacoNS from "monaco-editor-core";
-import { blankImportMap, type ImportMap, parseImportMapFromJson } from "./import-map";
+import { loadImportMapFromVFS, parseImportMapFromJson } from "./import-map.js"; // <- external module, don't remove the `.js` extension
 import { createPersistTask, createProxy, decode, encode, openVFSiDB, toUrl, waitIDBRequest } from "./util";
 
 interface VFile {
@@ -102,7 +102,7 @@ export class VFS {
     const url = toUrl(name);
     const href = url.href;
     const uri = monaco.Uri.parse(href);
-    const { content, version } = await this._read(url);
+    const { content, version } = await this.read(url);
     const model = monaco.editor.getModel(uri) ?? monaco.editor.createModel(decode(content), undefined, uri);
     if (!Reflect.has(model, "__VFS__")) {
       const onDidChange = createPersistTask(() => {
@@ -111,7 +111,7 @@ export class VFS {
       const disposable = model.onDidChangeContent(onDidChange);
       const unwatch = this.watch(href, async (evt) => {
         if (evt.kind === "modify" && !evt.isModelChange) {
-          const { content } = await this._read(url);
+          const { content } = await this.read(url);
           if (model.getValue() !== decode(content)) {
             model.setValue(decode(content));
             model.pushStackElement();
@@ -174,11 +174,10 @@ export class VFS {
 
   async list() {
     const db = await this._tx(true);
-    const req = db.getAllKeys();
-    return await waitIDBRequest<string[]>(req);
+    return await waitIDBRequest<string[]>(db.getAllKeys());
   }
 
-  private async _read(name: string | URL) {
+  async read(name: string | URL) {
     const url = toUrl(name);
     const db = await this._tx(true);
     const ret = await waitIDBRequest<VFile | undefined>(db.get(url.href));
@@ -189,43 +188,13 @@ export class VFS {
   }
 
   async readFile(name: string | URL) {
-    const { content } = await this._read(name);
+    const { content } = await this.read(name);
     return encode(content);
   }
 
   async readTextFile(name: string | URL) {
-    const { content } = await this._read(name);
+    const { content } = await this.read(name);
     return decode(content);
-  }
-
-  /** Load import maps from the root index.html or external json file. */
-  async loadImportMap(verify?: (im: ImportMap) => ImportMap) {
-    let src: string;
-    try {
-      const indexHtml = await this.readTextFile("index.html");
-      const tplEl = document.createElement("template");
-      tplEl.innerHTML = indexHtml;
-      src = toUrl("index.html").href;
-      const scriptEl: HTMLScriptElement = tplEl.content.querySelector(
-        'script[type="importmap"]',
-      );
-      if (scriptEl) {
-        if (scriptEl.src) {
-          src = new URL(scriptEl.src, src).href;
-        }
-        const importMap = parseImportMapFromJson(
-          scriptEl.src ? await this.readTextFile(scriptEl.src) : scriptEl.textContent,
-        );
-        importMap.$src = src;
-        return verify?.(importMap) ?? importMap;
-      }
-    } catch (error) {
-      // ignore error, fallback to a blank import map
-      console.error(`Failed to read import map from "${src}":` + error.message);
-    }
-    const importMap = blankImportMap();
-    importMap.$src = src;
-    return verify?.(importMap) ?? importMap;
   }
 
   private async _write(url: string, content: string | Uint8Array, version?: number) {
@@ -315,7 +284,7 @@ export class VFS {
         const model = monaco.editor.getModel(monaco.Uri.parse(importMapSrc));
         const { imports, scopes } = model && importMapSrc.endsWith(".json")
           ? parseImportMapFromJson(model.getValue())
-          : await this.loadImportMap();
+          : await loadImportMapFromVFS(this);
         imports[specifier] = uri;
         imports[specifier + "/"] = uri + "/";
         const json = JSON.stringify({ imports, scopes }, null, 2);
@@ -356,5 +325,3 @@ export class ErrorNotFound extends Error {
     super("file not found: " + name.toString());
   }
 }
-
-export { blankImportMap, parseImportMapFromJson };

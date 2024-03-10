@@ -1,8 +1,6 @@
 import type monacoNS from "monaco-editor-core";
 import type { CreateData, HTMLWorker } from "./worker";
-
-// don't change below code, the 'language-features.js' is an external module generated at build time.
-import * as lf from "../language-features.js";
+import * as lf from "../language-features.js"; // <- external module, don't remove the `.js` extension
 
 export function setup(
   monaco: typeof monacoNS,

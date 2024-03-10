@@ -6,3 +6,7 @@ export interface ImportMap {
   imports: Record<string, string>;
   scopes: Record<string, ImportMap["imports"]>;
 }
+
+export function parseImportMapFromJson(json: string, baseURL?: string): ImportMap;
+export function blankImportMap(): ImportMap;
+export function isBlank(importMap: ImportMap): boolean;

@@ -1,5 +1,4 @@
 import type { editor, IPosition, IRange } from "./monaco";
-import type { ImportMap } from "./importmap";
 
 export interface VFile {
   url: string;
@@ -34,17 +33,14 @@ export class VFS {
   ): Promise<editor.ITextModel>;
   exists(name: string | URL): Promise<boolean>;
   list(): Promise<string[]>;
+  read(name: string | URL): Promise<VFile>;
   readFile(name: string | URL): Promise<Uint8Array>;
   readTextFile(name: string | URL): Promise<string>;
-  loadImportMap(map?: (im: ImportMap) => ImportMap): Promise<ImportMap>;
   writeFile(name: string | URL, content: string | Uint8Array, version?: number): Promise<void>;
   removeFile(name: string | URL): Promise<void>;
   watch(name: string | URL, handler: (evt: VFSEvent) => void): () => void;
-  useList(handler: (list: string[]) => void): () => void;
-  useState(handler: (state: VFSState) => void): () => void;
+  useList(callback: (list: string[]) => void): () => void;
+  useState(callback: (state: VFSState) => void): () => void;
 }
 
 export class ErrorNotFound extends Error {}
-
-export function parseImportMapFromJson(json: string, baseURL?: string): ImportMap;
-export function blankImportMap(): ImportMap;

@@ -17,12 +17,13 @@ const build = (entryPoints: string[], define?: Record<string, string>) => {
     },
     external: [
       "typescript",
-      "*/libs.js",
-      "*/worker.js",
       "*/editor-core.js",
       "*/editor-worker.js",
+      "*/import-map.js",
       "*/language-features.js",
+      "*/libs.js",
       "*/setup.js",
+      "*/worker.js",
     ],
     entryPoints,
   });
@@ -104,6 +105,7 @@ const buildDist = async () => {
     "src/editor-core.ts",
     "src/editor-worker.ts",
     "src/vfs.ts",
+    "src/import-map.ts",
     "src/lsp/language-features.ts",
     "src/lsp/html/setup.ts",
     "src/lsp/html/worker.ts",

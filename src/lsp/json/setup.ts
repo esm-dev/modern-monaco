@@ -1,9 +1,7 @@
 import type monacoNS from "monaco-editor-core";
 import type { CreateData, JSONWorker } from "./worker";
+import * as lf from "../language-features.js"; // <- external module, don't remove the `.js` extension
 import { schemas } from "./schemas";
-
-// don't change below code, the 'language-features.js' is an external module generated at build time.
-import * as lf from "../language-features.js";
 
 export function setup(
   monaco: typeof monacoNS,

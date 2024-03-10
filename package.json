@@ -14,6 +14,10 @@
       "import": "./dist/vfs.js",
       "types": "./types/vfs.d.ts"
     },
+    "./import-map": {
+      "import": "./dist/import-map.js",
+      "types": "./types/import-map.d.ts"
+    },
     "./editor-core": {
       "import": "./dist/editor-core.js",
       "types": "./types/monaco.d.ts"

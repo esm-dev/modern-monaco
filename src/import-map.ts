@@ -88,6 +88,36 @@ export function parseImportMapFromJson(json: string, baseURL?: string): ImportMa
   return importMap;
 }
 
+/** Load import maps from the root index.html or external json file in the VFS. */
+export async function loadImportMapFromVFS(vfs: import("./vfs").VFS, verify?: (im: ImportMap) => ImportMap) {
+  let src: string;
+  try {
+    const indexHtml = await vfs.readTextFile("index.html");
+    const tplEl = document.createElement("template");
+    tplEl.innerHTML = indexHtml;
+    const scriptEl: HTMLScriptElement = tplEl.content.querySelector(
+      'script[type="importmap"]',
+    );
+    src = "file:///index.html";
+    if (scriptEl) {
+      if (scriptEl.src) {
+        src = new URL(scriptEl.src, src).href;
+      }
+      const importMap = parseImportMapFromJson(
+        scriptEl.src ? await vfs.readTextFile(scriptEl.src) : scriptEl.textContent,
+      );
+      importMap.$src = src;
+      return verify?.(importMap) ?? importMap;
+    }
+  } catch (error) {
+    // ignore error, fallback to a blank import map
+    console.error(`Failed to read import map from "${src}":` + error.message);
+  }
+  const importMap = blankImportMap();
+  importMap.$src = src;
+  return verify?.(importMap) ?? importMap;
+}
+
 function validateImports(imports: Record<string, unknown>) {
   for (const [k, v] of Object.entries(imports)) {
     if (!v || typeof v !== "string") {

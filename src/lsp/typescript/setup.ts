@@ -3,9 +3,8 @@ import type ts from "typescript";
 import type { VFS } from "~/vfs";
 import type { CreateData, Host, TypeScriptWorker } from "./worker";
 import type { ImportMap } from "~/import-map";
-import { blankImportMap, isBlank, parseImportMapFromJson } from "~/import-map";
 import { cache } from "~/cache";
-import { toUrl } from "~/util";
+import { blankImportMap, isBlank, loadImportMapFromVFS, parseImportMapFromJson } from "../../import-map.js"; // <- external module, don't remove the `.js` extension
 import * as lf from "./language-features";
 
 type TSWorker = monacoNS.editor.MonacoWebWorker<TypeScriptWorker>;
@@ -114,7 +113,7 @@ async function createWorker(
       readCompilerOptions(vfs).then((options) => {
         compilerOptions = { ...defaultCompilerOptions, ...options };
       }),
-      vfs.loadImportMap(remixImportMap).then((im) => {
+      loadImportMapFromVFS(vfs, remixImportMap).then((im) => {
         importMap = im;
       }),
     );
@@ -220,7 +219,7 @@ async function createWorker(
 
     vfs.watch("index.html", async (e) => {
       dispose?.();
-      vfs.loadImportMap(remixImportMap).then((im) => {
+      loadImportMapFromVFS(vfs, remixImportMap).then((im) => {
         if (JSON.stringify(im) !== JSON.stringify(importMap)) {
           importMap = im;
           updateCompilerOptions({ importMap });
@@ -277,7 +276,7 @@ async function resolveTypes(compilerOptions: ts.CompilerOptions, vfs?: VFS) {
           );
         }
       } else if (typeof type === "string" && vfs) {
-        const dtsUrl = toUrl(type.replace(/\.d\.ts$/, "") + ".d.ts");
+        const dtsUrl = new URL(type.replace(/\.d\.ts$/, "") + ".d.ts", "file:///");
         try {
           return [dtsUrl.href, await vfs.readTextFile(dtsUrl)];
         } catch (error) {
@@ -301,7 +300,7 @@ async function readCompilerOptions(vfs: VFS) {
     const tsconfigjson = await vfs.readTextFile("tsconfig.json");
     const tsconfig = parseJsonc(tsconfigjson);
     await resolveTypes(tsconfig.compilerOptions, vfs);
-    compilerOptions.$src = toUrl("tsconfig.json").href;
+    compilerOptions.$src = "file:///tsconfig.json";
     Object.assign(compilerOptions, tsconfig.compilerOptions);
   } catch (error) {
     if (error instanceof vfs.ErrorNotFound) {
