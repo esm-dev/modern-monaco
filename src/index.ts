@@ -128,8 +128,8 @@ export function init(options: InitOption = {}): Promise<typeof monacoNS> {
         }
       }
       for (const l of Object.values(lspConfig)) {
-        if (l.embeddedGrammars) {
-          customGrammars.push(...l.embeddedGrammars);
+        if (l.customGrammars) {
+          customGrammars.push(...l.customGrammars);
         }
       }
       const hightlighter = await initShiki({ ...options, preloadGrammars, customGrammars });
@@ -250,8 +250,8 @@ export function lazy(options?: InitOption) {
           );
         }
         for (const l of Object.values(lspConfig)) {
-          if (l.embeddedGrammars) {
-            customGrammars.push(...l.embeddedGrammars);
+          if (l.customGrammars) {
+            customGrammars.push(...l.customGrammars);
           }
         }
         const highlighter = await initShiki({ ...options, preloadGrammars, customGrammars });
