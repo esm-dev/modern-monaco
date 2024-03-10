@@ -312,7 +312,8 @@
     folderButton.prepend(...icons.querySelectorAll('.folder-icon, .folder-icon-open'), '', deleteTag)
     folderButton.addEventListener('click', toggleFolder)
 
-    vfs.useState((state) => state.activeFile?.slice('file:///'.length), (activeFile) => {
+    vfs.useState((state) => {
+      const activeFile = state.activeFile?.slice('file:///'.length)
       deleteTag.style.display = 'none'
       folderButton.childNodes[2].textContent = activeFile
       selector.querySelectorAll('li:not(.add)').forEach(li => {

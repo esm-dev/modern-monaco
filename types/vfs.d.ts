@@ -21,14 +21,12 @@ export interface VFSOptions {
 }
 
 export interface VFSState {
-  [key: string]: any;
   activeFile?: string;
 }
 
 export class VFS {
   constructor(options?: VFSOptions);
   readonly ErrorNotFound: typeof ErrorNotFound;
-  readonly state: VFSState;
   openModel(
     name: string | URL,
     attachTo?: editor.ICodeEditor | number | string | boolean,
@@ -42,9 +40,8 @@ export class VFS {
   writeFile(name: string | URL, content: string | Uint8Array, version?: number): Promise<void>;
   removeFile(name: string | URL): Promise<void>;
   watch(name: string | URL, handler: (evt: VFSEvent) => void): () => void;
-  watchState(handler: () => void): () => void;
   useList(handler: (list: string[]) => void): () => void;
-  useState<T>(get: (state: VFSState) => T, handler: (value: T) => void): () => void;
+  useState(handler: (state: VFSState) => void): () => void;
 }
 
 export class ErrorNotFound extends Error {}

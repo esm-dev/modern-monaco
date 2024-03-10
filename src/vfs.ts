@@ -16,6 +16,10 @@ interface VFSEvent {
   isModelChange?: boolean;
 }
 
+export interface VFSState {
+  activeFile?: string;
+}
+
 interface VFSOptions {
   scope?: string;
   initial?: Record<string, string[] | string | Uint8Array>;
@@ -25,7 +29,7 @@ interface VFSOptions {
 export class VFS {
   private _db: Promise<IDBDatabase> | IDBDatabase;
   private _monaco: typeof monacoNS;
-  private _state: Record<string, any> = {};
+  private _state: VFSState = {};
   private _viewState: Record<string, monacoNS.editor.ICodeEditorViewState> = {};
   private _stateChangeHandlers = new Set<() => void>();
   private _watchHandlers = new Map<string, Set<(evt: VFSEvent) => void>>();
@@ -49,7 +53,7 @@ export class VFS {
     this._db = req.then(async (db) => this._db = db);
     if (globalThis.localStorage) {
       const state = {};
-      const storeKey = "monaco-state:" + (options.scope ?? "main");
+      const storeKey = ["monaco-state", options.scope].filter(Boolean).join("/");
       const persist = createPersistTask(() => {
         localStorage.setItem(storeKey, JSON.stringify(this._state));
       }, 100);
@@ -283,37 +287,24 @@ export class VFS {
     };
   }
 
-  watchState(handler: () => void): () => void {
-    this._stateChangeHandlers.add(handler);
-    return () => {
-      this._stateChangeHandlers.delete(handler);
-    };
-  }
-
-  useList(handler: (list: string[]) => void): () => void {
+  useList(callback: (list: string[]) => void): () => void {
     const unwatch = this.watch("*", (evt) => {
       if (evt.kind === "create" || evt.kind === "remove") {
-        this.list().then(handler);
+        this.list().then(callback);
       }
     });
-    this.list().then(handler);
+    this.list().then(callback);
     return () => {
       unwatch();
     };
   }
 
-  useState<T>(get: (state: any) => T, handler: (value: T) => void): () => void {
-    let value = get(this._state);
-    handler(value);
-    const unwatch = this.watchState(() => {
-      const newValue = get(this._state);
-      if (newValue !== value) {
-        value = newValue;
-        handler(value);
-      }
-    });
+  useState(callback: (state: VFSState) => void): () => void {
+    const handler = () => callback(this._state);
+    this._stateChangeHandlers.add(handler);
+    handler();
     return () => {
-      unwatch();
+      this._stateChangeHandlers.delete(handler);
     };
   }
 
