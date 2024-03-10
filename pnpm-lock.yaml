@@ -15,8 +15,8 @@ devDependencies:
     specifier: 0.20.1
     version: 0.20.1
   monaco-editor-core:
-    specifier: 0.46.0
-    version: 0.46.0
+    specifier: 0.47.0
+    version: 0.47.0
   tm-grammars:
     specifier: 1.4.11
     version: 1.4.11
@@ -297,8 +297,8 @@ packages:
     resolution: {integrity: sha512-AilxAyFOAcK5wA1+LeaySVBrHsGQvUFCDWXKpZjzaL0PqW+xfBOttn8GNtWKFWqneyMZj41MWF9Kl6iPWLwgOA==}
     dev: true
 
-  /monaco-editor-core@0.46.0:
-    resolution: {integrity: sha512-JA5BzCaC0nUB5zUhzGUfecNhVNxEXpJxp6YNBYLr0SPyv0DKSIeBpF21WVkpwYm00UJaVc4m3TTcwB9/Gzd/nw==}
+  /monaco-editor-core@0.47.0:
+    resolution: {integrity: sha512-xho7dsmSYOIek6bkMKQApWHVyoOBQ1eaBIE6CIlER40paTN0r0efrig6Q9QkCacfzIuNNxNjyb1uMVoMpi8gcA==}
     dev: true
 
   /tm-grammars@1.4.11:

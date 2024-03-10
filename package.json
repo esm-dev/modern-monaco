@@ -43,7 +43,7 @@
     "@shikijs/core": "1.1.7",
     "@shikijs/monaco": "1.1.7",
     "esbuild": "0.20.1",
-    "monaco-editor-core": "0.46.0",
+    "monaco-editor-core": "0.47.0",
     "tm-grammars": "1.4.11",
     "tm-themes": "1.2.2",
     "typescript": "5.4.2",
