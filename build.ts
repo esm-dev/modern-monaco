@@ -53,7 +53,7 @@ const modifyEditorJs = async () => {
     // layout consistent with the client side.
     .replace(
       "* maxDigitWidth)",
-      "* (Number(options2.get(140).match(/font-digit-width-([\\d\\_]+)/)?.[1].replace('_','.')) || maxDigitWidth))",
+      "* (Number((options2.get(EditorOptions.extraEditorClassName.id)||'').match(/font-digit-width-([\\d\\_]+)/)?.[1].replace('_','.')) || maxDigitWidth))",
     );
   const ret = await esbuild({
     entryPoints: ["dist/editor-core.css"],
