@@ -1,7 +1,7 @@
 {
   "name": "esm-monaco",
   "description": "An Monaco Editor build with esm.sh",
-  "version": "0.0.0-beta.10",
+  "version": "0.0.0-beta.11",
   "type": "module",
   "module": "dist/index.js",
   "types": "types/index.d.ts",
@@ -26,7 +26,7 @@
       "import": "./dist/editor-worker.js"
     },
     "./lsp/*": {
-      "import": "./dist/lsp/*"
+      "import": "./dist/lsp/*.js"
     }
   },
   "scripts": {
