@@ -35,22 +35,7 @@ export class VFS {
   private _watchHandlers = new Map<string, Set<(evt: VFSEvent) => void>>();
 
   constructor(options: VFSOptions) {
-    const dbName = ["monaco-vfs", options.scope].filter(Boolean).join("/");
-    const req = openVFSiDB(dbName, 1, (store) => {
-      for (const [name, data] of Object.entries(options.initial ?? {})) {
-        const url = toUrl(name);
-        const now = Date.now();
-        const item: VFile = {
-          url: url.href,
-          version: 1,
-          content: Array.isArray(data) && !(data instanceof Uint8Array) ? data.join("\n") : data,
-          ctime: now,
-          mtime: now,
-        };
-        store.add(item);
-      }
-    });
-    this._db = req.then(async (db) => this._db = db);
+    this._db = this._openDB(options);
     if (globalThis.localStorage) {
       const state = {};
       const storeKey = ["monaco-state", options.scope].filter(Boolean).join("/");
@@ -84,8 +69,32 @@ export class VFS {
     return this._viewState;
   }
 
+  private _openDB(options: VFSOptions) {
+    const dbName = ["monaco-vfs", options.scope].filter(Boolean).join("/");
+    return openVFSiDB(dbName, 1, (store) => {
+      for (const [name, data] of Object.entries(options.initial ?? {})) {
+        const url = toUrl(name);
+        const now = Date.now();
+        const item: VFile = {
+          url: url.href,
+          version: 1,
+          content: Array.isArray(data) && !(data instanceof Uint8Array) ? data.join("\n") : data,
+          ctime: now,
+          mtime: now,
+        };
+        store.add(item);
+      }
+    }).then((db) => {
+      // reopen db on close
+      db.onclose = () => {
+        this._db = this._openDB(options);
+      };
+      return this._db = db;
+    });
+  }
+
   private async _tx(readonly = false) {
-    const db = await this._db;
+    const db = this._db instanceof Promise ? await this._db : this._db;
     const storeKey = "files";
     return db.transaction(storeKey, readonly ? "readonly" : "readwrite").objectStore(storeKey);
   }
