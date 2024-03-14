@@ -32,8 +32,8 @@ export interface SchemaConfiguration {
 }
 
 export interface ImportMap {
-  imports: Record<string, string>;
-  scopes: Record<string, Record<string, string>>;
+  imports?: Record<string, string>;
+  scopes?: Record<string, Record<string, string>>;
 }
 
 export interface ShikiInitOptions {
@@ -45,7 +45,7 @@ export interface ShikiInitOptions {
 export interface InitOptions extends ShikiInitOptions {
   vfs?: VFS;
   format?: FormatOptions;
-  json: {
+  json?: {
     schemas?: SchemaConfiguration[];
   };
   typescript?: {
