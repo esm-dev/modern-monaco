@@ -4,8 +4,9 @@
     "./build.ts",
     "./dev.ts"
   ],
-  "deno.config": "./.vscode/deno.json",
+  "deno.config": "./.vscode/fmt.json",
   "[typescript]": {
+    "editor.defaultFormatter": "denoland.vscode-deno",
     "editor.formatOnSave": true
   },
 }

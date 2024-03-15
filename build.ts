@@ -1,4 +1,4 @@
-import { build as esbuild } from "https://deno.land/x/esbuild@v0.20.0/mod.js";
+import { build as esbuild } from "esbuild";
 import { grammars as tmGrammars } from "tm-grammars";
 import { themes as tmThemes } from "tm-themes";
 
