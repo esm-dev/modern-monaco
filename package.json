@@ -1,6 +1,6 @@
 {
   "name": "esm-monaco",
-  "description": "An Monaco Editor build with esm.sh",
+  "description": "A Code Editor powered by monaco-editor-core with radical ESM support",
   "version": "0.0.0-beta.12",
   "type": "module",
   "module": "dist/index.js",
@@ -31,8 +31,8 @@
   },
   "scripts": {
     "prepublishOnly": "deno run -A build.ts",
-    "fmt": "dprint fmt",
-    "dev": "deno run -A examples/server.ts"
+    "dev": "deno run -A examples/server.ts",
+    "fmt": "dprint fmt"
   },
   "files": [
     "dist/",
