@@ -25,6 +25,7 @@ const editorProps = [
   "lineHeight",
   "lineNumbers",
   "lineNumbersMinChars",
+  "matchBrackets",
   "minimap",
   "mouseStyle",
   "multiCursorModifier",
