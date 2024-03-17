@@ -6,11 +6,11 @@ settings:
 
 devDependencies:
   '@shikijs/core':
-    specifier: 1.1.7
-    version: 1.1.7
+    specifier: 1.2.0
+    version: 1.2.0
   '@shikijs/monaco':
-    specifier: 1.1.7
-    version: 1.1.7
+    specifier: 1.2.0
+    version: 1.2.0
   esbuild:
     specifier: 0.20.2
     version: 0.20.2
@@ -18,11 +18,11 @@ devDependencies:
     specifier: 0.47.0
     version: 0.47.0
   tm-grammars:
-    specifier: 1.5.2
-    version: 1.5.2
+    specifier: 1.5.3
+    version: 1.5.3
   tm-themes:
-    specifier: 1.3.1
-    version: 1.3.1
+    specifier: 1.3.2
+    version: 1.3.2
   typescript:
     specifier: 5.4.2
     version: 5.4.2
@@ -248,14 +248,14 @@ packages:
     dev: true
     optional: true
 
-  /@shikijs/core@1.1.7:
-    resolution: {integrity: sha512-gTYLUIuD1UbZp/11qozD3fWpUTuMqPSf3svDMMrL0UmlGU7D9dPw/V1FonwAorCUJBltaaESxq90jrSjQyGixg==}
+  /@shikijs/core@1.2.0:
+    resolution: {integrity: sha512-OlFvx+nyr5C8zpcMBnSGir0YPD6K11uYhouqhNmm1qLiis4GA7SsGtu07r9gKS9omks8RtQqHrJL4S+lqWK01A==}
     dev: true
 
-  /@shikijs/monaco@1.1.7:
-    resolution: {integrity: sha512-mtU0hTGlrfFqVV3Y31SvddoqiC3FLE69E+5cLNzd68DdsJFDhlWDCG759zLaaTRDnuOK/Veotf4DflTF70nhcg==}
+  /@shikijs/monaco@1.2.0:
+    resolution: {integrity: sha512-PKHtdPvg2w62X8BbOVW+XCXy40/rfFEGWRPbARduCSmfZyVPfK/mMqkLfxcvSIPzd/B0EZ09D2pojWEhkTkObg==}
     dependencies:
-      '@shikijs/core': 1.1.7
+      '@shikijs/core': 1.2.0
     dev: true
 
   /@vscode/l10n@0.0.18:
@@ -301,12 +301,12 @@ packages:
     resolution: {integrity: sha512-xho7dsmSYOIek6bkMKQApWHVyoOBQ1eaBIE6CIlER40paTN0r0efrig6Q9QkCacfzIuNNxNjyb1uMVoMpi8gcA==}
     dev: true
 
-  /tm-grammars@1.5.2:
-    resolution: {integrity: sha512-81DuEUQR/541aynjO7OXHoYxHScV7gvuckfQaysU55LiLedF4UU/99cnLcw4GlPLSst3z6JvPZZwk3QO/T6JhQ==}
+  /tm-grammars@1.5.3:
+    resolution: {integrity: sha512-pJo3vqQqChI2DyYfVdjgBAiM1Tg33OQrxTBIjhVdverK6bZwndSeHys5hj4btEMxGpsUeczzXQToiiBite7hKg==}
     dev: true
 
-  /tm-themes@1.3.1:
-    resolution: {integrity: sha512-b2V8XegL61wDHpMlQ8k6omMm+oETFw6ZTozGvCo5vBNafUlbVbvJBR7cdGxu3kCfICV4eW8LbjDN5eHEhA4Adw==}
+  /tm-themes@1.3.2:
+    resolution: {integrity: sha512-FDHLKK0ybFnpc3875ufwWP06WjGefzLAKBspDbO2KxIZb8nVb3dTvg6r7t39tP+G1FvbPOg341mFRH+6CR000g==}
     dev: true
 
   /typescript@5.4.2:
