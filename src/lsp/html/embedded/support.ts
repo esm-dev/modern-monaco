@@ -71,7 +71,7 @@ export function getDocumentRegions(
           lastAttributeName === "src" && lastTagName.toLowerCase() === "script"
         ) {
           let value = scanner.getTokenText();
-          if (value[0] === "'" || value[0] === '"') {
+          if (value[0] === "'" || value[0] === "\"") {
             value = value.substring(1, value.length - 1);
           }
           importedScripts.push(value);
@@ -95,7 +95,7 @@ export function getDocumentRegions(
             let start = scanner.getTokenOffset();
             let end = scanner.getTokenEnd();
             const firstChar = document.getText()[start];
-            if (firstChar === "'" || firstChar === '"') {
+            if (firstChar === "'" || firstChar === "\"") {
               start++;
               end--;
             }
@@ -214,8 +214,8 @@ function getEmbeddedDocument(
   let lastSuffix = "";
   for (const c of contents) {
     if (
-      c.languageId === languageId &&
-      (!ignoreAttributeValues || !c.attributeValue)
+      c.languageId === languageId
+      && (!ignoreAttributeValues || !c.attributeValue)
     ) {
       result = substituteWithWhitespace(
         result,

@@ -20,10 +20,7 @@ export function blankImportMap(): ImportMap {
 
 /** Check if the import map is blank. */
 export function isBlank(importMap: ImportMap) {
-  return (
-    Object.keys(importMap.imports).length === 0 &&
-    Object.keys(importMap.scopes).length === 0
-  );
+  return Object.keys(importMap.imports).length + Object.keys(importMap.scopes).length === 0;
 }
 
 /** Resolve the specifier with the import map. */
@@ -95,9 +92,7 @@ export async function loadImportMapFromVFS(vfs: import("./vfs").VFS, verify?: (i
     const indexHtml = await vfs.readTextFile("index.html");
     const tplEl = document.createElement("template");
     tplEl.innerHTML = indexHtml;
-    const scriptEl: HTMLScriptElement = tplEl.content.querySelector(
-      'script[type="importmap"]',
-    );
+    const scriptEl: HTMLScriptElement = tplEl.content.querySelector("script[type=\"importmap\"]");
     src = "file:///index.html";
     if (scriptEl) {
       if (scriptEl.src) {

@@ -24,7 +24,7 @@ export function setup(
         insertSpaces: false,
         wrapLineLength: 120,
         unformatted:
-          'default": "a, abbr, acronym, b, bdo, big, br, button, cite, code, dfn, em, i, img, input, kbd, label, map, object, q, samp, select, small, span, strong, sub, sup, textarea, tt, var',
+          "default\": \"a, abbr, acronym, b, bdo, big, br, button, cite, code, dfn, em, i, img, input, kbd, label, map, object, q, samp, select, small, span, strong, sub, sup, textarea, tt, var",
         contentUnformatted: "pre",
         indentInnerHtml: false,
         preserveNewLines: true,
@@ -49,7 +49,7 @@ export function setup(
 
   languages.registerCompletionItemProvider(
     languageId,
-    new lf.CompletionAdapter(workerAccessor, [".", ":", "<", '"', "=", "/"]),
+    new lf.CompletionAdapter(workerAccessor, [".", ":", "<", "\"", "=", "/"]),
   );
   languages.registerHoverProvider(
     languageId,
@@ -94,7 +94,7 @@ export function setup(
     resolveCodeLens: (model, codeLens, token) => {
       return codeLens;
     },
-    provideCodeLenses: function (model, token) {
+    provideCodeLenses: function(model, token) {
       const m = model.findNextMatch(
         `type=['"]importmap['"]`,
         { lineNumber: 4, column: 1 },

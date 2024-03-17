@@ -22,7 +22,7 @@ export interface WorkerAccessor<T> {
   (...more: monacoNS.Uri[]): Promise<T>;
 }
 
-//#region DiagnosticsAdapter
+// #region DiagnosticsAdapter
 
 export interface ILanguageWorkerWithDiagnostics {
   doValidation(uri: string): Promise<lsTypes.Diagnostic[]>;
@@ -156,9 +156,9 @@ function toDiagnostics(
   };
 }
 
-//#endregion
+// #endregion
 
-//#region CompletionAdapter
+// #region CompletionAdapter
 
 export interface ILanguageWorkerWithCompletions {
   doComplete(
@@ -168,7 +168,8 @@ export interface ILanguageWorkerWithCompletions {
 }
 
 export class CompletionAdapter<T extends ILanguageWorkerWithCompletions>
-  implements monacoNS.languages.CompletionItemProvider {
+  implements monacoNS.languages.CompletionItemProvider
+{
   constructor(
     private readonly _worker: WorkerAccessor<T>,
     private readonly _triggerCharacters: string[],
@@ -294,8 +295,8 @@ function isInsertReplaceEdit(
   edit: lsTypes.TextEdit | lsTypes.InsertReplaceEdit,
 ): edit is lsTypes.InsertReplaceEdit {
   return (
-    typeof (<lsTypes.InsertReplaceEdit> edit).insert !== "undefined" &&
-    typeof (<lsTypes.InsertReplaceEdit> edit).replace !== "undefined"
+    typeof (<lsTypes.InsertReplaceEdit> edit).insert !== "undefined"
+    && typeof (<lsTypes.InsertReplaceEdit> edit).replace !== "undefined"
   );
 }
 
@@ -370,9 +371,9 @@ function toCommand(
     : undefined;
 }
 
-//#endregion
+// #endregion
 
-//#region HoverAdapter
+// #region HoverAdapter
 
 export interface ILanguageWorkerWithHover {
   doHover(
@@ -409,8 +410,8 @@ export class HoverAdapter<T extends ILanguageWorkerWithHover> implements monacoN
 
 function isMarkupContent(thing: any): thing is lsTypes.MarkupContent {
   return (
-    thing && typeof thing === "object" &&
-    typeof (<lsTypes.MarkupContent> thing).kind === "string"
+    thing && typeof thing === "object"
+    && typeof (<lsTypes.MarkupContent> thing).kind === "string"
   );
 }
 
@@ -451,9 +452,9 @@ function toMarkedStringArray(
   return [toMarkdownString(contents)];
 }
 
-//#endregion
+// #endregion
 
-//#region DocumentHighlightAdapter
+// #region DocumentHighlightAdapter
 
 export interface ILanguageWorkerWithDocumentHighlights {
   findDocumentHighlights(
@@ -509,9 +510,9 @@ function toDocumentHighlightKind(
   return Monaco.languages.DocumentHighlightKind.Text;
 }
 
-//#endregion
+// #endregion
 
-//#region DefinitionAdapter
+// #region DefinitionAdapter
 
 export interface ILanguageWorkerWithDefinitions {
   findDefinition(
@@ -521,7 +522,8 @@ export interface ILanguageWorkerWithDefinitions {
 }
 
 export class DefinitionAdapter<T extends ILanguageWorkerWithDefinitions>
-  implements monacoNS.languages.DefinitionProvider {
+  implements monacoNS.languages.DefinitionProvider
+{
   constructor(private readonly _worker: WorkerAccessor<T>) {}
 
   public provideDefinition(
@@ -554,9 +556,9 @@ function toLocation(location: lsTypes.Location): monacoNS.languages.Location {
   };
 }
 
-//#endregion
+// #endregion
 
-//#region ReferenceAdapter
+// #region ReferenceAdapter
 
 export interface ILanguageWorkerWithReferences {
   findReferences(
@@ -592,9 +594,9 @@ export class ReferenceAdapter<T extends ILanguageWorkerWithReferences> implement
   }
 }
 
-//#endregion
+// #endregion
 
-//#region RenameAdapter
+// #region RenameAdapter
 
 export interface ILanguageWorkerWithRename {
   doRename(
@@ -654,9 +656,9 @@ function toWorkspaceEdit(
   };
 }
 
-//#endregion
+// #endregion
 
-//#region DocumentSymbolAdapter
+// #region DocumentSymbolAdapter
 
 export interface ILanguageWorkerWithDocumentSymbols {
   findDocumentSymbols(
@@ -665,7 +667,8 @@ export interface ILanguageWorkerWithDocumentSymbols {
 }
 
 export class DocumentSymbolAdapter<T extends ILanguageWorkerWithDocumentSymbols>
-  implements monacoNS.languages.DocumentSymbolProvider {
+  implements monacoNS.languages.DocumentSymbolProvider
+{
   constructor(private readonly _worker: WorkerAccessor<T>) {}
 
   public provideDocumentSymbols(
@@ -762,16 +765,17 @@ function toSymbolKind(kind: lsTypes.SymbolKind): monacoNS.languages.SymbolKind {
   return mKind.Function;
 }
 
-//#endregion
+// #endregion
 
-//#region DocumentLinkAdapter
+// #region DocumentLinkAdapter
 
 export interface ILanguageWorkerWithDocumentLinks {
   findDocumentLinks(uri: string): Promise<lsTypes.DocumentLink[]>;
 }
 
 export class DocumentLinkAdapter<T extends ILanguageWorkerWithDocumentLinks>
-  implements monacoNS.languages.LinkProvider {
+  implements monacoNS.languages.LinkProvider
+{
   constructor(private _worker: WorkerAccessor<T>) {}
 
   public provideLinks(
@@ -796,9 +800,9 @@ export class DocumentLinkAdapter<T extends ILanguageWorkerWithDocumentLinks>
   }
 }
 
-//#endregion
+// #endregion
 
-//#region DocumentFormattingEditProvider, DocumentRangeFormattingEditProvider
+// #region DocumentFormattingEditProvider, DocumentRangeFormattingEditProvider
 
 export interface ILanguageWorkerWithFormat {
   format(
@@ -809,7 +813,8 @@ export interface ILanguageWorkerWithFormat {
 }
 
 export class DocumentFormattingEditProvider<T extends ILanguageWorkerWithFormat>
-  implements monacoNS.languages.DocumentFormattingEditProvider {
+  implements monacoNS.languages.DocumentFormattingEditProvider
+{
   constructor(private _worker: WorkerAccessor<T>) {}
 
   public provideDocumentFormattingEdits(
@@ -873,9 +878,9 @@ function fromFormattingOptions(
   };
 }
 
-//#endregion
+// #endregion
 
-//#region DocumentColorAdapter
+// #region DocumentColorAdapter
 
 export interface ILanguageWorkerWithDocumentColors {
   findDocumentColors(uri: string): Promise<lsTypes.ColorInformation[]>;
@@ -887,7 +892,8 @@ export interface ILanguageWorkerWithDocumentColors {
 }
 
 export class DocumentColorAdapter<T extends ILanguageWorkerWithDocumentColors>
-  implements monacoNS.languages.DocumentColorProvider {
+  implements monacoNS.languages.DocumentColorProvider
+{
   constructor(private readonly _worker: WorkerAccessor<T>) {}
 
   public provideDocumentColors(
@@ -946,9 +952,9 @@ export class DocumentColorAdapter<T extends ILanguageWorkerWithDocumentColors>
   }
 }
 
-//#endregion
+// #endregion
 
-//#region FoldingRangeAdapter
+// #region FoldingRangeAdapter
 
 export interface ILanguageWorkerWithFoldingRanges {
   getFoldingRanges(
@@ -958,7 +964,8 @@ export interface ILanguageWorkerWithFoldingRanges {
 }
 
 export class FoldingRangeAdapter<T extends ILanguageWorkerWithFoldingRanges>
-  implements monacoNS.languages.FoldingRangeProvider {
+  implements monacoNS.languages.FoldingRangeProvider
+{
   constructor(private _worker: WorkerAccessor<T>) {}
 
   public provideFoldingRanges(
@@ -1004,9 +1011,9 @@ function toFoldingRangeKind(
   return void 0;
 }
 
-//#endregion
+// #endregion
 
-//#region SelectionRangeAdapter
+// #region SelectionRangeAdapter
 
 export interface ILanguageWorkerWithSelectionRanges {
   getSelectionRanges(
@@ -1016,7 +1023,8 @@ export interface ILanguageWorkerWithSelectionRanges {
 }
 
 export class SelectionRangeAdapter<T extends ILanguageWorkerWithSelectionRanges>
-  implements monacoNS.languages.SelectionRangeProvider {
+  implements monacoNS.languages.SelectionRangeProvider
+{
   constructor(private _worker: WorkerAccessor<T>) {}
 
   public provideSelectionRanges(
@@ -1051,4 +1059,4 @@ export class SelectionRangeAdapter<T extends ILanguageWorkerWithSelectionRanges>
   }
 }
 
-//#endregion
+// #endregion

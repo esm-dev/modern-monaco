@@ -138,8 +138,8 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
 
   getScriptKind(fileName: string): ts.ScriptKind {
     if (
-      fileName in this._libs || fileName in this._types ||
-      this._httpLibs.has(fileName)
+      fileName in this._libs || fileName in this._types
+      || this._httpLibs.has(fileName)
     ) {
       return ts.ScriptKind.TS;
     }
@@ -315,8 +315,8 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
           };
         }
         if (!this._fetchPromises.has(moduleName)) {
-          const promise = isJsxImportSource || inImportMap || /^https?:\/\//.test(containingFile) ||
-              /\w@[~v^]?\d+(\.\d+){0,2}([&?/]|$)/.test(moduleUrl.pathname)
+          const promise = isJsxImportSource || inImportMap || /^https?:\/\//.test(containingFile)
+              || /\w@[~v^]?\d+(\.\d+){0,2}([&?/]|$)/.test(moduleUrl.pathname)
             ? cache.fetch(moduleUrl)
             : cache.query(moduleUrl);
           this._fetchPromises.set(
@@ -342,13 +342,13 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
                     this._dtsMap.set(moduleName, dtsRes.url);
                   }
                 } else if (
-                  /\.(c|m)?jsx?$/.test(resUrl.pathname) ||
-                  /^(application|text)\/(javascript|jsx)/.test(contentType)
+                  /\.(c|m)?jsx?$/.test(resUrl.pathname)
+                  || /^(application|text)\/(javascript|jsx)/.test(contentType)
                 ) {
                   this._httpModules.set(moduleName, await res.text());
                 } else if (
-                  /\.(c|m)?tsx?$/.test(resUrl.pathname) ||
-                  /^(application|text)\/(typescript|tsx)/.test(contentType)
+                  /\.(c|m)?tsx?$/.test(resUrl.pathname)
+                  || /^(application|text)\/(typescript|tsx)/.test(contentType)
                 ) {
                   if (/\.d\.(c|m)?ts$/.test(resUrl.pathname)) {
                     this._httpLibs.set(moduleName, await res.text());
@@ -441,22 +441,22 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
       completions.entries = completions.entries.filter((entry) => {
         const { data } = entry;
         if (
-          !data ||
-          !TypeScriptWorker.isDts(data.fileName)
+          !data
+          || !TypeScriptWorker.isDts(data.fileName)
         ) {
           return true;
         }
         if (
-          data.moduleSpecifier in this._importMap.imports ||
-          this._dtsMap.has(data.moduleSpecifier)
+          data.moduleSpecifier in this._importMap.imports
+          || this._dtsMap.has(data.moduleSpecifier)
         ) {
           autoImports.add(data.exportName + " " + data.moduleSpecifier);
           return true;
         }
         const specifier = this._getSpecifierFromDts(data.fileName);
         if (
-          specifier &&
-          !autoImports.has(data.exportName + " " + specifier)
+          specifier
+          && !autoImports.has(data.exportName + " " + specifier)
         ) {
           autoImports.add(data.exportName + " " + specifier);
           return true;
@@ -536,13 +536,13 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     // pettier display for module specifiers
     const { kind, kindModifiers, displayParts, textSpan } = info;
     if (
-      kind === ts.ScriptElementKind.moduleElement &&
-      displayParts?.length === 3
+      kind === ts.ScriptElementKind.moduleElement
+      && displayParts?.length === 3
     ) {
       const moduleName = displayParts[2].text;
       if (
         // show pathname for `file:` specifiers
-        moduleName.startsWith('"file:') && fileName.startsWith("file:")
+        moduleName.startsWith("\"file:") && fileName.startsWith("file:")
       ) {
         const model = this._getModel(fileName);
         const literalText = model.getValue().substring(
@@ -550,16 +550,16 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
           textSpan.start + textSpan.length,
         );
         const specifier = JSON.parse(literalText);
-        info.displayParts[2].text = '"' +
-          new URL(specifier, fileName).pathname + '"';
+        info.displayParts[2].text = "\""
+          + new URL(specifier, fileName).pathname + "\"";
       } else if (
         // show module url for `http:` specifiers instead of the types url
-        kindModifiers === "declare" && moduleName.startsWith('"http')
+        kindModifiers === "declare" && moduleName.startsWith("\"http")
       ) {
         const specifier = JSON.parse(moduleName);
         for (const [url, dts] of this._dtsMap) {
           if (specifier + ".d.ts" === dts) {
-            info.displayParts[2].text = '"' + url + '"';
+            info.displayParts[2].text = "\"" + url + "\"";
             info.tags = [{
               name: "types",
               text: [{ kind: "text", text: dts }],
@@ -909,9 +909,9 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   }
 
   private static isDts(fileName: string): boolean {
-    return fileName.endsWith(".d.ts") ||
-      fileName.endsWith(".d.mts") ||
-      fileName.endsWith(".d.cts");
+    return fileName.endsWith(".d.ts")
+      || fileName.endsWith(".d.mts")
+      || fileName.endsWith(".d.cts");
   }
 
   // Clear the `file` field, which cannot be JSON stringified because it
@@ -968,12 +968,12 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
       }
     }
     return (
-      fileName in this._libs ||
-      `lib.${fileName}.d.ts` in this._libs ||
-      fileName in this._types ||
-      this._httpLibs.has(fileName) ||
-      this._httpModules.has(fileName) ||
-      this._httpTsModules.has(fileName)
+      fileName in this._libs
+      || `lib.${fileName}.d.ts` in this._libs
+      || fileName in this._types
+      || this._httpLibs.has(fileName)
+      || this._httpModules.has(fileName)
+      || this._httpTsModules.has(fileName)
     );
   }
 
@@ -982,12 +982,12 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     if (model) {
       return model.getValue();
     }
-    return this._libs[fileName] ??
-      this._libs[`lib.${fileName}.d.ts`] ??
-      this._types[fileName]?.content ??
-      this._httpLibs.get(fileName) ??
-      this._httpModules.get(fileName) ??
-      this._httpTsModules.get(fileName);
+    return this._libs[fileName]
+      ?? this._libs[`lib.${fileName}.d.ts`]
+      ?? this._types[fileName]?.content
+      ?? this._httpLibs.get(fileName)
+      ?? this._httpModules.get(fileName)
+      ?? this._httpTsModules.get(fileName);
   }
 
   private _getModel(fileName: string): monacoNS.worker.IMirrorModel | null {

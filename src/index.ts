@@ -197,11 +197,7 @@ export function lazy(options?: InitOption) {
 
         // check editor options from the first script child
         const optionsScript = this.children[0] as HTMLScriptElement | null;
-        if (
-          optionsScript &&
-          optionsScript.tagName === "SCRIPT" &&
-          optionsScript.type === "application/json"
-        ) {
+        if (optionsScript && optionsScript.tagName === "SCRIPT" && optionsScript.type === "application/json") {
           const opts = JSON.parse(optionsScript.textContent);
           // we pass the `fontDigitWidth` option to the editor as a
           // custom class name. this is used for keeping the line numbers
@@ -209,8 +205,7 @@ export function lazy(options?: InitOption) {
           if (opts.fontDigitWidth) {
             opts.extraEditorClassName = [
               opts.extraEditorClassName,
-              "font-digit-width-" +
-              opts.fontDigitWidth.toString().replace(".", "_"),
+              "font-digit-width-" + opts.fontDigitWidth.toString().replace(".", "_"),
             ].filter(Boolean).join(" ");
           }
           Object.assign(renderOptions, opts);
@@ -299,9 +294,9 @@ export function lazy(options?: InitOption) {
               const model = await vfs.openModel(file, editor);
               // update the model value with the code from SSR if exists
               if (
-                renderOptions.filename === file &&
-                renderOptions.code &&
-                renderOptions.code !== model.getValue()
+                renderOptions.filename === file
+                && renderOptions.code
+                && renderOptions.code !== model.getValue()
               ) {
                 model.setValue(renderOptions.code);
               }

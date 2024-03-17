@@ -44,10 +44,7 @@ export async function initShiki({
 
   if (customGrammars) {
     for (const lang of customGrammars) {
-      if (
-        typeof lang === "object" && lang !== null && lang.name &&
-        !grammarRegistry.has(lang.name)
-      ) {
+      if (typeof lang === "object" && lang !== null && lang.name && !grammarRegistry.has(lang.name)) {
         grammarRegistry.set(lang.name, lang);
         langs.push(lang as LanguageRegistration);
       }

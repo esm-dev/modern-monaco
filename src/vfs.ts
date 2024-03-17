@@ -145,8 +145,8 @@ export class VFS {
           const container = e.getContainerDomNode();
           if (
             container.id === attachTo.slice(1) || (
-              container.parentElement?.tagName === "MONACO-EDITOR" &&
-              container.parentElement.id === attachTo.slice(1)
+              container.parentElement?.tagName === "MONACO-EDITOR"
+              && container.parentElement.id === attachTo.slice(1)
             )
           ) {
             editor = e;
@@ -303,7 +303,7 @@ export class VFS {
           const html = model?.getValue() ?? await this.readTextFile(importMapSrc);
           const newHtml = html.replace(
             /<script[^>]*?\s+type="importmap"\s*[^>]*>[^]*?<\/script>/,
-            ['<script type="importmap">', ...json.split("\n").map((l) => "  " + l), "</script>"].join("\n  "),
+            ["<script type=\"importmap\">", ...json.split("\n").map((l) => "  " + l), "</script>"].join("\n  "),
           );
           await this.writeFile(importMapSrc, model?.normalizeIndentation(newHtml) ?? newHtml);
         }

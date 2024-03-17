@@ -1,6 +1,9 @@
 {
   "indentWidth": 2,
   "lineWidth": 120,
+  "typescript": {
+    "module.sortImportDeclarations": "maintain"
+  },
   "includes": [
     "README.md",
     "src/**/*.ts",

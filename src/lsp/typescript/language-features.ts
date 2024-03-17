@@ -83,8 +83,8 @@ export class TypesManager {
 
   public addType(content: string, filePath: string): boolean {
     if (
-      this._types[filePath] &&
-      this._types[filePath].content === content
+      this._types[filePath]
+      && this._types[filePath].content === content
     ) {
       return false;
     }
@@ -144,7 +144,7 @@ export class TypesManager {
 // global types instance
 export const types = new TypesManager();
 
-//#region utils copied from typescript to prevent loading the entire typescriptServices ---
+// #region utils copied from typescript to prevent loading the entire typescriptServices ---
 
 enum IndentStyle {
   None = 0,
@@ -189,7 +189,7 @@ function displayPartsToString(
   return "";
 }
 
-//#endregion
+// #endregion
 
 export abstract class Adapter {
   constructor(
@@ -371,8 +371,8 @@ export class DiagnosticsAdapter extends Adapter {
       .filter(
         (d) =>
           (this._diagnosticsOptions.diagnosticCodesToIgnore || [])
-            .indexOf(d.code) ===
-            -1,
+            .indexOf(d.code)
+            === -1,
       );
 
     if (model.isDisposed()) {
@@ -538,8 +538,8 @@ export class SuggestAdapter extends Adapter implements monacoNS.languages.Comple
 
       const tags: monacoNS.languages.CompletionItemTag[] = [];
       if (
-        entry.kindModifiers !== undefined &&
-        entry.kindModifiers.indexOf("deprecated") !== -1
+        entry.kindModifiers !== undefined
+        && entry.kindModifiers.indexOf("deprecated") !== -1
       ) {
         tags.push(M.languages.CompletionItemTag.Deprecated);
       }
@@ -988,8 +988,8 @@ export class OutlineAdapter extends Adapter implements monacoNS.languages.Docume
       const result: monacoNS.languages.DocumentSymbol = {
         name: item.text,
         detail: "",
-        kind: <monacoNS.languages.SymbolKind> (outlineTypeTable[item.kind] ||
-          M.languages.SymbolKind.Variable),
+        kind: <monacoNS.languages.SymbolKind> (outlineTypeTable[item.kind]
+          || M.languages.SymbolKind.Variable),
         range: this._textSpanToRange(model, item.spans[0]),
         selectionRange: this._textSpanToRange(model, item.spans[0]),
         tags: [],

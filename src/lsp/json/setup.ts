@@ -79,7 +79,7 @@ export function setup(
   );
   languages.registerCompletionItemProvider(
     languageId,
-    new lf.CompletionAdapter(workerAccessor, [" ", ":", '"']),
+    new lf.CompletionAdapter(workerAccessor, [" ", ":", "\""]),
   );
   languages.registerHoverProvider(
     languageId,
@@ -109,7 +109,7 @@ export function setup(
     resolveCodeLens: (model, codeLens, token) => {
       return codeLens;
     },
-    provideCodeLenses: function (model, token) {
+    provideCodeLenses: function(model, token) {
       const isImportMap = ["importmap.json", "import_map.json", "import-map.json", "importMap.json"].some((name) =>
         model.uri.path === "/" + name
       );

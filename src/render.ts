@@ -152,8 +152,8 @@ export function render(highlighter: HighlighterCore, options: RenderOptions): st
     style.push("overflow-x:auto");
     editorStyle.push(`white-space:pre;padding-right:${lineNumbersWidth + decorationsWidth}px`);
   }
-  const shikiStyleIndex = html.indexOf('style="') + 7;
-  const shikiStyle = html.slice(shikiStyleIndex, html.indexOf('"', shikiStyleIndex));
+  const shikiStyleIndex = html.indexOf("style=\"") + 7;
+  const shikiStyle = html.slice(shikiStyleIndex, html.indexOf("\"", shikiStyleIndex));
   const finHtml = html.slice(0, shikiStyleIndex) + editorStyle.join(";") + ";" + html.slice(shikiStyleIndex);
   const addPadding = (padding: number, side: string) => {
     const style = `{ display:block;height:${padding}px;content:'.';opacity:0 }`;
