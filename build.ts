@@ -101,6 +101,7 @@ const tmDefine = () => {
   };
 };
 const buildDist = async () => {
+  await Deno.remove("dist", { recursive: true }).catch(() => {});
   await build([
     "src/editor-core.ts",
     "src/editor-worker.ts",
@@ -118,6 +119,7 @@ const buildDist = async () => {
   ]);
   await build(["src/index.ts"], tmDefine());
   await modifyEditorJs();
+  await Deno.remove("dist/editor-core.css");
 };
 const buildTypes = async () => {
   await copyDts(
