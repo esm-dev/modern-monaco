@@ -100,7 +100,6 @@ const tmDefine = () => {
   };
 };
 const buildDist = async () => {
-  await Deno.remove("dist", { recursive: true }).catch(() => {});
   await build([
     "src/editor-core.ts",
     "src/editor-worker.ts",
