@@ -3,7 +3,7 @@ import type { VFS } from "../vfs";
 import jsonScript from "./html/embedded/json-script";
 
 export interface LSPConfig {
-  customGrammars?: { name: string; scopeName: string; embeddedLanguages?: Record<string, string> }[];
+  customGrammars?: import("@shikijs/core").LanguageRegistration[];
   aliases?: string[];
   import: () => Promise<{
     setup: (
@@ -65,7 +65,7 @@ export async function createWorker(url: URL): Promise<Worker> {
 
 export const lspConfig: Record<string, LSPConfig> = {
   html: {
-    customGrammars: [jsonScript],
+    customGrammars: [jsonScript as any],
     // @ts-expect-error 'setup.js' is generated at build time
     import: () => import("./lsp/html/setup.js"),
   },

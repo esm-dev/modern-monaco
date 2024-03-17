@@ -1,5 +1,5 @@
 import type { ThemeInput } from "@shikijs/core";
-import type { LanguageInput, LanguageRegistration } from "@shikijs/core";
+import type { LanguageInput } from "@shikijs/core";
 import type { VFS } from "./vfs";
 import loadWasm from "@shikijs/core/wasm-inlined";
 import { getHighlighterCore } from "@shikijs/core";
@@ -7,57 +7,42 @@ import { version as tmGrammarsVersion } from "../node_modules/tm-grammars/packag
 import { version as tmThemesVersion } from "../node_modules/tm-themes/package.json";
 import { cache } from "./cache";
 
-const vitesseDark = "vitesse-dark";
-const regHttpURL = /^https?:\/\//;
-
 // @ts-expect-error `TM_GRAMMARS` is defined at build time
-const tmGrammars: { name: string; aliases?: string[]; embedded?: [] }[] = TM_GRAMMARS;
+const tmGrammars: { name: string; aliases?: string[]; embedded?: string[]; injectTo?: string[] }[] = TM_GRAMMARS;
 // @ts-expect-error `TM_THEMES` is defined at build time
 const tmThemes: Set<string> = new Set(TM_THEMES);
 
-export const grammarRegistry = new Map(tmGrammars.map((g) => [g.name, g]));
+const vitesseDark = "vitesse-dark";
+const regHttpURL = /^https?:\/\//;
 
 export interface ShikiInitOptions {
   theme?: string | { name: string };
-  preloadGrammars?: string[];
-  customGrammars?: { name: string; scopeName: string; embeddedLanguages?: Record<string, string> }[];
+  langs?: (LanguageInput | string)[];
 }
 
 /** Initialize shiki with the given options. */
 export async function initShiki({
   theme = vitesseDark,
-  preloadGrammars,
-  customGrammars,
+  langs: languages,
 }: ShikiInitOptions) {
-  const langs: LanguageInput = [];
+  const langs: LanguageInput[] = [];
   const themes: ThemeInput[] = [];
 
-  if (preloadGrammars?.length > 0) {
-    langs.push(
-      ...await Promise.all(
-        Array.from(new Set(preloadGrammars)).map((src) =>
-          regHttpURL.test(src) ? { src } : tmGrammars.find((g) => g.name === src || g.aliases?.includes(src))
-        ).filter(Boolean).map((g) => loadTMGrammar(g)),
-      ),
-    );
-  }
-
-  if (customGrammars) {
-    for (const lang of customGrammars) {
-      if (typeof lang === "object" && lang !== null && lang.name && !grammarRegistry.has(lang.name)) {
-        grammarRegistry.set(lang.name, lang);
-        langs.push(lang as LanguageRegistration);
+  if (languages?.length > 0) {
+    languages.forEach((input) => {
+      if (typeof input === "string") {
+        const g = tmGrammars.find((g) => g.name === input);
+        if (g?.embedded) {
+          langs.push(...g.embedded.map((id) => loadTMGrammar(id)));
+        }
+        langs.push(loadTMGrammar(input));
+      } else {
+        langs.push(input);
+        if ((input as any).embeddedLanguages) {
+          langs.push(...Object.values((input as any).embeddedLanguages).map((id: string) => loadTMGrammar(id)));
+        }
       }
-      if (lang.embeddedLanguages) {
-        langs.push(
-          ...await Promise.all(
-            Object.values(lang.embeddedLanguages)
-              .filter((name) => tmGrammars.some((g) => g.name === name))
-              .map((name) => loadTMGrammar({ name })),
-          ),
-        );
-      }
-    }
+    });
   }
 
   if (typeof theme === "string") {
@@ -82,15 +67,16 @@ export function loadTMTheme(src: string) {
 }
 
 /** Load a TextMate grammar from the given source. */
-export function loadTMGrammar(info: { name?: string; src?: string; embedded?: string[]; injectTo?: string[] }) {
-  const url = info.src ?? `https://esm.sh/tm-grammars@${tmGrammarsVersion}/grammars/${info.name}.json`;
-  if (info.name && info.embedded) {
-    return Promise.all([
-      cache.fetch(url).then((res) => res.json()).then((grammar) => ({ injectTo: info.injectTo, ...grammar })),
-      ...info.embedded.map((name) => loadTMGrammar({ name })),
-    ]);
+export function loadTMGrammar(src: string) {
+  const g = tmGrammars.find(g => g.name === src);
+  if (g) {
+    const url = `https://esm.sh/tm-grammars@${tmGrammarsVersion}/grammars/${g.name}.json`;
+    return cache.fetch(url).then((res) => res.json()).then((grammar) => ({
+      injectTo: g.injectTo,
+      ...grammar,
+    }));
   }
-  return cache.fetch(url).then((res) => res.json());
+  return cache.fetch(src).then((res) => res.json());
 }
 
 /** Get language ID from file path. */
