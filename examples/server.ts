@@ -4,20 +4,20 @@ const files = {
     "declare function log(message:string): void;",
   ],
   "greeting.ts": [
-    'export const message = "Hello world!" as const;',
+    "export const message = \"Hello world!\" as const;",
   ],
   "index.html": [
     "<!DOCTYPE html>",
     "<html>",
     "<head>",
-    '  <meta charset="utf-8">',
+    "  <meta charset=\"utf-8\">",
     "  <title>React App</title>",
-    '  <link rel="stylesheet" href="./style.css">',
-    '  \<script type="importmap" src="import_map.json"><\/script>',
+    "  <link rel=\"stylesheet\" href=\"./style.css\">",
+    "  \<script type=\"importmap\" src=\"import_map.json\"><\/script>",
     "</head>",
     "<body>",
-    '  <div id="root"></div>',
-    '  <script type="module" src="./main.tsx"><\/script>',
+    "  <div id=\"root\"></div>",
+    "  <script type=\"module\" src=\"./main.tsx\"><\/script>",
     "</body>",
     "</html>",
   ],
@@ -27,9 +27,9 @@ const files = {
     "}",
   ],
   "App.tsx": [
-    'import confetti from "https://esm.sh/canvas-confetti@1.6.0"',
-    'import { useEffect } from "react"',
-    'import { message } from "./greeting.ts"',
+    "import confetti from \"https://esm.sh/canvas-confetti@1.6.0\"",
+    "import { useEffect } from \"react\"",
+    "import { message } from \"./greeting.ts\"",
     "",
     "export default function App() {",
     "  useEffect(() => {",
@@ -40,10 +40,10 @@ const files = {
     "}",
   ],
   "main.jsx": [
-    'import { createRoot } from "react-dom/client"',
-    'import App from "./App.tsx"',
+    "import { createRoot } from \"react-dom/client\"",
+    "import App from \"./App.tsx\"",
     "",
-    'const root = createRoot(document.getElementById("root"))',
+    "const root = createRoot(document.getElementById(\"root\"))",
     "root.render(<App />)",
   ],
   "import_map.json": JSON.stringify(
@@ -93,11 +93,11 @@ async function serveDist(url: URL, req: Request, notFound: (url: URL, req: Reque
               return;
             }
             const text = new TextDecoder().decode(chunk);
-            if (text.includes('from "typescript"')) {
+            if (text.includes("from \"typescript\"")) {
               controller.enqueue(new TextEncoder().encode(
                 text.replace(
-                  'from "typescript"',
-                  'from "https://esm.sh/typescript@5.3.3?bundle"',
+                  "from \"typescript\"",
+                  "from \"https://esm.sh/typescript@5.4.2\"",
                 ),
               ));
               replaced = true;
@@ -127,7 +127,7 @@ async function serveDist(url: URL, req: Request, notFound: (url: URL, req: Reque
 async function servePages(url: URL, req: Request) {
   const filename = url.pathname.slice(1) || "index.html";
   try {
-    const fileUrl = new URL( filename, import.meta.url);
+    const fileUrl = new URL(filename, import.meta.url);
     let body = (await Deno.open(fileUrl)).readable;
     if (filename === "ssr.html") {
       let replaced = false;

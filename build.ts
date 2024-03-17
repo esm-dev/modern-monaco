@@ -83,21 +83,20 @@ const createTmDts = () => {
   );
 };
 const tmDefine = () => {
-  const defaultTheme = "vitesse-dark";
   const grammarKeys = ["name", "scopeName", "aliases", "embedded", "embeddedIn", "injectTo"];
 
   // add aliases for javascript and typescript
   const javascriptGrammar = tmGrammars.find((g) => g.name === "javascript");
   const typescriptGrammar = tmGrammars.find((g) => g.name === "typescript");
   javascriptGrammar!.aliases!.push("mjs", "cjs", "jsx");
-  typescriptGrammar!.aliases!.push("mts", "cts", "tsx");
+  typescriptGrammar!.aliases!.push("mts", "cts");
 
   return {
     TM_THEMES: JSON.stringify(tmThemes.map((v) => v.name)),
     TM_GRAMMARS: JSON.stringify(
       tmGrammars.map((v) => Object.fromEntries(grammarKeys.map((k) => [k, v[k as keyof typeof v]]))),
     ),
-    DEFAULT_THEME: Deno.readTextFileSync("node_modules/tm-themes/themes/" + defaultTheme + ".json"),
+    VITESSE_DARK: Deno.readTextFileSync("node_modules/tm-themes/themes/vitesse-dark.json"),
   };
 };
 const buildDist = async () => {

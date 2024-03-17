@@ -7,7 +7,7 @@ import { version as tmGrammarsVersion } from "../node_modules/tm-grammars/packag
 import { version as tmThemesVersion } from "../node_modules/tm-themes/package.json";
 import { cache } from "./cache";
 
-const defaultTheme = "vitesse-dark";
+const vitesseDark = "vitesse-dark";
 const regHttpURL = /^https?:\/\//;
 
 // @ts-expect-error `TM_GRAMMARS` is defined at build time
@@ -25,7 +25,7 @@ export interface ShikiInitOptions {
 
 /** Initialize shiki with the given options. */
 export async function initShiki({
-  theme = defaultTheme,
+  theme = vitesseDark,
   preloadGrammars,
   customGrammars,
 }: ShikiInitOptions) {
@@ -73,9 +73,9 @@ export async function initShiki({
 
 /** Load a TextMate theme from the given source. */
 export function loadTMTheme(src: string) {
-  if (src === defaultTheme) {
-    // @ts-expect-error `DEFAULT_THEME` is defined at build time
-    return DEFAULT_THEME;
+  if (src === vitesseDark) {
+    // @ts-expect-error `VITESSE_DARK` is defined at build time
+    return VITESSE_DARK;
   }
   const url = tmThemes.has(src) ? `https://esm.sh/tm-themes@${tmThemesVersion}/themes/${src}.json` : src;
   return cache.fetch(url).then((res) => res.json());
