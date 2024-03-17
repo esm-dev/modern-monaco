@@ -54,6 +54,7 @@
     "vscode-css-languageservice": "6.2.12",
     "vscode-html-languageservice": "5.1.2",
     "vscode-json-languageservice": "5.3.9",
+    "vscode-language-configurations": "1.87.2",
     "vscode-languageserver-types": "3.17.5"
   },
   "peerDependencies": {
