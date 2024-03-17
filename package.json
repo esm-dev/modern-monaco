@@ -30,6 +30,7 @@
     }
   },
   "scripts": {
+    "postinstall": "mkdir -p .vscode && echo '{\"deno.enablePaths\":[\"./build.ts\",\"./examples/server.ts\"]}' > .vscode/settings.json",
     "prepublishOnly": "deno run -A build.ts",
     "fmt": "dprint fmt",
     "dev": "deno run -A examples/server.ts"
