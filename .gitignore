@@ -1,7 +1,7 @@
 .DS_Store
+.vscode/
 node_modules/
 dist/
-*.log
 types/monaco.d.ts
 types/tm.d.ts
 types/tm-grammars.d.ts
