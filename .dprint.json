@@ -6,8 +6,7 @@
   },
   "includes": [
     "README.md",
-    "src/**/*.ts",
-    "types/*.ts"
+    "**/*.ts"
   ],
   "plugins": [
     "https://plugins.dprint.dev/typescript-0.89.3.wasm",
