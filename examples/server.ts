@@ -1,3 +1,10 @@
+const importMap = {
+  imports: {
+    "@jsxImportSource": "https://esm.sh/react@18.2.0",
+    "react": "https://esm.sh/react@18.2.0",
+    "react-dom/": "https://esm.sh/react-dom@18.2.0/",
+  },
+};
 const files = {
   "log.d.ts": [
     "/** log a message. */",
@@ -13,11 +20,13 @@ const files = {
     "  <meta charset=\"utf-8\">",
     "  <title>React App</title>",
     "  <link rel=\"stylesheet\" href=\"./style.css\">",
-    "  \<script type=\"importmap\" src=\"import_map.json\"><\/script>",
+    "  \<script type=\"importmap\">",
+    JSON.stringify(importMap, null, 2).split("\n").map((line) => "  " + line).join("\n"),
+    "  <\/script>",
     "</head>",
     "<body>",
     "  <div id=\"root\"></div>",
-    "  <script type=\"module\" src=\"./main.tsx\"><\/script>",
+    "  <script type=\"module\" src=\"./main.jsx\"><\/script>",
     "</body>",
     "</html>",
   ],
@@ -46,17 +55,7 @@ const files = {
     "const root = createRoot(document.getElementById(\"root\"))",
     "root.render(<App />)",
   ],
-  "import_map.json": JSON.stringify(
-    {
-      imports: {
-        "@jsxImportSource": "https://esm.sh/react@18.2.0",
-        "react": "https://esm.sh/react@18.2.0",
-        "react-dom/": "https://esm.sh/react-dom@18.2.0/",
-      },
-    },
-    null,
-    2,
-  ),
+  "import_map.json": JSON.stringify(importMap, null, 2),
   "tsconfig.json": JSON.stringify(
     {
       compilerOptions: {
