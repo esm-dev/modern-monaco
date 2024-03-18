@@ -16,7 +16,7 @@ const vitesseDark = "vitesse-dark";
 const regHttpURL = /^https?:\/\//;
 
 export interface ShikiInitOptions {
-  theme?: string | { name: string };
+  theme?: string | ThemeInput;
   langs?: (LanguageInput | string)[];
 }
 
@@ -49,7 +49,7 @@ export async function initShiki({
     if (tmThemes.has(theme) || regHttpURL.test(theme)) {
       themes.push(loadTMTheme(theme));
     }
-  } else if (typeof theme === "object" && theme !== null && theme.name) {
+  } else if (typeof theme === "object" && theme !== null) {
     themes.push(theme);
   }
 

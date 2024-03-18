@@ -3,8 +3,6 @@ import type monacoNS from "./monaco";
 import type { FormatOptions } from "./format";
 import type { JSONSchema } from "./jsonSchema";
 import type { TmGrammar, TmTheme } from "./tm";
-import type { GrammarInfo } from "./tm-grammars";
-import type { ThemeInfo } from "./tm-themes";
 import type { VFS } from "./vfs";
 
 export interface SchemaConfiguration {
@@ -31,15 +29,20 @@ export interface SchemaConfiguration {
   folderUri?: string;
 }
 
-export interface ImportMap {
-  imports?: Record<string, string>;
-  scopes?: Record<string, Record<string, string>>;
+type Awaitable<T> = T | Promise<T>;
+type MaybeGetter<T> = Awaitable<MaybeModule<T>> | (() => Awaitable<MaybeModule<T>>);
+type MaybeModule<T> = T | { default: T };
+type MaybeArray<T> = T | T[];
+type LanguageInput = MaybeGetter<MaybeArray<Named>>;
+type ThemeInput = MaybeGetter<Named>;
+
+interface Named {
+  name: string;
 }
 
 export interface ShikiInitOptions {
-  theme?: TmTheme | ThemeInfo;
-  preloadGrammars?: TmGrammar[];
-  customGrammars?: GrammarInfo[];
+  theme?: TmTheme | ThemeInput;
+  langs?: (TmGrammar | LanguageInput)[];
 }
 
 export interface InitOptions extends ShikiInitOptions {
@@ -54,7 +57,7 @@ export interface InitOptions extends ShikiInitOptions {
     /** The compiler options */
     compilerOptions?: ts.CompilerOptions;
     /** The global import maps */
-    importMap?: ImportMap;
+    importMap?: import("./import-map").ImportMap;
     /** The version of the typescript module from CDN */
     version?: string;
   };
