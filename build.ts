@@ -75,10 +75,10 @@ const copyDts = (...files: [src: string, dest: string][]) => {
 };
 const createTmDts = () => {
   return Deno.writeTextFile(
-    "types/tm.d.ts",
+    "types/textmate.d.ts",
     [
-      "export type TmTheme = " + tmThemes.map((v) => JSON.stringify(v.name)).join(" | ") + ";",
-      "export type TmGrammar = " + tmGrammars.map((v) => JSON.stringify(v.name)).join(" | ") + ";",
+      "export type TextmateThemeName = " + tmThemes.map((v) => JSON.stringify(v.name)).join(" | ") + ";",
+      "export type TextmateGrammarName = " + tmGrammars.map((v) => JSON.stringify(v.name)).join(" | ") + ";",
     ].join("\n"),
   );
 };

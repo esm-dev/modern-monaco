@@ -2,7 +2,7 @@ import type ts from "typescript";
 import type monacoNS from "./monaco";
 import type { FormatOptions } from "./format";
 import type { JSONSchema } from "./jsonSchema";
-import type { TmGrammar, TmTheme } from "./tm";
+import type { TextmateGrammarName, TextmateThemeName } from "./textmate";
 import type { VFS } from "./vfs";
 
 export interface SchemaConfiguration {
@@ -41,8 +41,8 @@ interface Named {
 }
 
 export interface ShikiInitOptions {
-  theme?: TmTheme | ThemeInput;
-  langs?: (TmGrammar | LanguageInput)[];
+  theme?: TextmateThemeName | ThemeInput;
+  langs?: (TextmateGrammarName | LanguageInput)[];
 }
 
 export interface InitOptions extends ShikiInitOptions {

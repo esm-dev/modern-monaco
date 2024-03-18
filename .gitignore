@@ -3,7 +3,5 @@
 node_modules/
 dist/
 types/monaco.d.ts
-types/tm.d.ts
-types/tm-grammars.d.ts
-types/tm-themes.d.ts
+types/textmate.d.ts
 types/jsonSchema.d.ts
