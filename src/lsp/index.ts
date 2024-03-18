@@ -83,6 +83,6 @@ export const lspConfig: Record<string, LSPConfig> = {
   typescript: {
     // @ts-expect-error 'setup.js' is generated at build time
     import: () => import("./lsp/typescript/setup.js"),
-    aliases: ["javascript", "tsx"],
+    aliases: ["javascript", "jsx", "tsx"],
   },
 };

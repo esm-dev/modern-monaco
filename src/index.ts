@@ -89,9 +89,12 @@ async function loadMonaco(highlighter: HighlighterCore, options?: InitOption, on
 
   const allLanguages = new Set([...tmGrammars.map(g => g.name), ...highlighter.getLoadedLanguages()]);
   allLanguages.forEach((id) => {
-    const config = monaco.languageConfigurations[id];
     monaco.languages.register({ id, aliases: tmGrammars.find(g => g.name === id)?.aliases });
     monaco.languages.onLanguage(id, () => {
+      const config = monaco.languageConfigurations[monaco.languageConfigurationAliases[id] ?? id];
+      if (config) {
+        monaco.languages.setLanguageConfiguration(id, monaco.convertVscodeLanguageConfiguration(config));
+      }
       if (!highlighter.getLoadedLanguages().includes(id)) {
         highlighter.loadLanguage(loadTMGrammar(id)).then(() => {
           // register tokenizer for the language
@@ -108,9 +111,6 @@ async function loadMonaco(highlighter: HighlighterCore, options?: InitOption, on
         lsp.import().then(({ setup }) => setup(monaco, id, options?.[label], formatOptions, vfs));
       }
     });
-    if (config) {
-      monaco.languages.setLanguageConfiguration(id, config);
-    }
   });
   shikiToMonaco(highlighter, monaco);
 

@@ -1,4 +1,4 @@
-import { editor, Uri } from "monaco-editor-core";
+import { editor, languages, Uri } from "monaco-editor-core";
 
 export const defaultEditorOptions: editor.IStandaloneEditorConstructionOptions = {
   automaticLayout: true,
@@ -63,6 +63,47 @@ export function getWorkerUrl() {
   const m = getWorkerUrl.toString().match(/import\(['"](.+?)['"]\)/);
   if (!m) throw new Error("worker url not found", { cause: i });
   return new URL(m[1], import.meta.url);
+}
+
+export const languageConfigurationAliases: Record<string, string> = {
+  "jsx": "javascript",
+  "tsx": "typescript",
+};
+
+export function convertVscodeLanguageConfiguration(config: any): languages.LanguageConfiguration {
+  const { indentationRules, folding, wordPattern, onEnterRules } = config;
+  if (folding?.markers) {
+    fixRegexp(folding.markers, "start", "end");
+  }
+  if (wordPattern) {
+    fixRegexp(config, "wordPattern");
+  }
+  if (indentationRules) {
+    fixRegexp(
+      indentationRules,
+      "increaseIndentPattern",
+      "decreaseIndentPattern",
+      "indentNextLinePattern",
+      "unIndentedLinePattern",
+    );
+  }
+  if (onEnterRules) {
+    for (const rule of onEnterRules) {
+      fixRegexp(rule, "beforeText", "afterText");
+    }
+  }
+  return config;
+}
+
+function fixRegexp(obj: any, ...keys: string[]) {
+  for (const key of keys) {
+    const value = obj[key];
+    if (typeof value === "string") {
+      obj[key] = new RegExp(value);
+    } else if (typeof value === "object" && value !== null && typeof value.pattern === "string") {
+      obj[key] = new RegExp(value.pattern, value.flags);
+    }
+  }
 }
 
 export * from "monaco-editor-core";

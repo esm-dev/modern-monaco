@@ -36,8 +36,8 @@ devDependencies:
     specifier: 5.3.9
     version: 5.3.9
   vscode-language-configurations:
-    specifier: ^1.87.2
-    version: 1.87.2
+    specifier: 1.87.2-patch.1
+    version: 1.87.2-patch.1
   vscode-languageserver-types:
     specifier: 3.17.5
     version: 3.17.5
@@ -346,8 +346,8 @@ packages:
       vscode-uri: 3.0.8
     dev: true
 
-  /vscode-language-configurations@1.87.2:
-    resolution: {integrity: sha512-HFYuDJGI3DOEECGGriEXF5XlbN+D5tEjRvdpp5xje2rawgRa0njQfkMOHgcZqgpt1iPQDtC8gsGIHvAZyUDgjg==}
+  /vscode-language-configurations@1.87.2-patch.1:
+    resolution: {integrity: sha512-ssVw1/G7MCw2RdYej6/IJBmBVpTRpBqCpXNQZh4qG2CuWnQsVNU1BZhIhj61zMZHnMgnkocreF5lpbLZNReDYQ==}
     dev: true
 
   /vscode-languageserver-textdocument@1.0.11:

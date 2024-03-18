@@ -88,7 +88,7 @@ const tmDefine = () => {
   // add aliases for javascript and typescript
   const javascriptGrammar = tmGrammars.find((g) => g.name === "javascript");
   const typescriptGrammar = tmGrammars.find((g) => g.name === "typescript");
-  javascriptGrammar!.aliases!.push("mjs", "cjs", "jsx");
+  javascriptGrammar!.aliases!.push("mjs", "cjs");
   typescriptGrammar!.aliases!.push("mts", "cts");
 
   return {
