@@ -2,7 +2,6 @@ import type monacoNS from "monaco-editor-core";
 import type { HighlighterCore } from "@shikijs/core";
 import type { ShikiInitOptions } from "./shiki";
 import type { VFS } from "./vfs";
-import languageConfigurations from "vscode-language-configurations";
 import { shikiToMonaco } from "@shikijs/monaco";
 import { createWorker, lspConfig, normalizeFormatOptions } from "./lsp/index";
 import { render, type RenderOptions } from "./render";
@@ -90,7 +89,7 @@ async function loadMonaco(highlighter: HighlighterCore, options?: InitOption, on
 
   const allLanguages = new Set([...tmGrammars.map(g => g.name), ...highlighter.getLoadedLanguages()]);
   allLanguages.forEach((id) => {
-    const config = languageConfigurations[id];
+    const config = monaco.languageConfigurations[id];
     monaco.languages.register({ id, aliases: tmGrammars.find(g => g.name === id)?.aliases });
     monaco.languages.onLanguage(id, () => {
       if (!highlighter.getLoadedLanguages().includes(id)) {

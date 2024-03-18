@@ -66,3 +66,4 @@ export function getWorkerUrl() {
 }
 
 export * from "monaco-editor-core";
+export { default as languageConfigurations } from "vscode-language-configurations";
