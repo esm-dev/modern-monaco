@@ -75,9 +75,7 @@ async function serveDist(url: URL, req: Request, notFound: (url: URL, req: Reque
     return notFound(url, req);
   }
   if (url.pathname.endsWith("/")) {
-    return new Response("Directory listing not supported", {
-      status: 400,
-    });
+    return new Response("Directory listing not supported", { status: 400 });
   }
   try {
     const fileUrl = new URL("../dist" + url.pathname, import.meta.url);
@@ -94,10 +92,7 @@ async function serveDist(url: URL, req: Request, notFound: (url: URL, req: Reque
             const text = new TextDecoder().decode(chunk);
             if (text.includes("from \"typescript\"")) {
               controller.enqueue(new TextEncoder().encode(
-                text.replace(
-                  "from \"typescript\"",
-                  "from \"https://esm.sh/typescript@5.4.2\"",
-                ),
+                text.replace("from \"typescript\"", "from \"https://esm.sh/typescript@5.4.3\""),
               ));
               replaced = true;
             } else {
@@ -117,9 +112,7 @@ async function serveDist(url: URL, req: Request, notFound: (url: URL, req: Reque
     if (e instanceof Deno.errors.NotFound) {
       return notFound(url, req);
     }
-    return new Response(e.message, {
-      status: 500,
-    });
+    return new Response(e.message, { status: 500 });
   }
 }
 
@@ -168,13 +161,9 @@ async function servePages(url: URL, req: Request) {
     return new Response(body, { headers });
   } catch (e) {
     if (e instanceof Deno.errors.NotFound) {
-      return new Response("Not found", {
-        status: 404,
-      });
+      return new Response("Not found", { status: 404 });
     }
-    return new Response(e.message, {
-      status: 500,
-    });
+    return new Response(e.message, { status: 500 });
   }
 }
 

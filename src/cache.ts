@@ -43,8 +43,8 @@ class Cache {
       );
       const tx = db.transaction("files", "readwrite").objectStore("files");
       file.url = res.url;
-      file.content = content;
       file.headers = headers;
+      file.content = content;
       await waitIDBRequest<CacheFile>(tx.put(file));
       const resp = new Response(content, { headers });
       defineProperty(resp, "url", res.url);
