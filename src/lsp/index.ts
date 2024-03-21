@@ -1,6 +1,6 @@
 import type monacoNS from "monaco-editor-core";
-import type { VFS } from "../vfs";
-import jsonScript from "./html/embedded/json-script";
+import type { VFS } from "../vfs.ts";
+import jsonScript from "./html/embedded/json-script.ts";
 
 export interface LSPConfig {
   customGrammars?: import("@shikijs/core").LanguageRegistration[];

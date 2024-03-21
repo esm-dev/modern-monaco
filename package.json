@@ -10,20 +10,27 @@
       "import": "./dist/index.js",
       "types": "./types/index.d.ts"
     },
-    "./vfs": {
-      "import": "./dist/vfs.js",
-      "types": "./types/vfs.d.ts"
-    },
-    "./import-map": {
-      "import": "./dist/import-map.js",
-      "types": "./types/import-map.d.ts"
-    },
     "./editor-core": {
       "import": "./dist/editor-core.js",
       "types": "./types/monaco.d.ts"
     },
     "./editor-worker": {
       "import": "./dist/editor-worker.js"
+    },
+    "./cache": {
+      "import": "./dist/cache.js",
+      "types": "./types/cache.d.ts"
+    },
+    "./import-map": {
+      "import": "./dist/import-map.js",
+      "types": "./types/import-map.d.ts"
+    },
+    "./vfs": {
+      "import": "./dist/vfs.js",
+      "types": "./types/vfs.d.ts"
+    },
+    "./util": {
+      "import": "./dist/util.js"
     },
     "./lsp/*": {
       "import": "./dist/lsp/*.js"

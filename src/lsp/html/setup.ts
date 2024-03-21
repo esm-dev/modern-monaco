@@ -1,6 +1,8 @@
 import type monacoNS from "monaco-editor-core";
 import type { CreateData, HTMLWorker } from "./worker";
-import * as lf from "../language-features.js"; // <- external module, don't remove the `.js` extension
+
+// ! external module, don't remove the `.js` extension
+import * as lf from "../language-features.js";
 
 export function setup(
   monaco: typeof monacoNS,

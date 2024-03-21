@@ -41,8 +41,8 @@ interface Named {
 }
 
 export interface ShikiInitOptions {
-  theme?: TextmateThemeName | ThemeInput;
-  langs?: (TextmateGrammarName | LanguageInput)[];
+  theme?: TextmateThemeName | URL | ThemeInput;
+  langs?: (TextmateGrammarName | URL | LanguageInput)[];
 }
 
 export interface InitOptions extends ShikiInitOptions {

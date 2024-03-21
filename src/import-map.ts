@@ -1,5 +1,3 @@
-import { isObject } from "./util";
-
 /** The import maps follow the spec at https://wicg.github.io/import-maps/. */
 export interface ImportMap {
   $src?: string;
@@ -129,4 +127,8 @@ function validateScopes(imports: Record<string, unknown>) {
       delete imports[k];
     }
   }
+}
+
+function isObject(v: unknown): v is Record<string, unknown> {
+  return v && typeof v === "object" && !Array.isArray(v);
 }

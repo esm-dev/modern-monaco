@@ -1,4 +1,4 @@
-import { defineProperty, openVFSiDB, toUrl, waitIDBRequest } from "./util";
+import { defineProperty, openVFSiDB, toUrl, waitIDBRequest } from "./util.js";
 
 interface CacheFile {
   url: string;
@@ -79,3 +79,4 @@ class Cache {
 }
 
 export const cache = new Cache();
+export default cache;

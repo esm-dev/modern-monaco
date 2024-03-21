@@ -6,8 +6,10 @@
 
 import ts from "typescript";
 import type monacoNS from "monaco-editor-core";
-import { type ImportMap, isBlank, resolve } from "~/import-map";
-import { cache } from "~/cache";
+
+// ! external module, don't remove the `.js` extension
+import { type ImportMap, isBlank, resolve } from "../../import-map.js";
+import { cache } from "../../cache.js";
 
 export interface Host {
   openModel(uri: string): Promise<boolean>;

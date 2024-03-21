@@ -1,11 +1,13 @@
 import type monacoNS from "monaco-editor-core";
 import type ts from "typescript";
+import type { ImportMap } from "~/import-map";
 import type { VFS } from "~/vfs";
 import type { CreateData, Host, TypeScriptWorker } from "./worker";
-import type { ImportMap } from "~/import-map";
-import { cache } from "~/cache";
-import { blankImportMap, isBlank, loadImportMapFromVFS, parseImportMapFromJson } from "../../import-map.js"; // <- external module, don't remove the `.js` extension
 import * as lf from "./language-features";
+
+// ! external module, don't remove the `.js` extension
+import { cache } from "../../cache.js";
+import { blankImportMap, isBlank, loadImportMapFromVFS, parseImportMapFromJson } from "../../import-map.js";
 
 type TSWorker = monacoNS.editor.MonacoWebWorker<TypeScriptWorker>;
 

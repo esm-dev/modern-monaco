@@ -2,7 +2,7 @@ import { build as esbuild } from "esbuild";
 import { grammars as tmGrammars } from "tm-grammars";
 import { themes as tmThemes } from "tm-themes";
 
-const build = (entryPoints: string[], define?: Record<string, string>) => {
+const build = (entryPoints: string[], define?: Record<string, string>, minify = false) => {
   return esbuild({
     target: "esnext",
     format: "esm",
@@ -10,18 +10,22 @@ const build = (entryPoints: string[], define?: Record<string, string>) => {
     outdir: "dist",
     bundle: true,
     treeShaking: true,
+    minify,
+    sourcemap: minify,
     logLevel: "info",
     define,
     loader: {
       ".ttf": "dataurl",
     },
     external: [
+      !minify ? "*/cache.js" : "",
       "typescript",
       "*/editor-core.js",
       "*/editor-worker.js",
       "*/import-map.js",
       "*/language-features.js",
       "*/libs.js",
+      "*/util.js",
       "*/setup.js",
       "*/worker.js",
     ],
@@ -47,40 +51,34 @@ const bundleTypescriptLibs = async () => {
     "export default " + JSON.stringify(libs, undefined, 2),
   );
 };
-const modifyEditorJs = async () => {
+const modifyEditorCore = async () => {
   const js = (await Deno.readTextFile("dist/editor-core.js"))
-    // patch: try to get the `fontMaxDigitWidth` value from the `extraEditorClassName` option
+    // [patch] try to get the `fontMaxDigitWidth` value from the `extraEditorClassName` option
     // the option `fontMaxDigitWidth` uaually is set with SSR mode to keep the line numbers
     // layout consistent with the client side.
     .replace(
-      "* maxDigitWidth)",
-      "* (Number((options2.get(EditorOptions.extraEditorClassName.id)||'').match(/font-digit-width-([\\d\\_]+)/)?.[1].replace('_','.')) || maxDigitWidth))",
+      /maxDigitWidth:\s*(\w+)\.fontInfo\.maxDigitWidth/,
+      (_, env) => {
+        return `maxDigitWidth:globalThis.__monaco_maxDigitWidth||${env}.fontInfo.maxDigitWidth`;
+      },
     );
   const ret = await esbuild({
     entryPoints: ["dist/editor-core.css"],
     minify: true,
     write: false,
   });
-  // patch: replace "font-size: 140%" to 100% to fix the size of folding icons
+  // [patch] replace "font-size: 140%" to 100% to fix the size of folding icons
   const css = ret.outputFiles[0].text.replace("font-size:140%", "font-size:100%");
-  // patch: fix the outline color of the input box
+  // [patch] fix the outline color of the input box
   const addonCss = `.monaco-inputbox input{outline: 1px solid var(--vscode-focusBorder,rgba(127, 127, 127, 0.5))}`;
+  const sourceMapComment = "\n//# sourceMappingURL=editor-core.js.map";
   await Deno.writeTextFile(
     "dist/editor-core.js",
-    "export const _CSS = " + JSON.stringify(css + addonCss) + "\n" + js,
+    js.replace(sourceMapComment, "\nexport const _CSS = " + JSON.stringify(css + addonCss) + sourceMapComment),
   );
 };
 const copyDts = (...files: [src: string, dest: string][]) => {
   return Promise.all(files.map(([src, dest]) => Deno.copyFile("node_modules/" + src, "types/" + dest)));
-};
-const createTmDts = () => {
-  return Deno.writeTextFile(
-    "types/textmate.d.ts",
-    [
-      "export type TextmateThemeName = " + tmThemes.map((v) => JSON.stringify(v.name)).join(" | ") + ";",
-      "export type TextmateGrammarName = " + tmGrammars.map((v) => JSON.stringify(v.name)).join(" | ") + ";",
-    ].join("\n"),
-  );
 };
 const tmDefine = () => {
   const grammarKeys = ["name", "scopeName", "aliases", "embedded", "embeddedIn", "injectTo"];
@@ -99,12 +97,25 @@ const tmDefine = () => {
     VITESSE_DARK: Deno.readTextFileSync("node_modules/tm-themes/themes/vitesse-dark.json"),
   };
 };
+const buildEditorCore = async () => {
+  await build(
+    [
+      "src/editor-core.ts",
+      "src/editor-worker.ts",
+    ],
+    undefined,
+    true,
+  );
+  await modifyEditorCore();
+  await Deno.remove("dist/editor-core.css").catch(() => {});
+  await Deno.remove("dist/editor-core.css.map").catch(() => {});
+};
 const buildDist = async () => {
   await build([
-    "src/editor-core.ts",
-    "src/editor-worker.ts",
     "src/vfs.ts",
+    "src/util.ts",
     "src/import-map.ts",
+    "src/cache.ts",
     "src/lsp/language-features.ts",
     "src/lsp/html/setup.ts",
     "src/lsp/html/worker.ts",
@@ -116,21 +127,26 @@ const buildDist = async () => {
     "src/lsp/typescript/worker.ts",
   ]);
   await build(["src/index.ts"], tmDefine());
-  await modifyEditorJs();
-  await Deno.remove("dist/editor-core.css");
 };
 const buildTypes = async () => {
   await copyDts(
     ["monaco-editor-core/esm/vs/editor/editor.api.d.ts", "monaco.d.ts"],
     ["vscode-json-languageservice/lib/esm/jsonSchema.d.ts", "jsonSchema.d.ts"],
   );
-  await createTmDts();
+  await Deno.writeTextFile(
+    "types/textmate.d.ts",
+    [
+      "export type TextmateThemeName = " + tmThemes.map((v) => JSON.stringify(v.name)).join(" | ") + ";",
+      "export type TextmateGrammarName = " + tmGrammars.map((v) => JSON.stringify(v.name)).join(" | ") + ";",
+    ].join("\n"),
+  );
 };
 
 await Deno.remove("dist", { recursive: true }).catch(() => {});
+await buildEditorCore();
 await buildDist();
-await bundleTypescriptLibs();
 await buildTypes();
+await bundleTypescriptLibs();
 
 if (Deno.args.includes("--watch")) {
   const watcher = Deno.watchFs("src", { recursive: true });

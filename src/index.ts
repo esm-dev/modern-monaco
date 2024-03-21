@@ -1,12 +1,12 @@
 import type monacoNS from "monaco-editor-core";
 import type { HighlighterCore } from "@shikijs/core";
-import type { ShikiInitOptions } from "./shiki";
-import type { VFS } from "./vfs";
+import type { ShikiInitOptions } from "./shiki.ts";
+import type { VFS } from "./vfs.ts";
 import { shikiToMonaco } from "@shikijs/monaco";
-import { createWorker, lspConfig, normalizeFormatOptions } from "./lsp/index";
-import { render, type RenderOptions } from "./render";
-import { getGrammarsInVFS, getLanguageIdFromPath, initShiki } from "./shiki";
-import { loadTMGrammar, loadTMTheme, tmGrammars } from "./shiki";
+import { createWorker, lspConfig, normalizeFormatOptions } from "./lsp/index.ts";
+import { render, type RenderOptions } from "./render.ts";
+import { getGrammarsInVFS, getLanguageIdFromPath, initShiki } from "./shiki.ts";
+import { loadTMGrammar, loadTMTheme, tmGrammars } from "./shiki.ts";
 
 const editorProps = [
   "autoDetectHighContrast",
@@ -203,14 +203,10 @@ export function lazy(options?: InitOption) {
         const optionsScript = this.children[0] as HTMLScriptElement | null;
         if (optionsScript && optionsScript.tagName === "SCRIPT" && optionsScript.type === "application/json") {
           const opts = JSON.parse(optionsScript.textContent);
-          // we pass the `fontDigitWidth` option to the editor as a
-          // custom class name. this is used for keeping the line numbers
+          // we save the `fontDigitWidth` as a global variable, this is used for keeping the line numbers
           // layout consistent between the SSR render and the client pre-render.
           if (opts.fontDigitWidth) {
-            opts.extraEditorClassName = [
-              opts.extraEditorClassName,
-              "font-digit-width-" + opts.fontDigitWidth.toString().replace(".", "_"),
-            ].filter(Boolean).join(" ");
+            Reflect.set(globalThis, "__monaco_maxDigitWidth", opts.fontDigitWidth);
           }
           Object.assign(renderOptions, opts);
           optionsScript.remove();
