@@ -90,6 +90,10 @@ export function convertVscodeLanguageConfiguration(config: any): languages.Langu
   if (onEnterRules) {
     for (const rule of onEnterRules) {
       fixRegexp(rule, "beforeText", "afterText", "previousLineText");
+      if (typeof rule.action?.indent === "string") {
+        rule.action.indentAction = ["none", "indent", "indentOutdent", "outdent"].indexOf(rule.action.indent);
+        delete rule.action.indent;
+      }
     }
   }
   return config;
