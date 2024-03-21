@@ -89,7 +89,7 @@ export function convertVscodeLanguageConfiguration(config: any): languages.Langu
   }
   if (onEnterRules) {
     for (const rule of onEnterRules) {
-      fixRegexp(rule, "beforeText", "afterText");
+      fixRegexp(rule, "beforeText", "afterText", "previousLineText");
     }
   }
   return config;
