@@ -96,6 +96,9 @@ export function convertVscodeLanguageConfiguration(config: any): languages.Langu
       }
     }
   }
+  // seems `colorizedBracketPairs` breaks embedded languages tokenization in html
+  // let's remove it for now
+  delete config.colorizedBracketPairs;
   return config;
 }
 
