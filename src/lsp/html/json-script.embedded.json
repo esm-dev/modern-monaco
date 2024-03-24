@@ -1,6 +1,5 @@
 {
   "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
-  "$license": "https://github.com/bahrus/json-in-html/blob/baseline/LICENSE",
   "name": "JSON Script Tag",
   "scopeName": "source.json.embedded",
   "injectTo": [
