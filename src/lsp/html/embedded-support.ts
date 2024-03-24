@@ -11,10 +11,7 @@ export interface LanguageRange extends Range {
 }
 
 export interface HTMLDocumentRegions {
-  getEmbeddedDocument(
-    languageId: string,
-    ignoreAttributeValues?: boolean,
-  ): TextDocument;
+  getEmbeddedDocument(languageId: string, ignoreAttributeValues?: boolean): TextDocument;
   getLanguageRanges(range: Range): LanguageRange[];
   getLanguageAtPosition(position: Position): string | undefined;
   getLanguagesInDocument(): string[];
@@ -23,7 +20,7 @@ export interface HTMLDocumentRegions {
 
 export const CSS_STYLE_RULE = "__";
 
-interface EmbeddedRegion {
+export interface EmbeddedRegion {
   languageId: string | undefined;
   start: number;
   end: number;
@@ -36,12 +33,13 @@ export function getDocumentRegions(
 ): HTMLDocumentRegions {
   const regions: EmbeddedRegion[] = [];
   const scanner = languageService.createScanner(document.getText());
+  const importedScripts: string[] = [];
+
   let lastTagName: string = "";
   let lastAttributeName: string | null = null;
   let languageIdFromType: string | undefined = undefined;
-  const importedScripts: string[] = [];
-
   let token = scanner.scan();
+
   while (token !== TokenType.EOS) {
     switch (token) {
       case TokenType.StartTag:
@@ -80,12 +78,13 @@ export function getDocumentRegions(
         ) {
           const tokenText = scanner.getTokenText();
           if (
-            /["'](module|(text|application)\/(java|ecma)script|text\/(babel|jsx))["']/
-              .test(tokenText)
+            /["']module|(text|application)\/(java|ecma)script|text\/babel["']/.test(tokenText)
           ) {
             languageIdFromType = "javascript";
-          } else if (/["']text\/typescript["']/.test(tokenText)) {
+          } else if (/["'](text|application)\/typescript["']/.test(tokenText)) {
             languageIdFromType = "typescript";
+          } else if (/["']importmap|(application\/)?json["']/.test(tokenText)) {
+            languageIdFromType = "json";
           } else {
             languageIdFromType = undefined;
           }
@@ -167,10 +166,7 @@ function getLanguageRanges(
   return result;
 }
 
-function getLanguagesInDocument(
-  _document: TextDocument,
-  regions: EmbeddedRegion[],
-): string[] {
+function getLanguagesInDocument(_document: TextDocument, regions: EmbeddedRegion[]): string[] {
   const result = [];
   for (const region of regions) {
     if (region.languageId && result.indexOf(region.languageId) === -1) {
@@ -255,6 +251,7 @@ function getPrefix(c: EmbeddedRegion) {
   }
   return "";
 }
+
 function getSuffix(c: EmbeddedRegion) {
   if (c.attributeValue) {
     switch (c.languageId) {
@@ -266,6 +263,7 @@ function getSuffix(c: EmbeddedRegion) {
   }
   return "";
 }
+
 function updateContent(c: EmbeddedRegion, content: string): string {
   if (!c.attributeValue && c.languageId === "javascript") {
     return content.replace(`<!--`, `/* `).replace(`-->`, ` */`);
