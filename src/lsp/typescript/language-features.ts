@@ -8,8 +8,8 @@ import type ts from "typescript";
 import type monacoNS from "monaco-editor-core";
 import type { Diagnostic, DiagnosticRelatedInformation, TypeScriptWorker, VersionedContent } from "./worker";
 
-let M = {} as unknown as typeof import("monaco-editor-core");
-export function prelude(monaco: typeof M) {
+let Monaco = {} as unknown as typeof import("monaco-editor-core");
+export function setup(monaco: typeof Monaco) {
   const { SymbolKind } = monaco.languages;
   outlineTypeTable[Kind.module] = SymbolKind.Module;
   outlineTypeTable[Kind.class] = SymbolKind.Class;
@@ -25,7 +25,7 @@ export function prelude(monaco: typeof M) {
   outlineTypeTable[Kind.variable] = SymbolKind.Variable;
   outlineTypeTable[Kind.function] = SymbolKind.Function;
   outlineTypeTable[Kind.localFunction] = SymbolKind.Function;
-  M = monaco;
+  Monaco = monaco;
 }
 
 export class EventTrigger {
@@ -120,8 +120,8 @@ export class TypesManager {
   }
 
   public getOrCreateModel(fileName: string): monacoNS.editor.ITextModel | null {
-    const editor = M.editor;
-    const uri = M.Uri.parse(fileName);
+    const editor = Monaco.editor;
+    const uri = Monaco.Uri.parse(fileName);
     const model = editor.getModel(uri);
     if (model) {
       return model;
@@ -249,7 +249,7 @@ export class DiagnosticsAdapter extends Adapter {
   ) {
     super(worker);
 
-    const editor = M.editor;
+    const editor = Monaco.editor;
     const validateModel = (model: monacoNS.editor.IModel): void => {
       if (model.getLanguageId() !== _selector) {
         return;
@@ -335,7 +335,7 @@ export class DiagnosticsAdapter extends Adapter {
   // }
 
   private async _doValidate(model: monacoNS.editor.ITextModel): Promise<void> {
-    const editor = M.editor;
+    const editor = Monaco.editor;
     const worker = await this._worker(model.uri);
 
     if (model.isDisposed()) {
@@ -369,10 +369,7 @@ export class DiagnosticsAdapter extends Adapter {
     const diagnostics = allDiagnostics
       .reduce((p, c) => c.concat(p), [])
       .filter(
-        (d) =>
-          (this._diagnosticsOptions.diagnosticCodesToIgnore || [])
-            .indexOf(d.code)
-            === -1,
+        (d) => (this._diagnosticsOptions.diagnosticCodesToIgnore || []).indexOf(d.code) === -1,
       );
 
     if (model.isDisposed()) {
@@ -393,19 +390,15 @@ export class DiagnosticsAdapter extends Adapter {
   ): monacoNS.editor.IMarkerData {
     const diagStart = diag.start || 0;
     const diagLength = diag.length || 1;
-    const { lineNumber: startLineNumber, column: startColumn } = model
-      .getPositionAt(diagStart);
-    const { lineNumber: endLineNumber, column: endColumn } = model
-      .getPositionAt(
-        diagStart + diagLength,
-      );
+    const { lineNumber: startLineNumber, column: startColumn } = model.getPositionAt(diagStart);
+    const { lineNumber: endLineNumber, column: endColumn } = model.getPositionAt(diagStart + diagLength);
 
     const tags: monacoNS.MarkerTag[] = [];
     if (diag.reportsUnnecessary) {
-      tags.push(M.MarkerTag.Unnecessary);
+      tags.push(Monaco.MarkerTag.Unnecessary);
     }
     if (diag.reportsDeprecated) {
-      tags.push(M.MarkerTag.Deprecated);
+      tags.push(Monaco.MarkerTag.Deprecated);
     }
 
     return {
@@ -465,7 +458,7 @@ export class DiagnosticsAdapter extends Adapter {
   private static _tsDiagnosticCategoryToMarkerSeverity(
     category: ts.DiagnosticCategory,
   ): monacoNS.MarkerSeverity {
-    const MarkerSeverity = M.MarkerSeverity;
+    const MarkerSeverity = Monaco.MarkerSeverity;
     switch (category) {
       case DiagnosticCategory.Error:
         return MarkerSeverity.Error;
@@ -502,7 +495,7 @@ export class SuggestAdapter extends Adapter implements monacoNS.languages.Comple
     token: monacoNS.CancellationToken,
   ): Promise<monacoNS.languages.CompletionList | undefined> {
     const wordInfo = model.getWordUntilPosition(position);
-    const wordRange = new M.Range(
+    const wordRange = new Monaco.Range(
       position.lineNumber,
       wordInfo.startColumn,
       position.lineNumber,
@@ -510,7 +503,6 @@ export class SuggestAdapter extends Adapter implements monacoNS.languages.Comple
     );
     const resource = model.uri;
     const offset = model.getOffsetAt(position);
-
     const worker = await this._worker(resource);
 
     if (model.isDisposed()) {
@@ -533,7 +525,7 @@ export class SuggestAdapter extends Adapter implements monacoNS.languages.Comple
         const p2 = model.getPositionAt(
           entry.replacementSpan.start + entry.replacementSpan.length,
         );
-        range = new M.Range(p1.lineNumber, p1.column, p2.lineNumber, p2.column);
+        range = new Monaco.Range(p1.lineNumber, p1.column, p2.lineNumber, p2.column);
       }
 
       const tags: monacoNS.languages.CompletionItemTag[] = [];
@@ -541,7 +533,7 @@ export class SuggestAdapter extends Adapter implements monacoNS.languages.Comple
         entry.kindModifiers !== undefined
         && entry.kindModifiers.indexOf("deprecated") !== -1
       ) {
-        tags.push(M.languages.CompletionItemTag.Deprecated);
+        tags.push(Monaco.languages.CompletionItemTag.Deprecated);
       }
 
       return {
@@ -584,7 +576,7 @@ export class SuggestAdapter extends Adapter implements monacoNS.languages.Comple
     }
     let additionalTextEdits: monacoNS.languages.TextEdit[] = [];
     if (details.codeActions) {
-      const model = M.editor.getModel(resource);
+      const model = Monaco.editor.getModel(resource);
       if (model) {
         details.codeActions.forEach((action) =>
           action.changes.forEach((change) =>
@@ -612,7 +604,7 @@ export class SuggestAdapter extends Adapter implements monacoNS.languages.Comple
   }
 
   private static convertKind(kind: string): monacoNS.languages.CompletionItemKind {
-    const languages = M.languages;
+    const languages = Monaco.languages;
     switch (kind) {
       case Kind.primitiveType:
       case Kind.keyword:
@@ -680,7 +672,7 @@ export class SignatureHelpAdapter extends Adapter implements monacoNS.languages.
   private static _toSignatureHelpTriggerReason(
     context: monacoNS.languages.SignatureHelpContext,
   ): ts.SignatureHelpTriggerReason {
-    const languages = M.languages;
+    const languages = Monaco.languages;
     switch (context.triggerKind) {
       case languages.SignatureHelpTriggerKind.TriggerCharacter:
         if (context.triggerCharacter) {
@@ -849,7 +841,7 @@ export class DocumentHighlightAdapter extends Adapter implements monacoNS.langua
 
     return entries.flatMap((entry) => {
       return entry.highlightSpans.map((highlightSpans) => {
-        const languages = M.languages;
+        const languages = Monaco.languages;
         return <monacoNS.languages.DocumentHighlight> {
           range: this._textSpanToRange(model, highlightSpans.textSpan),
           kind: highlightSpans.kind === "writtenReference"
@@ -989,7 +981,7 @@ export class OutlineAdapter extends Adapter implements monacoNS.languages.Docume
         name: item.text,
         detail: "",
         kind: <monacoNS.languages.SymbolKind> (outlineTypeTable[item.kind]
-          || M.languages.SymbolKind.Variable),
+          || Monaco.languages.SymbolKind.Variable),
         range: this._textSpanToRange(model, item.spans[0]),
         selectionRange: this._textSpanToRange(model, item.spans[0]),
         tags: [],
@@ -1350,7 +1342,7 @@ export class InlayHintsAdapter extends Adapter implements monacoNS.languages.Inl
   }
 
   private _convertHintKind(kind?: ts.InlayHintKind) {
-    const languages = M.languages;
+    const languages = Monaco.languages;
     switch (kind) {
       case "Parameter":
         return languages.InlayHintKind.Parameter;

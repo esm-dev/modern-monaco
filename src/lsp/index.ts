@@ -68,9 +68,9 @@ export async function createWorker(url: URL): Promise<Worker> {
 
 export const lspConfig: Record<string, LSPConfig> = {
   html: {
-    customGrammars: [jsonScriptGrammar as any],
     // @ts-expect-error 'setup.js' is generated at build time
     import: () => import("./lsp/html/setup.js"),
+    customGrammars: [jsonScriptGrammar as any],
   },
   css: {
     // @ts-expect-error 'setup.js' is generated at build time

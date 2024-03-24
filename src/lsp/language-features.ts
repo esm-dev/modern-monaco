@@ -7,8 +7,12 @@
 import type monacoNS from "monaco-editor-core";
 import * as lsTypes from "vscode-languageserver-types";
 
+export interface WorkerAccessor<T> {
+  (...more: monacoNS.Uri[]): Promise<T>;
+}
+
 let Monaco: typeof monacoNS;
-export function prelude(monaco: typeof monacoNS) {
+export function setup(monaco: typeof monacoNS) {
   monaco.editor.addCommand({
     id: "search-npm-modules",
     run: async (_, importMapSrc: string) => {
@@ -18,8 +22,40 @@ export function prelude(monaco: typeof monacoNS) {
   Monaco = monaco;
 }
 
-export interface WorkerAccessor<T> {
-  (...more: monacoNS.Uri[]): Promise<T>;
+export function registerDefault(
+  languageId: string,
+  workerAccessor: WorkerAccessor<any>,
+  completionTriggerCharacters: string[],
+) {
+  const { languages } = Monaco;
+  languages.registerCompletionItemProvider(
+    languageId,
+    new CompletionAdapter(workerAccessor, completionTriggerCharacters),
+  );
+  languages.registerDocumentFormattingEditProvider(
+    languageId,
+    new DocumentFormattingEditProvider(workerAccessor),
+  );
+  languages.registerDocumentRangeFormattingEditProvider(
+    languageId,
+    new DocumentRangeFormattingEditProvider(workerAccessor),
+  );
+  languages.registerDocumentSymbolProvider(
+    languageId,
+    new DocumentSymbolAdapter(workerAccessor),
+  );
+  languages.registerFoldingRangeProvider(
+    languageId,
+    new FoldingRangeAdapter(workerAccessor),
+  );
+  languages.registerHoverProvider(
+    languageId,
+    new HoverAdapter(workerAccessor),
+  );
+  languages.registerSelectionRangeProvider(
+    languageId,
+    new SelectionRangeAdapter(workerAccessor),
+  );
 }
 
 // #region DiagnosticsAdapter
@@ -30,9 +66,7 @@ export interface ILanguageWorkerWithDiagnostics {
 
 export class DiagnosticsAdapter<T extends ILanguageWorkerWithDiagnostics> {
   protected readonly _disposables: monacoNS.IDisposable[] = [];
-  private readonly _listener: { [uri: string]: monacoNS.IDisposable } = Object.create(
-    null,
-  );
+  private readonly _listener: { [uri: string]: monacoNS.IDisposable } = Object.create(null);
 
   constructor(
     private readonly _languageId: string,

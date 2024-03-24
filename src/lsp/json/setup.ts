@@ -11,9 +11,6 @@ export function setup(
   languageSettings?: Record<string, unknown>,
   format?: Record<string, unknown>,
 ) {
-  // register monacoNS for language features module
-  lf.prelude(monaco);
-
   const languages = monaco.languages;
   const events = new monaco.Emitter<void>();
   const createData: CreateData = {
@@ -48,13 +45,15 @@ export function setup(
   ): Promise<JSONWorker> => {
     return worker.withSyncedResources(uris);
   };
+  const codeLensEmitter = new monaco.Emitter<monacoNS.languages.CodeLensProvider>();
 
   class JSONDiagnosticsAdapter extends lf.DiagnosticsAdapter<JSONWorker> {
     constructor(
       languageId: string,
       worker: lf.WorkerAccessor<JSONWorker>,
+      configChangeEvent: monacoNS.IEvent<any>,
     ) {
-      super(languageId, worker, events.event);
+      super(languageId, worker, configChangeEvent);
       const editor = monaco.editor;
       editor.onWillDisposeModel((model) => {
         this._resetSchema(model.uri);
@@ -71,41 +70,11 @@ export function setup(
     }
   }
 
-  languages.registerDocumentFormattingEditProvider(
-    languageId,
-    new lf.DocumentFormattingEditProvider(workerAccessor),
-  );
-  languages.registerDocumentRangeFormattingEditProvider(
-    languageId,
-    new lf.DocumentRangeFormattingEditProvider(workerAccessor),
-  );
-  languages.registerCompletionItemProvider(
-    languageId,
-    new lf.CompletionAdapter(workerAccessor, [" ", ":", "\""]),
-  );
-  languages.registerHoverProvider(
-    languageId,
-    new lf.HoverAdapter(workerAccessor),
-  );
-  languages.registerDocumentSymbolProvider(
-    languageId,
-    new lf.DocumentSymbolAdapter(workerAccessor),
-  );
-  languages.registerColorProvider(
-    languageId,
-    new lf.DocumentColorAdapter(workerAccessor),
-  );
-  languages.registerFoldingRangeProvider(
-    languageId,
-    new lf.FoldingRangeAdapter(workerAccessor),
-  );
-  languages.registerSelectionRangeProvider(
-    languageId,
-    new lf.SelectionRangeAdapter(workerAccessor),
-  );
-  new JSONDiagnosticsAdapter(languageId, workerAccessor);
+  // set monacoNS and register default language features
+  lf.setup(monaco);
+  lf.registerDefault(languageId, workerAccessor, [" ", ":", "\""]);
 
-  const codeLensEmitter = new monaco.Emitter<monacoNS.languages.CodeLensProvider>();
+  // register code lens
   languages.registerCodeLensProvider(languageId, {
     onDidChange: codeLensEmitter.event,
     resolveCodeLens: (model, codeLens, token) => {
@@ -141,6 +110,9 @@ export function setup(
       }
     },
   });
+
+  // register diagnostics adapter
+  new JSONDiagnosticsAdapter(languageId, workerAccessor, events.event);
 }
 
 export function getWorkerUrl() {

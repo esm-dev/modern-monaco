@@ -10,9 +10,6 @@ export function setup(
   languageSettings?: Record<string, unknown>,
   format?: Record<string, unknown>,
 ) {
-  // register monacoNS for language features module
-  lf.prelude(monaco);
-
   const languages = monaco.languages;
   const events = new monaco.Emitter<void>();
   const createData: CreateData = {
@@ -45,59 +42,19 @@ export function setup(
     return worker.withSyncedResources(uris);
   };
 
-  languages.registerCompletionItemProvider(
-    languageId,
-    new lf.CompletionAdapter(workerAccessor, ["/", "-", ":"]),
-  );
-  languages.registerHoverProvider(
-    languageId,
-    new lf.HoverAdapter(workerAccessor),
-  );
-  languages.registerDocumentHighlightProvider(
-    languageId,
-    new lf.DocumentHighlightAdapter(workerAccessor),
-  );
-  languages.registerDefinitionProvider(
-    languageId,
-    new lf.DefinitionAdapter(workerAccessor),
-  );
-  languages.registerReferenceProvider(
-    languageId,
-    new lf.ReferenceAdapter(workerAccessor),
-  );
-  languages.registerDocumentSymbolProvider(
-    languageId,
-    new lf.DocumentSymbolAdapter(workerAccessor),
-  );
-  languages.registerRenameProvider(
-    languageId,
-    new lf.RenameAdapter(workerAccessor),
-  );
-  languages.registerColorProvider(
-    languageId,
-    new lf.DocumentColorAdapter(workerAccessor),
-  );
-  languages.registerFoldingRangeProvider(
-    languageId,
-    new lf.FoldingRangeAdapter(workerAccessor),
-  );
-  languages.registerSelectionRangeProvider(
-    languageId,
-    new lf.SelectionRangeAdapter(workerAccessor),
-  );
-  languages.registerDocumentFormattingEditProvider(
-    languageId,
-    new lf.DocumentFormattingEditProvider(workerAccessor),
-  );
-  languages.registerDocumentRangeFormattingEditProvider(
-    languageId,
-    new lf.DocumentRangeFormattingEditProvider(workerAccessor),
-  );
-  new lf.DiagnosticsAdapter(
-    languageId,
-    workerAccessor,
-    events.event,
-  );
+  // set monacoNS and register default language features
+  lf.setup(monaco);
+  lf.registerDefault(languageId, workerAccessor, ["/", "-", ":"]);
+
+  // register language features for html
+  languages.registerColorProvider(languageId, new lf.DocumentColorAdapter(workerAccessor));
+  languages.registerDocumentHighlightProvider(languageId, new lf.DocumentHighlightAdapter(workerAccessor));
+  languages.registerDefinitionProvider(languageId, new lf.DefinitionAdapter(workerAccessor));
+  languages.registerReferenceProvider(languageId, new lf.ReferenceAdapter(workerAccessor));
+  languages.registerRenameProvider(languageId, new lf.RenameAdapter(workerAccessor));
+
+  // register diagnostics adapter
+  new lf.DiagnosticsAdapter(languageId, workerAccessor, events.event);
 }
 
 export function getWorkerUrl() {

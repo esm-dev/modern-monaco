@@ -22,7 +22,8 @@ export async function setup(
   format?: Record<string, unknown>,
   vfs?: VFS,
 ) {
-  lf.prelude(monaco);
+  // register monacoNS for language features module
+  lf.setup(monaco);
 
   if (!worker) {
     worker = createWorker(monaco, languageSettings, format, vfs);
@@ -34,6 +35,11 @@ export async function setup(
   const languages = monaco.languages;
   const getWorker = (...uris: monacoNS.Uri[]): Promise<TypeScriptWorker> => {
     return (worker as TSWorker).withSyncedResources(uris);
+  };
+  const diagnosticsOptions: lf.DiagnosticsOptions = {
+    noSemanticValidation: languageId === "javascript",
+    noSyntaxValidation: false,
+    onlyVisible: false,
   };
 
   // register language features
@@ -51,11 +57,7 @@ export async function setup(
   languages.registerInlayHintsProvider(languageId, new lf.InlayHintsAdapter(getWorker));
   languages.registerLinkedEditingRangeProvider(languageId, new lf.LinkedEditingRangeAdapter(getWorker));
 
-  const diagnosticsOptions: lf.DiagnosticsOptions = {
-    noSemanticValidation: languageId === "javascript",
-    noSyntaxValidation: false,
-    onlyVisible: false,
-  };
+  // register diagnostics adapter
   new lf.DiagnosticsAdapter(diagnosticsOptions, refreshDiagnosticEventEmitter.event, languageId, getWorker);
 }
 
