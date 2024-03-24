@@ -27,14 +27,14 @@ devDependencies:
     specifier: 5.4.3
     version: 5.4.3
   vscode-css-languageservice:
-    specifier: 6.2.12
-    version: 6.2.12
+    specifier: 6.2.13
+    version: 6.2.13
   vscode-html-languageservice:
-    specifier: 5.1.2
-    version: 5.1.2
+    specifier: 5.2.0
+    version: 5.2.0
   vscode-json-languageservice:
-    specifier: 5.3.9
-    version: 5.3.9
+    specifier: 5.3.10
+    version: 5.3.10
   vscode-language-configurations:
     specifier: 1.87.2-patch.1
     version: 1.87.2-patch.1
@@ -318,8 +318,8 @@ packages:
     hasBin: true
     dev: true
 
-  /vscode-css-languageservice@6.2.12:
-    resolution: {integrity: sha512-PS9r7HgNjqzRl3v91sXpCyZPc8UDotNo6gntFNtGCKPhGA9Frk7g/VjX1Mbv3F00pn56D+rxrFzR9ep4cawOgA==}
+  /vscode-css-languageservice@6.2.13:
+    resolution: {integrity: sha512-2rKWXfH++Kxd9Z4QuEgd1IF7WmblWWU7DScuyf1YumoGLkY9DW6wF/OTlhOyO2rN63sWHX2dehIpKBbho4ZwvA==}
     dependencies:
       '@vscode/l10n': 0.0.18
       vscode-languageserver-textdocument: 1.0.11
@@ -327,8 +327,8 @@ packages:
       vscode-uri: 3.0.8
     dev: true
 
-  /vscode-html-languageservice@5.1.2:
-    resolution: {integrity: sha512-wkWfEx/IIR3s2P5yD4aTGHiOb8IAzFxgkSt1uSC3itJ4oDAm23yG7o0L29JljUdnXDDgLafPAvhv8A2I/8riHw==}
+  /vscode-html-languageservice@5.2.0:
+    resolution: {integrity: sha512-cdNMhyw57/SQzgUUGSIMQ66jikqEN6nBNyhx5YuOyj9310+eY9zw8Q0cXpiKzDX8aHYFewQEXRnigl06j/TVwQ==}
     dependencies:
       '@vscode/l10n': 0.0.18
       vscode-languageserver-textdocument: 1.0.11
@@ -336,8 +336,8 @@ packages:
       vscode-uri: 3.0.8
     dev: true
 
-  /vscode-json-languageservice@5.3.9:
-    resolution: {integrity: sha512-0IcymTw0ZYX5Zcx+7KLLwTRvg0FzXUVnM1hrUH+sPhqEX0fHGg2h5UUOSp1f8ydGS7/xxzlFI3TR01yaHs6Y0Q==}
+  /vscode-json-languageservice@5.3.10:
+    resolution: {integrity: sha512-KlbUYaer3DAnsVyRtgg/MhXOu4TTwY8TjaZYRY7Mt80zSpmvbmd58YT4Wq2ZiqHzdioD6lAvRSxhSCL0DvVY8Q==}
     dependencies:
       '@vscode/l10n': 0.0.18
       jsonc-parser: 3.2.1
