@@ -3,7 +3,7 @@ import type { HighlighterCore } from "@shikijs/core";
 import type { ShikiInitOptions } from "./shiki.ts";
 import type { VFS } from "./vfs.ts";
 import { shikiToMonaco } from "@shikijs/monaco";
-import { createWorker, lspConfig, normalizeFormatOptions } from "./lsp/index.ts";
+import { createWorker, lspConfig, normalizeFormattingOptions } from "./lsp/index.ts";
 import { render, type RenderOptions } from "./render.ts";
 import { getGrammarsInVFS, getLanguageIdFromPath, initShiki } from "./shiki.ts";
 import { loadTMGrammar, loadTMTheme, tmGrammars } from "./shiki.ts";
@@ -115,8 +115,8 @@ async function loadMonaco(highlighter: HighlighterCore, options?: InitOption, on
         [label, lsp] = Object.entries(lspConfig).find(([, lsp]) => lsp.aliases?.includes(id)) ?? [];
       }
       if (lsp) {
-        const formatOptions = normalizeFormatOptions(label, options?.format);
-        lsp.import().then(({ setup }) => setup(monaco, id, options?.[label], formatOptions, vfs));
+        const formattingOptions = normalizeFormattingOptions(label, options?.format);
+        lsp.import().then(({ setup }) => setup(monaco, id, options?.[label], formattingOptions, vfs));
       }
     });
   });

@@ -19,14 +19,14 @@ export async function setup(
   monaco: typeof monacoNS,
   languageId: string,
   languageSettings?: Record<string, unknown>,
-  format?: Record<string, unknown>,
+  formattingOptions?: Record<string, unknown>,
   vfs?: VFS,
 ) {
   // register monacoNS for language features module
   lf.setup(monaco);
 
   if (!worker) {
-    worker = createWorker(monaco, languageSettings, format, vfs);
+    worker = createWorker(monaco, languageSettings, formattingOptions, vfs);
   }
   if (worker instanceof Promise) {
     worker = await worker;
@@ -75,7 +75,7 @@ export function getWorkerUrl() {
 async function createWorker(
   monaco: typeof monacoNS,
   languageSettings?: Record<string, unknown>,
-  format?: Record<string, unknown>,
+  formattingOptions?: Record<string, unknown>,
   vfs?: VFS,
 ) {
   const defaultCompilerOptions: ts.CompilerOptions = {
@@ -138,7 +138,7 @@ async function createWorker(
     formatOptions: {
       tabSize: 4,
       trimTrailingWhitespace: true,
-      ...format,
+      ...formattingOptions,
     },
   };
   const worker = monaco.editor.createWebWorker<TypeScriptWorker>({

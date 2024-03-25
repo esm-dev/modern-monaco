@@ -10,26 +10,26 @@ export interface LSPConfig {
       monaco: typeof monacoNS,
       languageId: string,
       langaugeSettings?: Record<string, unknown>,
-      formatOptions?: Record<string, unknown>,
+      formattingOptions?: Record<string, unknown>,
       vfs?: VFS,
     ) => Promise<void>;
     getWorkerUrl: () => URL;
   }>;
 }
 
-export function normalizeFormatOptions(
+export function normalizeFormattingOptions(
   label: string,
-  formatOptions?: Record<string, unknown>,
+  formattingOptions?: Record<string, unknown>,
 ): Record<string, unknown> | undefined {
-  if (!formatOptions) {
+  if (!formattingOptions) {
     return undefined;
   }
   const options: Record<string, unknown> = {};
-  if (label in formatOptions) {
-    Object.assign(options, formatOptions[label]);
+  if (label in formattingOptions) {
+    Object.assign(options, formattingOptions[label]);
   }
-  for (let key in formatOptions) {
-    let value = formatOptions[key];
+  for (let key in formattingOptions) {
+    let value = formattingOptions[key];
     if (key === "insertSpaces") {
       if (label === "typescript") {
         key = "convertTabsToSpaces";

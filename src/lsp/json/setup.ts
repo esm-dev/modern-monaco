@@ -9,10 +9,11 @@ export function setup(
   monaco: typeof monacoNS,
   languageId: string,
   languageSettings?: Record<string, unknown>,
-  format?: Record<string, unknown>,
+  formattingOptions?: Record<string, unknown>,
 ) {
   const languages = monaco.languages;
-  const emitter = new monaco.Emitter<void>();
+  const diagnosticsEmitter = new monaco.Emitter<void>();
+  const codeLensEmitter = new monaco.Emitter<monacoNS.languages.CodeLensProvider>();
   const createData: CreateData = {
     languageId,
     options: {
@@ -31,7 +32,7 @@ export function setup(
         insertSpaces: false,
         trimTrailingWhitespace: true,
         insertFinalNewline: true,
-        ...format,
+        ...formattingOptions,
       },
     },
   };
@@ -45,7 +46,6 @@ export function setup(
   ): Promise<JSONWorker> => {
     return worker.withSyncedResources(uris);
   };
-  const codeLensEmitter = new monaco.Emitter<monacoNS.languages.CodeLensProvider>();
 
   class JSONDiagnosticsAdapter extends lf.DiagnosticsAdapter<JSONWorker> {
     constructor(
@@ -64,7 +64,7 @@ export function setup(
     }
 
     private _resetSchema(resource: monacoNS.Uri): void {
-      this._worker().then((worker) => {
+      this.worker().then((worker) => {
         worker.resetSchema(resource.toString());
       });
     }
@@ -78,7 +78,7 @@ export function setup(
   lf.registerDefault(languageId, workerAccessor, [" ", ":", "\""]);
 
   // register diagnostics adapter
-  new JSONDiagnosticsAdapter(languageId, workerAccessor, emitter.event);
+  new JSONDiagnosticsAdapter(languageId, workerAccessor, diagnosticsEmitter.event);
 
   // code lens for importmap.json
   languages.registerCodeLensProvider(languageId, {

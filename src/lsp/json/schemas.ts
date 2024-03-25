@@ -8,6 +8,7 @@ export const schemas: SchemaConfiguration[] = [
       "import-map.json",
       "importmap.json",
       "importMap.json",
+      "*.importmap",
       "*.html",
     ],
     schema: {

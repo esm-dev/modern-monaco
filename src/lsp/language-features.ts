@@ -120,13 +120,15 @@ export interface ILanguageWorkerWithDiagnostics {
 }
 
 export class DiagnosticsAdapter<T extends ILanguageWorkerWithDiagnostics> {
+  protected readonly worker: WorkerAccessor<T>;
+
+  private readonly _languageId: string;
   private readonly _listeners: { [uri: string]: monacoNS.IDisposable } = Object.create(null);
 
-  constructor(
-    private readonly _languageId: string,
-    protected readonly _worker: WorkerAccessor<T>,
-    onRefresh: monacoNS.IEvent<any>,
-  ) {
+  constructor(languageId: string, worker: WorkerAccessor<T>, onRefresh: monacoNS.IEvent<any>) {
+    this._languageId = languageId;
+    this.worker = worker;
+
     const { editor } = Monaco;
     const validateModel = (model: monacoNS.editor.IModel): void => {
       let modeId = model.getLanguageId();
@@ -142,7 +144,6 @@ export class DiagnosticsAdapter<T extends ILanguageWorkerWithDiagnostics> {
           500,
         );
       });
-
       this._doValidate(model.uri, modeId);
     };
 
@@ -173,7 +174,7 @@ export class DiagnosticsAdapter<T extends ILanguageWorkerWithDiagnostics> {
   }
 
   private _doValidate(uri: monacoNS.Uri, languageId: string): void {
-    this._worker(uri)
+    this.worker(uri)
       .then((worker) => {
         return worker.doValidation(uri.toString());
       })

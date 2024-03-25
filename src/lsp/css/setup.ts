@@ -8,10 +8,10 @@ export function setup(
   monaco: typeof monacoNS,
   languageId: string,
   languageSettings?: Record<string, unknown>,
-  format?: Record<string, unknown>,
+  formattingOptions?: Record<string, unknown>,
 ) {
   const languages = monaco.languages;
-  const emitter = new monaco.Emitter<void>();
+  const diagnosticsEmitter = new monaco.Emitter<void>();
   const createData: CreateData = {
     languageId,
     options: {
@@ -27,7 +27,7 @@ export function setup(
         spaceAroundSelectorSeparator: false,
         braceStyle: "collapse",
         preserveNewLines: true,
-        ...format,
+        ...formattingOptions,
       },
     },
   };
@@ -50,7 +50,7 @@ export function setup(
   lf.registerDefault(languageId, workerAccessor, ["/", "-", ":"]);
 
   // register diagnostics adapter
-  new lf.DiagnosticsAdapter(languageId, workerAccessor, emitter.event);
+  new lf.DiagnosticsAdapter(languageId, workerAccessor, diagnosticsEmitter.event);
 
   // register language features
   languages.registerColorProvider(languageId, new lf.DocumentColorAdapter(workerAccessor));

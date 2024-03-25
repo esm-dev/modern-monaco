@@ -8,7 +8,7 @@ export function setup(
   monaco: typeof monacoNS,
   languageId: string,
   languageSettings?: Record<string, unknown>,
-  format?: Record<string, unknown>,
+  formattingOptions?: Record<string, unknown>,
 ) {
   const { editor, languages } = monaco;
   const diagnosticsEmitter = new monaco.Emitter<void>();
@@ -35,7 +35,7 @@ export function setup(
         // extraLiners: "head, body, /html",
         extraLiners: "",
         wrapAttributes: "auto",
-        ...format,
+        ...formattingOptions,
       },
     },
   };
