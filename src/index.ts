@@ -61,6 +61,14 @@ async function loadMonaco(highlighter: HighlighterCore, options?: InitOption, on
   }
 
   Reflect.set(globalThis, "MonacoEnvironment", {
+    workerProxies: {},
+    onWorker: (languageId: string, workerProxy: () => any) => {
+      const workerProxies = Reflect.get(MonacoEnvironment, "workerProxies");
+      if (Array.isArray(workerProxies[languageId])) {
+        workerProxies[languageId][0]();
+      }
+      workerProxies[languageId] = workerProxy;
+    },
     getWorker: async (_workerId: string, label: string) => {
       let url = editorWorkerUrl;
       let lsp = lspConfig[label];

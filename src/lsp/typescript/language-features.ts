@@ -7,8 +7,8 @@
 import type ts from "typescript";
 import type monacoNS from "monaco-editor-core";
 import type { Diagnostic, DiagnosticRelatedInformation, TypeScriptWorker, VersionedContent } from "./worker";
+let Monaco: typeof import("monaco-editor-core");
 
-let Monaco = {} as unknown as typeof import("monaco-editor-core");
 export function setup(monaco: typeof Monaco) {
   const { SymbolKind } = monaco.languages;
   outlineTypeTable[Kind.module] = SymbolKind.Module;
@@ -49,7 +49,7 @@ export class EventTrigger {
   }
 }
 
-export class TypesManager {
+export class TypesStore {
   private _removedtypes: Record<string, number> = {};
 
   constructor(
@@ -142,7 +142,7 @@ export class TypesManager {
 }
 
 // global types instance
-export const types = new TypesManager();
+export const types = new TypesStore();
 
 // #region utils copied from typescript to prevent loading the entire typescriptServices ---
 
@@ -219,15 +219,12 @@ export abstract class Adapter {
 // --- diagnostics --- ---
 
 export interface DiagnosticsOptions {
+  diagnosticCodesToIgnore?: number[];
   noSemanticValidation?: boolean;
   noSyntaxValidation?: boolean;
   noSuggestionDiagnostics?: boolean;
-  /**
-   * Limit diagnostic computation to only visible files.
-   * Defaults to false.
-   */
+  /** Limit diagnostic computation to only visible files. Defaults to false. */
   onlyVisible?: boolean;
-  diagnosticCodesToIgnore?: number[];
 }
 
 enum DiagnosticCategory {
@@ -238,20 +235,19 @@ enum DiagnosticCategory {
 }
 
 export class DiagnosticsAdapter extends Adapter {
-  // private _disposables: monacoNS.IDisposable[] = [];
   private _listeners: { [uri: string]: monacoNS.IDisposable } = Object.create(null);
 
   constructor(
+    private _languageId: string,
+    worker: (...uris: monacoNS.Uri[]) => Promise<TypeScriptWorker>,
     private _diagnosticsOptions: DiagnosticsOptions,
     onRefreshDiagnostic: monacoNS.IEvent<void>,
-    private _selector: string,
-    worker: (...uris: monacoNS.Uri[]) => Promise<TypeScriptWorker>,
   ) {
     super(worker);
 
     const editor = Monaco.editor;
     const validateModel = (model: monacoNS.editor.IModel): void => {
-      if (model.getLanguageId() !== _selector) {
+      if (model.getLanguageId() !== _languageId) {
         return;
       }
 
@@ -288,7 +284,7 @@ export class DiagnosticsAdapter extends Adapter {
           } else {
             // this model is no longer attached to an editor
             // => clear existing diagnostics
-            editor.setModelMarkers(model, this._selector, []);
+            editor.setModelMarkers(model, this._languageId, []);
           }
         }));
       }
@@ -310,10 +306,10 @@ export class DiagnosticsAdapter extends Adapter {
       }
     };
 
-    editor.onDidCreateModel((model) => validateModel(model));
+    editor.onDidCreateModel(validateModel);
     editor.onWillDisposeModel((model) => {
       dispose(model);
-      editor.setModelMarkers(model, this._selector, []);
+      editor.setModelMarkers(model, this._languageId, []);
     });
     editor.onDidChangeModelLanguage((event) => {
       dispose(event.model);
@@ -326,13 +322,8 @@ export class DiagnosticsAdapter extends Adapter {
       }
     });
 
-    editor.getModels().forEach((model) => validateModel(model));
+    editor.getModels().forEach(validateModel);
   }
-
-  // public dispose(): void {
-  //   this._disposables.forEach((d) => d && d.dispose());
-  //   this._disposables = [];
-  // }
 
   private async _doValidate(model: monacoNS.editor.ITextModel): Promise<void> {
     const editor = Monaco.editor;
@@ -379,7 +370,7 @@ export class DiagnosticsAdapter extends Adapter {
 
     editor.setModelMarkers(
       model,
-      this._selector,
+      this._languageId,
       diagnostics.map((d) => DiagnosticsAdapter._convertDiagnostics(model, d)),
     );
   }
@@ -474,6 +465,38 @@ export class DiagnosticsAdapter extends Adapter {
 }
 
 // --- suggest ------
+
+class Kind {
+  public static unknown: string = "";
+  public static keyword: string = "keyword";
+  public static script: string = "script";
+  public static module: string = "module";
+  public static class: string = "class";
+  public static interface: string = "interface";
+  public static type: string = "type";
+  public static enum: string = "enum";
+  public static variable: string = "var";
+  public static localVariable: string = "local var";
+  public static function: string = "function";
+  public static localFunction: string = "local function";
+  public static memberFunction: string = "method";
+  public static memberGetAccessor: string = "getter";
+  public static memberSetAccessor: string = "setter";
+  public static memberVariable: string = "property";
+  public static constructorImplementation: string = "constructor";
+  public static callSignature: string = "call";
+  public static indexSignature: string = "index";
+  public static constructSignature: string = "construct";
+  public static parameter: string = "parameter";
+  public static typeParameter: string = "type parameter";
+  public static primitiveType: string = "primitive type";
+  public static label: string = "label";
+  public static alias: string = "alias";
+  public static const: string = "const";
+  public static let: string = "let";
+  public static warning: string = "warning";
+  public static externalSymbol = "external symbol";
+}
 
 interface MyCompletionItem extends monacoNS.languages.CompletionItem {
   label: string;
@@ -995,38 +1018,6 @@ export class OutlineAdapter extends Adapter implements monacoNS.languages.Docume
     const result = root.childItems ? root.childItems.map((item) => convert(item)) : [];
     return result;
   }
-}
-
-export class Kind {
-  public static unknown: string = "";
-  public static keyword: string = "keyword";
-  public static script: string = "script";
-  public static module: string = "module";
-  public static class: string = "class";
-  public static interface: string = "interface";
-  public static type: string = "type";
-  public static enum: string = "enum";
-  public static variable: string = "var";
-  public static localVariable: string = "local var";
-  public static function: string = "function";
-  public static localFunction: string = "local function";
-  public static memberFunction: string = "method";
-  public static memberGetAccessor: string = "getter";
-  public static memberSetAccessor: string = "setter";
-  public static memberVariable: string = "property";
-  public static constructorImplementation: string = "constructor";
-  public static callSignature: string = "call";
-  public static indexSignature: string = "index";
-  public static constructSignature: string = "construct";
-  public static parameter: string = "parameter";
-  public static typeParameter: string = "type parameter";
-  public static primitiveType: string = "primitive type";
-  public static label: string = "label";
-  public static alias: string = "alias";
-  public static const: string = "const";
-  public static let: string = "let";
-  public static warning: string = "warning";
-  public static externalSymbol = "external symbol";
 }
 
 // --- formatting ----

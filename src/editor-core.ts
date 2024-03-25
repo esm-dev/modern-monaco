@@ -34,7 +34,7 @@ Object.assign(editor, {
   ) => {
     uri = normalizeUri(uri);
     if (!language && uri) {
-      // @ts-ignore getLanguageIdFromUri added by esm-monaco
+      // @ts-expect-error `getLanguageIdFromUri` is added by esm-monaco
       language = MonacoEnvironment.getLanguageIdFromUri?.(uri);
     }
     return _createModel(value, language, uri);

@@ -32,33 +32,36 @@ export async function setup(
     worker = await worker;
   }
 
-  const languages = monaco.languages;
-  const getWorker = (...uris: monacoNS.Uri[]): Promise<TypeScriptWorker> => {
-    return (worker as TSWorker).withSyncedResources(uris);
-  };
   const diagnosticsOptions: lf.DiagnosticsOptions = {
     noSemanticValidation: languageId === "javascript",
     noSyntaxValidation: false,
     onlyVisible: false,
   };
+  const workerAccessor = (...uris: monacoNS.Uri[]): Promise<TypeScriptWorker> => {
+    return (worker as TSWorker).withSyncedResources(uris);
+  };
+  const languages = monaco.languages;
+
+  // @ts-expect-error `onWorker` is added by esm-monaco
+  MonacoEnvironment.onWorker(languageId, workerAccessor);
 
   // register language features
-  languages.registerCompletionItemProvider(languageId, new lf.SuggestAdapter(getWorker));
-  languages.registerSignatureHelpProvider(languageId, new lf.SignatureHelpAdapter(getWorker));
-  languages.registerHoverProvider(languageId, new lf.QuickInfoAdapter(getWorker));
-  languages.registerDocumentHighlightProvider(languageId, new lf.DocumentHighlightAdapter(getWorker));
-  languages.registerDefinitionProvider(languageId, new lf.DefinitionAdapter(getWorker));
-  languages.registerReferenceProvider(languageId, new lf.ReferenceAdapter(getWorker));
-  languages.registerDocumentSymbolProvider(languageId, new lf.OutlineAdapter(getWorker));
-  languages.registerRenameProvider(languageId, new lf.RenameAdapter(getWorker));
-  languages.registerDocumentRangeFormattingEditProvider(languageId, new lf.FormatAdapter(getWorker));
-  languages.registerOnTypeFormattingEditProvider(languageId, new lf.FormatOnTypeAdapter(getWorker));
-  languages.registerCodeActionProvider(languageId, new lf.CodeActionAdaptor(getWorker));
-  languages.registerInlayHintsProvider(languageId, new lf.InlayHintsAdapter(getWorker));
-  languages.registerLinkedEditingRangeProvider(languageId, new lf.LinkedEditingRangeAdapter(getWorker));
+  languages.registerCompletionItemProvider(languageId, new lf.SuggestAdapter(workerAccessor));
+  languages.registerSignatureHelpProvider(languageId, new lf.SignatureHelpAdapter(workerAccessor));
+  languages.registerHoverProvider(languageId, new lf.QuickInfoAdapter(workerAccessor));
+  languages.registerDocumentHighlightProvider(languageId, new lf.DocumentHighlightAdapter(workerAccessor));
+  languages.registerDefinitionProvider(languageId, new lf.DefinitionAdapter(workerAccessor));
+  languages.registerReferenceProvider(languageId, new lf.ReferenceAdapter(workerAccessor));
+  languages.registerDocumentSymbolProvider(languageId, new lf.OutlineAdapter(workerAccessor));
+  languages.registerRenameProvider(languageId, new lf.RenameAdapter(workerAccessor));
+  languages.registerDocumentRangeFormattingEditProvider(languageId, new lf.FormatAdapter(workerAccessor));
+  languages.registerOnTypeFormattingEditProvider(languageId, new lf.FormatOnTypeAdapter(workerAccessor));
+  languages.registerCodeActionProvider(languageId, new lf.CodeActionAdaptor(workerAccessor));
+  languages.registerInlayHintsProvider(languageId, new lf.InlayHintsAdapter(workerAccessor));
+  languages.registerLinkedEditingRangeProvider(languageId, new lf.LinkedEditingRangeAdapter(workerAccessor));
 
   // register diagnostics adapter
-  new lf.DiagnosticsAdapter(diagnosticsOptions, refreshDiagnosticEventEmitter.event, languageId, getWorker);
+  new lf.DiagnosticsAdapter(languageId, workerAccessor, diagnosticsOptions, refreshDiagnosticEventEmitter.event);
 }
 
 export function getWorkerUrl() {

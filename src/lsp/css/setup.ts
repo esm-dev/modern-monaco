@@ -11,7 +11,7 @@ export function setup(
   format?: Record<string, unknown>,
 ) {
   const languages = monaco.languages;
-  const events = new monaco.Emitter<void>();
+  const emitter = new monaco.Emitter<void>();
   const createData: CreateData = {
     languageId,
     options: {
@@ -42,19 +42,24 @@ export function setup(
     return worker.withSyncedResources(uris);
   };
 
+  // @ts-expect-error `onWorker` is added by esm-monaco
+  MonacoEnvironment.onWorker(languageId, workerAccessor);
+
   // set monacoNS and register default language features
   lf.setup(monaco);
   lf.registerDefault(languageId, workerAccessor, ["/", "-", ":"]);
 
-  // register language features for html
+  // register diagnostics adapter
+  new lf.DiagnosticsAdapter(languageId, workerAccessor, emitter.event);
+
+  // register language features
   languages.registerColorProvider(languageId, new lf.DocumentColorAdapter(workerAccessor));
   languages.registerDocumentHighlightProvider(languageId, new lf.DocumentHighlightAdapter(workerAccessor));
-  languages.registerDefinitionProvider(languageId, new lf.DefinitionAdapter(workerAccessor));
-  languages.registerReferenceProvider(languageId, new lf.ReferenceAdapter(workerAccessor));
   languages.registerRenameProvider(languageId, new lf.RenameAdapter(workerAccessor));
 
-  // register diagnostics adapter
-  new lf.DiagnosticsAdapter(languageId, workerAccessor, events.event);
+  // disable definition and reference providers for now
+  // languages.registerDefinitionProvider(languageId, new lf.DefinitionAdapter(workerAccessor));
+  // languages.registerReferenceProvider(languageId, new lf.ReferenceAdapter(workerAccessor));
 }
 
 export function getWorkerUrl() {

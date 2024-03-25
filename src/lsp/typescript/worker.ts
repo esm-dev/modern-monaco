@@ -9,6 +9,7 @@ import type monacoNS from "monaco-editor-core";
 
 // ! external module, don't remove the `.js` extension
 import { type ImportMap, isBlank, resolve } from "../../import-map.js";
+import { initializeWorker } from "../../editor-worker.js";
 import { cache } from "../../cache.js";
 
 export interface Host {
@@ -1041,6 +1042,4 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   }
 }
 
-// don't change below code, the 'editor-worker.js' is an external module generated at build time.
-import { initializeWorker } from "../../editor-worker.js";
 initializeWorker(TypeScriptWorker);

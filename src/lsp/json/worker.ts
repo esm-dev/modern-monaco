@@ -7,16 +7,14 @@
 import type monacoNS from "monaco-editor-core";
 import * as jsonService from "vscode-json-languageservice";
 
+// ! external module, don't remove the `.js` extension
+import { cache } from "../../cache.js";
+import { initializeWorker } from "../../editor-worker.js";
+
 export interface Options {
-  /**
-   * Configures the CSS data types known by the langauge service.
-   */
-  readonly settings?:
-    & jsonService.LanguageSettings
-    & jsonService.DocumentLanguageSettings;
-  /**
-   * Settings for the CSS formatter.
-   */
+  /** Configures the CSS data types known by the langauge service. */
+  readonly settings?: jsonService.LanguageSettings & jsonService.DocumentLanguageSettings;
+  /** Settings for the CSS formatter. */
   readonly format?: jsonService.FormattingOptions;
 }
 
@@ -27,16 +25,10 @@ export interface CreateData {
 
 export class JSONWorker {
   private _ctx: monacoNS.worker.IWorkerContext;
-  private _languageId: string;
   private _languageService: jsonService.LanguageService;
-  private _languageSettings?:
-    & jsonService.LanguageSettings
-    & jsonService.DocumentLanguageSettings;
 
   constructor(ctx: monacoNS.worker.IWorkerContext, createData: CreateData) {
     this._ctx = ctx;
-    this._languageSettings = createData.options.settings;
-    this._languageId = createData.languageId;
     this._languageService = jsonService.getLanguageService({
       workspaceContext: {
         resolveRelativePath: (relativePath: string, resource: string) => {
@@ -44,23 +36,19 @@ export class JSONWorker {
           return url.href;
         },
       },
-      schemaRequestService: (url: string) => fetch(url).then((response) => response.text()),
+      schemaRequestService: (url) => cache.fetch(url).then((res) => res.text()),
       clientCapabilities: jsonService.ClientCapabilities.LATEST,
     });
-    this._languageService.configure(this._languageSettings);
+    this._languageService.configure(createData.options.settings ?? {});
   }
 
   async doValidation(uri: string): Promise<jsonService.Diagnostic[]> {
     let document = this._getTextDocument(uri);
     if (document) {
       let jsonDocument = this._languageService.parseJSONDocument(document);
-      return this._languageService.doValidation(
-        document,
-        jsonDocument,
-        this._languageSettings,
-      );
+      return this._languageService.doValidation(document, jsonDocument);
     }
-    return Promise.resolve([]);
+    return [];
   }
 
   async doComplete(
@@ -73,12 +61,6 @@ export class JSONWorker {
     }
     let jsonDocument = this._languageService.parseJSONDocument(document);
     return this._languageService.doComplete(document, position, jsonDocument);
-  }
-
-  async doResolve(
-    item: jsonService.CompletionItem,
-  ): Promise<jsonService.CompletionItem> {
-    return this._languageService.doResolve(item);
   }
 
   async doHover(
@@ -97,21 +79,19 @@ export class JSONWorker {
     uri: string,
     range: jsonService.Range | null,
     options: jsonService.FormattingOptions,
+    docText?: string,
   ): Promise<jsonService.TextEdit[]> {
-    let document = this._getTextDocument(uri);
+    const document = docText
+      ? jsonService.TextDocument.create(uri, "json", 0, docText)
+      : this._getTextDocument(uri);
     if (!document) {
       return [];
     }
-    let textEdits = this._languageService.format(
+    return this._languageService.format(
       document,
       range!, /* TODO */
       options,
     );
-    return Promise.resolve(textEdits);
-  }
-
-  async resetSchema(uri: string): Promise<boolean> {
-    return Promise.resolve(this._languageService.resetSchema(uri));
   }
 
   async findDocumentSymbols(
@@ -192,27 +172,37 @@ export class JSONWorker {
     return Promise.resolve(ranges);
   }
 
-  async parseJSONDocument(
-    uri: string,
-  ): Promise<jsonService.JSONDocument | null> {
-    let document = this._getTextDocument(uri);
-    if (!document) {
-      return null;
-    }
-    let jsonDocument = this._languageService.parseJSONDocument(document);
-    return Promise.resolve(jsonDocument);
+  async resetSchema(uri: string): Promise<boolean> {
+    return Promise.resolve(this._languageService.resetSchema(uri));
   }
 
-  async getMatchingSchemas(uri: string): Promise<jsonService.MatchingSchema[]> {
-    let document = this._getTextDocument(uri);
-    if (!document) {
-      return [];
-    }
-    let jsonDocument = this._languageService.parseJSONDocument(document);
-    return Promise.resolve(
-      this._languageService.getMatchingSchemas(document, jsonDocument),
-    );
-  }
+  // async doResolve(
+  //   item: jsonService.CompletionItem,
+  // ): Promise<jsonService.CompletionItem> {
+  //   return this._languageService.doResolve(item);
+  // }
+
+  // async parseJSONDocument(
+  //   uri: string,
+  // ): Promise<jsonService.JSONDocument | null> {
+  //   let document = this._getTextDocument(uri);
+  //   if (!document) {
+  //     return null;
+  //   }
+  //   let jsonDocument = this._languageService.parseJSONDocument(document);
+  //   return Promise.resolve(jsonDocument);
+  // }
+
+  // async getMatchingSchemas(uri: string): Promise<jsonService.MatchingSchema[]> {
+  //   let document = this._getTextDocument(uri);
+  //   if (!document) {
+  //     return [];
+  //   }
+  //   let jsonDocument = this._languageService.parseJSONDocument(document);
+  //   return Promise.resolve(
+  //     this._languageService.getMatchingSchemas(document, jsonDocument),
+  //   );
+  // }
 
   private _getTextDocument(uri: string): jsonService.TextDocument | null {
     let models = this._ctx.getMirrorModels();
@@ -220,7 +210,7 @@ export class JSONWorker {
       if (model.uri.toString() === uri) {
         return jsonService.TextDocument.create(
           uri,
-          this._languageId,
+          "json",
           model.version,
           model.getValue(),
         );
@@ -230,6 +220,4 @@ export class JSONWorker {
   }
 }
 
-// don't change below code, the 'editor-worker.js' is an external module generated at build time.
-import { initializeWorker } from "../../editor-worker.js";
 initializeWorker(JSONWorker);

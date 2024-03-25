@@ -2,16 +2,16 @@ import type { SchemaConfiguration } from "vscode-json-languageservice";
 
 export const schemas: SchemaConfiguration[] = [
   {
-    uri: "//",
+    uri: "https://github.com/denoland/vscode_deno/blob/main/schemas/import_map.schema.json",
     fileMatch: [
       "import_map.json",
       "import-map.json",
       "importmap.json",
       "importMap.json",
+      "*.html",
     ],
     schema: {
       $schema: "http://json-schema.org/draft-07/schema#",
-      $id: "https://github.com/denoland/vscode_deno/blob/main/schemas/import_map.schema.json",
       title: "An Import Map",
       description: "An import map which is used to remap imports when modules are loaded.",
       type: "object",
@@ -21,7 +21,8 @@ export const schemas: SchemaConfiguration[] = [
           type: "object",
           properties: {
             "@jsxImportSource": {
-              description: "The key is the specifier for JSX runtime.",
+              description:
+                "The key is the specifier for JSX import source, with a value that represents the target specifier.",
               type: "string",
               default: "https://esm.sh/react@18.2.0",
             },

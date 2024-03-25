@@ -12,7 +12,7 @@ export function setup(
   format?: Record<string, unknown>,
 ) {
   const languages = monaco.languages;
-  const events = new monaco.Emitter<void>();
+  const emitter = new monaco.Emitter<void>();
   const createData: CreateData = {
     languageId,
     options: {
@@ -51,9 +51,9 @@ export function setup(
     constructor(
       languageId: string,
       worker: lf.WorkerAccessor<JSONWorker>,
-      configChangeEvent: monacoNS.IEvent<any>,
+      onRefresh: monacoNS.IEvent<any>,
     ) {
-      super(languageId, worker, configChangeEvent);
+      super(languageId, worker, onRefresh);
       const editor = monaco.editor;
       editor.onWillDisposeModel((model) => {
         this._resetSchema(model.uri);
@@ -70,11 +70,17 @@ export function setup(
     }
   }
 
+  // @ts-expect-error `onWorker` is added by esm-monaco
+  MonacoEnvironment.onWorker(languageId, workerAccessor);
+
   // set monacoNS and register default language features
   lf.setup(monaco);
   lf.registerDefault(languageId, workerAccessor, [" ", ":", "\""]);
 
-  // register code lens
+  // register diagnostics adapter
+  new JSONDiagnosticsAdapter(languageId, workerAccessor, emitter.event);
+
+  // code lens for importmap.json
   languages.registerCodeLensProvider(languageId, {
     onDidChange: codeLensEmitter.event,
     resolveCodeLens: (model, codeLens, token) => {
@@ -110,9 +116,6 @@ export function setup(
       }
     },
   });
-
-  // register diagnostics adapter
-  new JSONDiagnosticsAdapter(languageId, workerAccessor, events.event);
 }
 
 export function getWorkerUrl() {

@@ -1,4 +1,4 @@
-import type monacoNS from "monaco-editor-core";
+import monacoNS from "monaco-editor-core";
 import type { CreateData, HTMLWorker } from "./worker";
 
 // ! external module, don't remove the `.js` extension
@@ -10,7 +10,9 @@ export function setup(
   languageSettings?: Record<string, unknown>,
   format?: Record<string, unknown>,
 ) {
-  const languages = monaco.languages;
+  const { editor, languages } = monaco;
+  const diagnosticsEmitter = new monaco.Emitter<void>();
+  const codeLensEmitter = new monaco.Emitter<monacoNS.languages.CodeLensProvider>();
   const createData: CreateData = {
     languageId,
     options: {
@@ -27,42 +29,73 @@ export function setup(
         contentUnformatted: "pre",
         indentInnerHtml: false,
         preserveNewLines: true,
+        maxPreserveNewLines: 1,
         indentHandlebars: false,
-        endWithNewline: false,
-        extraLiners: "head, body, /html",
+        endWithNewline: true,
+        // extraLiners: "head, body, /html",
+        extraLiners: "",
         wrapAttributes: "auto",
         ...format,
       },
     },
   };
-  const worker = monaco.editor.createWebWorker<HTMLWorker>({
+  const worker = editor.createWebWorker<HTMLWorker>({
     moduleId: "lsp/html/worker",
     label: languageId,
     createData,
+    host: {
+      // redirects lsp requests of embedded languages
+      async redirectLSPRequest(embeddedLanguageId: string, method: string, uri: string, ...args: any[]) {
+        if (embeddedLanguageId === "importmap") {
+          embeddedLanguageId = "json";
+        }
+        // @ts-expect-error `onWorker` is added by esm-monaco
+        const { workerProxies } = MonacoEnvironment;
+        const worker = workerProxies[embeddedLanguageId];
+        if (typeof worker === "function") {
+          return worker(uri).then(worker => worker[method](uri, ...args));
+        }
+        if (!worker) {
+          workerProxies[embeddedLanguageId] = [() => {
+            // refresh diagnostics
+            diagnosticsEmitter.fire();
+          }];
+        }
+      },
+    },
   });
   const workerAccessor: lf.WorkerAccessor<HTMLWorker> = (
     ...uris: monacoNS.Uri[]
   ): Promise<HTMLWorker> => {
     return worker.withSyncedResources(uris);
   };
-  const codeLensEmitter = new monaco.Emitter<monacoNS.languages.CodeLensProvider>();
+
+  // @ts-expect-error `onWorker` is added by esm-monaco
+  MonacoEnvironment.onWorker(languageId, workerAccessor);
 
   // set monacoNS and register default language features
   lf.setup(monaco);
   lf.registerDefault(languageId, workerAccessor, [".", ":", "<", "\"", "=", "/"]);
 
-  // register language features for html
+  // attach embedded languages in memory
+  lf.attachEmbeddedLanguages(workerAccessor, ["css", "importmap"]);
+
+  // register diagnostics adapter (for embedded languages)
+  new lf.DiagnosticsAdapter(languageId, workerAccessor, diagnosticsEmitter.event);
+
+  // register language features
+  languages.registerColorProvider(languageId, new lf.DocumentColorAdapter(workerAccessor));
   languages.registerDocumentHighlightProvider(languageId, new lf.DocumentHighlightAdapter(workerAccessor));
   languages.registerLinkProvider(languageId, new lf.DocumentLinkAdapter(workerAccessor));
   languages.registerRenameProvider(languageId, new lf.RenameAdapter(workerAccessor));
 
-  // register code lens
+  // code lens for importmap updating
   languages.registerCodeLensProvider(languageId, {
     onDidChange: codeLensEmitter.event,
-    resolveCodeLens: (model, codeLens, token) => {
+    resolveCodeLens: (_model, codeLens, _token) => {
       return codeLens;
     },
-    provideCodeLenses: function(model, token) {
+    provideCodeLenses: (model, _token) => {
       const m = model.findNextMatch(
         `type=['"]importmap['"]`,
         { lineNumber: 4, column: 1 },
