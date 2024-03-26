@@ -135,8 +135,8 @@ export function init(options: InitOption = {}): Promise<typeof monacoNS> {
       const langs = options.langs ?? [];
       const vfs = options.vfs;
       if (vfs) {
-        const grammars = await getGrammarsInVFS(vfs);
-        if (grammars.size > 0) {
+        const grammars = (await getGrammarsInVFS(vfs)).filter((name) => !langs.includes(name));
+        if (grammars.length > 0) {
           langs.push(...grammars);
         }
       }
@@ -348,12 +348,12 @@ export function lazy(options?: InitOption) {
           // load required grammars in background
           if (vfs) {
             const grammars = await getGrammarsInVFS(vfs);
-            for (const name of grammars) {
-              if (!highlighter.getLoadedLanguages().includes(name)) {
-                await highlighter.loadLanguage(loadTMGrammar(name));
-                shikiToMonaco(highlighter, monaco);
-              }
-            }
+            const loadedLangs = new Set(highlighter.getLoadedLanguages());
+            Promise.all(
+              grammars.filter(name => !loadedLangs.has(name)).map(name =>
+                highlighter.loadLanguage(loadTMGrammar(name)).then(() => shikiToMonaco(highlighter, monaco))
+              ),
+            );
           }
         })();
       }

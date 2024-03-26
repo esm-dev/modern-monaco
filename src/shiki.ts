@@ -103,7 +103,7 @@ export const getGrammarsInVFS = async (vfs: VFS) => {
   } catch {
     // ignore vfs error
   }
-  return grammars;
+  return Array.from(grammars);
 };
 
 export { tmGrammars, tmThemes };
