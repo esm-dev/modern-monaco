@@ -1,10 +1,10 @@
 import type monacoNS from "monaco-editor-core";
 import type { VFS } from "../vfs.ts";
-import jsonScriptGrammar from "./html/json-script.embedded.json";
+import embeddedJsonScript from "./html/json-script.embedded.json";
 
 export interface LSPConfig {
-  customGrammars?: import("@shikijs/core").LanguageRegistration[];
   aliases?: string[];
+  customGrammars?: any[];
   import: () => Promise<{
     setup: (
       monaco: typeof monacoNS,
@@ -68,9 +68,9 @@ export async function createWorker(url: URL): Promise<Worker> {
 
 export const lspConfig: Record<string, LSPConfig> = {
   html: {
+    customGrammars: [embeddedJsonScript],
     // @ts-expect-error 'setup.js' is generated at build time
     import: () => import("./lsp/html/setup.js"),
-    customGrammars: [jsonScriptGrammar as any],
   },
   css: {
     // @ts-expect-error 'setup.js' is generated at build time
@@ -81,8 +81,8 @@ export const lspConfig: Record<string, LSPConfig> = {
     import: () => import("./lsp/json/setup.js"),
   },
   typescript: {
+    aliases: ["javascript", "jsx", "tsx"],
     // @ts-expect-error 'setup.js' is generated at build time
     import: () => import("./lsp/typescript/setup.js"),
-    aliases: ["javascript", "jsx", "tsx"],
   },
 };
