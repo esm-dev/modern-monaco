@@ -8,10 +8,6 @@ import type monacoNS from "monaco-editor-core";
 import * as lst from "vscode-languageserver-types";
 let Monaco: typeof monacoNS;
 
-export interface WorkerAccessor<T> {
-  (...more: monacoNS.Uri[]): Promise<T>;
-}
-
 export function setup(monaco: typeof monacoNS) {
   monaco.editor.addCommand({
     id: "search-npm-modules",
@@ -22,39 +18,33 @@ export function setup(monaco: typeof monacoNS) {
   Monaco = monaco;
 }
 
-export function registerDefault(
+export interface WorkerProxy<T> {
+  (...more: monacoNS.Uri[]): Promise<T>;
+}
+
+export function registerDefault<
+  T extends
+    & ILanguageWorkerWithCompletions
+    & ILanguageWorkerWithDocumentSymbols
+    & ILanguageWorkerWithFoldingRanges
+    & ILanguageWorkerWithFormat
+    & ILanguageWorkerWithHover
+    & ILanguageWorkerWithSelectionRanges,
+>(
   languageId: string,
-  workerAccessor: WorkerAccessor<any>,
-  completionTriggerCharacters: string[],
+  workerProxy: WorkerProxy<T>,
+  triggerCharacters: string[],
 ) {
   const { languages } = Monaco;
-  languages.registerCompletionItemProvider(
-    languageId,
-    new CompletionAdapter(workerAccessor, completionTriggerCharacters),
-  );
-  languages.registerDocumentFormattingEditProvider(
-    languageId,
-    new DocumentFormattingEditProvider(workerAccessor),
-  );
+  languages.registerCompletionItemProvider(languageId, new CompletionAdapter<T>(workerProxy, triggerCharacters));
+  languages.registerHoverProvider(languageId, new HoverAdapter<T>(workerProxy));
+  languages.registerDocumentSymbolProvider(languageId, new DocumentSymbolAdapter<T>(workerProxy));
+  languages.registerFoldingRangeProvider(languageId, new FoldingRangeAdapter<T>(workerProxy));
+  languages.registerSelectionRangeProvider(languageId, new SelectionRangeAdapter<T>(workerProxy));
+  languages.registerDocumentFormattingEditProvider(languageId, new DocumentFormattingEditProvider<T>(workerProxy));
   languages.registerDocumentRangeFormattingEditProvider(
     languageId,
-    new DocumentRangeFormattingEditProvider(workerAccessor),
-  );
-  languages.registerDocumentSymbolProvider(
-    languageId,
-    new DocumentSymbolAdapter(workerAccessor),
-  );
-  languages.registerFoldingRangeProvider(
-    languageId,
-    new FoldingRangeAdapter(workerAccessor),
-  );
-  languages.registerHoverProvider(
-    languageId,
-    new HoverAdapter(workerAccessor),
-  );
-  languages.registerSelectionRangeProvider(
-    languageId,
-    new SelectionRangeAdapter(workerAccessor),
+    new DocumentRangeFormattingEditProvider<T>(workerProxy),
   );
 }
 
@@ -65,7 +55,7 @@ export interface ILanguageWorkerWithEmbeddedSupport {
 }
 
 export function attachEmbeddedLanguages<T extends ILanguageWorkerWithEmbeddedSupport>(
-  worker: WorkerAccessor<T>,
+  worker: WorkerProxy<T>,
   embeddedLanguages: string[],
 ) {
   const { editor, Uri } = Monaco;
@@ -120,12 +110,12 @@ export interface ILanguageWorkerWithDiagnostics {
 }
 
 export class DiagnosticsAdapter<T extends ILanguageWorkerWithDiagnostics> {
-  protected readonly worker: WorkerAccessor<T>;
+  protected readonly worker: WorkerProxy<T>;
 
   private readonly _languageId: string;
   private readonly _listeners: { [uri: string]: monacoNS.IDisposable } = Object.create(null);
 
-  constructor(languageId: string, worker: WorkerAccessor<T>, onRefresh: monacoNS.IEvent<any>) {
+  constructor(languageId: string, worker: WorkerProxy<T>, onRefresh: monacoNS.IEvent<void>) {
     this._languageId = languageId;
     this.worker = worker;
 
@@ -164,7 +154,7 @@ export class DiagnosticsAdapter<T extends ILanguageWorkerWithDiagnostics> {
       dispose(model);
       validateModel(model);
     });
-    onRefresh((_) => {
+    onRefresh(() => {
       editor.getModels().forEach((model) => {
         dispose(model);
         validateModel(model);
@@ -235,7 +225,7 @@ export class CompletionAdapter<T extends ILanguageWorkerWithCompletions>
   implements monacoNS.languages.CompletionItemProvider
 {
   constructor(
-    private readonly _worker: WorkerAccessor<T>,
+    private readonly _worker: WorkerProxy<T>,
     private readonly _triggerCharacters: string[],
   ) {}
 
@@ -447,7 +437,7 @@ export interface ILanguageWorkerWithHover {
 }
 
 export class HoverAdapter<T extends ILanguageWorkerWithHover> implements monacoNS.languages.HoverProvider {
-  constructor(private readonly _worker: WorkerAccessor<T>) {}
+  constructor(private readonly _worker: WorkerProxy<T>) {}
 
   provideHover(
     model: monacoNS.editor.IReadOnlyModel,
@@ -530,7 +520,7 @@ export interface ILanguageWorkerWithDocumentHighlights {
 export class DocumentHighlightAdapter<
   T extends ILanguageWorkerWithDocumentHighlights,
 > implements monacoNS.languages.DocumentHighlightProvider {
-  constructor(private readonly _worker: WorkerAccessor<T>) {}
+  constructor(private readonly _worker: WorkerProxy<T>) {}
 
   public provideDocumentHighlights(
     model: monacoNS.editor.IReadOnlyModel,
@@ -588,7 +578,7 @@ export interface ILanguageWorkerWithDefinitions {
 export class DefinitionAdapter<T extends ILanguageWorkerWithDefinitions>
   implements monacoNS.languages.DefinitionProvider
 {
-  constructor(private readonly _worker: WorkerAccessor<T>) {}
+  constructor(private readonly _worker: WorkerProxy<T>) {}
 
   public provideDefinition(
     model: monacoNS.editor.IReadOnlyModel,
@@ -632,7 +622,7 @@ export interface ILanguageWorkerWithReferences {
 }
 
 export class ReferenceAdapter<T extends ILanguageWorkerWithReferences> implements monacoNS.languages.ReferenceProvider {
-  constructor(private readonly _worker: WorkerAccessor<T>) {}
+  constructor(private readonly _worker: WorkerProxy<T>) {}
 
   provideReferences(
     model: monacoNS.editor.IReadOnlyModel,
@@ -671,7 +661,7 @@ export interface ILanguageWorkerWithRename {
 }
 
 export class RenameAdapter<T extends ILanguageWorkerWithRename> implements monacoNS.languages.RenameProvider {
-  constructor(private readonly _worker: WorkerAccessor<T>) {}
+  constructor(private readonly _worker: WorkerProxy<T>) {}
 
   provideRenameEdits(
     model: monacoNS.editor.IReadOnlyModel,
@@ -733,7 +723,7 @@ export interface ILanguageWorkerWithDocumentSymbols {
 export class DocumentSymbolAdapter<T extends ILanguageWorkerWithDocumentSymbols>
   implements monacoNS.languages.DocumentSymbolProvider
 {
-  constructor(private readonly _worker: WorkerAccessor<T>) {}
+  constructor(private readonly _worker: WorkerProxy<T>) {}
 
   public provideDocumentSymbols(
     model: monacoNS.editor.IReadOnlyModel,
@@ -836,7 +826,7 @@ export interface ILanguageWorkerWithDocumentLinks {
 export class DocumentLinkAdapter<T extends ILanguageWorkerWithDocumentLinks>
   implements monacoNS.languages.LinkProvider
 {
-  constructor(private _worker: WorkerAccessor<T>) {}
+  constructor(private _worker: WorkerProxy<T>) {}
 
   public provideLinks(
     model: monacoNS.editor.IReadOnlyModel,
@@ -876,7 +866,7 @@ export interface ILanguageWorkerWithFormat {
 export class DocumentFormattingEditProvider<T extends ILanguageWorkerWithFormat>
   implements monacoNS.languages.DocumentFormattingEditProvider
 {
-  constructor(private _worker: WorkerAccessor<T>) {}
+  constructor(private _worker: WorkerProxy<T>) {}
 
   public provideDocumentFormattingEdits(
     model: monacoNS.editor.IReadOnlyModel,
@@ -903,7 +893,7 @@ export class DocumentRangeFormattingEditProvider<T extends ILanguageWorkerWithFo
 {
   readonly canFormatMultipleRanges = false;
 
-  constructor(private _worker: WorkerAccessor<T>) {}
+  constructor(private _worker: WorkerProxy<T>) {}
 
   public provideDocumentRangeFormattingEdits(
     model: monacoNS.editor.IReadOnlyModel,
@@ -949,7 +939,7 @@ export interface ILanguageWorkerWithDocumentColors {
 export class DocumentColorAdapter<T extends ILanguageWorkerWithDocumentColors>
   implements monacoNS.languages.DocumentColorProvider
 {
-  constructor(private readonly _worker: WorkerAccessor<T>) {}
+  constructor(private readonly _worker: WorkerProxy<T>) {}
 
   public provideDocumentColors(
     model: monacoNS.editor.IReadOnlyModel,
@@ -1021,7 +1011,7 @@ export interface ILanguageWorkerWithFoldingRanges {
 export class FoldingRangeAdapter<T extends ILanguageWorkerWithFoldingRanges>
   implements monacoNS.languages.FoldingRangeProvider
 {
-  constructor(private _worker: WorkerAccessor<T>) {}
+  constructor(private _worker: WorkerProxy<T>) {}
 
   public provideFoldingRanges(
     model: monacoNS.editor.IReadOnlyModel,
@@ -1080,7 +1070,7 @@ export interface ILanguageWorkerWithSelectionRanges {
 export class SelectionRangeAdapter<T extends ILanguageWorkerWithSelectionRanges>
   implements monacoNS.languages.SelectionRangeProvider
 {
-  constructor(private _worker: WorkerAccessor<T>) {}
+  constructor(private _worker: WorkerProxy<T>) {}
 
   public provideSelectionRanges(
     model: monacoNS.editor.IReadOnlyModel,

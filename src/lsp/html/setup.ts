@@ -64,32 +64,32 @@ export function setup(
       },
     },
   });
-  const workerAccessor: lf.WorkerAccessor<HTMLWorker> = (
+  const workerProxy: lf.WorkerProxy<HTMLWorker> = (
     ...uris: monacoNS.Uri[]
   ): Promise<HTMLWorker> => {
     return worker.withSyncedResources(uris);
   };
 
   // @ts-expect-error `onWorker` is added by esm-monaco
-  MonacoEnvironment.onWorker(languageId, workerAccessor);
+  MonacoEnvironment.onWorker(languageId, workerProxy);
 
   // set monacoNS and register default language features
   lf.setup(monaco);
-  lf.registerDefault(languageId, workerAccessor, [".", ":", "<", "\"", "=", "/"]);
+  lf.registerDefault(languageId, workerProxy, [".", ":", "<", "\"", "=", "/"]);
 
   // attach embedded languages in memory
-  lf.attachEmbeddedLanguages(workerAccessor, ["css", "importmap"]);
+  lf.attachEmbeddedLanguages(workerProxy, ["css", "importmap"]);
 
   // register diagnostics adapter (for embedded languages)
-  new lf.DiagnosticsAdapter(languageId, workerAccessor, diagnosticsEmitter.event);
+  new lf.DiagnosticsAdapter(languageId, workerProxy, diagnosticsEmitter.event);
 
   // register language features
-  languages.registerColorProvider(languageId, new lf.DocumentColorAdapter(workerAccessor));
-  languages.registerDocumentHighlightProvider(languageId, new lf.DocumentHighlightAdapter(workerAccessor));
-  languages.registerLinkProvider(languageId, new lf.DocumentLinkAdapter(workerAccessor));
-  languages.registerRenameProvider(languageId, new lf.RenameAdapter(workerAccessor));
+  languages.registerColorProvider(languageId, new lf.DocumentColorAdapter(workerProxy));
+  languages.registerDocumentHighlightProvider(languageId, new lf.DocumentHighlightAdapter(workerProxy));
+  languages.registerLinkProvider(languageId, new lf.DocumentLinkAdapter(workerProxy));
+  languages.registerRenameProvider(languageId, new lf.RenameAdapter(workerProxy));
 
-  // code lens for importmap updating
+  // register code lens for importmap updating
   languages.registerCodeLensProvider(languageId, {
     onDidChange: codeLensEmitter.event,
     resolveCodeLens: (_model, codeLens, _token) => {

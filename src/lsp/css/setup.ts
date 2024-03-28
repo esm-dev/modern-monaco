@@ -37,30 +37,30 @@ export function setup(
     label: languageId,
     createData,
   });
-  const workerAccessor: lf.WorkerAccessor<CSSWorker> = (
+  const workerProxy: lf.WorkerProxy<CSSWorker> = (
     ...uris: monacoNS.Uri[]
   ): Promise<CSSWorker> => {
     return worker.withSyncedResources(uris);
   };
 
   // @ts-expect-error `onWorker` is added by esm-monaco
-  MonacoEnvironment.onWorker(languageId, workerAccessor);
+  MonacoEnvironment.onWorker(languageId, workerProxy);
 
   // set monacoNS and register default language features
   lf.setup(monaco);
-  lf.registerDefault(languageId, workerAccessor, ["/", "-", ":"]);
+  lf.registerDefault(languageId, workerProxy, ["/", "-", ":"]);
 
   // register diagnostics adapter
-  new lf.DiagnosticsAdapter(languageId, workerAccessor, diagnosticsEmitter.event);
+  new lf.DiagnosticsAdapter(languageId, workerProxy, diagnosticsEmitter.event);
 
   // register language features
-  languages.registerColorProvider(languageId, new lf.DocumentColorAdapter(workerAccessor));
-  languages.registerDocumentHighlightProvider(languageId, new lf.DocumentHighlightAdapter(workerAccessor));
-  languages.registerRenameProvider(languageId, new lf.RenameAdapter(workerAccessor));
+  languages.registerColorProvider(languageId, new lf.DocumentColorAdapter(workerProxy));
+  languages.registerDocumentHighlightProvider(languageId, new lf.DocumentHighlightAdapter(workerProxy));
+  languages.registerRenameProvider(languageId, new lf.RenameAdapter(workerProxy));
 
   // disable definition and reference providers for now
-  // languages.registerDefinitionProvider(languageId, new lf.DefinitionAdapter(workerAccessor));
-  // languages.registerReferenceProvider(languageId, new lf.ReferenceAdapter(workerAccessor));
+  // languages.registerDefinitionProvider(languageId, new lf.DefinitionAdapter(workerProxy));
+  // languages.registerReferenceProvider(languageId, new lf.ReferenceAdapter(workerProxy));
 }
 
 export function getWorkerUrl() {

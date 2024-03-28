@@ -12,7 +12,7 @@ export function setup(
   languageSettings?: Record<string, unknown>,
   formattingOptions?: FormattingOptions,
 ) {
-  const languages = monaco.languages;
+  const { editor, languages } = monaco;
   const diagnosticsEmitter = new monaco.Emitter<void>();
   const codeLensEmitter = new monaco.Emitter<monacoNS.languages.CodeLensProvider>();
   const createData: CreateData = {
@@ -43,46 +43,36 @@ export function setup(
     label: languageId,
     createData,
   });
-  const workerAccessor: lf.WorkerAccessor<JSONWorker> = (
+  const workerProxy: lf.WorkerProxy<JSONWorker> = (
     ...uris: monacoNS.Uri[]
   ): Promise<JSONWorker> => {
     return worker.withSyncedResources(uris);
   };
-
-  class JSONDiagnosticsAdapter extends lf.DiagnosticsAdapter<JSONWorker> {
-    constructor(
-      languageId: string,
-      worker: lf.WorkerAccessor<JSONWorker>,
-      onRefresh: monacoNS.IEvent<any>,
-    ) {
-      super(languageId, worker, onRefresh);
-      const editor = monaco.editor;
-      editor.onWillDisposeModel((model) => {
-        this._resetSchema(model.uri);
-      });
-      editor.onDidChangeModelLanguage((event) => {
-        this._resetSchema(event.model.uri);
-      });
-    }
-
-    private _resetSchema(resource: monacoNS.Uri): void {
-      this.worker().then((worker) => {
-        worker.resetSchema(resource.toString());
-      });
-    }
-  }
+  const resetSchema = (uri: monacoNS.Uri) => {
+    return worker.getProxy().then((worker) => {
+      worker.resetSchema(uri.toString());
+    });
+  };
 
   // @ts-expect-error `onWorker` is added by esm-monaco
-  MonacoEnvironment.onWorker(languageId, workerAccessor);
+  MonacoEnvironment.onWorker(languageId, workerProxy);
 
   // set monacoNS and register default language features
   lf.setup(monaco);
-  lf.registerDefault(languageId, workerAccessor, [" ", ":", "\""]);
+  lf.registerDefault(languageId, workerProxy, [" ", ":", "\""]);
 
   // register diagnostics adapter
-  new JSONDiagnosticsAdapter(languageId, workerAccessor, diagnosticsEmitter.event);
+  new lf.DiagnosticsAdapter(languageId, workerProxy, diagnosticsEmitter.event);
 
-  // code lens for importmap.json
+  // reset schema on model change
+  editor.onWillDisposeModel((model) => {
+    resetSchema(model.uri);
+  });
+  editor.onDidChangeModelLanguage((event) => {
+    resetSchema(event.model.uri);
+  });
+
+  // register code lens for importmap.json
   languages.registerCodeLensProvider(languageId, {
     onDidChange: codeLensEmitter.event,
     resolveCodeLens: (model, codeLens, token) => {
