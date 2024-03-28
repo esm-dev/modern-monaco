@@ -57,9 +57,9 @@ export function setup(
   languages.registerColorProvider(languageId, new lf.DocumentColorAdapter(workerProxy));
   languages.registerDocumentHighlightProvider(languageId, new lf.DocumentHighlightAdapter(workerProxy));
   languages.registerRenameProvider(languageId, new lf.RenameAdapter(workerProxy));
+  languages.registerDefinitionProvider(languageId, new lf.DefinitionAdapter(workerProxy));
 
-  // disable definition and reference providers for now
-  // languages.registerDefinitionProvider(languageId, new lf.DefinitionAdapter(workerProxy));
+  // disable reference providers for now
   // languages.registerReferenceProvider(languageId, new lf.ReferenceAdapter(workerProxy));
 }
 

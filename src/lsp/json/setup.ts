@@ -63,8 +63,6 @@ export function setup(
 
   // register diagnostics adapter
   new lf.DiagnosticsAdapter(languageId, workerProxy, diagnosticsEmitter.event);
-
-  // reset schema on model change
   editor.onWillDisposeModel((model) => {
     resetSchema(model.uri);
   });

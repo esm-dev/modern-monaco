@@ -127,7 +127,7 @@ export class HTMLWorker {
       return null;
     }
     const rs = getDocumentRegions(this._languageService, document);
-    const rsl = rs.getLanguageAtPosition(position);
+    const rsl = rs.getEmbeddedLanguageAtPosition(position);
     if (rsl) {
       return await this._ctx.host.redirectLSPRequest(rsl, "doComplete", uri + "#" + rsl, position) ?? null;
     }
@@ -140,7 +140,7 @@ export class HTMLWorker {
     );
   }
 
-  async format(uri: string, formatRange: lst.Range, options: lst.FormattingOptions): Promise<lst.TextEdit[]> {
+  async doFormat(uri: string, formatRange: lst.Range, options: lst.FormattingOptions): Promise<lst.TextEdit[]> {
     const document = this._getTextDocument(uri);
     if (!document) {
       return [];
@@ -162,24 +162,28 @@ export class HTMLWorker {
         const regionUri = uri + "#" + region.languageId;
         const regionText = document.getText().substring(region.start, region.end);
         const regionDoc = htmlService.TextDocument.create(regionUri, region.languageId, 0, regionText);
-        const edits = await this._ctx.host.redirectLSPRequest(
-          region.languageId,
-          "format",
-          regionUri,
-          formatRange,
-          options,
-          regionText,
-        );
-        if (Array.isArray(edits)) {
-          const formatted = htmlService.TextDocument.applyEdits(regionDoc, edits);
-          const indent = "  ";
-          htmlEdits.push({
-            range: {
-              start: document.positionAt(region.start),
-              end: document.positionAt(region.end),
-            },
-            newText: [indent, ...formatted.split("\n").map(l => indent + l), indent].join("\n"),
-          });
+        try {
+          const edits = await this._ctx.host.redirectLSPRequest(
+            region.languageId,
+            "doFormat",
+            regionUri,
+            formatRange,
+            options,
+            regionText,
+          );
+          if (Array.isArray(edits)) {
+            const formatted = htmlService.TextDocument.applyEdits(regionDoc, edits);
+            const indent = "  ";
+            htmlEdits.push({
+              range: {
+                start: document.positionAt(region.start),
+                end: document.positionAt(region.end),
+              },
+              newText: [indent, ...formatted.split("\n").map(l => indent + l), indent].join("\n"),
+            });
+          }
+        } catch (error) {
+          // ignore
         }
       }
     }
@@ -208,13 +212,12 @@ export class HTMLWorker {
       return null;
     }
     const rs = getDocumentRegions(this._languageService, document);
-    const rsl = rs.getLanguageAtPosition(position);
+    const rsl = rs.getEmbeddedLanguageAtPosition(position);
     if (rsl) {
       return await this._ctx.host.redirectLSPRequest(rsl, "doHover", uri + "#" + rsl, position) ?? null;
     }
     const htmlDocument = this._languageService.parseHTMLDocument(document);
-    const hover = this._languageService.doHover(document, position, htmlDocument);
-    return Promise.resolve(hover);
+    return this._languageService.doHover(document, position, htmlDocument);
   }
 
   async findDocumentHighlights(
@@ -294,18 +297,17 @@ export class HTMLWorker {
       return null;
     }
     const rs = getDocumentRegions(this._languageService, document);
-    const rsl = rs.getLanguageAtPosition(position);
+    const rsl = rs.getEmbeddedLanguageAtPosition(position);
     if (rsl) {
       return await this._ctx.host.redirectLSPRequest(rsl, "doRename", uri + "#" + rsl, position, newName) ?? null;
     }
     const htmlDocument = this._languageService.parseHTMLDocument(document);
-    const renames = this._languageService.doRename(
+    return this._languageService.doRename(
       document,
       position,
       newName,
       htmlDocument,
     );
-    return renames;
   }
 
   async findDocumentColors(uri: string): Promise<lst.ColorInformation[]> {

@@ -28,27 +28,6 @@ export function setup(monaco: typeof Monaco) {
   Monaco = monaco;
 }
 
-export class EventTrigger {
-  private _fireTimer = null;
-
-  constructor(private _emitter: monacoNS.Emitter<void>) {}
-
-  public get event() {
-    return this._emitter.event;
-  }
-
-  public fire() {
-    if (this._fireTimer !== null) {
-      // already fired
-      return;
-    }
-    this._fireTimer = setTimeout(() => {
-      this._fireTimer = null;
-      this._emitter.fire();
-    }, 0) as any;
-  }
-}
-
 export class TypesStore {
   private _removedtypes: Record<string, number> = {};
 

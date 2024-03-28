@@ -11,7 +11,7 @@ export interface HTMLDocumentRegions {
   readonly importedScripts: readonly ImportedScript[];
   getEmbeddedDocument(languageId: string, ignoreAttributeValues?: boolean): string | null;
   getEmbeddedLanguages(ignoreAttributeValues?: boolean): string[];
-  getLanguageAtPosition(position: Position): string | undefined;
+  getEmbeddedLanguageAtPosition(position: Position): string | undefined;
   hasEmbeddedLanguage(languageId: string, ignoreAttributeValues?: boolean): boolean;
 }
 
@@ -125,7 +125,7 @@ export function getDocumentRegions(languageService: LanguageService, document: T
     getEmbeddedDocument: (languageId, ignoreAttributeValues) =>
       getEmbeddedDocument(document, regions, languageId, ignoreAttributeValues),
     getEmbeddedLanguages: (ignoreAttributeValues) => getEmbeddedLanguages(regions, ignoreAttributeValues),
-    getLanguageAtPosition: (position) => getLanguageAtPosition(document, regions, position),
+    getEmbeddedLanguageAtPosition: (position) => getEmbeddedLanguageAtPosition(document, regions, position),
     hasEmbeddedLanguage: (languageId, ignoreAttributeValues) =>
       regions.some(r => r.languageId === languageId && (!ignoreAttributeValues || !r.attributeValue)),
   };
@@ -141,7 +141,7 @@ function getEmbeddedLanguages(regions: EmbeddedRegion[], ignoreAttributeValues?:
   return result;
 }
 
-function getLanguageAtPosition(
+function getEmbeddedLanguageAtPosition(
   document: TextDocument,
   regions: EmbeddedRegion[],
   position: Position,
@@ -155,7 +155,6 @@ function getLanguageAtPosition(
       return region.languageId;
     }
   }
-  return "html";
 }
 
 function getEmbeddedDocument(

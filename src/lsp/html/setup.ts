@@ -76,8 +76,6 @@ export function setup(
   // set monacoNS and register default language features
   lf.setup(monaco);
   lf.registerDefault(languageId, workerProxy, [".", ":", "<", "\"", "=", "/"]);
-
-  // attach embedded languages in memory
   lf.attachEmbeddedLanguages(workerProxy, ["css", "importmap"]);
 
   // register diagnostics adapter (for embedded languages)

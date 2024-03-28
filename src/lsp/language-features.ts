@@ -855,7 +855,7 @@ export class DocumentLinkAdapter<T extends ILanguageWorkerWithDocumentLinks>
 // #region DocumentFormattingEditProvider, DocumentRangeFormattingEditProvider
 
 export interface ILanguageWorkerWithFormat {
-  format(
+  doFormat(
     uri: string,
     range: lst.Range | null,
     options: lst.FormattingOptions,
@@ -877,7 +877,7 @@ export class DocumentFormattingEditProvider<T extends ILanguageWorkerWithFormat>
 
     return this._worker(resource).then((worker) => {
       return worker
-        .format(resource.toString(), null, fromFormattingOptions(options))
+        .doFormat(resource.toString(), null, { ...options })
         .then((edits) => {
           if (!edits || edits.length === 0) {
             return;
@@ -891,8 +891,6 @@ export class DocumentFormattingEditProvider<T extends ILanguageWorkerWithFormat>
 export class DocumentRangeFormattingEditProvider<T extends ILanguageWorkerWithFormat>
   implements monacoNS.languages.DocumentRangeFormattingEditProvider
 {
-  readonly canFormatMultipleRanges = false;
-
   constructor(private _worker: WorkerProxy<T>) {}
 
   public provideDocumentRangeFormattingEdits(
@@ -905,11 +903,7 @@ export class DocumentRangeFormattingEditProvider<T extends ILanguageWorkerWithFo
 
     return this._worker(resource).then((worker) => {
       return worker
-        .format(
-          resource.toString(),
-          fromRange(range),
-          fromFormattingOptions(options),
-        )
+        .doFormat(resource.toString(), fromRange(range), { ...options })
         .then((edits) => {
           if (!edits || edits.length === 0) {
             return;
@@ -918,13 +912,6 @@ export class DocumentRangeFormattingEditProvider<T extends ILanguageWorkerWithFo
         });
     });
   }
-}
-
-function fromFormattingOptions(options: monacoNS.languages.FormattingOptions): lst.FormattingOptions {
-  return {
-    tabSize: options.tabSize,
-    insertSpaces: options.insertSpaces,
-  };
 }
 
 // #endregion

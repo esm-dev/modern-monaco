@@ -278,7 +278,7 @@ export class CSSWorker {
     return Promise.resolve(renames);
   }
 
-  async format(
+  async doFormat(
     uri: string,
     range: cssService.Range | null,
     options: cssService.CSSFormatConfiguration,

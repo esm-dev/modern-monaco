@@ -14,7 +14,7 @@ type TSWorker = monacoNS.editor.MonacoWebWorker<TypeScriptWorker>;
 
 // javascript and typescript share the same worker
 let worker: TSWorker | Promise<TSWorker> | null = null;
-let refreshDiagnosticEventEmitter: lf.EventTrigger | null = null;
+let refreshDiagnosticEventEmitter: monacoNS.Emitter<void> | null = null;
 
 export async function setup(
   monaco: typeof monacoNS,
@@ -48,11 +48,11 @@ export async function setup(
 
   // register language features
   languages.registerCompletionItemProvider(languageId, new lf.SuggestAdapter(workerAccessor));
-  languages.registerSignatureHelpProvider(languageId, new lf.SignatureHelpAdapter(workerAccessor));
   languages.registerHoverProvider(languageId, new lf.QuickInfoAdapter(workerAccessor));
+  languages.registerSignatureHelpProvider(languageId, new lf.SignatureHelpAdapter(workerAccessor));
   languages.registerDocumentHighlightProvider(languageId, new lf.DocumentHighlightAdapter(workerAccessor));
   languages.registerDefinitionProvider(languageId, new lf.DefinitionAdapter(workerAccessor));
-  languages.registerReferenceProvider(languageId, new lf.ReferenceAdapter(workerAccessor));
+  // languages.registerReferenceProvider(languageId, new lf.ReferenceAdapter(workerAccessor));
   languages.registerDocumentSymbolProvider(languageId, new lf.OutlineAdapter(workerAccessor));
   languages.registerRenameProvider(languageId, new lf.RenameAdapter(workerAccessor));
   languages.registerDocumentRangeFormattingEditProvider(languageId, new lf.FormatAdapter(workerAccessor));
@@ -258,7 +258,7 @@ async function createWorker(
     },
   });
 
-  refreshDiagnosticEventEmitter = new lf.EventTrigger(new monaco.Emitter());
+  refreshDiagnosticEventEmitter = new monaco.Emitter();
   return worker;
 }
 

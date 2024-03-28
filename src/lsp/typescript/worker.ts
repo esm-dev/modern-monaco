@@ -84,7 +84,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     this._inlayHintsOptions = createData.inlayHintsOptions;
   }
 
-  /*** language service host ***/
+  // #region language featureslanguage service host
 
   getCompilationSettings(): ts.CompilerOptions {
     if (!this._compilerOptions.jsxImportSource) {
@@ -244,8 +244,8 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
         return undefined;
       }
       const moduleUrl = new URL(specifier, containingFile);
-      if (TypeScriptWorker.getScriptExtension(moduleUrl.pathname, null) === null) {
-        const ext = TypeScriptWorker.getScriptExtension(containingFile, null);
+      if (getScriptExtension(moduleUrl.pathname, null) === null) {
+        const ext = getScriptExtension(containingFile, null);
         if (ext === ".d.ts" || ext === ".d.mts" || ext === ".d.cts") {
           // use the extension of the containing file which is a dts file
           // when the module name has no extension.
@@ -265,7 +265,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
           if (moduleName === model.uri.toString()) {
             return {
               resolvedFileName: moduleName,
-              extension: TypeScriptWorker.getScriptExtension(moduleUrl.pathname),
+              extension: getScriptExtension(moduleUrl.pathname),
             };
           }
         }
@@ -296,13 +296,13 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
         if (this._httpModules.has(moduleName)) {
           return {
             resolvedFileName: moduleName,
-            extension: TypeScriptWorker.getScriptExtension(moduleUrl.pathname, ".js"),
+            extension: getScriptExtension(moduleUrl.pathname, ".js"),
           };
         }
         if (this._httpTsModules.has(moduleName)) {
           return {
             resolvedFileName: moduleName,
-            extension: TypeScriptWorker.getScriptExtension(moduleUrl.pathname, ".ts"),
+            extension: getScriptExtension(moduleUrl.pathname, ".ts"),
           };
         }
         if (this._dtsMap.has(moduleName)) {
@@ -387,21 +387,23 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     });
   }
 
-  /*** language features ***/
+  // #endregion
+
+  // #region language features
 
   async getSyntacticDiagnostics(fileName: string): Promise<Diagnostic[]> {
     const diagnostics = this._languageService.getSyntacticDiagnostics(fileName);
-    return TypeScriptWorker.clearFiles(diagnostics);
+    return clearFiles(diagnostics);
   }
 
   async getSemanticDiagnostics(fileName: string): Promise<Diagnostic[]> {
     const diagnostics = this._languageService.getSemanticDiagnostics(fileName);
-    return TypeScriptWorker.clearFiles(diagnostics);
+    return clearFiles(diagnostics);
   }
 
   async getSuggestionDiagnostics(fileName: string): Promise<Diagnostic[]> {
     const diagnostics = this._languageService.getSuggestionDiagnostics(fileName);
-    const finDiagnostics = TypeScriptWorker.clearFiles(diagnostics);
+    const finDiagnostics = clearFiles(diagnostics);
     if (this._httpRedirects.length > 0) {
       this._httpRedirects.forEach(({ node, url }) => {
         finDiagnostics.push({
@@ -417,10 +419,10 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     return finDiagnostics;
   }
 
-  async getCompilerOptionsDiagnostics(fileName: string): Promise<Diagnostic[]> {
-    const diagnostics = this._languageService.getCompilerOptionsDiagnostics();
-    return TypeScriptWorker.clearFiles(diagnostics);
-  }
+  // async getCompilerOptionsDiagnostics(fileName: string): Promise<Diagnostic[]> {
+  //   const diagnostics = this._languageService.getCompilerOptionsDiagnostics();
+  //   return clearFiles(diagnostics);
+  // }
 
   async getCompletionsAtPosition(
     fileName: string,
@@ -445,7 +447,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
         const { data } = entry;
         if (
           !data
-          || !TypeScriptWorker.isDts(data.fileName)
+          || !isDts(data.fileName)
         ) {
           return true;
         }
@@ -494,7 +496,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
         if (action.description.startsWith("Add import from ")) {
           const specifier = action.description.slice(17, -1);
           const newSpecifier = this._getSpecifierFromDts(
-            TypeScriptWorker.isDts(specifier) ? specifier : specifier + ".d.ts",
+            isDts(specifier) ? specifier : specifier + ".d.ts",
           );
           if (newSpecifier) {
             action.description = `Add type import from "${newSpecifier}"`;
@@ -628,15 +630,15 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     return this._languageService.getNavigationTree(fileName);
   }
 
-  async getFormattingEditsForDocument(
-    fileName: string,
-    formatOptions: ts.FormatCodeSettings,
-  ): Promise<ts.TextChange[]> {
-    return this._languageService.getFormattingEditsForDocument(
-      fileName,
-      this._mergeFormatOptions(formatOptions),
-    );
-  }
+  // async getFormattingEditsForDocument(
+  //   fileName: string,
+  //   formatOptions: ts.FormatCodeSettings,
+  // ): Promise<ts.TextChange[]> {
+  //   return this._languageService.getFormattingEditsForDocument(
+  //     fileName,
+  //     this._mergeFormatOptions(formatOptions),
+  //   );
+  // }
 
   async getFormattingEditsForRange(
     fileName: string,
@@ -697,9 +699,9 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     return this._languageService.getRenameInfo(fileName, position, options);
   }
 
-  async getEmitOutput(fileName: string): Promise<ts.EmitOutput> {
-    return this._languageService.getEmitOutput(fileName);
-  }
+  // async getEmitOutput(fileName: string): Promise<ts.EmitOutput> {
+  //   return this._languageService.getEmitOutput(fileName);
+  // }
 
   async getCodeFixesAtPosition(
     fileName: string,
@@ -799,24 +801,6 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     }
   }
 
-  async cacheHttpModule(specifier: string, containingFile: string): Promise<void> {
-    if (this._unknownModules.has(specifier)) {
-      const res = await cache.fetch(specifier);
-      res.body?.cancel();
-      this._unknownModules.delete(specifier);
-      if (!res.ok) {
-        this._naModules.add(specifier);
-      }
-      this._rollbackVersion(containingFile);
-      this._refreshDiagnostics();
-    }
-  }
-
-  async removeHttpRedirect(index: number): Promise<void> {
-    this._httpRedirects.splice(index, 1);
-    this._refreshDiagnostics();
-  }
-
   async provideInlayHints(
     fileName: string,
     start: number,
@@ -835,23 +819,45 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     }
   }
 
-  async organizeImports(
-    fileName: string,
-    formatOptions: ts.FormatCodeSettings,
-  ): Promise<readonly ts.FileTextChanges[]> {
-    try {
-      return this._languageService.organizeImports(
-        {
-          type: "file",
-          fileName,
-          mode: ts.OrganizeImportsMode.SortAndCombine,
-        },
-        this._mergeFormatOptions(formatOptions),
-        undefined,
-      );
-    } catch {
-      return [];
+  // async organizeImports(
+  //   fileName: string,
+  //   formatOptions: ts.FormatCodeSettings,
+  // ): Promise<readonly ts.FileTextChanges[]> {
+  //   try {
+  //     return this._languageService.organizeImports(
+  //       {
+  //         type: "file",
+  //         fileName,
+  //         mode: ts.OrganizeImportsMode.SortAndCombine,
+  //       },
+  //       this._mergeFormatOptions(formatOptions),
+  //       undefined,
+  //     );
+  //   } catch {
+  //     return [];
+  //   }
+  // }
+
+  // #endregion
+
+  // #region methods used by the host
+
+  async cacheHttpModule(specifier: string, containingFile: string): Promise<void> {
+    if (this._unknownModules.has(specifier)) {
+      const res = await cache.fetch(specifier);
+      res.body?.cancel();
+      this._unknownModules.delete(specifier);
+      if (!res.ok) {
+        this._naModules.add(specifier);
+      }
+      this._rollbackVersion(containingFile);
+      this._refreshDiagnostics();
     }
+  }
+
+  async removeHttpRedirect(index: number): Promise<void> {
+    this._httpRedirects.splice(index, 1);
+    this._refreshDiagnostics();
   }
 
   async updateCompilerOptions({
@@ -876,72 +882,9 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     }
   }
 
-  private static getScriptExtension(
-    url: URL | string,
-    defaultExt = ".js",
-  ): string | null {
-    const pathname = typeof url === "string" ? new URL(url, "file:///").pathname : url.pathname;
-    const fileName = pathname.substring(pathname.lastIndexOf("/") + 1);
-    const dotIndex = fileName.lastIndexOf(".");
-    if (dotIndex === -1) {
-      return defaultExt ?? null;
-    }
-    const ext = fileName.substring(dotIndex + 1);
-    switch (ext) {
-      case "ts":
-        return fileName.endsWith(".d.ts") ? ".d.ts" : ".ts";
-      case "mts":
-        return fileName.endsWith(".d.mts") ? ".d.mts" : ".mts";
-      case "cts":
-        return fileName.endsWith(".d.cts") ? ".d.cts" : ".cts";
-      case "tsx":
-        return ".tsx";
-      case "js":
-        return ".js";
-      case "mjs":
-        return ".js";
-      case "cjs":
-        return ".cjs";
-      case "jsx":
-        return ".jsx";
-      case "json":
-        return ".json";
-      default:
-        return ".js";
-    }
-  }
+  // #endregion
 
-  private static isDts(fileName: string): boolean {
-    return fileName.endsWith(".d.ts")
-      || fileName.endsWith(".d.mts")
-      || fileName.endsWith(".d.cts");
-  }
-
-  // Clear the `file` field, which cannot be JSON stringified because it
-  // contains cyclic data structures, except for the `fileName`
-  // property.
-  // Do a deep clone so we don't mutate the ts.Diagnostic object (see https://github.com/microsoft/monaco-editor/issues/2392)
-  private static clearFiles(tsDiagnostics: ts.Diagnostic[]): Diagnostic[] {
-    const diagnostics: Diagnostic[] = [];
-    for (const tsDiagnostic of tsDiagnostics) {
-      const diagnostic: Diagnostic = {
-        ...tsDiagnostic,
-        file: tsDiagnostic.file ? { fileName: tsDiagnostic.file.fileName } : undefined,
-      };
-      if (tsDiagnostic.relatedInformation) {
-        diagnostic.relatedInformation = [];
-        for (const tsRelatedDiagnostic of tsDiagnostic.relatedInformation) {
-          const relatedDiagnostic: DiagnosticRelatedInformation = {
-            ...tsRelatedDiagnostic,
-          };
-          relatedDiagnostic.file = relatedDiagnostic.file ? { fileName: relatedDiagnostic.file.fileName } : undefined;
-          diagnostic.relatedInformation.push(relatedDiagnostic);
-        }
-      }
-      diagnostics.push(diagnostic);
-    }
-    return diagnostics;
-  }
+  // #region private methods
 
   private _refreshDiagnostics(): void {
     if (this._refreshDiagnosticsTimer !== null) {
@@ -1040,6 +983,75 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
       ...formatOptions,
     };
   }
+
+  // #endregion
+}
+
+function getScriptExtension(
+  url: URL | string,
+  defaultExt = ".js",
+): string | null {
+  const pathname = typeof url === "string" ? new URL(url, "file:///").pathname : url.pathname;
+  const fileName = pathname.substring(pathname.lastIndexOf("/") + 1);
+  const dotIndex = fileName.lastIndexOf(".");
+  if (dotIndex === -1) {
+    return defaultExt ?? null;
+  }
+  const ext = fileName.substring(dotIndex + 1);
+  switch (ext) {
+    case "ts":
+      return fileName.endsWith(".d.ts") ? ".d.ts" : ".ts";
+    case "mts":
+      return fileName.endsWith(".d.mts") ? ".d.mts" : ".mts";
+    case "cts":
+      return fileName.endsWith(".d.cts") ? ".d.cts" : ".cts";
+    case "tsx":
+      return ".tsx";
+    case "js":
+      return ".js";
+    case "mjs":
+      return ".js";
+    case "cjs":
+      return ".cjs";
+    case "jsx":
+      return ".jsx";
+    case "json":
+      return ".json";
+    default:
+      return ".js";
+  }
+}
+
+function isDts(fileName: string): boolean {
+  return fileName.endsWith(".d.ts")
+    || fileName.endsWith(".d.mts")
+    || fileName.endsWith(".d.cts");
+}
+
+// Clear the `file` field, which cannot be JSON stringified because it
+// contains cyclic data structures, except for the `fileName`
+// property.
+// Do a deep clone so we don't mutate the ts.Diagnostic object (see https://github.com/microsoft/monaco-editor/issues/2392)
+function clearFiles(tsDiagnostics: ts.Diagnostic[]): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  for (const tsDiagnostic of tsDiagnostics) {
+    const diagnostic: Diagnostic = {
+      ...tsDiagnostic,
+      file: tsDiagnostic.file ? { fileName: tsDiagnostic.file.fileName } : undefined,
+    };
+    if (tsDiagnostic.relatedInformation) {
+      diagnostic.relatedInformation = [];
+      for (const tsRelatedDiagnostic of tsDiagnostic.relatedInformation) {
+        const relatedDiagnostic: DiagnosticRelatedInformation = {
+          ...tsRelatedDiagnostic,
+        };
+        relatedDiagnostic.file = relatedDiagnostic.file ? { fileName: relatedDiagnostic.file.fileName } : undefined;
+        diagnostic.relatedInformation.push(relatedDiagnostic);
+      }
+    }
+    diagnostics.push(diagnostic);
+  }
+  return diagnostics;
 }
 
 initializeWorker(TypeScriptWorker);

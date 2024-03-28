@@ -75,7 +75,7 @@ export class JSONWorker {
     return this._languageService.doHover(document, position, jsonDocument);
   }
 
-  async format(
+  async doFormat(
     uri: string,
     range: jsonService.Range | null,
     options: jsonService.FormattingOptions,
