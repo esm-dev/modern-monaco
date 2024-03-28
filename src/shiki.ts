@@ -77,27 +77,34 @@ export function loadTMGrammar(src: string | URL) {
   return cache.fetch(src).then((res) => res.json());
 }
 
-/** Get language ID from file path. */
-export function getLanguageIdFromPath(path: string) {
+/** Get grammar Info from file path. */
+export function getGarmmarInfoFromPath(
+  path: string,
+): { name: string; aliases?: string[]; embedded?: string[]; injectTo?: string[] } | undefined {
   const idx = path.lastIndexOf(".");
   if (idx > 0) {
     const ext = path.slice(idx + 1);
-    const lang = tmGrammars.find((g) => g.name === ext || g.aliases?.includes(ext));
-    if (lang) {
-      return lang.name;
-    }
+    return tmGrammars.find((g) => g.name === ext || g.aliases?.includes(ext));
   }
 }
 
+/** Get language ID from file path. */
+export function getLanguageIdFromPath(path: string): string | undefined {
+  return getGarmmarInfoFromPath(path)?.name;
+}
+
 /** Get all grammar IDs in the given VFS. */
-export const getGrammarsInVFS = async (vfs: VFS) => {
+export const getLanguageIdsInVFS = async (vfs: VFS) => {
   const grammars = new Set<string>();
   try {
     const list = await vfs.list();
     for (const path of list) {
-      const lang = getLanguageIdFromPath(path);
-      if (lang) {
-        grammars.add(lang);
+      const g = getGarmmarInfoFromPath(path);
+      if (g) {
+        grammars.add(g.name);
+        if (g.embedded) {
+          g.embedded.forEach((id) => grammars.add(id));
+        }
       }
     }
   } catch {

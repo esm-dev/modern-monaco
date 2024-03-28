@@ -5,7 +5,7 @@ import type { VFS } from "./vfs.ts";
 import { shikiToMonaco } from "@shikijs/monaco";
 import { createWorker, type LSPConfig, margeProviders } from "./lsp/index.ts";
 import { render, type RenderOptions } from "./render.ts";
-import { getGrammarsInVFS, getLanguageIdFromPath, initShiki } from "./shiki.ts";
+import { getLanguageIdFromPath, getLanguageIdsInVFS, initShiki } from "./shiki.ts";
 import { loadTMGrammar, loadTMTheme, tmGrammars } from "./shiki.ts";
 
 const editorProps = [
@@ -134,9 +134,9 @@ export function init(options: InitOption): Promise<typeof monacoNS> {
       const vfs = options?.vfs;
       const lspProviders = margeProviders(options.lsp);
       if (vfs) {
-        const grammars = (await getGrammarsInVFS(vfs)).filter((name) => !langs.includes(name));
-        if (grammars.length > 0) {
-          langs.push(...grammars);
+        const ids = (await getLanguageIdsInVFS(vfs)).filter((name) => !langs.includes(name));
+        if (ids.length > 0) {
+          langs.push(...ids);
         }
       }
       for (const l of Object.values(lspProviders)) {
@@ -347,10 +347,10 @@ export function lazy(options?: InitOption) {
           }
           // load required grammars in background
           if (vfs) {
-            const grammars = await getGrammarsInVFS(vfs);
+            const ids = await getLanguageIdsInVFS(vfs);
             const loadedLangs = new Set(highlighter.getLoadedLanguages());
             Promise.all(
-              grammars.filter(name => !loadedLangs.has(name)).map(name =>
+              ids.filter(name => !loadedLangs.has(name)).map(name =>
                 highlighter.loadLanguage(loadTMGrammar(name)).then(() => shikiToMonaco(highlighter, monaco))
               ),
             );
