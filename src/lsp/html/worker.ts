@@ -73,8 +73,6 @@ export class HTMLWorker {
     });
   }
 
-  // --- language service host ---------------
-
   async doValidation(uri: string): Promise<lst.Diagnostic[]> {
     const document = this._getTextDocument(uri);
     if (!document) {
@@ -140,6 +138,23 @@ export class HTMLWorker {
     );
   }
 
+  async doHover(
+    uri: string,
+    position: htmlService.Position,
+  ): Promise<htmlService.Hover | null> {
+    const document = this._getTextDocument(uri);
+    if (!document) {
+      return null;
+    }
+    const rs = getDocumentRegions(this._languageService, document);
+    const rsl = rs.getEmbeddedLanguageAtPosition(position);
+    if (rsl) {
+      return await this._ctx.host.redirectLSPRequest(rsl, "doHover", uri + "#" + rsl, position) ?? null;
+    }
+    const htmlDocument = this._languageService.parseHTMLDocument(document);
+    return this._languageService.doHover(document, position, htmlDocument);
+  }
+
   async doFormat(uri: string, formatRange: lst.Range, options: lst.FormattingOptions): Promise<lst.TextEdit[]> {
     const document = this._getTextDocument(uri);
     if (!document) {
@@ -203,90 +218,6 @@ export class HTMLWorker {
     return htmlEdits;
   }
 
-  async doHover(
-    uri: string,
-    position: htmlService.Position,
-  ): Promise<htmlService.Hover | null> {
-    const document = this._getTextDocument(uri);
-    if (!document) {
-      return null;
-    }
-    const rs = getDocumentRegions(this._languageService, document);
-    const rsl = rs.getEmbeddedLanguageAtPosition(position);
-    if (rsl) {
-      return await this._ctx.host.redirectLSPRequest(rsl, "doHover", uri + "#" + rsl, position) ?? null;
-    }
-    const htmlDocument = this._languageService.parseHTMLDocument(document);
-    return this._languageService.doHover(document, position, htmlDocument);
-  }
-
-  async findDocumentHighlights(
-    uri: string,
-    position: htmlService.Position,
-  ): Promise<htmlService.DocumentHighlight[]> {
-    const document = this._getTextDocument(uri);
-    if (!document) {
-      return [];
-    }
-    const htmlDocument = this._languageService.parseHTMLDocument(document);
-    const highlights = this._languageService.findDocumentHighlights(
-      document,
-      position,
-      htmlDocument,
-    );
-    return Promise.resolve(highlights);
-  }
-
-  async findDocumentLinks(uri: string): Promise<htmlService.DocumentLink[]> {
-    const document = this._getTextDocument(uri);
-    if (!document) {
-      return [];
-    }
-    const links = this._languageService.findDocumentLinks(
-      document,
-      null!, /*TODO@aeschli*/
-    );
-    return Promise.resolve(links);
-  }
-
-  async findDocumentSymbols(uri: string): Promise<htmlService.SymbolInformation[]> {
-    const document = this._getTextDocument(uri);
-    if (!document) {
-      return [];
-    }
-    const htmlDocument = this._languageService.parseHTMLDocument(document);
-    const symbols = this._languageService.findDocumentSymbols(
-      document,
-      htmlDocument,
-    );
-    return Promise.resolve(symbols);
-  }
-
-  async getFoldingRanges(uri: string, context?: { rangeLimit?: number }): Promise<htmlService.FoldingRange[]> {
-    const document = this._getTextDocument(uri);
-    if (!document) {
-      return [];
-    }
-    const ranges: htmlService.FoldingRange[] = [];
-    const rs = getDocumentRegions(this._languageService, document);
-    for (const rsl of rs.getEmbeddedLanguages(true)) {
-      const range = await this._ctx.host.redirectLSPRequest(rsl, "getFoldingRanges", uri + "#" + rsl, context) ?? [];
-      if (Array.isArray(range)) {
-        ranges.push(...range);
-      }
-    }
-    return ranges.concat(this._languageService.getFoldingRanges(document, context));
-  }
-
-  async getSelectionRanges(uri: string, positions: htmlService.Position[]): Promise<htmlService.SelectionRange[]> {
-    const document = this._getTextDocument(uri);
-    if (!document) {
-      return [];
-    }
-    const ranges = this._languageService.getSelectionRanges(document, positions);
-    return Promise.resolve(ranges);
-  }
-
   async doRename(
     uri: string,
     position: htmlService.Position,
@@ -299,7 +230,20 @@ export class HTMLWorker {
     const rs = getDocumentRegions(this._languageService, document);
     const rsl = rs.getEmbeddedLanguageAtPosition(position);
     if (rsl) {
-      return await this._ctx.host.redirectLSPRequest(rsl, "doRename", uri + "#" + rsl, position, newName) ?? null;
+      const rslUri = uri + "#" + rsl;
+      const ret: htmlService.WorkspaceEdit | null = await this._ctx.host.redirectLSPRequest(
+        rsl,
+        "doRename",
+        rslUri,
+        position,
+        newName,
+      );
+      if (!ret || !ret.changes?.[rslUri]) {
+        return null;
+      }
+      ret.changes[uri] = ret.changes[rslUri];
+      delete ret.changes[rslUri];
+      return ret;
     }
     const htmlDocument = this._languageService.parseHTMLDocument(document);
     return this._languageService.doRename(
@@ -308,6 +252,74 @@ export class HTMLWorker {
       newName,
       htmlDocument,
     );
+  }
+
+  async findDocumentHighlights(
+    uri: string,
+    position: htmlService.Position,
+  ): Promise<htmlService.DocumentHighlight[]> {
+    const document = this._getTextDocument(uri);
+    if (!document) {
+      return [];
+    }
+    const rs = getDocumentRegions(this._languageService, document);
+    const rsl = rs.getEmbeddedLanguageAtPosition(position);
+    if (rsl) {
+      return await this._ctx.host.redirectLSPRequest(rsl, "findDocumentHighlights", uri + "#" + rsl, position) ?? null;
+    }
+    const htmlDocument = this._languageService.parseHTMLDocument(document);
+    return this._languageService.findDocumentHighlights(
+      document,
+      position,
+      htmlDocument,
+    );
+  }
+
+  async findDocumentLinks(uri: string): Promise<htmlService.DocumentLink[]> {
+    const document = this._getTextDocument(uri);
+    if (!document) {
+      return [];
+    }
+    return this._languageService.findDocumentLinks(
+      document,
+      null!, /*TODO@aeschli*/
+    );
+  }
+
+  async findDocumentSymbols(uri: string): Promise<htmlService.SymbolInformation[]> {
+    const document = this._getTextDocument(uri);
+    if (!document) {
+      return [];
+    }
+    const htmlDocument = this._languageService.parseHTMLDocument(document);
+    return this._languageService.findDocumentSymbols(
+      document,
+      htmlDocument,
+    );
+  }
+
+  async getFoldingRanges(uri: string, context?: { rangeLimit?: number }): Promise<htmlService.FoldingRange[]> {
+    const document = this._getTextDocument(uri);
+    if (!document) {
+      return [];
+    }
+    const ranges: htmlService.FoldingRange[] = [];
+    const rs = getDocumentRegions(this._languageService, document);
+    for (const rsl of rs.getEmbeddedLanguages(true)) {
+      const range = await this._ctx.host.redirectLSPRequest(rsl, "getFoldingRanges", uri + "#" + rsl, context);
+      if (Array.isArray(range)) {
+        ranges.push(...range);
+      }
+    }
+    return ranges.concat(this._languageService.getFoldingRanges(document, context));
+  }
+
+  async getSelectionRanges(uri: string, positions: htmlService.Position[]): Promise<htmlService.SelectionRange[]> {
+    const document = this._getTextDocument(uri);
+    if (!document) {
+      return [];
+    }
+    return this._languageService.getSelectionRanges(document, positions);
   }
 
   async findDocumentColors(uri: string): Promise<lst.ColorInformation[]> {
