@@ -46,21 +46,17 @@ export function setup(
   // @ts-expect-error `onWorker` is added by esm-monaco
   MonacoEnvironment.onWorker(languageId, workerProxy);
 
-  // set monacoNS and register default language features
+  // set monacoNS and register language features
   lf.setup(monaco);
   lf.registerDefault(languageId, workerProxy, ["/", "-", ":"]);
+  languages.registerColorProvider(languageId, new lf.DocumentColorAdapter(workerProxy));
+  languages.registerDefinitionProvider(languageId, new lf.DefinitionAdapter(workerProxy));
+  languages.registerDocumentHighlightProvider(languageId, new lf.DocumentHighlightAdapter(workerProxy));
+  languages.registerRenameProvider(languageId, new lf.RenameAdapter(workerProxy));
+  // languages.registerReferenceProvider(languageId, new lf.ReferenceAdapter(workerProxy));
 
   // register diagnostics adapter
   new lf.DiagnosticsAdapter(languageId, workerProxy, diagnosticsEmitter.event);
-
-  // register language features
-  languages.registerColorProvider(languageId, new lf.DocumentColorAdapter(workerProxy));
-  languages.registerDocumentHighlightProvider(languageId, new lf.DocumentHighlightAdapter(workerProxy));
-  languages.registerRenameProvider(languageId, new lf.RenameAdapter(workerProxy));
-  languages.registerDefinitionProvider(languageId, new lf.DefinitionAdapter(workerProxy));
-
-  // disable reference providers for now
-  // languages.registerReferenceProvider(languageId, new lf.ReferenceAdapter(workerProxy));
 }
 
 export function getWorkerUrl() {

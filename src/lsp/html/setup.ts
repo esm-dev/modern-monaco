@@ -64,31 +64,7 @@ export function setup(
       },
     },
   });
-  const workerProxy: lf.WorkerProxy<HTMLWorker> = (
-    ...uris: monacoNS.Uri[]
-  ): Promise<HTMLWorker> => {
-    return worker.withSyncedResources(uris);
-  };
-
-  // @ts-expect-error `onWorker` is added by esm-monaco
-  MonacoEnvironment.onWorker(languageId, workerProxy);
-
-  // set monacoNS and register default language features
-  lf.setup(monaco);
-  lf.registerDefault(languageId, workerProxy, [".", ":", "<", "\"", "=", "/"]);
-  lf.attachEmbeddedLanguages(workerProxy, ["css", "importmap"]);
-
-  // register diagnostics adapter (for embedded languages)
-  new lf.DiagnosticsAdapter(languageId, workerProxy, diagnosticsEmitter.event);
-
-  // register language features
-  languages.registerColorProvider(languageId, new lf.DocumentColorAdapter(workerProxy));
-  languages.registerDocumentHighlightProvider(languageId, new lf.DocumentHighlightAdapter(workerProxy));
-  languages.registerLinkProvider(languageId, new lf.DocumentLinkAdapter(workerProxy));
-  languages.registerRenameProvider(languageId, new lf.RenameAdapter(workerProxy));
-
-  // register code lens for importmap updating
-  languages.registerCodeLensProvider(languageId, {
+  const codeLensProvider: monacoNS.languages.CodeLensProvider = {
     onDidChange: codeLensEmitter.event,
     resolveCodeLens: (_model, codeLens, _token) => {
       return codeLens;
@@ -127,7 +103,28 @@ export function setup(
         };
       }
     },
-  });
+  };
+  const workerProxy: lf.WorkerProxy<HTMLWorker> = (
+    ...uris: monacoNS.Uri[]
+  ): Promise<HTMLWorker> => {
+    return worker.withSyncedResources(uris);
+  };
+
+  // @ts-expect-error `onWorker` is added by esm-monaco
+  MonacoEnvironment.onWorker(languageId, workerProxy);
+
+  // set monacoNS and register language features
+  lf.setup(monaco);
+  lf.registerDefault(languageId, workerProxy, [".", ":", "<", "\"", "=", "/"]);
+  lf.attachEmbeddedLanguages(workerProxy, ["css", "importmap"]);
+  languages.registerColorProvider(languageId, new lf.DocumentColorAdapter(workerProxy));
+  languages.registerDocumentHighlightProvider(languageId, new lf.DocumentHighlightAdapter(workerProxy));
+  languages.registerLinkProvider(languageId, new lf.DocumentLinkAdapter(workerProxy));
+  languages.registerRenameProvider(languageId, new lf.RenameAdapter(workerProxy));
+  languages.registerCodeLensProvider(languageId, codeLensProvider);
+
+  // register diagnostics adapter
+  new lf.DiagnosticsAdapter(languageId, workerProxy, diagnosticsEmitter.event);
 }
 
 export function getWorkerUrl() {

@@ -47,19 +47,19 @@ export async function setup(
   MonacoEnvironment.onWorker(languageId, workerAccessor);
 
   // register language features
-  languages.registerCompletionItemProvider(languageId, new lf.SuggestAdapter(workerAccessor));
-  languages.registerHoverProvider(languageId, new lf.QuickInfoAdapter(workerAccessor));
-  languages.registerSignatureHelpProvider(languageId, new lf.SignatureHelpAdapter(workerAccessor));
-  languages.registerDocumentHighlightProvider(languageId, new lf.DocumentHighlightAdapter(workerAccessor));
-  languages.registerDefinitionProvider(languageId, new lf.DefinitionAdapter(workerAccessor));
-  // languages.registerReferenceProvider(languageId, new lf.ReferenceAdapter(workerAccessor));
-  languages.registerDocumentSymbolProvider(languageId, new lf.OutlineAdapter(workerAccessor));
-  languages.registerRenameProvider(languageId, new lf.RenameAdapter(workerAccessor));
-  languages.registerDocumentRangeFormattingEditProvider(languageId, new lf.FormatAdapter(workerAccessor));
-  languages.registerOnTypeFormattingEditProvider(languageId, new lf.FormatOnTypeAdapter(workerAccessor));
   languages.registerCodeActionProvider(languageId, new lf.CodeActionAdaptor(workerAccessor));
+  languages.registerCompletionItemProvider(languageId, new lf.SuggestAdapter(workerAccessor));
+  languages.registerDefinitionProvider(languageId, new lf.DefinitionAdapter(workerAccessor));
+  languages.registerDocumentHighlightProvider(languageId, new lf.DocumentHighlightAdapter(workerAccessor));
+  languages.registerDocumentRangeFormattingEditProvider(languageId, new lf.FormatAdapter(workerAccessor));
+  languages.registerDocumentSymbolProvider(languageId, new lf.OutlineAdapter(workerAccessor));
+  languages.registerHoverProvider(languageId, new lf.QuickInfoAdapter(workerAccessor));
   languages.registerInlayHintsProvider(languageId, new lf.InlayHintsAdapter(workerAccessor));
   languages.registerLinkedEditingRangeProvider(languageId, new lf.LinkedEditingRangeAdapter(workerAccessor));
+  languages.registerOnTypeFormattingEditProvider(languageId, new lf.FormatOnTypeAdapter(workerAccessor));
+  languages.registerRenameProvider(languageId, new lf.RenameAdapter(workerAccessor));
+  languages.registerSignatureHelpProvider(languageId, new lf.SignatureHelpAdapter(workerAccessor));
+  // languages.registerReferenceProvider(languageId, new lf.ReferenceAdapter(workerAccessor));
 
   // register diagnostics adapter
   new lf.DiagnosticsAdapter(languageId, workerAccessor, diagnosticsOptions, refreshDiagnosticEventEmitter.event);

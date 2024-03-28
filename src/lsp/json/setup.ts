@@ -38,40 +38,7 @@ export function setup(
       },
     },
   };
-  const worker = monaco.editor.createWebWorker<JSONWorker>({
-    moduleId: "lsp/json/worker",
-    label: languageId,
-    createData,
-  });
-  const workerProxy: lf.WorkerProxy<JSONWorker> = (
-    ...uris: monacoNS.Uri[]
-  ): Promise<JSONWorker> => {
-    return worker.withSyncedResources(uris);
-  };
-  const resetSchema = (uri: monacoNS.Uri) => {
-    return worker.getProxy().then((worker) => {
-      worker.resetSchema(uri.toString());
-    });
-  };
-
-  // @ts-expect-error `onWorker` is added by esm-monaco
-  MonacoEnvironment.onWorker(languageId, workerProxy);
-
-  // set monacoNS and register default language features
-  lf.setup(monaco);
-  lf.registerDefault(languageId, workerProxy, [" ", ":", "\""]);
-
-  // register diagnostics adapter
-  new lf.DiagnosticsAdapter(languageId, workerProxy, diagnosticsEmitter.event);
-  editor.onWillDisposeModel((model) => {
-    resetSchema(model.uri);
-  });
-  editor.onDidChangeModelLanguage((event) => {
-    resetSchema(event.model.uri);
-  });
-
-  // register code lens for importmap.json
-  languages.registerCodeLensProvider(languageId, {
+  const codeLensProvider: monacoNS.languages.CodeLensProvider = {
     onDidChange: codeLensEmitter.event,
     resolveCodeLens: (model, codeLens, token) => {
       return codeLens;
@@ -105,7 +72,41 @@ export function setup(
         };
       }
     },
+  };
+  const worker = monaco.editor.createWebWorker<JSONWorker>({
+    moduleId: "lsp/json/worker",
+    label: languageId,
+    createData,
   });
+  const workerProxy: lf.WorkerProxy<JSONWorker> = (
+    ...uris: monacoNS.Uri[]
+  ): Promise<JSONWorker> => {
+    return worker.withSyncedResources(uris);
+  };
+
+  // reset schema on model change
+  const resetSchema = (uri: monacoNS.Uri) => {
+    return worker.getProxy().then((worker) => {
+      worker.resetSchema(uri.toString());
+    });
+  };
+  editor.onWillDisposeModel((model) => {
+    resetSchema(model.uri);
+  });
+  editor.onDidChangeModelLanguage((event) => {
+    resetSchema(event.model.uri);
+  });
+
+  // @ts-expect-error `onWorker` is added by esm-monaco
+  MonacoEnvironment.onWorker(languageId, workerProxy);
+
+  // set monacoNS and register language features
+  lf.setup(monaco);
+  lf.registerDefault(languageId, workerProxy, [" ", ":", "\""]);
+  languages.registerCodeLensProvider(languageId, codeLensProvider);
+
+  // register diagnostics adapter
+  new lf.DiagnosticsAdapter(languageId, workerProxy, diagnosticsEmitter.event);
 }
 
 export function getWorkerUrl() {
