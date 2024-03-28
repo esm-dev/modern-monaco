@@ -899,7 +899,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
       case "js":
         return ".js";
       case "mjs":
-        return ".mjs";
+        return ".js";
       case "cjs":
         return ".cjs";
       case "jsx":

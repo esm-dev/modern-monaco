@@ -3,7 +3,7 @@ import type { HighlighterCore } from "@shikijs/core";
 import type { ShikiInitOptions } from "./shiki.ts";
 import type { VFS } from "./vfs.ts";
 import { shikiToMonaco } from "@shikijs/monaco";
-import { createWorker, lspConfig, normalizeFormattingOptions } from "./lsp/index.ts";
+import { createWorker, type LSPConfig, margeProviders } from "./lsp/index.ts";
 import { render, type RenderOptions } from "./render.ts";
 import { getGrammarsInVFS, getLanguageIdFromPath, initShiki } from "./shiki.ts";
 import { loadTMGrammar, loadTMTheme, tmGrammars } from "./shiki.ts";
@@ -40,9 +40,7 @@ const editorProps = [
 
 export interface InitOption extends ShikiInitOptions {
   vfs?: VFS;
-  format?: Record<string, unknown>;
-  json?: Record<string, unknown>;
-  typescript?: Record<string, unknown>;
+  lsp?: LSPConfig;
 }
 
 /** Load the monaco editor and use shiki as the tokenizer. */
@@ -50,6 +48,7 @@ async function loadMonaco(highlighter: HighlighterCore, options?: InitOption, on
   const monaco = await import("./editor-core.js");
   const editorWorkerUrl = monaco.getWorkerUrl();
   const vfs = options?.vfs;
+  const lspProviders = margeProviders(options.lsp);
 
   if (!document.getElementById("monaco-editor-core-css")) {
     const styleEl = document.createElement("style");
@@ -71,15 +70,15 @@ async function loadMonaco(highlighter: HighlighterCore, options?: InitOption, on
     },
     getWorker: async (_workerId: string, label: string) => {
       let url = editorWorkerUrl;
-      let lsp = lspConfig[label];
-      if (!lsp) {
-        lsp = Object.values(lspConfig).find((lsp) => lsp.aliases?.includes(label));
+      let provider = lspProviders[label];
+      if (!provider) {
+        provider = Object.values(lspProviders).find((p) => p.aliases?.includes(label));
       }
-      if (lsp) {
-        url = (await (lsp.import())).getWorkerUrl();
+      if (provider) {
+        url = (await (provider.import())).getWorkerUrl();
       }
       const worker = await createWorker(url);
-      if (!lsp) {
+      if (!provider) {
         const onMessage = (e: MessageEvent) => {
           onEditorWorkerReady?.();
           worker.removeEventListener("message", onMessage);
@@ -110,13 +109,12 @@ async function loadMonaco(highlighter: HighlighterCore, options?: InitOption, on
         });
       }
       let label = id;
-      let lsp = lspConfig[label];
-      if (!lsp) {
-        [label, lsp] = Object.entries(lspConfig).find(([, lsp]) => lsp.aliases?.includes(id)) ?? [];
+      let provider = lspProviders[label];
+      if (!provider) {
+        [label, provider] = Object.entries(lspProviders).find(([, lsp]) => lsp.aliases?.includes(id)) ?? [];
       }
-      if (lsp) {
-        const formattingOptions = normalizeFormattingOptions(label, options?.format);
-        lsp.import().then(({ setup }) => setup(monaco, id, options?.[label], formattingOptions, vfs));
+      if (provider) {
+        provider.import().then(({ setup }) => setup(monaco, id, options?.[label], options?.lsp?.format, vfs));
       }
     });
   });
@@ -129,18 +127,19 @@ let loading: Promise<typeof monacoNS> | undefined;
 let ssrHighlighter: HighlighterCore | Promise<HighlighterCore> | undefined;
 
 /* Initialize and return the monaco editor namespace. */
-export function init(options: InitOption = {}): Promise<typeof monacoNS> {
+export function init(options: InitOption): Promise<typeof monacoNS> {
   if (!loading) {
     const load = async () => {
-      const langs = options.langs ?? [];
-      const vfs = options.vfs;
+      const langs = options?.langs ?? [];
+      const vfs = options?.vfs;
+      const lspProviders = margeProviders(options.lsp);
       if (vfs) {
         const grammars = (await getGrammarsInVFS(vfs)).filter((name) => !langs.includes(name));
         if (grammars.length > 0) {
           langs.push(...grammars);
         }
       }
-      for (const l of Object.values(lspConfig)) {
+      for (const l of Object.values(lspProviders)) {
         if (l.customGrammars) {
           langs.push(...l.customGrammars);
         }
@@ -156,6 +155,7 @@ export function init(options: InitOption = {}): Promise<typeof monacoNS> {
 /** Render a mock editor, then load the monaco editor in background. */
 export function lazy(options?: InitOption) {
   const vfs = options?.vfs;
+  const lspProviders = margeProviders(options.lsp);
 
   let monacoCore: typeof monacoNS | Promise<typeof monacoNS> | null = null;
   let editorWorkerPromise: Promise<void> | null = null;
@@ -250,7 +250,7 @@ export function lazy(options?: InitOption) {
         if (renderOptions.lang || file) {
           langs.push(renderOptions.lang ?? getLanguageIdFromPath(file));
         }
-        for (const l of Object.values(lspConfig)) {
+        for (const l of Object.values(lspProviders)) {
           if (l.customGrammars) {
             langs.push(...l.customGrammars);
           }

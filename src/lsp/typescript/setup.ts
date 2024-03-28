@@ -1,5 +1,6 @@
 import type monacoNS from "monaco-editor-core";
 import type ts from "typescript";
+import type { FormattingOptions } from "vscode-languageserver-types";
 import type { ImportMap } from "~/import-map";
 import type { VFS } from "~/vfs";
 import type { CreateData, Host, TypeScriptWorker } from "./worker";
@@ -19,7 +20,7 @@ export async function setup(
   monaco: typeof monacoNS,
   languageId: string,
   languageSettings?: Record<string, unknown>,
-  formattingOptions?: Record<string, unknown>,
+  formattingOptions?: FormattingOptions & { semicolon?: "ignore" | "insert" | "remove" },
   vfs?: VFS,
 ) {
   // register monacoNS for language features module
@@ -75,7 +76,7 @@ export function getWorkerUrl() {
 async function createWorker(
   monaco: typeof monacoNS,
   languageSettings?: Record<string, unknown>,
-  formattingOptions?: Record<string, unknown>,
+  formattingOptions?: FormattingOptions & { semicolon?: "ignore" | "insert" | "remove" },
   vfs?: VFS,
 ) {
   const defaultCompilerOptions: ts.CompilerOptions = {
@@ -129,6 +130,11 @@ async function createWorker(
   // wait for all promises to resolve
   await Promise.all(promises);
 
+  const {
+    tabSize = 4,
+    trimTrailingWhitespace = true,
+    semicolon = "insert",
+  } = formattingOptions ?? {};
   const createData: CreateData = {
     compilerOptions,
     importMap,
@@ -136,9 +142,9 @@ async function createWorker(
     types: lf.types.types,
     hasVFS: !!vfs,
     formatOptions: {
-      tabSize: 4,
-      trimTrailingWhitespace: true,
-      ...formattingOptions,
+      tabSize,
+      trimTrailingWhitespace,
+      semicolons: semicolon as ts.SemicolonPreference,
     },
   };
   const worker = monaco.editor.createWebWorker<TypeScriptWorker>({

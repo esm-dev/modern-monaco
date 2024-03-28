@@ -1,4 +1,5 @@
 import type monacoNS from "monaco-editor-core";
+import type { FormattingOptions } from "vscode-languageserver-types";
 import type { CreateData, JSONWorker } from "./worker";
 import { schemas } from "./schemas";
 
@@ -9,7 +10,7 @@ export function setup(
   monaco: typeof monacoNS,
   languageId: string,
   languageSettings?: Record<string, unknown>,
-  formattingOptions?: Record<string, unknown>,
+  formattingOptions?: FormattingOptions,
 ) {
   const languages = monaco.languages;
   const diagnosticsEmitter = new monaco.Emitter<void>();
@@ -32,6 +33,7 @@ export function setup(
         insertSpaces: false,
         trimTrailingWhitespace: true,
         insertFinalNewline: true,
+        trimFinalNewlines: true,
         ...formattingOptions,
       },
     },

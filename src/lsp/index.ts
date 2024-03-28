@@ -1,8 +1,9 @@
 import type monacoNS from "monaco-editor-core";
+import type { FormattingOptions } from "vscode-languageserver-types";
 import type { VFS } from "../vfs.ts";
 import embeddedJsonScript from "./html/json-script.embedded.json";
 
-export interface LSPConfig {
+export interface LSPProvider {
   aliases?: string[];
   customGrammars?: any[];
   import: () => Promise<{
@@ -10,49 +11,16 @@ export interface LSPConfig {
       monaco: typeof monacoNS,
       languageId: string,
       langaugeSettings?: Record<string, unknown>,
-      formattingOptions?: Record<string, unknown>,
+      formattingOptions?: FormattingOptions,
       vfs?: VFS,
-    ) => Promise<void>;
+    ) => void | Promise<void>;
     getWorkerUrl: () => URL;
   }>;
 }
 
-export function normalizeFormattingOptions(
-  label: string,
-  formattingOptions?: Record<string, unknown>,
-): Record<string, unknown> | undefined {
-  if (!formattingOptions) {
-    return undefined;
-  }
-  const options: Record<string, unknown> = {};
-  if (label in formattingOptions) {
-    Object.assign(options, formattingOptions[label]);
-  }
-  for (let key in formattingOptions) {
-    let value = formattingOptions[key];
-    if (key === "insertSpaces") {
-      if (label === "typescript") {
-        key = "convertTabsToSpaces";
-      }
-    } else if (key === "insertFinalNewline") {
-      if (label === "html") {
-        key = "endWithNewline";
-      }
-    } else if (key === "trimFinalNewlines") {
-      if (label === "html" || label === "css") {
-        key = "preserveNewLines";
-        value = !value;
-      }
-    } else if (key === "tabSize" || key === "trimTrailingWhitespace") {
-      // keep
-    } else {
-      continue;
-    }
-    if (!(key in options)) {
-      options[key] = value;
-    }
-  }
-  return options;
+export interface LSPConfig {
+  format?: FormattingOptions;
+  providers?: Record<string, LSPProvider>;
 }
 
 export async function createWorker(url: URL): Promise<Worker> {
@@ -66,7 +34,7 @@ export async function createWorker(url: URL): Promise<Worker> {
   return new Worker(url, { type: "module" });
 }
 
-export const lspConfig: Record<string, LSPConfig> = {
+export const builtinProviders: Record<string, LSPProvider> = {
   html: {
     customGrammars: [embeddedJsonScript],
     // @ts-expect-error 'setup.js' is generated at build time
@@ -86,3 +54,7 @@ export const lspConfig: Record<string, LSPConfig> = {
     import: () => import("./lsp/typescript/setup.js"),
   },
 };
+
+export function margeProviders(config?: LSPConfig) {
+  return { ...builtinProviders, ...config?.providers };
+}

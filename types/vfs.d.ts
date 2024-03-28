@@ -1,4 +1,4 @@
-import type { editor, IPosition, IRange } from "./monaco";
+import type { editor, IPosition, IRange } from "./monaco.d.ts";
 
 export interface VFile {
   url: string;

@@ -1,4 +1,5 @@
 import type monacoNS from "monaco-editor-core";
+import type { FormattingOptions } from "vscode-languageserver-types";
 import type { CreateData, CSSWorker } from "./worker";
 
 // ! external module, don't remove the `.js` extension
@@ -8,10 +9,11 @@ export function setup(
   monaco: typeof monacoNS,
   languageId: string,
   languageSettings?: Record<string, unknown>,
-  formattingOptions?: Record<string, unknown>,
+  formattingOptions?: FormattingOptions,
 ) {
   const languages = monaco.languages;
   const diagnosticsEmitter = new monaco.Emitter<void>();
+  const { tabSize, insertSpaces, insertFinalNewline, trimFinalNewlines } = formattingOptions ?? {};
   const createData: CreateData = {
     languageId,
     options: {
@@ -19,15 +21,14 @@ export function setup(
         useDefaultDataProvider: true,
       },
       format: {
-        tabSize: 4,
-        insertSpaces: false,
-        insertFinalNewline: true,
+        tabSize,
+        insertFinalNewline,
+        insertSpaces,
+        preserveNewLines: !trimFinalNewlines,
         newlineBetweenSelectors: true,
         newlineBetweenRules: true,
         spaceAroundSelectorSeparator: false,
         braceStyle: "collapse",
-        preserveNewLines: true,
-        ...formattingOptions,
       },
     },
   };

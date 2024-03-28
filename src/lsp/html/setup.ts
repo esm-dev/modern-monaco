@@ -1,4 +1,5 @@
 import monacoNS from "monaco-editor-core";
+import type { FormattingOptions } from "vscode-languageserver-types";
 import type { CreateData, HTMLWorker } from "./worker";
 
 // ! external module, don't remove the `.js` extension
@@ -8,11 +9,12 @@ export function setup(
   monaco: typeof monacoNS,
   languageId: string,
   languageSettings?: Record<string, unknown>,
-  formattingOptions?: Record<string, unknown>,
+  formattingOptions?: FormattingOptions,
 ) {
   const { editor, languages } = monaco;
   const diagnosticsEmitter = new monaco.Emitter<void>();
   const codeLensEmitter = new monaco.Emitter<monacoNS.languages.CodeLensProvider>();
+  const { tabSize, insertSpaces, insertFinalNewline, trimFinalNewlines } = formattingOptions ?? {};
   const createData: CreateData = {
     languageId,
     options: {
@@ -21,21 +23,19 @@ export function setup(
       },
       suggest: {},
       format: {
-        tabSize: 4,
-        insertSpaces: false,
-        wrapLineLength: 120,
+        tabSize,
+        insertSpaces,
+        endWithNewline: insertFinalNewline,
+        preserveNewLines: !trimFinalNewlines,
+        maxPreserveNewLines: 1,
+        indentInnerHtml: false,
+        indentHandlebars: false,
         unformatted:
           "default\": \"a, abbr, acronym, b, bdo, big, br, button, cite, code, dfn, em, i, img, input, kbd, label, map, object, q, samp, select, small, span, strong, sub, sup, textarea, tt, var",
         contentUnformatted: "pre",
-        indentInnerHtml: false,
-        preserveNewLines: true,
-        maxPreserveNewLines: 1,
-        indentHandlebars: false,
-        endWithNewline: true,
         // extraLiners: "head, body, /html",
         extraLiners: "",
         wrapAttributes: "auto",
-        ...formattingOptions,
       },
     },
   };
