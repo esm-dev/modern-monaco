@@ -2,7 +2,7 @@ import type monacoNS from "monaco-editor-core";
 import type { HighlighterCore } from "@shikijs/core";
 import type { ShikiInitOptions } from "./shiki.ts";
 import type { VFS } from "./vfs.ts";
-import { shikiToMonaco } from "@shikijs/monaco";
+import { shikiToMonaco } from "./shiki-monaco.ts";
 import { createWorker, type LSPConfig, margeProviders } from "./lsp/index.ts";
 import { render, type RenderOptions } from "./render.ts";
 import { getLanguageIdFromPath, getLanguageIdsInVFS, initShiki } from "./shiki.ts";

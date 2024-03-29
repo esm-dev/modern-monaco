@@ -33,9 +33,7 @@ export function render(highlighter: HighlighterCore, options: RenderOptions): st
   const EDITOR_FONT_DEFAULTS = {
     fontFamily: isMacintosh
       ? DEFAULT_MAC_FONT_FAMILY
-      : isLinux
-      ? DEFAULT_LINUX_FONT_FAMILY
-      : DEFAULT_WINDOWS_FONT_FAMILY,
+      : (isLinux ? DEFAULT_LINUX_FONT_FAMILY : DEFAULT_WINDOWS_FONT_FAMILY),
     fontWeight: "normal",
     fontSize: isMacintosh ? 12 : 14,
     lineHeight: 0,
@@ -56,12 +54,12 @@ export function render(highlighter: HighlighterCore, options: RenderOptions): st
     wordWrap,
     maxTokenizationLineLength = 20000,
   } = options;
-  const fontLigatures = options.fontLigatures && options.fontLigatures !== "false" ? "1" : "0";
-  const fontVariations = options.fontVariations && options.fontVariations !== "false" && /^\d+$/.test(fontWeight);
   const fontFamily = [
     options.fontFamily ? normalizeFontFamily(options.fontFamily) : null,
     EDITOR_FONT_DEFAULTS.fontFamily,
   ].filter(Boolean).join(", ");
+  const fontLigatures = options.fontLigatures && options.fontLigatures !== "false" ? "1" : "0";
+  const fontVariations = options.fontVariations && options.fontVariations !== "false" && /^\d+$/.test(fontWeight);
 
   if (wordWrap === "wordWrapColumn" || wordWrap === "bounded") {
     throw new Error("`wordWrapColumn` and `bounded` word-wrap modes are not supported");
@@ -82,17 +80,12 @@ export function render(highlighter: HighlighterCore, options: RenderOptions): st
       fontDigitWidth = options.fontDigitWidth = (fontSize * 60) / 100;
     }
     const lines = countLines(code);
-    const lineNumbersElements = Array.from(
-      { length: lines },
-      (_, i) => `<code>${i + 1}</code>`,
-    );
+    const lineNumbersElements = Array.from({ length: lines }, (_, i) => `<code>${i + 1}</code>`);
     const maxDigitWidth = Math.max(
       fontDigitWidth ?? getDigitWidth([fontWeight, fontSize + "px", fontFamily].join(" ")),
       MINIMUM_MAX_DIGIT_WIDTH,
     );
-    lineNumbersWidth = Math.round(
-      Math.max(lineNumbersMinChars, String(lines).length) * maxDigitWidth,
-    );
+    lineNumbersWidth = Math.round(Math.max(lineNumbersMinChars, String(lines).length) * maxDigitWidth);
     const lineNumbersStyle = [
       "position:sticky",
       "left:0",
@@ -195,7 +188,6 @@ function countLines(text: string) {
 function getDigitWidth(font: string) {
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d");
-  const widths: number[] = [];
   context.font = font;
   return context.measureText("0").width;
 }
