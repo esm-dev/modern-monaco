@@ -5,12 +5,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type monacoNS from "monaco-editor-core";
-import * as lst from "vscode-languageserver-types";
+import type * as lst from "vscode-languageserver-types";
 import * as htmlService from "vscode-html-languageservice";
 import { getDocumentRegions } from "./embedded-support";
-
-// ! external module, don't remove the `.js` extension
-import { initializeWorker } from "../../editor-worker.js";
 
 export interface HTMLDataConfiguration {
   /**
@@ -84,7 +81,7 @@ export class HTMLWorker {
       const imr = rs.regions.find((region) => region.languageId === "importmap")!;
       const addDiagnostic = (r: { start: number; end: number }) =>
         diagnostic.push({
-          severity: lst.DiagnosticSeverity.Error,
+          severity: 1, // Error
           range: {
             start: document.positionAt(r.start),
             end: document.positionAt(r.end),
@@ -108,7 +105,12 @@ export class HTMLWorker {
       }
     }
     for (const rsl of rs.getEmbeddedLanguages()) {
-      const ret = await this._ctx.host.redirectLSPRequest(rsl, "doValidation", uri + "#" + rsl);
+      const ret = await this._ctx.host.redirectLSPRequest(
+        rsl,
+        "doValidation",
+        uri,
+      );
+      // console.log(rsl, ret);
       if (Array.isArray(ret) && ret.length > 0) {
         diagnostic.push(...ret);
       }
@@ -116,10 +118,7 @@ export class HTMLWorker {
     return diagnostic;
   }
 
-  async doComplete(
-    uri: string,
-    position: htmlService.Position,
-  ): Promise<htmlService.CompletionList | null> {
+  async doComplete(uri: string, position: lst.Position): Promise<lst.CompletionList | null> {
     const document = this._getTextDocument(uri);
     if (!document) {
       return null;
@@ -127,7 +126,7 @@ export class HTMLWorker {
     const rs = getDocumentRegions(this._languageService, document);
     const rsl = rs.getEmbeddedLanguageAtPosition(position);
     if (rsl) {
-      return await this._ctx.host.redirectLSPRequest(rsl, "doComplete", uri + "#" + rsl, position) ?? null;
+      return await this._ctx.host.redirectLSPRequest(rsl, "doComplete", uri, position) ?? null;
     }
     const htmlDocument = this._languageService.parseHTMLDocument(document);
     return this._languageService.doComplete(
@@ -138,10 +137,7 @@ export class HTMLWorker {
     );
   }
 
-  async doHover(
-    uri: string,
-    position: htmlService.Position,
-  ): Promise<htmlService.Hover | null> {
+  async doHover(uri: string, position: lst.Position): Promise<lst.Hover | null> {
     const document = this._getTextDocument(uri);
     if (!document) {
       return null;
@@ -149,7 +145,7 @@ export class HTMLWorker {
     const rs = getDocumentRegions(this._languageService, document);
     const rsl = rs.getEmbeddedLanguageAtPosition(position);
     if (rsl) {
-      return await this._ctx.host.redirectLSPRequest(rsl, "doHover", uri + "#" + rsl, position) ?? null;
+      return await this._ctx.host.redirectLSPRequest(rsl, "doHover", uri, position) ?? null;
     }
     const htmlDocument = this._languageService.parseHTMLDocument(document);
     return this._languageService.doHover(document, position, htmlDocument);
@@ -174,14 +170,18 @@ export class HTMLWorker {
 
     for (const region of getDocumentRegions(this._languageService, document).regions) {
       if (!region.attributeValue && region.languageId === "importmap") {
-        const regionUri = uri + "#" + region.languageId;
         const regionText = document.getText().substring(region.start, region.end);
-        const regionDoc = htmlService.TextDocument.create(regionUri, region.languageId, 0, regionText);
+        const regionDoc = htmlService.TextDocument.create(
+          uri + "#" + region.languageId,
+          region.languageId,
+          0,
+          regionText,
+        );
         try {
           const edits = await this._ctx.host.redirectLSPRequest(
             region.languageId,
             "doFormat",
-            regionUri,
+            uri,
             formatRange,
             options,
             regionText,
@@ -218,11 +218,7 @@ export class HTMLWorker {
     return htmlEdits;
   }
 
-  async doRename(
-    uri: string,
-    position: htmlService.Position,
-    newName: string,
-  ): Promise<htmlService.WorkspaceEdit | null> {
+  async doRename(uri: string, position: lst.Position, newName: string): Promise<lst.WorkspaceEdit | null> {
     const document = this._getTextDocument(uri);
     if (!document) {
       return null;
@@ -230,19 +226,18 @@ export class HTMLWorker {
     const rs = getDocumentRegions(this._languageService, document);
     const rsl = rs.getEmbeddedLanguageAtPosition(position);
     if (rsl) {
-      const rslUri = uri + "#" + rsl;
-      const ret: htmlService.WorkspaceEdit | null = await this._ctx.host.redirectLSPRequest(
+      const ret: lst.WorkspaceEdit | undefined = await this._ctx.host.redirectLSPRequest(
         rsl,
         "doRename",
-        rslUri,
+        uri,
         position,
         newName,
       );
-      if (!ret || !ret.changes?.[rslUri]) {
+      console.log(rsl, ret);
+      if (!ret || !ret.changes) {
         return null;
       }
-      ret.changes[uri] = ret.changes[rslUri];
-      delete ret.changes[rslUri];
+      ret.changes = Object.fromEntries([[uri, Object.values(ret.changes)[0]]]);
       return ret;
     }
     const htmlDocument = this._languageService.parseHTMLDocument(document);
@@ -254,10 +249,7 @@ export class HTMLWorker {
     );
   }
 
-  async findDocumentHighlights(
-    uri: string,
-    position: htmlService.Position,
-  ): Promise<htmlService.DocumentHighlight[]> {
+  async findDocumentHighlights(uri: string, position: lst.Position): Promise<lst.DocumentHighlight[]> {
     const document = this._getTextDocument(uri);
     if (!document) {
       return [];
@@ -265,7 +257,7 @@ export class HTMLWorker {
     const rs = getDocumentRegions(this._languageService, document);
     const rsl = rs.getEmbeddedLanguageAtPosition(position);
     if (rsl) {
-      return await this._ctx.host.redirectLSPRequest(rsl, "findDocumentHighlights", uri + "#" + rsl, position) ?? null;
+      return await this._ctx.host.redirectLSPRequest(rsl, "findDocumentHighlights", uri, position) ?? null;
     }
     const htmlDocument = this._languageService.parseHTMLDocument(document);
     return this._languageService.findDocumentHighlights(
@@ -275,7 +267,28 @@ export class HTMLWorker {
     );
   }
 
-  async findDocumentLinks(uri: string): Promise<htmlService.DocumentLink[]> {
+  async findDefinition(
+    uri: string,
+    position: lst.Position,
+  ): Promise<(lst.Location & { originSelectionRange?: lst.Range })[] | null> {
+    const document = this._getTextDocument(uri);
+    if (!document) {
+      return null;
+    }
+    const rs = getDocumentRegions(this._languageService, document);
+    const rsl = rs.getEmbeddedLanguageAtPosition(position);
+    if (rsl) {
+      return await this._ctx.host.redirectLSPRequest(
+        rsl,
+        "findDefinition",
+        uri,
+        position,
+      ) ?? null;
+    }
+    return null;
+  }
+
+  async findDocumentLinks(uri: string): Promise<lst.DocumentLink[]> {
     const document = this._getTextDocument(uri);
     if (!document) {
       return [];
@@ -286,7 +299,7 @@ export class HTMLWorker {
     );
   }
 
-  async findDocumentSymbols(uri: string): Promise<htmlService.SymbolInformation[]> {
+  async findDocumentSymbols(uri: string): Promise<lst.SymbolInformation[]> {
     const document = this._getTextDocument(uri);
     if (!document) {
       return [];
@@ -298,15 +311,15 @@ export class HTMLWorker {
     );
   }
 
-  async getFoldingRanges(uri: string, context?: { rangeLimit?: number }): Promise<htmlService.FoldingRange[]> {
+  async getFoldingRanges(uri: string, context?: { rangeLimit?: number }): Promise<lst.FoldingRange[]> {
     const document = this._getTextDocument(uri);
     if (!document) {
       return [];
     }
-    const ranges: htmlService.FoldingRange[] = [];
+    const ranges: lst.FoldingRange[] = [];
     const rs = getDocumentRegions(this._languageService, document);
     for (const rsl of rs.getEmbeddedLanguages(true)) {
-      const range = await this._ctx.host.redirectLSPRequest(rsl, "getFoldingRanges", uri + "#" + rsl, context);
+      const range = await this._ctx.host.redirectLSPRequest(rsl, "getFoldingRanges", uri, context);
       if (Array.isArray(range)) {
         ranges.push(...range);
       }
@@ -314,7 +327,7 @@ export class HTMLWorker {
     return ranges.concat(this._languageService.getFoldingRanges(document, context));
   }
 
-  async getSelectionRanges(uri: string, positions: htmlService.Position[]): Promise<htmlService.SelectionRange[]> {
+  async getSelectionRanges(uri: string, positions: lst.Position[]): Promise<lst.SelectionRange[]> {
     const document = this._getTextDocument(uri);
     if (!document) {
       return [];
@@ -329,23 +342,19 @@ export class HTMLWorker {
     }
     const rs = getDocumentRegions(this._languageService, document);
     if (rs.hasEmbeddedLanguage("css")) {
-      return await this._ctx.host.redirectLSPRequest("css", "findDocumentColors", uri + "#css") ?? [];
+      return await this._ctx.host.redirectLSPRequest("css", "findDocumentColors", uri) ?? [];
     }
     return [];
   }
 
-  async getColorPresentations(
-    uri: string,
-    color: lst.Color,
-    range: lst.Range,
-  ): Promise<lst.ColorPresentation[]> {
+  async getColorPresentations(uri: string, color: lst.Color, range: lst.Range): Promise<lst.ColorPresentation[]> {
     const document = this._getTextDocument(uri);
     if (!document) {
       return [];
     }
     const rs = getDocumentRegions(this._languageService, document);
     if (rs.hasEmbeddedLanguage("css")) {
-      return await this._ctx.host.redirectLSPRequest("css", "getColorPresentations", uri + "#css", color, range) ?? [];
+      return await this._ctx.host.redirectLSPRequest("css", "getColorPresentations", uri, color, range) ?? [];
     }
     return [];
   }
@@ -378,4 +387,6 @@ export class HTMLWorker {
   }
 }
 
+// ! external module, don't remove the `.js` extension
+import { initializeWorker } from "../../editor-worker.js";
 initializeWorker(HTMLWorker);

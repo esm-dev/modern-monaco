@@ -48,14 +48,7 @@ export function setup(
         model.uri.path === "/" + name
       );
       if (isImportMap) {
-        const m2 = model.findNextMatch(
-          `"imports":\\s*\\{`,
-          { column: 1, lineNumber: 1 },
-          true,
-          false,
-          null,
-          false,
-        );
+        const m2 = model.findNextMatch(`"imports":\\s*\\{`, { column: 1, lineNumber: 1 }, true, false, null, false);
         return {
           lenses: [
             {

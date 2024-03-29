@@ -56,37 +56,45 @@ export interface ILanguageWorkerWithEmbeddedSupport {
 
 export function attachEmbeddedLanguages<T extends ILanguageWorkerWithEmbeddedSupport>(
   worker: WorkerProxy<T>,
-  embeddedLanguages: string[],
+  embeddedLanguages: Record<string, string>,
 ) {
   const { editor, Uri } = Monaco;
+  const embeddedLanguageIds = Object.keys(embeddedLanguages);
+  const toEbeddedUri = (model: monacoNS.editor.IModel, languageId: string) => {
+    return Uri.parse(model.uri.path + "__EMBEDDED_." + embeddedLanguages[languageId]);
+  };
   const validateModel = async (model: monacoNS.editor.IModel) => {
+    if (model.getLanguageId() !== "html") {
+      return;
+    }
     const getEmbeddedDocument = (languageId: string) =>
       worker(model.uri).then((worker) => worker.getEmbeddedDocument(model.uri.toString(), languageId));
+
     const attachEmbeddedLanguage = async (languageId: string) => {
-      const uri = Uri.parse(model.uri.toString() + "#" + languageId);
+      const uri = toEbeddedUri(model, languageId);
       const doc = await getEmbeddedDocument(languageId);
       if (doc) {
-        const model = editor.getModel(uri);
-        if (!model) {
+        const emebeddedModel = editor.getModel(uri);
+        if (!emebeddedModel) {
           editor.createModel(doc.content, languageId === "importmap" ? "json" : languageId, uri);
         } else {
-          model.setValue(doc.content);
+          emebeddedModel.setValue(doc.content);
         }
       } else {
-        const model = editor.getModel(uri);
-        if (model) {
-          model.dispose();
+        const emebeddedModel = editor.getModel(uri);
+        if (emebeddedModel) {
+          emebeddedModel.dispose();
         }
       }
     };
-    embeddedLanguages.forEach(attachEmbeddedLanguage);
+    embeddedLanguageIds.forEach(attachEmbeddedLanguage);
     model.onDidChangeContent(() => {
-      embeddedLanguages.forEach(attachEmbeddedLanguage);
+      embeddedLanguageIds.forEach(attachEmbeddedLanguage);
     });
   };
   const cleanUp = (model: monacoNS.editor.IModel) => {
-    embeddedLanguages.forEach((languageId) => {
-      const uri = Uri.parse(model.uri.toString() + "#" + languageId);
+    embeddedLanguageIds.forEach((languageId) => {
+      const uri = toEbeddedUri(model, languageId);
       editor.getModel(uri)?.dispose();
     });
   };
@@ -121,20 +129,22 @@ export class DiagnosticsAdapter<T extends ILanguageWorkerWithDiagnostics> {
 
     const { editor } = Monaco;
     const validateModel = (model: monacoNS.editor.IModel): void => {
-      let modeId = model.getLanguageId();
-      if (modeId !== this._languageId) {
+      const modelId = model.getLanguageId();
+      const uri = model.uri.toString();
+      if (modelId !== this._languageId || uri.includes(".html#")) {
         return;
       }
+      // console.log(uri);
 
       let handle: number;
-      this._listeners[model.uri.toString()] = model.onDidChangeContent(() => {
+      this._listeners[uri] = model.onDidChangeContent(() => {
         window.clearTimeout(handle);
         handle = window.setTimeout(
-          () => this._doValidate(model.uri, modeId),
+          () => this._doValidate(model.uri, modelId),
           500,
         );
       });
-      this._doValidate(model.uri, modeId);
+      this._doValidate(model.uri, modelId);
     };
 
     const dispose = (model: monacoNS.editor.IModel): void => {
@@ -215,10 +225,7 @@ function toDiagnostics(diag: lst.Diagnostic): monacoNS.editor.IMarkerData {
 // #region CompletionAdapter
 
 export interface ILanguageWorkerWithCompletions {
-  doComplete(
-    uri: string,
-    position: lst.Position,
-  ): Promise<lst.CompletionList | null>;
+  doComplete(uri: string, position: lst.Position): Promise<lst.CompletionList | null>;
 }
 
 export class CompletionAdapter<T extends ILanguageWorkerWithCompletions>
@@ -297,6 +304,14 @@ export class CompletionAdapter<T extends ILanguageWorkerWithCompletions>
         };
       });
   }
+
+  // [todo]
+  // public async resolveCompletionItem(
+  //   item: monacoNS.languages.CompletionItem,
+  //   token: monacoNS.CancellationToken,
+  // ): Promise<monacoNS.languages.CompletionItem> {
+  //   return item;
+  // }
 }
 
 export function fromPosition(position: monacoNS.Position): lst.Position;
@@ -430,10 +445,7 @@ function toCommand(
 // #region HoverAdapter
 
 export interface ILanguageWorkerWithHover {
-  doHover(
-    uri: string,
-    position: lst.Position,
-  ): Promise<lst.Hover | null>;
+  doHover(uri: string, position: lst.Position): Promise<lst.Hover | null>;
 }
 
 export class HoverAdapter<T extends ILanguageWorkerWithHover> implements monacoNS.languages.HoverProvider {
@@ -447,14 +459,12 @@ export class HoverAdapter<T extends ILanguageWorkerWithHover> implements monacoN
     let resource = model.uri;
 
     return this._worker(resource)
-      .then((worker) => {
-        return worker.doHover(resource.toString(), fromPosition(position));
-      })
+      .then((worker) => worker.doHover(resource.toString(), fromPosition(position)))
       .then((info) => {
         if (!info) {
           return;
         }
-        return <monacoNS.languages.Hover> {
+        return {
           range: toRange(info.range),
           contents: toMarkedStringArray(info.contents),
         };
@@ -462,20 +472,13 @@ export class HoverAdapter<T extends ILanguageWorkerWithHover> implements monacoN
   }
 }
 
-function isMarkupContent(thing: any): thing is lst.MarkupContent {
-  return (
-    thing && typeof thing === "object"
-    && typeof (<lst.MarkupContent> thing).kind === "string"
-  );
+function isMarkupContent(v: any): v is lst.MarkupContent {
+  return (v && typeof v === "object" && typeof (<lst.MarkupContent> v).kind === "string");
 }
 
-function toMarkdownString(
-  entry: lst.MarkupContent | lst.MarkedString,
-): monacoNS.IMarkdownString {
+function toMarkdownString(entry: lst.MarkupContent | lst.MarkedString): monacoNS.IMarkdownString {
   if (typeof entry === "string") {
-    return {
-      value: entry,
-    };
+    return { value: entry };
   }
   if (isMarkupContent(entry)) {
     if (entry.kind === "plaintext") {
@@ -483,9 +486,7 @@ function toMarkdownString(
         value: entry.value.replace(/[\\`*_{}[\]()#+\-.!]/g, "\\$&"),
       };
     }
-    return {
-      value: entry.value,
-    };
+    return { value: entry.value };
   }
 
   return { value: "```" + entry.language + "\n" + entry.value + "\n```\n" };
@@ -572,7 +573,7 @@ export interface ILanguageWorkerWithDefinitions {
   findDefinition(
     uri: string,
     position: lst.Position,
-  ): Promise<lst.Location | null>;
+  ): Promise<(lst.Location & { originSelectionRange?: lst.Range })[] | null>;
 }
 
 export class DefinitionAdapter<T extends ILanguageWorkerWithDefinitions>
@@ -585,27 +586,33 @@ export class DefinitionAdapter<T extends ILanguageWorkerWithDefinitions>
     position: monacoNS.Position,
     token: monacoNS.CancellationToken,
   ): Promise<monacoNS.languages.Definition | undefined> {
-    const resource = model.uri;
-
-    return this._worker(resource)
+    return this._worker(model.uri)
       .then((worker) => {
-        return worker.findDefinition(
-          resource.toString(),
-          fromPosition(position),
-        );
+        return worker.findDefinition(model.uri.toString(), fromPosition(position));
       })
       .then((definition) => {
         if (!definition) {
           return;
         }
-        return [toLocation(definition)];
+
+        return (Array.isArray(definition) ? definition : [definition]).map(location => {
+          const link = toLocationLink(location);
+          return link;
+        });
       });
   }
 }
 
-function toLocation(location: lst.Location): monacoNS.languages.Location {
+function toLocationLink(
+  location: lst.Location & { originSelectionRange?: lst.Range },
+): monacoNS.languages.LocationLink {
+  let uri = location.uri;
+  if (uri.includes("__EMBEDDED_.")) {
+    uri = uri.slice(0, uri.lastIndexOf("__EMBEDDED_."));
+  }
   return {
-    uri: Monaco.Uri.parse(location.uri),
+    originSelectionRange: location.originSelectionRange ? toRange(location.originSelectionRange) : void 0,
+    uri: Monaco.Uri.parse(uri),
     range: toRange(location.range),
   };
 }
@@ -643,7 +650,7 @@ export class ReferenceAdapter<T extends ILanguageWorkerWithReferences> implement
         if (!entries) {
           return;
         }
-        return entries.map(toLocation);
+        return entries.map(toLocationLink);
       });
   }
 }

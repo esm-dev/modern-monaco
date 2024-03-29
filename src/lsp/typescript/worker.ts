@@ -4,12 +4,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import ts from "typescript";
 import type monacoNS from "monaco-editor-core";
-
-// ! external module, don't remove the `.js` extension
+import type * as lst from "vscode-languageserver-types";
+import {
+  CompletionItemKind,
+  DiagnosticSeverity,
+  DocumentHighlightKind,
+  FoldingRangeKind,
+  Range,
+  TextDocument,
+  TextEdit,
+} from "vscode-languageserver-types";
+import ts from "typescript";
 import { type ImportMap, isBlank, resolve } from "../../import-map.js";
-import { initializeWorker } from "../../editor-worker.js";
 import { cache } from "../../cache.js";
 
 export interface Host {
@@ -28,7 +35,7 @@ export interface CreateData {
   libs: Record<string, string>;
   types: Record<string, VersionedContent>;
   hasVFS: boolean;
-  formatOptions?: ts.FormatCodeSettings;
+  formatOptions?: ts.FormatCodeSettings & Pick<ts.UserPreferences, "quotePreference">;
   inlayHintsOptions?: ts.UserPreferences;
 }
 
@@ -54,7 +61,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   private _libs: Record<string, string>;
   private _types: Record<string, VersionedContent>;
   private _hasVFS: boolean;
-  private _formatOptions?: ts.FormatCodeSettings;
+  private _formatOptions?: ts.FormatCodeSettings & Pick<ts.UserPreferences, "quotePreference">;
   private _inlayHintsOptions?: ts.UserPreferences;
   private _languageService = ts.createLanguageService(this);
   private _httpLibs = new Map<string, string>();
@@ -84,7 +91,20 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     this._inlayHintsOptions = createData.inlayHintsOptions;
   }
 
-  // #region language featureslanguage service host
+  // #region language service host
+
+  getCurrentDirectory(): string {
+    return "/";
+  }
+
+  readFile(filename: string): string | undefined {
+    return this._getScriptText(filename);
+  }
+
+  fileExists(filename: string): boolean {
+    if (filename.startsWith("/node_modules/")) return false;
+    return this._fileExists(filename);
+  }
 
   getCompilationSettings(): ts.CompilerOptions {
     if (!this._compilerOptions.jsxImportSource) {
@@ -140,10 +160,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   }
 
   getScriptKind(fileName: string): ts.ScriptKind {
-    if (
-      fileName in this._libs || fileName in this._types
-      || this._httpLibs.has(fileName)
-    ) {
+    if (fileName in this._libs || fileName in this._types || this._httpLibs.has(fileName)) {
       return ts.ScriptKind.TS;
     }
     if (this._httpModules.has(fileName)) {
@@ -172,10 +189,6 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
       default:
         return ts.ScriptKind.JS;
     }
-  }
-
-  getCurrentDirectory(): string {
-    return "/";
   }
 
   getDefaultLibFileName(options: ts.CompilerOptions): string {
@@ -207,17 +220,9 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     }
   }
 
-  readFile(filename: string): string | undefined {
-    return this._getScriptText(filename);
-  }
-
-  fileExists(filename: string): boolean {
-    return this._fileExists(filename);
-  }
-
-  async getLibFiles(): Promise<Record<string, string>> {
-    return this._libs;
-  }
+  // async getLibFiles(): Promise<Record<string, string>> {
+  //   return this._libs;
+  // }
 
   resolveModuleNameLiterals(
     moduleLiterals: readonly ts.StringLiteralLike[],
@@ -227,7 +232,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     containingSourceFile: ts.SourceFile,
     reusedNames: readonly ts.StringLiteralLike[] | undefined,
   ): readonly ts.ResolvedModuleWithFailedLookupLocations[] {
-    const jsxImportUrl = this._getJsxImportUrl(containingFile);
+    const jsxImportUrl = this._getJsxImportUrl();
     return moduleLiterals.map((literal): ts.ResolvedModuleWithFailedLookupLocations["resolvedModule"] => {
       let specifier = literal.text;
       let isJsxImportSource = specifier === jsxImportUrl;
@@ -424,20 +429,19 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   //   return clearFiles(diagnostics);
   // }
 
-  async getCompletionsAtPosition(
-    fileName: string,
-    position: number,
-  ): Promise<ts.CompletionInfo | undefined> {
+  async getCompletionsAtPosition(fileName: string, position: number): Promise<ts.CompletionInfo | undefined> {
     const completions = this._languageService.getCompletionsAtPosition(
       fileName,
       position,
       {
-        includeCompletionsForModuleExports: true,
-        organizeImportsIgnoreCase: false,
-        importModuleSpecifierPreference: "shortest",
-        importModuleSpecifierEnding: "js",
-        includePackageJsonAutoImports: "off",
+        quotePreference: this._formatOptions?.quotePreference,
         allowRenameOfImportPath: true,
+        importModuleSpecifierEnding: "js",
+        importModuleSpecifierPreference: "shortest",
+        includeCompletionsForModuleExports: true,
+        includeCompletionsForImportStatements: true,
+        includePackageJsonAutoImports: "off",
+        organizeImportsIgnoreCase: false,
       },
     );
     // filter repeated auto-import suggestions from a types module
@@ -530,33 +534,24 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   }
 
   async getQuickInfoAtPosition(fileName: string, position: number): Promise<ts.QuickInfo | undefined> {
-    const info = this._languageService.getQuickInfoAtPosition(
-      fileName,
-      position,
-    );
+    const info = this._languageService.getQuickInfoAtPosition(fileName, position);
     if (!info) {
       return;
     }
 
     // pettier display for module specifiers
     const { kind, kindModifiers, displayParts, textSpan } = info;
-    if (
-      kind === ts.ScriptElementKind.moduleElement
-      && displayParts?.length === 3
-    ) {
+    if (kind === ts.ScriptElementKind.moduleElement && displayParts?.length === 3) {
       const moduleName = displayParts[2].text;
-      if (
-        // show pathname for `file:` specifiers
-        moduleName.startsWith("\"file:") && fileName.startsWith("file:")
-      ) {
+      // show pathname for `file:` specifiers
+      if (moduleName.startsWith("\"file:") && fileName.startsWith("file:")) {
         const model = this._getModel(fileName);
         const literalText = model.getValue().substring(
           textSpan.start,
           textSpan.start + textSpan.length,
         );
         const specifier = JSON.parse(literalText);
-        info.displayParts[2].text = "\""
-          + new URL(specifier, fileName).pathname + "\"";
+        info.displayParts[2].text = "\"" + new URL(specifier, fileName).pathname + "\"";
       } else if (
         // show module url for `http:` specifiers instead of the types url
         kindModifiers === "declare" && moduleName.startsWith("\"http")
@@ -584,8 +579,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
               if (!pkgName) {
                 continue;
               }
-              const npmPkgId = [scope, pkgName.split("@")[0]].filter(Boolean)
-                .join("/");
+              const npmPkgId = [scope, pkgName.split("@")[0]].filter(Boolean).join("/");
               const npmPkgUrl = `https://www.npmjs.com/package/${npmPkgId}`;
               info.tags.unshift({
                 name: "npm",
@@ -840,6 +834,185 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
 
   // #endregion
 
+  // #region language features as embedded language
+  async doValidation(uri: string): Promise<lst.Diagnostic[]> {
+    const document = this._getMirrorTextDocument(uri);
+    if (!document) {
+      return [];
+    }
+    const syntaxDiagnostics = await this.getSyntacticDiagnostics(uri);
+    return syntaxDiagnostics.map(
+      (diag: ts.Diagnostic): lst.Diagnostic => {
+        return {
+          range: convertRange(document, diag),
+          severity: DiagnosticSeverity.Error,
+          source: "javascript",
+          message: ts.flattenDiagnosticMessageText(diag.messageText, "\n"),
+        };
+      },
+    );
+  }
+
+  async doComplete(uri: string, position: lst.Position): Promise<lst.CompletionList | null> {
+    const document = this._getMirrorTextDocument(uri);
+    if (!document) {
+      return null;
+    }
+    const offset = document.offsetAt(position);
+    const completions = await this.getCompletionsAtPosition(uri, offset);
+    if (!completions) {
+      return { isIncomplete: false, items: [] };
+    }
+    const replaceRange = convertRange(document, getWordAtText(document.getText(), offset, JS_WORD_REGEX));
+    return {
+      isIncomplete: false,
+      items: completions.entries.map(entry => {
+        // data used for resolving item details (see 'doResolve')
+        const data = {
+          languageId: "javascript",
+          uri,
+          offset: offset,
+        };
+        return {
+          uri,
+          position: position,
+          label: entry.name,
+          sortText: entry.sortText,
+          kind: convertKind(entry.kind),
+          textEdit: TextEdit.replace(replaceRange, entry.name),
+          data,
+        };
+      }),
+    };
+  }
+
+  async doFormat(
+    uri: string,
+    range: lst.Range | null,
+    options: lst.FormattingOptions,
+    docText?: string,
+  ) {
+  }
+
+  async doHover(uri: string, position: lst.Position): Promise<lst.Hover | null> {
+    const document = this._getMirrorTextDocument(uri);
+    if (!document) {
+      return null;
+    }
+
+    const info = await this.getQuickInfoAtPosition(uri, document.offsetAt(position));
+    if (info) {
+      const contents = ts.displayPartsToString(info.displayParts);
+      const documentation = info.documentation?.map((part) => part.text).join("") ?? "";
+      const tags = info.tags?.map((tag) => tagToString(tag)).join("  \n\n") ?? null;
+      return {
+        range: convertRange(document, info.textSpan),
+        contents: [
+          { value: contents, language: "typescript" },
+          documentation + (tags ? "\n\n" + tags : ""),
+        ],
+      };
+    }
+    return null;
+  }
+
+  async doRename(uri: string, position: lst.Position, newName: string): Promise<lst.WorkspaceEdit | null> {
+    const document = this._getMirrorTextDocument(uri);
+    if (!document) {
+      return null;
+    }
+
+    const documentPosition = document.offsetAt(position);
+    // const { canRename } = this._languageService.getRenameInfo(uri, documentPosition, {});
+    // if (!canRename) {
+    //   return null;
+    // }
+
+    const renameInfos = this._languageService.findRenameLocations(uri, documentPosition, false, false, {});
+    const edits: lst.TextEdit[] = [];
+    renameInfos?.map(renameInfo => {
+      if (renameInfo.fileName === uri) {
+        edits.push({
+          range: convertRange(document, renameInfo.textSpan),
+          newText: newName,
+        });
+      }
+    });
+    return {
+      changes: { [uri]: edits },
+    };
+  }
+
+  async getFoldingRanges(uri: string): Promise<lst.FoldingRange[]> {
+    const document = this._getMirrorTextDocument(uri);
+    if (!document) {
+      return [];
+    }
+    const spans = this._languageService.getOutliningSpans(uri);
+    const ranges: lst.FoldingRange[] = [];
+    for (const span of spans) {
+      const curr = convertRange(document, span.textSpan);
+      const startLine = curr.start.line;
+      const endLine = curr.end.line;
+      if (startLine < endLine) {
+        const foldingRange: lst.FoldingRange = { startLine, endLine };
+        const match = document.getText(curr).match(/^\s*\/(?:(\/\s*#(?:end)?region\b)|(\*|\/))/);
+        if (match) {
+          foldingRange.kind = match[1] ? FoldingRangeKind.Region : FoldingRangeKind.Comment;
+        }
+        ranges.push(foldingRange);
+      }
+    }
+    return ranges;
+  }
+
+  async findDocumentHighlights(uri: string, position: lst.Position): Promise<lst.DocumentHighlight[]> {
+    const document = this._getMirrorTextDocument(uri);
+    if (!document) {
+      return [];
+    }
+    const highlights = this._languageService.getDocumentHighlights(uri, document.offsetAt(position), [uri]);
+    const out: lst.DocumentHighlight[] = [];
+    for (const entry of highlights || []) {
+      for (const highlight of entry.highlightSpans) {
+        out.push({
+          range: convertRange(document, highlight.textSpan),
+          kind: highlight.kind === "writtenReference"
+            ? DocumentHighlightKind.Write
+            : DocumentHighlightKind.Text,
+        });
+      }
+    }
+    return out;
+  }
+
+  async findDefinition(
+    uri: string,
+    position: lst.Position,
+  ): Promise<(lst.Location & { originSelectionRange: lst.Range })[] | null> {
+    const document = this._getMirrorTextDocument(uri);
+    if (!document) {
+      return null;
+    }
+    const res = this._languageService.getDefinitionAndBoundSpan(uri, document.offsetAt(position));
+    if (res) {
+      const { definitions, textSpan } = res;
+      return definitions.map(d => {
+        const doc = d.fileName === uri ? document : this._getMirrorTextDocument(d.fileName);
+        if (doc) {
+          return {
+            uri: d.fileName,
+            range: convertRange(doc, d.textSpan),
+            originSelectionRange: convertRange(document, textSpan),
+          };
+        }
+      }).filter(Boolean);
+    }
+    return null;
+  }
+
+  // #endregion
+
   // #region methods used by the host
 
   async cacheHttpModule(specifier: string, containingFile: string): Promise<void> {
@@ -936,6 +1109,20 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
       ?? this._httpTsModules.get(fileName);
   }
 
+  private _getMirrorTextDocument(uri: string): lst.TextDocument | null {
+    for (const model of this._ctx.getMirrorModels()) {
+      if (model.uri.toString() === uri) {
+        return TextDocument.create(
+          uri,
+          "javascript",
+          model.version,
+          model.getValue(),
+        );
+      }
+    }
+    return null;
+  }
+
   private _getModel(fileName: string): monacoNS.worker.IMirrorModel | null {
     let models = this._ctx.getMirrorModels();
     for (let i = 0; i < models.length; i++) {
@@ -962,15 +1149,17 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     }
   }
 
-  private _getJsxImportUrl(containingFile: string): string | null {
+  private _getJsxImportUrl(): string | null {
     let runtimePath = "/jsx-runtime";
     if (this._compilerOptions.jsx === ts.JsxEmit.ReactJSXDev) {
       runtimePath = "/jsx-dev-runtime";
     }
     if (this._compilerOptions.jsxImportSource) {
-      return new URL(this._compilerOptions.jsxImportSource + runtimePath, containingFile).href;
+      const url = new URL(this._compilerOptions.jsxImportSource + runtimePath);
+      return url.href;
     } else if (!this._isBlankImportMap) {
-      return new URL(this._importMap.imports["@jsxImportSource"] + runtimePath, containingFile).href;
+      const url = new URL(this._importMap.imports["@jsxImportSource"] + runtimePath);
+      return url.href;
     }
     return null;
   }
@@ -1023,9 +1212,7 @@ function getScriptExtension(
 }
 
 function isDts(fileName: string): boolean {
-  return fileName.endsWith(".d.ts")
-    || fileName.endsWith(".d.mts")
-    || fileName.endsWith(".d.cts");
+  return fileName.endsWith(".d.ts") || fileName.endsWith(".d.mts") || fileName.endsWith(".d.cts");
 }
 
 // Clear the `file` field, which cannot be JSON stringified because it
@@ -1054,4 +1241,158 @@ function clearFiles(tsDiagnostics: ts.Diagnostic[]): Diagnostic[] {
   return diagnostics;
 }
 
+const enum Kind {
+  alias = "alias",
+  callSignature = "call",
+  class = "class",
+  const = "const",
+  constructorImplementation = "constructor",
+  constructSignature = "construct",
+  directory = "directory",
+  enum = "enum",
+  enumMember = "enum member",
+  externalModuleName = "external module name",
+  function = "function",
+  indexSignature = "index",
+  interface = "interface",
+  keyword = "keyword",
+  let = "let",
+  localFunction = "local function",
+  localVariable = "local var",
+  method = "method",
+  memberGetAccessor = "getter",
+  memberSetAccessor = "setter",
+  memberVariable = "property",
+  module = "module",
+  primitiveType = "primitive type",
+  script = "script",
+  type = "type",
+  variable = "var",
+  warning = "warning",
+  string = "string",
+  parameter = "parameter",
+  typeParameter = "type parameter",
+}
+
+function convertKind(kind: string): lst.CompletionItemKind {
+  switch (kind) {
+    case Kind.primitiveType:
+    case Kind.keyword:
+      return CompletionItemKind.Keyword;
+
+    case Kind.const:
+    case Kind.let:
+    case Kind.variable:
+    case Kind.localVariable:
+    case Kind.alias:
+    case Kind.parameter:
+      return CompletionItemKind.Variable;
+
+    case Kind.memberVariable:
+    case Kind.memberGetAccessor:
+    case Kind.memberSetAccessor:
+      return CompletionItemKind.Field;
+
+    case Kind.function:
+    case Kind.localFunction:
+      return CompletionItemKind.Function;
+
+    case Kind.method:
+    case Kind.constructSignature:
+    case Kind.callSignature:
+    case Kind.indexSignature:
+      return CompletionItemKind.Method;
+
+    case Kind.enum:
+      return CompletionItemKind.Enum;
+
+    case Kind.enumMember:
+      return CompletionItemKind.EnumMember;
+
+    case Kind.module:
+    case Kind.externalModuleName:
+      return CompletionItemKind.Module;
+
+    case Kind.class:
+    case Kind.type:
+      return CompletionItemKind.Class;
+
+    case Kind.interface:
+      return CompletionItemKind.Interface;
+
+    case Kind.warning:
+      return CompletionItemKind.Text;
+
+    case Kind.script:
+      return CompletionItemKind.File;
+
+    case Kind.directory:
+      return CompletionItemKind.Folder;
+
+    case Kind.string:
+      return CompletionItemKind.Constant;
+
+    default:
+      return CompletionItemKind.Property;
+  }
+}
+
+function convertRange(
+  document: lst.TextDocument,
+  span: { start: number | undefined; length: number | undefined },
+): lst.Range {
+  if (typeof span.start === "undefined") {
+    const pos = document.positionAt(0);
+    return Range.create(pos, pos);
+  }
+  const startPosition = document.positionAt(span.start);
+  const endPosition = document.positionAt(span.start + (span.length || 0));
+  return Range.create(startPosition, endPosition);
+}
+
+function tagToString(tag: ts.JSDocTagInfo): string {
+  let tagLabel = `*@${tag.name}*`;
+  if (tag.name === "param" && tag.text) {
+    const [paramName, ...rest] = tag.text;
+    tagLabel += `\`${paramName.text}\``;
+    if (rest.length > 0) tagLabel += ` — ${rest.map((r) => r.text).join(" ")}`;
+  } else if (Array.isArray(tag.text)) {
+    tagLabel += ` — ${tag.text.map((r) => r.text).join("")}`;
+  } else if (tag.text) {
+    tagLabel += ` — ${tag.text}`;
+  }
+  return tagLabel;
+}
+
+const JS_WORD_REGEX = /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g;
+
+function getWordAtText(text: string, offset: number, wordDefinition: RegExp): { start: number; length: number } {
+  let lineStart = offset;
+  while (lineStart > 0 && !isNewlineCharacter(text.charCodeAt(lineStart - 1))) {
+    lineStart--;
+  }
+  const offsetInLine = offset - lineStart;
+  const lineText = text.slice(lineStart);
+
+  // make a copy of the regex as to not keep the state
+  const flags = wordDefinition.ignoreCase ? "gi" : "g";
+  wordDefinition = new RegExp(wordDefinition.source, flags);
+
+  let match = wordDefinition.exec(lineText);
+  while (match && match.index + match[0].length < offsetInLine) {
+    match = wordDefinition.exec(lineText);
+  }
+  if (match && match.index <= offsetInLine) {
+    return { start: match.index + lineStart, length: match[0].length };
+  }
+
+  return { start: offset, length: 0 };
+}
+
+function isNewlineCharacter(charCode: number) {
+  return charCode === 10 || charCode === 13;
+}
+
+// ! external module, don't remove the `.js` extension
+import { initializeWorker } from "../../editor-worker.js";
 initializeWorker(TypeScriptWorker);

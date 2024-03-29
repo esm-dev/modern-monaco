@@ -6,10 +6,7 @@
 
 import type monacoNS from "monaco-editor-core";
 import * as jsonService from "vscode-json-languageservice";
-
-// ! external module, don't remove the `.js` extension
 import { cache } from "../../cache.js";
-import { initializeWorker } from "../../editor-worker.js";
 
 export interface Options {
   /** Configures the CSS data types known by the langauge service. */
@@ -220,4 +217,6 @@ export class JSONWorker {
   }
 }
 
+// ! external module, don't remove the `.js` extension
+import { initializeWorker } from "../../editor-worker.js";
 initializeWorker(JSONWorker);

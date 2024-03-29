@@ -9,7 +9,6 @@ export const schemas: SchemaConfiguration[] = [
       "importmap.json",
       "importMap.json",
       "*.importmap",
-      "*.html",
     ],
     schema: {
       $schema: "http://json-schema.org/draft-07/schema#",

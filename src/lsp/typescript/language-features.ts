@@ -226,7 +226,7 @@ export class DiagnosticsAdapter extends Adapter {
 
     const editor = Monaco.editor;
     const validateModel = (model: monacoNS.editor.IModel): void => {
-      if (model.getLanguageId() !== _languageId) {
+      if (model.getLanguageId() !== _languageId || model.uri.toString().endsWith(".html#javascript")) {
         return;
       }
 
@@ -531,10 +531,7 @@ export class SuggestAdapter extends Adapter implements monacoNS.languages.Comple
       }
 
       const tags: monacoNS.languages.CompletionItemTag[] = [];
-      if (
-        entry.kindModifiers !== undefined
-        && entry.kindModifiers.indexOf("deprecated") !== -1
-      ) {
+      if (entry.kindModifiers !== undefined && entry.kindModifiers.indexOf("deprecated") !== -1) {
         tags.push(Monaco.languages.CompletionItemTag.Deprecated);
       }
 
@@ -552,9 +549,7 @@ export class SuggestAdapter extends Adapter implements monacoNS.languages.Comple
       };
     });
 
-    return {
-      suggestions,
-    };
+    return { suggestions };
   }
 
   public async resolveCompletionItem(

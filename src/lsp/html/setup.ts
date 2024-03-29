@@ -1,4 +1,4 @@
-import monacoNS from "monaco-editor-core";
+import type monacoNS from "monaco-editor-core";
 import type { FormattingOptions } from "vscode-languageserver-types";
 import type { CreateData, HTMLWorker } from "./worker";
 
@@ -11,7 +11,7 @@ export function setup(
   languageSettings?: Record<string, unknown>,
   formattingOptions?: FormattingOptions,
 ) {
-  const { editor, languages } = monaco;
+  const { editor, languages, Uri } = monaco;
   const diagnosticsEmitter = new monaco.Emitter<void>();
   const codeLensEmitter = new monaco.Emitter<monacoNS.languages.CodeLensProvider>();
   const { tabSize, insertSpaces, insertFinalNewline, trimFinalNewlines } = formattingOptions ?? {};
@@ -39,24 +39,24 @@ export function setup(
       },
     },
   };
+  const embeddedLanguages = { javascript: "js", css: "css", importmap: "importmap" };
   const worker = editor.createWebWorker<HTMLWorker>({
     moduleId: "lsp/html/worker",
     label: languageId,
     createData,
     host: {
       // redirects lsp requests of embedded languages
-      async redirectLSPRequest(embeddedLanguageId: string, method: string, uri: string, ...args: any[]) {
-        if (embeddedLanguageId === "importmap") {
-          embeddedLanguageId = "json";
-        }
+      async redirectLSPRequest(rsl: string, method: string, uri: string, ...args: any[]) {
         // @ts-expect-error `onWorker` is added by esm-monaco
         const { workerProxies } = MonacoEnvironment;
-        const worker = workerProxies[embeddedLanguageId];
-        if (typeof worker === "function") {
-          return worker(uri).then(worker => worker[method](uri, ...args));
+        const langaugeId = rsl === "importmap" ? "json" : rsl;
+        const workerProxy = workerProxies[langaugeId];
+        if (typeof workerProxy === "function") {
+          const embeddedUri = Uri.parse(uri + "__EMBEDDED_." + embeddedLanguages[rsl]);
+          return workerProxy(embeddedUri).then(worker => worker[method]?.(embeddedUri.toString(), ...args));
         }
-        if (!worker) {
-          workerProxies[embeddedLanguageId] = [() => {
+        if (!workerProxy) {
+          workerProxies[langaugeId] = [() => {
             // refresh diagnostics
             diagnosticsEmitter.fire();
           }];
@@ -116,9 +116,10 @@ export function setup(
   // set monacoNS and register language features
   lf.setup(monaco);
   lf.registerDefault(languageId, workerProxy, [".", ":", "<", "\"", "=", "/"]);
-  lf.attachEmbeddedLanguages(workerProxy, ["css", "importmap"]);
+  lf.attachEmbeddedLanguages(workerProxy, embeddedLanguages);
   languages.registerColorProvider(languageId, new lf.DocumentColorAdapter(workerProxy));
   languages.registerDocumentHighlightProvider(languageId, new lf.DocumentHighlightAdapter(workerProxy));
+  languages.registerDefinitionProvider(languageId, new lf.DefinitionAdapter(workerProxy));
   languages.registerLinkProvider(languageId, new lf.DocumentLinkAdapter(workerProxy));
   languages.registerRenameProvider(languageId, new lf.RenameAdapter(workerProxy));
   languages.registerCodeLensProvider(languageId, codeLensProvider);
