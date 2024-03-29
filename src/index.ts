@@ -140,8 +140,8 @@ export function init(options: InitOption): Promise<typeof monacoNS> {
         }
       }
       for (const l of Object.values(lspProviders)) {
-        if (l.customGrammars) {
-          langs.push(...l.customGrammars);
+        if (l.syntaxes) {
+          langs.push(...l.syntaxes);
         }
       }
       const hightlighter = await initShiki({ ...options, langs });
@@ -251,8 +251,8 @@ export function lazy(options?: InitOption) {
           langs.push(renderOptions.lang ?? getLanguageIdFromPath(file));
         }
         for (const l of Object.values(lspProviders)) {
-          if (l.customGrammars) {
-            langs.push(...l.customGrammars);
+          if (l.syntaxes) {
+            langs.push(...l.syntaxes);
           }
         }
         const highlighter = await initShiki({ ...options, langs });

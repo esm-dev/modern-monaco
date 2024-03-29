@@ -1,11 +1,11 @@
 import type monacoNS from "monaco-editor-core";
 import type { FormattingOptions } from "vscode-languageserver-types";
 import type { VFS } from "../vfs.ts";
-import embeddedJsonScript from "./html/json-script.embedded.json";
+import jsonScriptTag from "./html/syntaxes/json-script-tag.json";
 
 export interface LSPProvider {
   aliases?: string[];
-  customGrammars?: any[];
+  syntaxes?: any[];
   import: () => Promise<{
     setup: (
       monaco: typeof monacoNS,
@@ -36,7 +36,7 @@ export async function createWorker(url: URL): Promise<Worker> {
 
 export const builtinProviders: Record<string, LSPProvider> = {
   html: {
-    customGrammars: [embeddedJsonScript],
+    syntaxes: [jsonScriptTag],
     // @ts-expect-error 'setup.js' is generated at build time
     import: () => import("./lsp/html/setup.js"),
   },

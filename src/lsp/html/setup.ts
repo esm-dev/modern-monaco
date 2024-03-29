@@ -20,6 +20,9 @@ export function setup(
     options: {
       data: {
         useDefaultDataProvider: true,
+        dataProviders: Array.isArray(languageSettings?.customTags)
+          ? { custom: { version: 1.1, tags: languageSettings.customTags as any } }
+          : undefined,
       },
       suggest: {},
       format: {

@@ -18,7 +18,7 @@ export interface FormatOptions {
   semicolon?: "ignore" | "insert" | "remove";
 }
 
-export interface JSONSchemaConfiguration {
+export interface JSONSchemaSource {
   /**
    * The URI of the schema, which is also the identifier of the schema.
    */
@@ -42,9 +42,27 @@ export interface JSONSchemaConfiguration {
   folderUri?: string;
 }
 
+export interface IReference {
+  name: string;
+  url: string;
+}
+export interface IData {
+  name: string;
+  description?: string;
+  references?: IReference[];
+}
+export interface ITagData extends IData {
+  attributes: IAttributeData[];
+  void?: boolean;
+}
+export interface IAttributeData extends IData {
+  valueSet?: string;
+  values?: IData[];
+}
+
 export interface LSPProvider {
   aliases?: string[];
-  customGrammars?: any[];
+  syntaxes?: any[];
   import: () => Promise<{
     setup: (
       monaco: typeof monacoNS,
@@ -57,25 +75,29 @@ export interface LSPProvider {
   }>;
 }
 
-export interface LSPConfig extends LSPLanguageSettings {
+export interface LSPConfig extends LSPLanguageConfig {
   providers?: Record<string, LSPProvider>;
   format?: FormatOptions;
 }
 
 declare global {
-  interface LSPLanguageSettings {
+  interface LSPLanguageConfig {
+    html?: {
+      customTags?: ITagData[];
+    };
+    css?: {};
     json?: {
-      schemas?: JSONSchemaConfiguration[];
+      schemas?: JSONSchemaSource[];
     };
     typescript?: {
-      /** The extra libraries to be loaded */
-      extraLibs?: Record<string, string>;
-      /** The compiler options */
+      /** The compiler options. */
       compilerOptions?: ts.CompilerOptions;
-      /** The global import maps */
+      /** The extra libraries to be loaded. */
+      extraLibs?: Record<string, string>;
+      /** The global import maps. */
       importMap?: import("./import-map").ImportMap;
-      /** The version of the typescript module from CDN */
-      version?: string;
+      /** The version of the typescript module from CDN. Default: ">= 5.0.0" */
+      tsVersion?: string;
     };
   }
 }
