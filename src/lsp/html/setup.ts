@@ -50,12 +50,12 @@ export function setup(
     host: {
       // redirects lsp requests of embedded languages
       async redirectLSPRequest(rsl: string, method: string, uri: string, ...args: any[]) {
-        // @ts-expect-error `onWorker` is added by esm-monaco
+        // @ts-expect-error `workerProxies` is added by esm-monaco
         const { workerProxies } = MonacoEnvironment;
         const langaugeId = rsl === "importmap" ? "json" : rsl;
         const workerProxy = workerProxies[langaugeId];
         if (typeof workerProxy === "function") {
-          const embeddedUri = Uri.parse(uri + "__EMBEDDED_." + embeddedLanguages[rsl]);
+          const embeddedUri = Uri.parse(uri + ".__EMBEDDED__." + embeddedLanguages[rsl]);
           return workerProxy(embeddedUri).then(worker => worker[method]?.(embeddedUri.toString(), ...args));
         }
         if (!workerProxy) {

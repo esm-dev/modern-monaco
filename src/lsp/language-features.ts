@@ -61,7 +61,7 @@ export function attachEmbeddedLanguages<T extends ILanguageWorkerWithEmbeddedSup
   const { editor, Uri } = Monaco;
   const embeddedLanguageIds = Object.keys(embeddedLanguages);
   const toEbeddedUri = (model: monacoNS.editor.IModel, languageId: string) => {
-    return Uri.parse(model.uri.path + "__EMBEDDED_." + embeddedLanguages[languageId]);
+    return Uri.parse(model.uri.path + ".__EMBEDDED__." + embeddedLanguages[languageId]);
   };
   const validateModel = async (model: monacoNS.editor.IModel) => {
     if (model.getLanguageId() !== "html") {
@@ -128,7 +128,7 @@ export class DiagnosticsAdapter<T extends ILanguageWorkerWithDiagnostics> {
     const validateModel = (model: monacoNS.editor.IModel): void => {
       const modelId = model.getLanguageId();
       const uri = model.uri.toString();
-      if (modelId !== this._languageId || uri.includes("__EMBEDDED_.")) {
+      if (modelId !== this._languageId || uri.includes(".__EMBEDDED__.")) {
         return;
       }
 
@@ -246,6 +246,7 @@ function toMarker({
 
 export interface ILanguageWorkerWithCompletions {
   doComplete(uri: string, position: lst.Position): Promise<lst.CompletionList | null>;
+  doResolveCompletionItem?(uri: string, offset: number, item: lst.CompletionItem): Promise<lst.CompletionItem | null>;
 }
 
 export class CompletionAdapter<T extends ILanguageWorkerWithCompletions>
@@ -266,12 +267,8 @@ export class CompletionAdapter<T extends ILanguageWorkerWithCompletions>
     context: monacoNS.languages.CompletionContext,
     token: monacoNS.CancellationToken,
   ): Promise<monacoNS.languages.CompletionList | undefined> {
-    const resource = model.uri;
-
-    return this._worker(resource)
-      .then((worker) => {
-        return worker.doComplete(resource.toString(), fromPosition(position));
-      })
+    return this._worker(model.uri)
+      .then((worker) => worker.doComplete(model.uri.toString(), fromPosition(position)))
       .then((info) => {
         if (!info) {
           return;
@@ -283,18 +280,19 @@ export class CompletionAdapter<T extends ILanguageWorkerWithCompletions>
           position.lineNumber,
           wordInfo.endColumn,
         );
-
         const items: monacoNS.languages.CompletionItem[] = info.items.map((entry) => {
-          const item: monacoNS.languages.CompletionItem = {
-            label: entry.label,
-            insertText: entry.insertText || entry.label,
-            sortText: entry.sortText,
-            filterText: entry.filterText,
-            documentation: entry.documentation,
-            detail: entry.detail,
+          const item: monacoNS.languages.CompletionItem & { data?: any } = {
             command: toCommand(entry.command),
-            range: wordRange,
+            data: entry.data,
+            detail: entry.detail,
+            documentation: entry.documentation,
+            filterText: entry.filterText,
+            insertText: entry.insertText || entry.label,
             kind: toCompletionItemKind(entry.kind),
+            label: entry.label,
+            range: wordRange,
+            sortText: entry.sortText,
+            tags: entry.tags,
           };
           if (entry.textEdit) {
             if (isInsertReplaceEdit(entry.textEdit)) {
@@ -308,9 +306,7 @@ export class CompletionAdapter<T extends ILanguageWorkerWithCompletions>
             item.insertText = entry.textEdit.newText;
           }
           if (entry.additionalTextEdits) {
-            item.additionalTextEdits = entry.additionalTextEdits.map<
-              monacoNS.languages.TextEdit
-            >(toTextEdit);
+            item.additionalTextEdits = entry.additionalTextEdits.map<monacoNS.languages.TextEdit>(toTextEdit);
           }
           if (entry.insertTextFormat === lst.InsertTextFormat.Snippet) {
             item.insertTextRules = Monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
@@ -325,23 +321,37 @@ export class CompletionAdapter<T extends ILanguageWorkerWithCompletions>
       });
   }
 
-  // [todo]
-  // public async resolveCompletionItem(
-  //   item: monacoNS.languages.CompletionItem,
-  //   token: monacoNS.CancellationToken,
-  // ): Promise<monacoNS.languages.CompletionItem> {
-  //   return item;
-  // }
+  public async resolveCompletionItem(
+    item: monacoNS.languages.CompletionItem & { data?: any },
+    token: monacoNS.CancellationToken,
+  ): Promise<monacoNS.languages.CompletionItem> {
+    if (!item.data || !item.data.context) {
+      return item;
+    }
+
+    const { uri, offset, languageId } = item.data.context;
+    delete item.data;
+
+    // @ts-expect-error `workerProxies` is added by esm-monaco
+    const { workerProxies } = MonacoEnvironment;
+    const workerProxy = workerProxies[languageId];
+    if (typeof workerProxy === "function") {
+      const worker = await workerProxy(uri);
+      const details = await worker.doResolveCompletionItem?.(uri, offset, item);
+      if (details) {
+        item.detail = details.detail;
+        item.documentation = details.documentation;
+        item.additionalTextEdits = details.additionalTextEdits?.map(toTextEdit);
+      }
+    }
+    return item;
+  }
 }
 
 export function fromPosition(position: monacoNS.Position): lst.Position;
 export function fromPosition(position: undefined): undefined;
-export function fromPosition(
-  position: monacoNS.Position | undefined,
-): lst.Position | undefined;
-export function fromPosition(
-  position: monacoNS.Position | undefined,
-): lst.Position | undefined {
+export function fromPosition(position: monacoNS.Position | undefined): lst.Position | undefined;
+export function fromPosition(position: monacoNS.Position | undefined): lst.Position | undefined {
   if (!position) {
     return void 0;
   }
@@ -351,9 +361,7 @@ export function fromPosition(
 export function fromRange(range: monacoNS.IRange): lst.Range;
 export function fromRange(range: undefined): undefined;
 export function fromRange(range: monacoNS.IRange | undefined): lst.Range | undefined;
-export function fromRange(
-  range: monacoNS.IRange | undefined,
-): lst.Range | undefined {
+export function fromRange(range: monacoNS.IRange | undefined): lst.Range | undefined {
   if (!range) {
     return void 0;
   }
@@ -365,6 +373,7 @@ export function fromRange(
     end: { line: range.endLineNumber - 1, character: range.endColumn - 1 },
   };
 }
+
 export function toRange(range: lst.Range): monacoNS.Range;
 export function toRange(range: undefined): undefined;
 export function toRange(range: lst.Range | undefined): monacoNS.Range | undefined;
@@ -627,8 +636,8 @@ function toLocationLink(
   location: lst.Location & { originSelectionRange?: lst.Range },
 ): monacoNS.languages.LocationLink {
   let uri = location.uri;
-  if (uri.includes("__EMBEDDED_.")) {
-    uri = uri.slice(0, uri.lastIndexOf("__EMBEDDED_."));
+  if (uri.includes(".__EMBEDDED__.")) {
+    uri = uri.slice(0, uri.lastIndexOf(".__EMBEDDED__."));
   }
   return {
     originSelectionRange: location.originSelectionRange ? toRange(location.originSelectionRange) : void 0,

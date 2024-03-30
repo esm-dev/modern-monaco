@@ -8,6 +8,7 @@ import type monacoNS from "monaco-editor-core";
 import type * as lst from "vscode-languageserver-types";
 import {
   CompletionItemKind,
+  CompletionItemTag,
   DiagnosticSeverity,
   DiagnosticTag,
   DocumentHighlightKind,
@@ -847,7 +848,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
 
   // #region language features as embedded language
   async doValidation(uri: string): Promise<lst.Diagnostic[]> {
-    const document = this._getMirrorTextDocument(uri);
+    const document = this._getScriptDocument(uri);
     if (!document) {
       return [];
     }
@@ -871,7 +872,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   }
 
   async doComplete(uri: string, position: lst.Position): Promise<lst.CompletionList | null> {
-    const document = this._getMirrorTextDocument(uri);
+    const document = this._getScriptDocument(uri);
     if (!document) {
       return null;
     }
@@ -880,27 +881,58 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     if (!completions) {
       return { isIncomplete: false, items: [] };
     }
-    const replaceRange = convertRange(document, getWordAtText(document.getText(), offset, JS_WORD_REGEX));
+    // const replaceRange = convertRange(document, getWordAtText(document.getText(), offset, JS_WORD_REGEX));
     return {
-      isIncomplete: false,
+      isIncomplete: completions.isIncomplete,
       items: completions.entries.map(entry => {
-        // data used for resolving item details (see 'doResolve')
-        const data = {
-          languageId: "javascript",
-          uri,
-          offset: offset,
-        };
+        // data used for resolving item details (see 'doResolveCompletionItem')
+        const data = { ...entry.data, context: { uri, offset, languageId: document.languageId } };
+        const tags: lst.CompletionItemTag[] = [];
+        if (entry.kindModifiers?.includes("deprecated")) {
+          tags.push(CompletionItemTag.Deprecated);
+        }
         return {
-          uri,
-          position: position,
           label: entry.name,
+          insertText: entry.name,
+          filterText: entry.filterText,
           sortText: entry.sortText,
           kind: convertKind(entry.kind),
-          textEdit: TextEdit.replace(replaceRange, entry.name),
+          tags,
           data,
-        };
+        } satisfies lst.CompletionItem;
       }),
     };
+  }
+
+  async doResolveCompletionItem(
+    uri: string,
+    offset: number,
+    item: lst.CompletionItem,
+  ): Promise<lst.CompletionItem | null> {
+    const document = this._getScriptDocument(uri);
+    if (!document) {
+      return null;
+    }
+    const details = await this.getCompletionEntryDetails(uri, offset, item.label);
+    if (details) {
+      const detail = ts.displayPartsToString(details.displayParts);
+      const documentation = ts.displayPartsToString(details.documentation);
+      const additionalTextEdits: lst.TextEdit[] = [];
+      if (details.codeActions) {
+        details.codeActions.forEach((action) =>
+          action.changes.forEach((change) =>
+            change.textChanges.forEach(({ span, newText }) => {
+              additionalTextEdits.push({
+                range: convertRange(document, span),
+                newText,
+              });
+            })
+          )
+        );
+      }
+      return { label: item.label, detail, documentation, additionalTextEdits };
+    }
+    return null;
   }
 
   async doFormat(
@@ -912,7 +944,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   }
 
   async doHover(uri: string, position: lst.Position): Promise<lst.Hover | null> {
-    const document = this._getMirrorTextDocument(uri);
+    const document = this._getScriptDocument(uri);
     if (!document) {
       return null;
     }
@@ -934,7 +966,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   }
 
   async doRename(uri: string, position: lst.Position, newName: string): Promise<lst.WorkspaceEdit | null> {
-    const document = this._getMirrorTextDocument(uri);
+    const document = this._getScriptDocument(uri);
     if (!document) {
       return null;
     }
@@ -954,7 +986,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   }
 
   async getFoldingRanges(uri: string): Promise<lst.FoldingRange[]> {
-    const document = this._getMirrorTextDocument(uri);
+    const document = this._getScriptDocument(uri);
     if (!document) {
       return [];
     }
@@ -977,7 +1009,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   }
 
   async findDocumentHighlights(uri: string, position: lst.Position): Promise<lst.DocumentHighlight[]> {
-    const document = this._getMirrorTextDocument(uri);
+    const document = this._getScriptDocument(uri);
     if (!document) {
       return [];
     }
@@ -998,7 +1030,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     uri: string,
     position: lst.Position,
   ): Promise<(lst.Location & { originSelectionRange: lst.Range })[] | null> {
-    const document = this._getMirrorTextDocument(uri);
+    const document = this._getScriptDocument(uri);
     if (!document) {
       return null;
     }
@@ -1006,7 +1038,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     if (res) {
       const { definitions, textSpan } = res;
       return definitions.map(d => {
-        const doc = d.fileName === uri ? document : this._getMirrorTextDocument(d.fileName);
+        const doc = d.fileName === uri ? document : this._getScriptDocument(d.fileName);
         if (doc) {
           return {
             uri: d.fileName,
@@ -1117,16 +1149,12 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
       ?? this._httpTsModules.get(fileName);
   }
 
-  private _getMirrorTextDocument(uri: string): lst.TextDocument | null {
-    for (const model of this._ctx.getMirrorModels()) {
-      if (model.uri.toString() === uri) {
-        return TextDocument.create(
-          uri,
-          "javascript",
-          model.version,
-          model.getValue(),
-        );
-      }
+  private _getScriptDocument(uri: string): lst.TextDocument | null {
+    const scriptText = this._getScriptText(uri);
+    if (scriptText) {
+      const scriptKind = this.getScriptKind(uri);
+      const isTS = scriptKind === ts.ScriptKind.TS || scriptKind === ts.ScriptKind.TSX;
+      return TextDocument.create(uri, isTS ? "typescript" : "javascript", 0, scriptText);
     }
     return null;
   }
@@ -1205,7 +1233,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
 
     const result: lst.DiagnosticRelatedInformation[] = [];
     relatedInformation.forEach((info) => {
-      const doc = info.file ? this._getMirrorTextDocument(info.file.fileName) : document;
+      const doc = info.file ? this._getScriptDocument(info.file.fileName) : document;
       if (!doc) {
         return;
       }
@@ -1432,34 +1460,34 @@ function tagToString(tag: ts.JSDocTagInfo): string {
   return tagLabel;
 }
 
-const JS_WORD_REGEX = /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g;
+// const JS_WORD_REGEX = /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g;
 
-function getWordAtText(text: string, offset: number, wordDefinition: RegExp): { start: number; length: number } {
-  let lineStart = offset;
-  while (lineStart > 0 && !isNewlineCharacter(text.charCodeAt(lineStart - 1))) {
-    lineStart--;
-  }
-  const offsetInLine = offset - lineStart;
-  const lineText = text.slice(lineStart);
+// function getWordAtText(text: string, offset: number, wordDefinition: RegExp): { start: number; length: number } {
+//   let lineStart = offset;
+//   while (lineStart > 0 && !isNewlineCharacter(text.charCodeAt(lineStart - 1))) {
+//     lineStart--;
+//   }
+//   const offsetInLine = offset - lineStart;
+//   const lineText = text.slice(lineStart);
 
-  // make a copy of the regex as to not keep the state
-  const flags = wordDefinition.ignoreCase ? "gi" : "g";
-  wordDefinition = new RegExp(wordDefinition.source, flags);
+//   // make a copy of the regex as to not keep the state
+//   const flags = wordDefinition.ignoreCase ? "gi" : "g";
+//   wordDefinition = new RegExp(wordDefinition.source, flags);
 
-  let match = wordDefinition.exec(lineText);
-  while (match && match.index + match[0].length < offsetInLine) {
-    match = wordDefinition.exec(lineText);
-  }
-  if (match && match.index <= offsetInLine) {
-    return { start: match.index + lineStart, length: match[0].length };
-  }
+//   let match = wordDefinition.exec(lineText);
+//   while (match && match.index + match[0].length < offsetInLine) {
+//     match = wordDefinition.exec(lineText);
+//   }
+//   if (match && match.index <= offsetInLine) {
+//     return { start: match.index + lineStart, length: match[0].length };
+//   }
 
-  return { start: offset, length: 0 };
-}
+//   return { start: offset, length: 0 };
+// }
 
-function isNewlineCharacter(charCode: number) {
-  return charCode === 10 || charCode === 13;
-}
+// function isNewlineCharacter(charCode: number) {
+//   return charCode === 10 || charCode === 13;
+// }
 
 // ! external module, don't remove the `.js` extension
 import { initializeWorker } from "../../editor-worker.js";
