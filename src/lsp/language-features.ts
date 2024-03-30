@@ -246,7 +246,12 @@ function toMarker({
 
 export interface ILanguageWorkerWithCompletions {
   doComplete(uri: string, position: lst.Position): Promise<lst.CompletionList | null>;
-  doResolveCompletionItem?(uri: string, offset: number, item: lst.CompletionItem): Promise<lst.CompletionItem | null>;
+  doResolveCompletionItem?(
+    uri: string,
+    offset: number,
+    entryLabel: string,
+    entryData?: any,
+  ): Promise<lst.CompletionItem | null>;
 }
 
 export class CompletionAdapter<T extends ILanguageWorkerWithCompletions>
@@ -329,15 +334,13 @@ export class CompletionAdapter<T extends ILanguageWorkerWithCompletions>
       return item;
     }
 
-    const { uri, offset, languageId } = item.data.context;
-    delete item.data;
-
     // @ts-expect-error `workerProxies` is added by esm-monaco
     const { workerProxies } = MonacoEnvironment;
+    const { uri, offset, languageId } = item.data.context;
     const workerProxy = workerProxies[languageId];
     if (typeof workerProxy === "function") {
-      const worker = await workerProxy(uri);
-      const details = await worker.doResolveCompletionItem?.(uri, offset, item);
+      const worker: ILanguageWorkerWithCompletions = await workerProxy(uri);
+      const details = await worker.doResolveCompletionItem?.(uri, offset, <string> item.label, item.data.entryData);
       if (details) {
         item.detail = details.detail;
         item.documentation = details.documentation;

@@ -886,7 +886,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
       isIncomplete: completions.isIncomplete,
       items: completions.entries.map(entry => {
         // data used for resolving item details (see 'doResolveCompletionItem')
-        const data = { ...entry.data, context: { uri, offset, languageId: document.languageId } };
+        const data = { entryData: entry.data, context: { uri, offset, languageId: document.languageId } };
         const tags: lst.CompletionItemTag[] = [];
         if (entry.kindModifiers?.includes("deprecated")) {
           tags.push(CompletionItemTag.Deprecated);
@@ -907,13 +907,14 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   async doResolveCompletionItem(
     uri: string,
     offset: number,
-    item: lst.CompletionItem,
+    entryLabel: string,
+    entryData?: any,
   ): Promise<lst.CompletionItem | null> {
     const document = this._getScriptDocument(uri);
     if (!document) {
       return null;
     }
-    const details = await this.getCompletionEntryDetails(uri, offset, item.label);
+    const details = await this.getCompletionEntryDetails(uri, offset, entryLabel, entryData);
     if (details) {
       const detail = ts.displayPartsToString(details.displayParts);
       const documentation = ts.displayPartsToString(details.documentation);
@@ -930,7 +931,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
           )
         );
       }
-      return { label: item.label, detail, documentation, additionalTextEdits };
+      return { label: entryLabel, detail, documentation, additionalTextEdits };
     }
     return null;
   }
@@ -1323,7 +1324,7 @@ function clearFiles(tsDiagnostics: ts.Diagnostic[]): Diagnostic[] {
   return diagnostics;
 }
 
-const enum Kind {
+enum Kind {
   alias = "alias",
   callSignature = "call",
   class = "class",
