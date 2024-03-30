@@ -105,12 +105,7 @@ export class HTMLWorker {
       }
     }
     for (const rsl of rs.getEmbeddedLanguages()) {
-      const ret = await this._ctx.host.redirectLSPRequest(
-        rsl,
-        "doValidation",
-        uri,
-      );
-      // console.log(rsl, ret);
+      const ret = await this._ctx.host.redirectLSPRequest(rsl, "doValidation", uri);
       if (Array.isArray(ret) && ret.length > 0) {
         diagnostic.push(...ret);
       }

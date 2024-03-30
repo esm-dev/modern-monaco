@@ -118,31 +118,29 @@ export interface ILanguageWorkerWithDiagnostics {
 }
 
 export class DiagnosticsAdapter<T extends ILanguageWorkerWithDiagnostics> {
-  protected readonly worker: WorkerProxy<T>;
-
-  private readonly _languageId: string;
   private readonly _listeners: { [uri: string]: monacoNS.IDisposable } = Object.create(null);
 
-  constructor(languageId: string, worker: WorkerProxy<T>, onRefresh: monacoNS.IEvent<void>) {
-    this._languageId = languageId;
-    this.worker = worker;
-
-    const { editor } = Monaco;
+  constructor(
+    private readonly _languageId: string,
+    private readonly _worker: WorkerProxy<T>,
+    onRefresh: monacoNS.IEvent<void>,
+  ) {
     const validateModel = (model: monacoNS.editor.IModel): void => {
       const modelId = model.getLanguageId();
       const uri = model.uri.toString();
-      if (modelId !== this._languageId || uri.includes(".html#")) {
+      if (modelId !== this._languageId || uri.includes("__EMBEDDED_.")) {
         return;
       }
-      // console.log(uri);
 
-      let handle: number;
+      let timer: number | null = null;
       this._listeners[uri] = model.onDidChangeContent(() => {
-        window.clearTimeout(handle);
-        handle = window.setTimeout(
-          () => this._doValidate(model.uri, modelId),
-          500,
-        );
+        if (timer) {
+          clearTimeout(timer);
+        }
+        timer = setTimeout(() => {
+          timer = null;
+          this._doValidate(model.uri, modelId);
+        }, 500);
       });
       this._doValidate(model.uri, modelId);
     };
@@ -154,6 +152,8 @@ export class DiagnosticsAdapter<T extends ILanguageWorkerWithDiagnostics> {
         delete this._listeners[key];
       }
     };
+
+    const { editor } = Monaco;
 
     editor.onDidCreateModel(validateModel);
     editor.onWillDisposeModel((model) => {
@@ -174,12 +174,12 @@ export class DiagnosticsAdapter<T extends ILanguageWorkerWithDiagnostics> {
   }
 
   private _doValidate(uri: monacoNS.Uri, languageId: string): void {
-    this.worker(uri)
+    this._worker(uri)
       .then((worker) => {
         return worker.doValidation(uri.toString());
       })
       .then((diagnostics) => {
-        const markers = diagnostics.map(toDiagnostics);
+        const markers = diagnostics.map(toMarker);
         const model = Monaco.editor.getModel(uri);
         if (model && model.getLanguageId() === languageId) {
           Monaco.editor.setModelMarkers(model, languageId, markers);
@@ -206,17 +206,37 @@ function toSeverity(lsSeverity: number | undefined): monacoNS.MarkerSeverity {
   }
 }
 
-function toDiagnostics(diag: lst.Diagnostic): monacoNS.editor.IMarkerData {
-  const code = typeof diag.code === "number" ? String(diag.code) : <string> diag.code;
+function toMarker({
+  range,
+  severity,
+  code,
+  message,
+  source,
+  tags,
+  relatedInformation,
+}: lst.Diagnostic): monacoNS.editor.IMarkerData {
+  const { start, end } = range;
   return {
-    severity: toSeverity(diag.severity),
-    startLineNumber: diag.range.start.line + 1,
-    startColumn: diag.range.start.character + 1,
-    endLineNumber: diag.range.end.line + 1,
-    endColumn: diag.range.end.character + 1,
-    message: diag.message,
-    code: code,
-    source: diag.source,
+    startLineNumber: start.line + 1,
+    startColumn: start.character + 1,
+    endLineNumber: end.line + 1,
+    endColumn: end.character + 1,
+    severity: toSeverity(severity),
+    code: typeof code === "number" ? String(code) : code,
+    message,
+    source,
+    tags,
+    relatedInformation: relatedInformation?.map(({ location: { uri, range }, message }) => {
+      const { start, end } = range;
+      return {
+        resource: Monaco.Uri.parse(uri),
+        startLineNumber: start.line + 1,
+        startColumn: start.character + 1,
+        endLineNumber: end.line + 1,
+        endColumn: end.character + 1,
+        message: message,
+      };
+    }),
   };
 }
 

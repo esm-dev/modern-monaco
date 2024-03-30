@@ -187,14 +187,7 @@ function getEmbeddedDocument(
   if (!hasAny) {
     return null;
   }
-  return substituteWithWhitespace(
-    result,
-    currentPos,
-    docText.length,
-    docText,
-    lastSuffix,
-    "",
-  );
+  return result + lastSuffix;
 }
 
 function getPrefix(c: EmbeddedRegion) {
