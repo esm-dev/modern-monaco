@@ -51,9 +51,7 @@ export class CSSWorker {
     const customDataProviders: cssService.ICSSDataProvider[] = [];
     if (data?.dataProviders) {
       for (const id in data.dataProviders) {
-        customDataProviders.push(
-          cssService.newCSSDataProvider(data.dataProviders[id]),
-        );
+        customDataProviders.push(cssService.newCSSDataProvider(data.dataProviders[id]));
       }
     }
     const lsOptions: cssService.LanguageServiceOptions = {
@@ -69,10 +67,7 @@ export class CSSWorker {
       return [];
     }
     const stylesheet = this._languageService.parseStylesheet(document);
-    return this._languageService.doValidation(
-      document,
-      stylesheet,
-    );
+    return this._languageService.doValidation(document, stylesheet);
   }
 
   async doComplete(uri: string, position: cssService.Position): Promise<cssService.CompletionList | null> {
@@ -81,11 +76,7 @@ export class CSSWorker {
       return null;
     }
     const stylesheet = this._languageService.parseStylesheet(document);
-    return this._languageService.doComplete(
-      document,
-      position,
-      stylesheet,
-    );
+    return this._languageService.doComplete(document, position, stylesheet);
   }
 
   async doHover(
@@ -106,11 +97,7 @@ export class CSSWorker {
       return null;
     }
     const stylesheet = this._languageService.parseStylesheet(document);
-    const definition = this._languageService.findDefinition(
-      document,
-      position,
-      stylesheet,
-    );
+    const definition = this._languageService.findDefinition(document, position, stylesheet);
     if (definition) {
       return [definition];
     }
@@ -123,11 +110,7 @@ export class CSSWorker {
       return [];
     }
     const stylesheet = this._languageService.parseStylesheet(document);
-    return this._languageService.findReferences(
-      document,
-      position,
-      stylesheet,
-    );
+    return this._languageService.findReferences(document, position, stylesheet);
   }
 
   async findDocumentHighlights(
@@ -139,11 +122,7 @@ export class CSSWorker {
       return [];
     }
     const stylesheet = this._languageService.parseStylesheet(document);
-    return this._languageService.findDocumentHighlights(
-      document,
-      position,
-      stylesheet,
-    );
+    return this._languageService.findDocumentHighlights(document, position, stylesheet);
   }
 
   async findDocumentSymbols(
@@ -154,10 +133,7 @@ export class CSSWorker {
       return [];
     }
     const stylesheet = this._languageService.parseStylesheet(document);
-    return this._languageService.findDocumentSymbols(
-      document,
-      stylesheet,
-    );
+    return this._languageService.findDocumentSymbols(document, stylesheet);
   }
 
   async doCodeActions(
@@ -170,12 +146,7 @@ export class CSSWorker {
       return [];
     }
     const stylesheet = this._languageService.parseStylesheet(document);
-    return this._languageService.doCodeActions(
-      document,
-      range,
-      context,
-      stylesheet,
-    );
+    return this._languageService.doCodeActions(document, range, context, stylesheet);
   }
 
   async findDocumentColors(
@@ -186,10 +157,7 @@ export class CSSWorker {
       return [];
     }
     const stylesheet = this._languageService.parseStylesheet(document);
-    return this._languageService.findDocumentColors(
-      document,
-      stylesheet,
-    );
+    return this._languageService.findDocumentColors(document, stylesheet);
   }
 
   async getColorPresentations(
@@ -202,12 +170,7 @@ export class CSSWorker {
       return [];
     }
     const stylesheet = this._languageService.parseStylesheet(document);
-    return this._languageService.getColorPresentations(
-      document,
-      stylesheet,
-      color,
-      range,
-    );
+    return this._languageService.getColorPresentations(document, stylesheet, color, range);
   }
 
   async getFoldingRanges(
@@ -230,11 +193,7 @@ export class CSSWorker {
       return [];
     }
     const stylesheet = this._languageService.parseStylesheet(document);
-    return this._languageService.getSelectionRanges(
-      document,
-      positions,
-      stylesheet,
-    );
+    return this._languageService.getSelectionRanges(document, positions, stylesheet);
   }
 
   async doRename(
@@ -247,12 +206,7 @@ export class CSSWorker {
       return null;
     }
     const stylesheet = this._languageService.parseStylesheet(document);
-    return this._languageService.doRename(
-      document,
-      position,
-      newName,
-      stylesheet,
-    );
+    return this._languageService.doRename(document, position, newName, stylesheet);
   }
 
   async doFormat(
@@ -265,11 +219,7 @@ export class CSSWorker {
       return [];
     }
     const settings = { ...this._languageSettings.format, ...options };
-    return this._languageService.format(
-      document,
-      range!, /* TODO */
-      settings,
-    );
+    return this._languageService.format(document, range!, settings);
   }
 
   private _getTextDocument(uri: string): cssService.TextDocument | null {
