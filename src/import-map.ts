@@ -16,6 +16,23 @@ export function blankImportMap(): ImportMap {
   };
 }
 
+/** Validate the given import map. */
+export function toImportMap(v: any): ImportMap {
+  const im = blankImportMap();
+  if (isObject(v)) {
+    const { imports, scopes } = v;
+    if (isObject(imports)) {
+      validateImports(imports);
+      im.imports = imports as ImportMap["imports"];
+    }
+    if (isObject(scopes)) {
+      validateScopes(scopes);
+      im.scopes = scopes as ImportMap["scopes"];
+    }
+  }
+  return im;
+}
+
 /** Check if the import map is blank. */
 export function isBlank(importMap: ImportMap) {
   return Object.keys(importMap.imports).length + Object.keys(importMap.scopes).length === 0;
