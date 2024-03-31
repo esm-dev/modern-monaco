@@ -120,11 +120,11 @@ export function setup(
   lf.setup(monaco);
   lf.registerDefault(languageId, workerProxy, [".", ":", "<", "\"", "=", "/"]);
   lf.attachEmbeddedLanguages(workerProxy, embeddedLanguages);
-  languages.registerColorProvider(languageId, new lf.DocumentColorAdapter(workerProxy));
   languages.registerDocumentHighlightProvider(languageId, new lf.DocumentHighlightAdapter(workerProxy));
   languages.registerDefinitionProvider(languageId, new lf.DefinitionAdapter(workerProxy));
-  languages.registerLinkProvider(languageId, new lf.DocumentLinkAdapter(workerProxy));
   languages.registerRenameProvider(languageId, new lf.RenameAdapter(workerProxy));
+  languages.registerLinkProvider(languageId, new lf.DocumentLinkAdapter(workerProxy));
+  languages.registerColorProvider(languageId, new lf.DocumentColorAdapter(workerProxy));
   languages.registerCodeLensProvider(languageId, codeLensProvider);
 
   // register diagnostics adapter

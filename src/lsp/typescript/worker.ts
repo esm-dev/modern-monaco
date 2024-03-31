@@ -14,6 +14,8 @@ import {
   DocumentHighlightKind,
   FoldingRangeKind,
   Range,
+  SelectionRange,
+  SymbolKind,
   TextDocument,
   TextEdit,
 } from "vscode-languageserver-types";
@@ -717,7 +719,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     formatOptions: ts.FormatCodeSettings,
   ): Promise<ReadonlyArray<ts.CodeFixAction>> {
     let span = [start + 1, end - 1] as [number, number];
-    // fix link span
+    // fix url/path span
     if (start === end && (this._httpRedirects.length > 0 || errorCodes.includes(2307))) {
       const a = this._languageService.getReferencesAtPosition(fileName, start);
       if (a && a.length > 0) {
@@ -731,19 +733,16 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
         return node.getStart() === span[0] - 1 && node.getEnd() === span[1] + 1;
       });
       if (i >= 0) {
-        const r = this._httpRedirects[i];
-        const fixName = `Update module specifier to ${r.url}`;
+        const { url, node } = this._httpRedirects[i];
+        const fixName = `Update module specifier to ${url}`;
         fixes.push({
           fixName,
           description: fixName,
           changes: [{
             fileName,
             textChanges: [{
-              span: {
-                start: r.node.getStart(),
-                length: r.node.getWidth(),
-              },
-              newText: JSON.stringify(r.url),
+              span: { start: node.getStart(), length: node.getWidth() },
+              newText: JSON.stringify(url),
             }],
           }],
           commands: [{
@@ -854,18 +853,28 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     }
     const languageId = document.languageId;
     const diagnostics: lst.Diagnostic[] = [];
-    const syntacticDiagnostics = this._languageService.getSyntacticDiagnostics(uri);
-    const suggestionsDiagnostics = this._languageService.getSuggestionDiagnostics(uri);
-    syntacticDiagnostics.forEach((diagnostic) => {
+    for (const diagnostic of this._languageService.getSyntacticDiagnostics(uri)) {
       diagnostics.push(this._convertDiagnostic(document, diagnostic));
-    });
-    suggestionsDiagnostics.forEach((diagnostic) => {
+    }
+    for (const diagnostic of this._languageService.getSuggestionDiagnostics(uri)) {
       diagnostics.push(this._convertDiagnostic(document, diagnostic));
-    });
+    }
     if (languageId === "typescript" || languageId === "tsx") {
-      const semanticDiagnostics = this._languageService.getSemanticDiagnostics(uri);
-      semanticDiagnostics.forEach((diagnostic) => {
+      for (const diagnostic of this._languageService.getSemanticDiagnostics(uri)) {
         diagnostics.push(this._convertDiagnostic(document, diagnostic));
+      }
+    }
+
+    if (this._httpRedirects.length > 0) {
+      this._httpRedirects.forEach(({ node, url }) => {
+        diagnostics.push(this._convertDiagnostic(document, {
+          file: null,
+          start: node.getStart(),
+          length: node.getWidth(),
+          code: 7000,
+          category: ts.DiagnosticCategory.Message,
+          messageText: `The module was redirected to ${url}`,
+        }));
       });
     }
     return diagnostics;
@@ -896,7 +905,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
           insertText: entry.name,
           filterText: entry.filterText,
           sortText: entry.sortText,
-          kind: convertKind(entry.kind),
+          kind: toCompletionItemKind(entry.kind),
           tags,
           data,
         } satisfies lst.CompletionItem;
@@ -904,17 +913,16 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     };
   }
 
-  async doResolveCompletionItem(
-    uri: string,
-    offset: number,
-    entryLabel: string,
-    entryData?: any,
-  ): Promise<lst.CompletionItem | null> {
+  async doResolveCompletionItem(item: lst.CompletionItem): Promise<lst.CompletionItem | null> {
+    if (!item.data?.context) {
+      return null;
+    }
+    const { uri, offset } = item.data.context;
     const document = this._getScriptDocument(uri);
     if (!document) {
       return null;
     }
-    const details = await this.getCompletionEntryDetails(uri, offset, entryLabel, entryData);
+    const details = await this.getCompletionEntryDetails(uri, offset, item.label, item.data.entryData);
     if (details) {
       const detail = ts.displayPartsToString(details.displayParts);
       const documentation = ts.displayPartsToString(details.documentation);
@@ -931,17 +939,44 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
           )
         );
       }
-      return { label: entryLabel, detail, documentation, additionalTextEdits };
+      return { label: item.label, detail, documentation, additionalTextEdits };
     }
     return null;
   }
 
-  async doFormat(
+  async doSignatureHelp(
     uri: string,
-    range: lst.Range | null,
-    options: lst.FormattingOptions,
-    docText?: string,
-  ) {
+    position: number,
+    context: monacoNS.languages.SignatureHelpContext,
+  ): Promise<lst.SignatureHelp | null> {
+    const triggerReason = toSignatureHelpTriggerReason(context);
+    const items = this._languageService.getSignatureHelpItems(uri, position, { triggerReason });
+    if (!items) {
+      return null;
+    }
+
+    const activeSignature = items.selectedItemIndex;
+    const activeParameter = items.argumentIndex;
+    const signatures = items.items.map(item => {
+      const signature: lst.SignatureInformation = { label: "", parameters: [] };
+      signature.documentation = ts.displayPartsToString(item.documentation);
+      signature.label += ts.displayPartsToString(item.prefixDisplayParts);
+      item.parameters.forEach((p, i, a) => {
+        const label = ts.displayPartsToString(p.displayParts);
+        const parameter: lst.ParameterInformation = {
+          label: label,
+          documentation: ts.displayPartsToString(p.documentation),
+        };
+        signature.label += label;
+        signature.parameters.push(parameter);
+        if (i < a.length - 1) {
+          signature.label += ts.displayPartsToString(item.separatorDisplayParts);
+        }
+      });
+      signature.label += ts.displayPartsToString(item.suffixDisplayParts);
+      return signature;
+    });
+    return { signatures, activeSignature, activeParameter };
   }
 
   async doHover(uri: string, position: lst.Position): Promise<lst.Hover | null> {
@@ -958,12 +993,53 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
       return {
         range: convertRange(document, info.textSpan),
         contents: [
-          { value: contents, language: "typescript" },
+          { language: "typescript", value: contents },
           documentation + (tags ? "\n\n" + tags : ""),
         ],
       };
     }
     return null;
+  }
+
+  async doCodeAction(
+    uri: string,
+    range: lst.Range,
+    errorCodes: number[],
+    formatOptions: lst.FormattingOptions,
+  ): Promise<lst.CodeAction[] | null> {
+    const document = this._getScriptDocument(uri);
+    if (!document) {
+      return null;
+    }
+    const start = document.offsetAt(range.start);
+    const end = document.offsetAt(range.end);
+    const codeFixes = await this.getCodeFixesAtPosition(uri, start, end, errorCodes, {
+      convertTabsToSpaces: formatOptions.insertSpaces,
+      tabSize: formatOptions.tabSize,
+      indentSize: formatOptions.tabSize,
+    });
+    return codeFixes.map(codeFix => {
+      const action: lst.CodeAction = {
+        title: codeFix.description,
+        kind: "quickfix",
+      };
+
+      if (codeFix.changes.length > 0) {
+        const edits: lst.TextEdit[] = [];
+        for (const change of codeFix.changes) {
+          for (const { span, newText } of change.textChanges) {
+            edits.push({ range: convertRange(document, span), newText });
+          }
+        }
+        action.edit = { changes: { [uri]: edits } };
+      }
+
+      if (codeFix.commands?.length > 0) {
+        action.command = codeFix.commands[0] as unknown as lst.Command;
+      }
+
+      return action;
+    });
   }
 
   async doRename(uri: string, position: lst.Position, newName: string): Promise<lst.WorkspaceEdit | null> {
@@ -986,45 +1062,39 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     return { changes: { [uri]: edits } };
   }
 
-  async getFoldingRanges(uri: string): Promise<lst.FoldingRange[]> {
+  async doFormat(
+    uri: string,
+    range: lst.Range | null,
+    formatOptions: lst.FormattingOptions,
+    docText?: string,
+  ): Promise<lst.TextEdit[]> {
     const document = this._getScriptDocument(uri);
     if (!document) {
       return [];
     }
-    const spans = this._languageService.getOutliningSpans(uri);
-    const ranges: lst.FoldingRange[] = [];
-    for (const span of spans) {
-      const curr = convertRange(document, span.textSpan);
-      const startLine = curr.start.line;
-      const endLine = curr.end.line;
-      if (startLine < endLine) {
-        const foldingRange: lst.FoldingRange = { startLine, endLine };
-        const match = document.getText(curr).match(/^\s*\/(?:(\/\s*#(?:end)?region\b)|(\*|\/))/);
-        if (match) {
-          foldingRange.kind = match[1] ? FoldingRangeKind.Region : FoldingRangeKind.Comment;
-        }
-        ranges.push(foldingRange);
-      }
-    }
-    return ranges;
+    return [];
   }
 
-  async findDocumentHighlights(uri: string, position: lst.Position): Promise<lst.DocumentHighlight[]> {
+  async findDocumentSymbols(uri: string): Promise<(lst.DocumentSymbol)[]> {
     const document = this._getScriptDocument(uri);
     if (!document) {
       return [];
     }
-    const highlights = this._languageService.getDocumentHighlights(uri, document.offsetAt(position), [uri]);
-    const out: lst.DocumentHighlight[] = [];
-    for (const entry of highlights || []) {
-      for (const highlight of entry.highlightSpans) {
-        out.push({
-          range: convertRange(document, highlight.textSpan),
-          kind: highlight.kind === "writtenReference" ? DocumentHighlightKind.Write : DocumentHighlightKind.Text,
-        });
+    const toSymbol = (item: ts.NavigationTree, containerLabel?: string): lst.DocumentSymbol => {
+      const result: lst.DocumentSymbol = {
+        name: item.text,
+        kind: toSymbolKind(item.kind),
+        range: convertRange(document, item.spans[0]),
+        selectionRange: convertRange(document, item.spans[0]),
+        children: item.childItems?.map((child) => toSymbol(child, item.text)),
+      };
+      if (containerLabel) {
+        Reflect.set(result, "containerName", containerLabel);
       }
-    }
-    return out;
+      return result;
+    };
+    const root = this._languageService.getNavigationTree(uri);
+    return root.childItems?.map((item) => toSymbol(item)) ?? null;
   }
 
   async findDefinition(
@@ -1050,6 +1120,81 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
       }).filter(Boolean);
     }
     return null;
+  }
+
+  async findReferences(uri: string, position: lst.Position): Promise<lst.Location[]> {
+    const document = this._getScriptDocument(uri);
+    if (!document) {
+      return [];
+    }
+    const references = this._languageService.getReferencesAtPosition(uri, document.offsetAt(position));
+    const result: lst.Location[] = [];
+    for (let entry of references) {
+      const entryDocument = this._getScriptDocument(entry.fileName);
+      if (entryDocument) {
+        result.push({
+          uri: entryDocument.uri,
+          range: convertRange(entryDocument, entry.textSpan),
+        });
+      }
+    }
+    return result;
+  }
+
+  async findDocumentHighlights(uri: string, position: lst.Position): Promise<lst.DocumentHighlight[]> {
+    const document = this._getScriptDocument(uri);
+    if (!document) {
+      return [];
+    }
+    const highlights = this._languageService.getDocumentHighlights(uri, document.offsetAt(position), [uri]);
+    const out: lst.DocumentHighlight[] = [];
+    for (const entry of highlights || []) {
+      for (const highlight of entry.highlightSpans) {
+        out.push({
+          range: convertRange(document, highlight.textSpan),
+          kind: highlight.kind === "writtenReference" ? DocumentHighlightKind.Write : DocumentHighlightKind.Text,
+        });
+      }
+    }
+    return out;
+  }
+
+  async getFoldingRanges(uri: string): Promise<lst.FoldingRange[]> {
+    const document = this._getScriptDocument(uri);
+    if (!document) {
+      return [];
+    }
+    const spans = this._languageService.getOutliningSpans(uri);
+    const ranges: lst.FoldingRange[] = [];
+    for (const span of spans) {
+      const curr = convertRange(document, span.textSpan);
+      const startLine = curr.start.line;
+      const endLine = curr.end.line;
+      if (startLine < endLine) {
+        const foldingRange: lst.FoldingRange = { startLine, endLine };
+        const match = document.getText(curr).match(/^\s*\/(?:(\/\s*#(?:end)?region\b)|(\*|\/))/);
+        if (match) {
+          foldingRange.kind = match[1] ? FoldingRangeKind.Region : FoldingRangeKind.Comment;
+        }
+        ranges.push(foldingRange);
+      }
+    }
+    return ranges;
+  }
+
+  async getSelectionRanges(uri: string, positions: lst.Position[]): Promise<lst.SelectionRange[]> {
+    const document = this._getScriptDocument(uri);
+    if (!document) {
+      return [];
+    }
+    function convertSelectionRange(selectionRange: ts.SelectionRange): lst.SelectionRange {
+      const parent = selectionRange.parent ? convertSelectionRange(selectionRange.parent) : undefined;
+      return SelectionRange.create(convertRange(document, selectionRange.textSpan), parent);
+    }
+    return positions.map(position => {
+      const range = this._languageService.getSmartSelectionRange(uri, document.offsetAt(position));
+      return convertSelectionRange(range);
+    });
   }
 
   // #endregion
@@ -1201,10 +1346,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     return null;
   }
 
-  private _convertDiagnostic(
-    document: lst.TextDocument,
-    diagnostic: ts.Diagnostic,
-  ): lst.Diagnostic {
+  private _convertDiagnostic(document: lst.TextDocument, diagnostic: ts.Diagnostic): lst.Diagnostic {
     const tags: lst.DiagnosticTag[] = [];
     if (diagnostic.reportsUnnecessary) {
       tags.push(DiagnosticTag.Unnecessary);
@@ -1212,7 +1354,6 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     if (diagnostic.reportsDeprecated) {
       tags.push(DiagnosticTag.Deprecated);
     }
-
     return {
       range: convertRange(document, diagnostic),
       code: diagnostic.code,
@@ -1324,89 +1465,71 @@ function clearFiles(tsDiagnostics: ts.Diagnostic[]): Diagnostic[] {
   return diagnostics;
 }
 
-enum Kind {
-  alias = "alias",
-  callSignature = "call",
-  class = "class",
-  const = "const",
-  constructorImplementation = "constructor",
-  constructSignature = "construct",
-  directory = "directory",
-  enum = "enum",
-  enumMember = "enum member",
-  externalModuleName = "external module name",
-  function = "function",
-  indexSignature = "index",
-  interface = "interface",
-  keyword = "keyword",
-  let = "let",
-  localFunction = "local function",
-  localVariable = "local var",
-  method = "method",
-  memberGetAccessor = "getter",
-  memberSetAccessor = "setter",
-  memberVariable = "property",
-  module = "module",
-  primitiveType = "primitive type",
-  script = "script",
-  type = "type",
-  variable = "var",
-  warning = "warning",
-  string = "string",
-  parameter = "parameter",
-  typeParameter = "type parameter",
+function convertRange(
+  document: lst.TextDocument,
+  span: { start?: number; length?: number },
+): lst.Range {
+  if (typeof span.start === "undefined") {
+    const pos = document.positionAt(0);
+    return Range.create(pos, pos);
+  }
+  const start = document.positionAt(span.start);
+  const end = document.positionAt(span.start + (span.length || 0));
+  return Range.create(start, end);
 }
 
-function convertKind(kind: string): lst.CompletionItemKind {
+function toCompletionItemKind(kind: ts.ScriptElementKind): lst.CompletionItemKind {
+  const Kind = ts.ScriptElementKind;
+
   switch (kind) {
     case Kind.primitiveType:
     case Kind.keyword:
       return CompletionItemKind.Keyword;
 
-    case Kind.const:
-    case Kind.let:
-    case Kind.variable:
-    case Kind.localVariable:
+    case Kind.constElement:
+    case Kind.letElement:
+    case Kind.variableElement:
+    case Kind.localVariableElement:
     case Kind.alias:
-    case Kind.parameter:
+    case Kind.parameterElement:
       return CompletionItemKind.Variable;
 
-    case Kind.memberVariable:
-    case Kind.memberGetAccessor:
-    case Kind.memberSetAccessor:
+    case Kind.memberVariableElement:
+    case Kind.memberGetAccessorElement:
+    case Kind.memberSetAccessorElement:
       return CompletionItemKind.Field;
 
-    case Kind.function:
-    case Kind.localFunction:
+    case Kind.functionElement:
+    case Kind.localFunctionElement:
       return CompletionItemKind.Function;
 
-    case Kind.method:
-    case Kind.constructSignature:
-    case Kind.callSignature:
-    case Kind.indexSignature:
+    case Kind.memberFunctionElement:
+    case Kind.constructSignatureElement:
+    case Kind.callSignatureElement:
+    case Kind.indexSignatureElement:
       return CompletionItemKind.Method;
 
-    case Kind.enum:
+    case Kind.enumElement:
       return CompletionItemKind.Enum;
 
-    case Kind.enumMember:
+    case Kind.enumMemberElement:
       return CompletionItemKind.EnumMember;
 
-    case Kind.module:
+    case Kind.moduleElement:
     case Kind.externalModuleName:
       return CompletionItemKind.Module;
 
-    case Kind.class:
-    case Kind.type:
+    case Kind.classElement:
+    case Kind.typeElement:
       return CompletionItemKind.Class;
 
-    case Kind.interface:
+    case Kind.interfaceElement:
       return CompletionItemKind.Interface;
 
     case Kind.warning:
       return CompletionItemKind.Text;
 
-    case Kind.script:
+    case Kind.scriptElement:
       return CompletionItemKind.File;
 
     case Kind.directory:
@@ -1420,17 +1543,51 @@ function convertKind(kind: string): lst.CompletionItemKind {
   }
 }
 
-function convertRange(
-  document: lst.TextDocument,
-  span: { start: number | undefined; length: number | undefined },
-): lst.Range {
-  if (typeof span.start === "undefined") {
-    const pos = document.positionAt(0);
-    return Range.create(pos, pos);
+function toSymbolKind(kind: ts.ScriptElementKind): lst.SymbolKind {
+  const Kind = ts.ScriptElementKind;
+
+  switch (kind) {
+    case Kind.memberVariableElement:
+    case Kind.memberGetAccessorElement:
+    case Kind.memberSetAccessorElement:
+      return SymbolKind.Field;
+
+    case Kind.functionElement:
+    case Kind.localFunctionElement:
+      return SymbolKind.Function;
+
+    case Kind.memberFunctionElement:
+    case Kind.constructSignatureElement:
+    case Kind.callSignatureElement:
+    case Kind.indexSignatureElement:
+      return SymbolKind.Method;
+
+    case Kind.enumElement:
+      return SymbolKind.Enum;
+
+    case Kind.enumMemberElement:
+      return SymbolKind.EnumMember;
+
+    case Kind.moduleElement:
+    case Kind.externalModuleName:
+      return SymbolKind.Module;
+
+    case Kind.classElement:
+    case Kind.typeElement:
+      return SymbolKind.Class;
+
+    case Kind.interfaceElement:
+      return SymbolKind.Interface;
+
+    case Kind.scriptElement:
+      return SymbolKind.File;
+
+    case Kind.string:
+      return SymbolKind.Constant;
+
+    default:
+      return SymbolKind.Variable;
   }
-  const start = document.positionAt(span.start);
-  const end = document.positionAt(span.start + (span.length || 0));
-  return Range.create(start, end);
 }
 
 function tsDiagnosticCategoryToMarkerSeverity(category: ts.DiagnosticCategory): lst.DiagnosticSeverity {
@@ -1459,6 +1616,37 @@ function tagToString(tag: ts.JSDocTagInfo): string {
     tagLabel += ` — ${tag.text}`;
   }
   return tagLabel;
+}
+
+function toSignatureHelpTriggerReason(context: monacoNS.languages.SignatureHelpContext): ts.SignatureHelpTriggerReason {
+  switch (context.triggerKind) {
+    // SignatureHelpTriggerKind.TriggerCharacter
+    case 2:
+      if (context.triggerCharacter) {
+        if (context.isRetrigger) {
+          return {
+            kind: "retrigger",
+            triggerCharacter: context.triggerCharacter as any,
+          };
+        } else {
+          return {
+            kind: "characterTyped",
+            triggerCharacter: context.triggerCharacter as any,
+          };
+        }
+      } else {
+        return { kind: "invoked" };
+      }
+
+      // SignatureHelpTriggerKind.ContentChange
+    case 3:
+      return context.isRetrigger ? { kind: "retrigger" } : { kind: "invoked" };
+
+    // SignatureHelpTriggerKind.Invoke
+    case 1:
+    default:
+      return { kind: "invoked" };
+  }
 }
 
 // const JS_WORD_REGEX = /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g;

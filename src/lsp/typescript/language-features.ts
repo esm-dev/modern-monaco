@@ -487,7 +487,7 @@ interface MyCompletionItem extends monacoNS.languages.CompletionItem {
 
 export class SuggestAdapter extends Adapter implements monacoNS.languages.CompletionItemProvider {
   public get triggerCharacters(): string[] {
-    return ["."];
+    return [".", "<", "/", "\"", "'"];
   }
 
   public async provideCompletionItems(
@@ -560,7 +560,6 @@ export class SuggestAdapter extends Adapter implements monacoNS.languages.Comple
     const resource = myItem.uri;
     const position = myItem.position;
     const offset = myItem.offset;
-
     const worker = await this._worker(resource);
     const details = await worker.getCompletionEntryDetails(
       resource.toString(),

@@ -8,45 +8,46 @@ import type monacoNS from "monaco-editor-core";
 import * as lst from "vscode-languageserver-types";
 let Monaco: typeof monacoNS;
 
-export function setup(monaco: typeof monacoNS) {
-  monaco.editor.addCommand({
-    id: "search-npm-modules",
-    run: async (_, importMapSrc: string) => {
-      alert("TODO: search-npm-modules");
-    },
-  });
-  Monaco = monaco;
-}
-
 export interface WorkerProxy<T> {
   (...more: monacoNS.Uri[]): Promise<T>;
 }
 
+export function setup(monaco: typeof monacoNS) {
+  Monaco = monaco;
+}
+
+// #region register default language features
+
 export function registerDefault<
   T extends
     & ILanguageWorkerWithCompletions
+    & ILanguageWorkerWithHover
+    & ILanguageWorkerWithFormat
     & ILanguageWorkerWithDocumentSymbols
     & ILanguageWorkerWithFoldingRanges
-    & ILanguageWorkerWithFormat
-    & ILanguageWorkerWithHover
     & ILanguageWorkerWithSelectionRanges,
 >(
   languageId: string,
   workerProxy: WorkerProxy<T>,
-  triggerCharacters: string[],
+  completionTriggerCharacters: string[],
+  noFoldingRangeAdapter?: boolean,
 ) {
   const { languages } = Monaco;
-  languages.registerCompletionItemProvider(languageId, new CompletionAdapter<T>(workerProxy, triggerCharacters));
-  languages.registerHoverProvider(languageId, new HoverAdapter<T>(workerProxy));
-  languages.registerDocumentSymbolProvider(languageId, new DocumentSymbolAdapter<T>(workerProxy));
-  languages.registerFoldingRangeProvider(languageId, new FoldingRangeAdapter<T>(workerProxy));
-  languages.registerSelectionRangeProvider(languageId, new SelectionRangeAdapter<T>(workerProxy));
-  languages.registerDocumentFormattingEditProvider(languageId, new DocumentFormattingEditProvider<T>(workerProxy));
+  languages.registerCompletionItemProvider(languageId, new CompletionAdapter(workerProxy, completionTriggerCharacters));
+  languages.registerHoverProvider(languageId, new HoverAdapter(workerProxy));
+  languages.registerDocumentSymbolProvider(languageId, new DocumentSymbolAdapter(workerProxy));
+  languages.registerDocumentFormattingEditProvider(languageId, new DocumentFormattingEditProvider(workerProxy));
   languages.registerDocumentRangeFormattingEditProvider(
     languageId,
-    new DocumentRangeFormattingEditProvider<T>(workerProxy),
+    new DocumentRangeFormattingEditProvider(workerProxy),
   );
+  languages.registerSelectionRangeProvider(languageId, new SelectionRangeAdapter(workerProxy));
+  if (!noFoldingRangeAdapter) {
+    languages.registerFoldingRangeProvider(languageId, new FoldingRangeAdapter(workerProxy));
+  }
 }
+
+// #endregion
 
 // #region EmbeddedLanguages
 
@@ -139,10 +140,10 @@ export class DiagnosticsAdapter<T extends ILanguageWorkerWithDiagnostics> {
         }
         timer = setTimeout(() => {
           timer = null;
-          this._doValidate(model.uri, modelId);
+          this._doValidate(model);
         }, 500);
       });
-      this._doValidate(model.uri, modelId);
+      this._doValidate(model);
     };
 
     const dispose = (model: monacoNS.editor.IModel): void => {
@@ -173,21 +174,13 @@ export class DiagnosticsAdapter<T extends ILanguageWorkerWithDiagnostics> {
     editor.getModels().forEach(validateModel);
   }
 
-  private _doValidate(uri: monacoNS.Uri, languageId: string): void {
-    this._worker(uri)
-      .then((worker) => {
-        return worker.doValidation(uri.toString());
-      })
-      .then((diagnostics) => {
-        const markers = diagnostics.map(toMarker);
-        const model = Monaco.editor.getModel(uri);
-        if (model && model.getLanguageId() === languageId) {
-          Monaco.editor.setModelMarkers(model, languageId, markers);
-        }
-      })
-      .catch((err) => {
-        console.error(err);
-      });
+  private async _doValidate(model: monacoNS.editor.ITextModel): Promise<void> {
+    const worker = await this._worker(model.uri);
+    const diagnostics = await worker.doValidation(model.uri.toString());
+    const markers = diagnostics.map(toMarker);
+    if (!model.isDisposed()) {
+      Monaco.editor.setModelMarkers(model, this._languageId, markers);
+    }
   }
 }
 
@@ -226,17 +219,20 @@ function toMarker({
     message,
     source,
     tags,
-    relatedInformation: relatedInformation?.map(({ location: { uri, range }, message }) => {
-      const { start, end } = range;
-      return {
-        resource: Monaco.Uri.parse(uri),
-        startLineNumber: start.line + 1,
-        startColumn: start.character + 1,
-        endLineNumber: end.line + 1,
-        endColumn: end.character + 1,
-        message: message,
-      };
-    }),
+    relatedInformation: relatedInformation?.map(toRelatedInformation),
+  };
+}
+
+function toRelatedInformation(info: lst.DiagnosticRelatedInformation): monacoNS.editor.IRelatedInformation {
+  const { location: { uri, range }, message } = info;
+  const { start, end } = range;
+  return {
+    resource: Monaco.Uri.parse(uri),
+    startLineNumber: start.line + 1,
+    startColumn: start.character + 1,
+    endLineNumber: end.line + 1,
+    endColumn: end.character + 1,
+    message: message,
   };
 }
 
@@ -246,12 +242,7 @@ function toMarker({
 
 export interface ILanguageWorkerWithCompletions {
   doComplete(uri: string, position: lst.Position): Promise<lst.CompletionList | null>;
-  doResolveCompletionItem?(
-    uri: string,
-    offset: number,
-    entryLabel: string,
-    entryData?: any,
-  ): Promise<lst.CompletionItem | null>;
+  doResolveCompletionItem?(item: lst.CompletionItem): Promise<lst.CompletionItem | null>;
 }
 
 export class CompletionAdapter<T extends ILanguageWorkerWithCompletions>
@@ -262,85 +253,90 @@ export class CompletionAdapter<T extends ILanguageWorkerWithCompletions>
     private readonly _triggerCharacters: string[],
   ) {}
 
-  public get triggerCharacters(): string[] {
+  get triggerCharacters(): string[] {
     return this._triggerCharacters;
   }
 
-  provideCompletionItems(
+  async provideCompletionItems(
     model: monacoNS.editor.IReadOnlyModel,
     position: monacoNS.Position,
     context: monacoNS.languages.CompletionContext,
     token: monacoNS.CancellationToken,
   ): Promise<monacoNS.languages.CompletionList | undefined> {
-    return this._worker(model.uri)
-      .then((worker) => worker.doComplete(model.uri.toString(), fromPosition(position)))
-      .then((info) => {
-        if (!info) {
-          return;
-        }
-        const wordInfo = model.getWordUntilPosition(position);
-        const wordRange = new Monaco.Range(
-          position.lineNumber,
-          wordInfo.startColumn,
-          position.lineNumber,
-          wordInfo.endColumn,
-        );
-        const items: monacoNS.languages.CompletionItem[] = info.items.map((entry) => {
-          const item: monacoNS.languages.CompletionItem & { data?: any } = {
-            command: toCommand(entry.command),
-            data: entry.data,
-            detail: entry.detail,
-            documentation: entry.documentation,
-            filterText: entry.filterText,
-            insertText: entry.insertText || entry.label,
-            kind: toCompletionItemKind(entry.kind),
-            label: entry.label,
-            range: wordRange,
-            sortText: entry.sortText,
-            tags: entry.tags,
-          };
-          if (entry.textEdit) {
-            if (isInsertReplaceEdit(entry.textEdit)) {
-              item.range = {
-                insert: toRange(entry.textEdit.insert),
-                replace: toRange(entry.textEdit.replace),
-              };
-            } else {
-              item.range = toRange(entry.textEdit.range);
-            }
-            item.insertText = entry.textEdit.newText;
-          }
-          if (entry.additionalTextEdits) {
-            item.additionalTextEdits = entry.additionalTextEdits.map<monacoNS.languages.TextEdit>(toTextEdit);
-          }
-          if (entry.insertTextFormat === lst.InsertTextFormat.Snippet) {
-            item.insertTextRules = Monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
-          }
-          return item;
-        });
+    const worker = await this._worker(model.uri);
+    const info = await worker.doComplete(model.uri.toString(), fromPosition(position));
+    if (!info) {
+      return;
+    }
 
-        return {
-          isIncomplete: info.isIncomplete,
-          suggestions: items,
-        };
-      });
+    const wordInfo = model.getWordUntilPosition(position);
+    const wordRange = new Monaco.Range(
+      position.lineNumber,
+      wordInfo.startColumn,
+      position.lineNumber,
+      wordInfo.endColumn,
+    );
+    const items: monacoNS.languages.CompletionItem[] = info.items.map((entry) => {
+      const item: monacoNS.languages.CompletionItem & { data?: any } = {
+        command: entry.command && toCommand(entry.command),
+        data: entry.data,
+        detail: entry.detail,
+        documentation: entry.documentation,
+        filterText: entry.filterText,
+        insertText: entry.insertText || entry.label,
+        kind: toCompletionItemKind(entry.kind),
+        label: entry.label,
+        range: wordRange,
+        sortText: entry.sortText,
+        tags: entry.tags,
+      };
+      if (entry.textEdit) {
+        if (isInsertReplaceEdit(entry.textEdit)) {
+          item.range = {
+            insert: toRange(entry.textEdit.insert),
+            replace: toRange(entry.textEdit.replace),
+          };
+        } else {
+          item.range = toRange(entry.textEdit.range);
+        }
+        item.insertText = entry.textEdit.newText;
+      }
+      if (entry.additionalTextEdits) {
+        item.additionalTextEdits = entry.additionalTextEdits.map<monacoNS.languages.TextEdit>(toTextEdit);
+      }
+      if (entry.insertTextFormat === lst.InsertTextFormat.Snippet) {
+        item.insertTextRules = Monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
+      }
+      return item;
+    });
+
+    return {
+      suggestions: items,
+      incomplete: info.isIncomplete,
+    };
   }
 
-  public async resolveCompletionItem(
+  async resolveCompletionItem(
     item: monacoNS.languages.CompletionItem & { data?: any },
     token: monacoNS.CancellationToken,
   ): Promise<monacoNS.languages.CompletionItem> {
-    if (!item.data || !item.data.context) {
-      return item;
-    }
-
-    // @ts-expect-error `workerProxies` is added by esm-monaco
-    const { workerProxies } = MonacoEnvironment;
-    const { uri, offset, languageId } = item.data.context;
-    const workerProxy = workerProxies[languageId];
-    if (typeof workerProxy === "function") {
-      const worker: ILanguageWorkerWithCompletions = await workerProxy(uri);
-      const details = await worker.doResolveCompletionItem?.(uri, offset, <string> item.label, item.data.entryData);
+    if (item.data?.context) {
+      // @ts-expect-error `workerProxies` is added by esm-monaco
+      const { workerProxies } = MonacoEnvironment;
+      const { languageId } = item.data.context;
+      const workerProxy = workerProxies[languageId];
+      if (typeof workerProxy === "function") {
+        const worker: ILanguageWorkerWithCompletions = await workerProxy();
+        const details = await worker.doResolveCompletionItem?.(item as unknown as lst.CompletionItem);
+        if (details) {
+          item.detail = details.detail;
+          item.documentation = details.documentation;
+          item.additionalTextEdits = details.additionalTextEdits?.map(toTextEdit);
+        }
+      }
+    } else {
+      const worker = await this._worker();
+      const details = await worker.doResolveCompletionItem?.(item as unknown as lst.CompletionItem);
       if (details) {
         item.detail = details.detail;
         item.documentation = details.documentation;
@@ -356,7 +352,7 @@ export function fromPosition(position: undefined): undefined;
 export function fromPosition(position: monacoNS.Position | undefined): lst.Position | undefined;
 export function fromPosition(position: monacoNS.Position | undefined): lst.Position | undefined {
   if (!position) {
-    return void 0;
+    return undefined;
   }
   return { character: position.column - 1, line: position.lineNumber - 1 };
 }
@@ -366,7 +362,7 @@ export function fromRange(range: undefined): undefined;
 export function fromRange(range: monacoNS.IRange | undefined): lst.Range | undefined;
 export function fromRange(range: monacoNS.IRange | undefined): lst.Range | undefined {
   if (!range) {
-    return void 0;
+    return undefined;
   }
   return {
     start: {
@@ -382,7 +378,7 @@ export function toRange(range: undefined): undefined;
 export function toRange(range: lst.Range | undefined): monacoNS.Range | undefined;
 export function toRange(range: lst.Range | undefined): monacoNS.Range | undefined {
   if (!range) {
-    return void 0;
+    return undefined;
   }
   return new Monaco.Range(
     range.start.line + 1,
@@ -449,14 +445,10 @@ function toCompletionItemKind(
 
 export function toTextEdit(textEdit: lst.TextEdit): monacoNS.languages.TextEdit;
 export function toTextEdit(textEdit: undefined): undefined;
-export function toTextEdit(
-  textEdit: lst.TextEdit | undefined,
-): monacoNS.languages.TextEdit | undefined;
-export function toTextEdit(
-  textEdit: lst.TextEdit | undefined,
-): monacoNS.languages.TextEdit | undefined {
+export function toTextEdit(textEdit: lst.TextEdit | undefined): monacoNS.languages.TextEdit | undefined;
+export function toTextEdit(textEdit: lst.TextEdit | undefined): monacoNS.languages.TextEdit | undefined {
   if (!textEdit) {
-    return void 0;
+    return undefined;
   }
   return {
     range: toRange(textEdit.range),
@@ -464,9 +456,7 @@ export function toTextEdit(
   };
 }
 
-function toCommand(
-  c: lst.Command | undefined,
-): monacoNS.languages.Command | undefined {
+function toCommand(c: lst.Command | undefined): monacoNS.languages.Command | undefined {
   return c && c.command === "editor.action.triggerSuggest"
     ? { id: c.command, title: c.title, arguments: c.arguments }
     : undefined;
@@ -483,24 +473,19 @@ export interface ILanguageWorkerWithHover {
 export class HoverAdapter<T extends ILanguageWorkerWithHover> implements monacoNS.languages.HoverProvider {
   constructor(private readonly _worker: WorkerProxy<T>) {}
 
-  provideHover(
+  async provideHover(
     model: monacoNS.editor.IReadOnlyModel,
     position: monacoNS.Position,
     token: monacoNS.CancellationToken,
   ): Promise<monacoNS.languages.Hover | undefined> {
-    let resource = model.uri;
-
-    return this._worker(resource)
-      .then((worker) => worker.doHover(resource.toString(), fromPosition(position)))
-      .then((info) => {
-        if (!info) {
-          return;
-        }
-        return {
-          range: toRange(info.range),
-          contents: toMarkedStringArray(info.contents),
-        };
-      });
+    const worker = await this._worker(model.uri);
+    const info = await worker.doHover(model.uri.toString(), fromPosition(position));
+    if (info) {
+      return {
+        range: toRange(info.range),
+        contents: toMarkedStringArray(info.contents),
+      };
+    }
   }
 }
 
@@ -514,9 +499,7 @@ function toMarkdownString(entry: lst.MarkupContent | lst.MarkedString): monacoNS
   }
   if (isMarkupContent(entry)) {
     if (entry.kind === "plaintext") {
-      return {
-        value: entry.value.replace(/[\\`*_{}[\]()#+\-.!]/g, "\\$&"),
-      };
+      return { value: entry.value.replace(/[\\`*_{}[\]()#+\-.!]/g, "\\$&") };
     }
     return { value: entry.value };
   }
@@ -525,13 +508,10 @@ function toMarkdownString(entry: lst.MarkupContent | lst.MarkedString): monacoNS
 }
 
 function toMarkedStringArray(
-  contents:
-    | lst.MarkupContent
-    | lst.MarkedString
-    | lst.MarkedString[],
+  contents: lst.MarkupContent | lst.MarkedString | lst.MarkedString[],
 ): monacoNS.IMarkdownString[] | undefined {
   if (!contents) {
-    return void 0;
+    return undefined;
   }
   if (Array.isArray(contents)) {
     return contents.map(toMarkdownString);
@@ -541,60 +521,193 @@ function toMarkedStringArray(
 
 // #endregion
 
-// #region DocumentHighlightAdapter
+// #region SignatureHelpAdapter
 
-export interface ILanguageWorkerWithDocumentHighlights {
-  findDocumentHighlights(
+interface ILanguageWorkerWithSignatureHelp {
+  doSignatureHelp(
     uri: string,
-    position: lst.Position,
-  ): Promise<lst.DocumentHighlight[]>;
+    position: number,
+    context: monacoNS.languages.SignatureHelpContext,
+  ): Promise<lst.SignatureHelp | null>;
 }
 
-export class DocumentHighlightAdapter<
-  T extends ILanguageWorkerWithDocumentHighlights,
-> implements monacoNS.languages.DocumentHighlightProvider {
-  constructor(private readonly _worker: WorkerProxy<T>) {}
+export class SignatureHelpAdapter<T extends ILanguageWorkerWithSignatureHelp>
+  implements monacoNS.languages.SignatureHelpProvider
+{
+  constructor(
+    private readonly _worker: WorkerProxy<T>,
+    private readonly _triggerCharacters: string[],
+  ) {}
 
-  public provideDocumentHighlights(
-    model: monacoNS.editor.IReadOnlyModel,
+  get signatureHelpTriggerCharacters() {
+    return this._triggerCharacters;
+  }
+
+  async provideSignatureHelp(
+    model: monacoNS.editor.ITextModel,
     position: monacoNS.Position,
     token: monacoNS.CancellationToken,
-  ): Promise<monacoNS.languages.DocumentHighlight[] | undefined> {
+    context: monacoNS.languages.SignatureHelpContext,
+  ): Promise<monacoNS.languages.SignatureHelpResult | undefined> {
     const resource = model.uri;
-
-    return this._worker(resource)
-      .then((worker) =>
-        worker.findDocumentHighlights(
-          resource.toString(),
-          fromPosition(position),
-        )
-      )
-      .then((entries) => {
-        if (!entries) {
-          return;
-        }
-        return entries.map((entry) => {
-          return <monacoNS.languages.DocumentHighlight> {
-            range: toRange(entry.range),
-            kind: toDocumentHighlightKind(entry.kind),
-          };
-        });
-      });
+    const offset = model.getOffsetAt(position);
+    const worker = await this._worker(resource);
+    const helpInfo = await worker.doSignatureHelp(resource.toString(), offset, context);
+    if (!helpInfo || model.isDisposed()) {
+      return undefined;
+    }
+    return {
+      value: <monacoNS.languages.SignatureHelp> helpInfo,
+      dispose() {},
+    };
   }
 }
 
-function toDocumentHighlightKind(
-  kind: lst.DocumentHighlightKind | undefined,
-): monacoNS.languages.DocumentHighlightKind {
-  switch (kind) {
-    case lst.DocumentHighlightKind.Read:
-      return Monaco.languages.DocumentHighlightKind.Read;
-    case lst.DocumentHighlightKind.Write:
-      return Monaco.languages.DocumentHighlightKind.Write;
-    case lst.DocumentHighlightKind.Text:
-      return Monaco.languages.DocumentHighlightKind.Text;
+// #endregion
+
+// #region CodeActionAdapter
+
+export interface ILanguageWorkerWithCodeAction {
+  doCodeAction(
+    uri: string,
+    range: lst.Range,
+    errorCodes: number[],
+    formatOptions: lst.FormattingOptions,
+  ): Promise<lst.CodeAction[] | null>;
+}
+
+export class CodeActionAdaptor<T extends ILanguageWorkerWithCodeAction>
+  implements monacoNS.languages.CodeActionProvider
+{
+  constructor(private readonly _worker: WorkerProxy<T>) {}
+
+  public async provideCodeActions(
+    model: monacoNS.editor.ITextModel,
+    range: monacoNS.Range,
+    context: monacoNS.languages.CodeActionContext,
+    token: monacoNS.CancellationToken,
+  ): Promise<monacoNS.languages.CodeActionList | undefined> {
+    const errorCodes = context.markers.filter((m) => m.code).map((m) => m.code).map(Number);
+    const modelOptions = model.getOptions();
+    const formatOptions: lst.FormattingOptions = {
+      tabSize: modelOptions.tabSize,
+      insertSpaces: modelOptions.insertSpaces,
+    };
+    const worker = await this._worker(model.uri);
+    const codeActions = await worker.doCodeAction(
+      model.uri.toString(),
+      fromRange(range),
+      errorCodes,
+      formatOptions,
+    );
+    if (codeActions) {
+      return {
+        actions: codeActions.map(action => ({
+          title: action.title,
+          edit: action.edit && toWorkspaceEdit(action.edit),
+          diagnostics: context.markers,
+          command: action.command && toCommand(action.command),
+        })),
+        dispose: () => {},
+      };
+    }
   }
-  return Monaco.languages.DocumentHighlightKind.Text;
+}
+
+// #endregion
+
+// #region RenameAdapter
+
+export interface ILanguageWorkerWithRename {
+  doRename(uri: string, position: lst.Position, newName: string): Promise<lst.WorkspaceEdit | null>;
+}
+
+export class RenameAdapter<T extends ILanguageWorkerWithRename> implements monacoNS.languages.RenameProvider {
+  constructor(private readonly _worker: WorkerProxy<T>) {}
+
+  async provideRenameEdits(
+    model: monacoNS.editor.IReadOnlyModel,
+    position: monacoNS.Position,
+    newName: string,
+    token: monacoNS.CancellationToken,
+  ): Promise<monacoNS.languages.WorkspaceEdit | undefined> {
+    const worker = await this._worker(model.uri);
+    const edit = await worker.doRename(model.uri.toString(), fromPosition(position), newName);
+    if (edit) {
+      return toWorkspaceEdit(edit);
+    }
+  }
+}
+
+function toWorkspaceEdit(edit: lst.WorkspaceEdit): monacoNS.languages.WorkspaceEdit | undefined {
+  if (!edit.changes) {
+    return undefined;
+  }
+  let resourceEdits: monacoNS.languages.IWorkspaceTextEdit[] = [];
+  for (let uri in edit.changes) {
+    const _uri = Monaco.Uri.parse(uri);
+    for (let e of edit.changes[uri]) {
+      resourceEdits.push({
+        resource: _uri,
+        versionId: undefined,
+        textEdit: {
+          range: toRange(e.range),
+          text: e.newText,
+        },
+      });
+    }
+  }
+  return { edits: resourceEdits };
+}
+
+// #endregion
+
+// #region DocumentFormattingEditProvider, DocumentRangeFormattingEditProvider
+
+export interface ILanguageWorkerWithFormat {
+  doFormat(
+    uri: string,
+    range: lst.Range | null,
+    options: lst.FormattingOptions,
+    docText?: string,
+  ): Promise<lst.TextEdit[]>;
+}
+
+export class DocumentFormattingEditProvider<T extends ILanguageWorkerWithFormat>
+  implements monacoNS.languages.DocumentFormattingEditProvider
+{
+  constructor(private _worker: WorkerProxy<T>) {}
+
+  async provideDocumentFormattingEdits(
+    model: monacoNS.editor.IReadOnlyModel,
+    options: monacoNS.languages.FormattingOptions,
+    token: monacoNS.CancellationToken,
+  ): Promise<monacoNS.languages.TextEdit[] | undefined> {
+    const worker = await this._worker(model.uri);
+    const edits = await worker.doFormat(model.uri.toString(), null, options as lst.FormattingOptions);
+    if (edits) {
+      return edits.map<monacoNS.languages.TextEdit>(toTextEdit);
+    }
+  }
+}
+
+export class DocumentRangeFormattingEditProvider<T extends ILanguageWorkerWithFormat>
+  implements monacoNS.languages.DocumentRangeFormattingEditProvider
+{
+  constructor(private _worker: WorkerProxy<T>) {}
+
+  async provideDocumentRangeFormattingEdits(
+    model: monacoNS.editor.IReadOnlyModel,
+    range: monacoNS.Range,
+    options: monacoNS.languages.FormattingOptions,
+    token: monacoNS.CancellationToken,
+  ): Promise<monacoNS.languages.TextEdit[] | undefined> {
+    const worker = await this._worker(model.uri);
+    const edits = await worker.doFormat(model.uri.toString(), fromRange(range), options as lst.FormattingOptions);
+    if (edits) {
+      return edits.map<monacoNS.languages.TextEdit>(toTextEdit);
+    }
+  }
 }
 
 // #endregion
@@ -613,25 +726,19 @@ export class DefinitionAdapter<T extends ILanguageWorkerWithDefinitions>
 {
   constructor(private readonly _worker: WorkerProxy<T>) {}
 
-  public provideDefinition(
+  async provideDefinition(
     model: monacoNS.editor.IReadOnlyModel,
     position: monacoNS.Position,
     token: monacoNS.CancellationToken,
   ): Promise<monacoNS.languages.Definition | undefined> {
-    return this._worker(model.uri)
-      .then((worker) => {
-        return worker.findDefinition(model.uri.toString(), fromPosition(position));
-      })
-      .then((definition) => {
-        if (!definition) {
-          return;
-        }
-
-        return (Array.isArray(definition) ? definition : [definition]).map(location => {
-          const link = toLocationLink(location);
-          return link;
-        });
+    const worker = await this._worker(model.uri);
+    const definition = await worker.findDefinition(model.uri.toString(), fromPosition(position));
+    if (definition) {
+      return (Array.isArray(definition) ? definition : [definition]).map(location => {
+        const link = toLocationLink(location);
+        return link;
       });
+    }
   }
 }
 
@@ -643,7 +750,7 @@ function toLocationLink(
     uri = uri.slice(0, uri.lastIndexOf(".__EMBEDDED__."));
   }
   return {
-    originSelectionRange: location.originSelectionRange ? toRange(location.originSelectionRange) : void 0,
+    originSelectionRange: location.originSelectionRange ? toRange(location.originSelectionRange) : undefined,
     uri: Monaco.Uri.parse(uri),
     range: toRange(location.range),
   };
@@ -654,99 +761,24 @@ function toLocationLink(
 // #region ReferenceAdapter
 
 export interface ILanguageWorkerWithReferences {
-  findReferences(
-    uri: string,
-    position: lst.Position,
-  ): Promise<lst.Location[]>;
+  findReferences(uri: string, position: lst.Position): Promise<lst.Location[]>;
 }
 
 export class ReferenceAdapter<T extends ILanguageWorkerWithReferences> implements monacoNS.languages.ReferenceProvider {
   constructor(private readonly _worker: WorkerProxy<T>) {}
 
-  provideReferences(
+  async provideReferences(
     model: monacoNS.editor.IReadOnlyModel,
     position: monacoNS.Position,
     context: monacoNS.languages.ReferenceContext,
     token: monacoNS.CancellationToken,
   ): Promise<monacoNS.languages.Location[] | undefined> {
-    const resource = model.uri;
-
-    return this._worker(resource)
-      .then((worker) => {
-        return worker.findReferences(
-          resource.toString(),
-          fromPosition(position),
-        );
-      })
-      .then((entries) => {
-        if (!entries) {
-          return;
-        }
-        return entries.map(toLocationLink);
-      });
-  }
-}
-
-// #endregion
-
-// #region RenameAdapter
-
-export interface ILanguageWorkerWithRename {
-  doRename(
-    uri: string,
-    position: lst.Position,
-    newName: string,
-  ): Promise<lst.WorkspaceEdit | null>;
-}
-
-export class RenameAdapter<T extends ILanguageWorkerWithRename> implements monacoNS.languages.RenameProvider {
-  constructor(private readonly _worker: WorkerProxy<T>) {}
-
-  provideRenameEdits(
-    model: monacoNS.editor.IReadOnlyModel,
-    position: monacoNS.Position,
-    newName: string,
-    token: monacoNS.CancellationToken,
-  ): Promise<monacoNS.languages.WorkspaceEdit | undefined> {
-    const resource = model.uri;
-
-    return this._worker(resource)
-      .then((worker) => {
-        return worker.doRename(
-          resource.toString(),
-          fromPosition(position),
-          newName,
-        );
-      })
-      .then((edit) => {
-        return toWorkspaceEdit(edit);
-      });
-  }
-}
-
-function toWorkspaceEdit(
-  edit: lst.WorkspaceEdit | null,
-): monacoNS.languages.WorkspaceEdit | undefined {
-  if (!edit || !edit.changes) {
-    return void 0;
-  }
-  let resourceEdits: monacoNS.languages.IWorkspaceTextEdit[] = [];
-  for (let uri in edit.changes) {
-    const _uri = Monaco.Uri.parse(uri);
-    for (let e of edit.changes[uri]) {
-      resourceEdits.push({
-        resource: _uri,
-        versionId: undefined,
-        textEdit: {
-          range: toRange(e.range),
-          text: e.newText,
-        },
-      });
+    const worker = await this._worker(model.uri);
+    const references = await worker.findReferences(model.uri.toString(), fromPosition(position));
+    if (references) {
+      return references.map(toLocationLink);
     }
   }
-  return {
-    edits: resourceEdits,
-  };
 }
 
 // #endregion
@@ -754,9 +786,7 @@ function toWorkspaceEdit(
 // #region DocumentSymbolAdapter
 
 export interface ILanguageWorkerWithDocumentSymbols {
-  findDocumentSymbols(
-    uri: string,
-  ): Promise<lst.SymbolInformation[] | lst.DocumentSymbol[]>;
+  findDocumentSymbols(uri: string): Promise<(lst.SymbolInformation | lst.DocumentSymbol)[] | null>;
 }
 
 export class DocumentSymbolAdapter<T extends ILanguageWorkerWithDocumentSymbols>
@@ -764,33 +794,28 @@ export class DocumentSymbolAdapter<T extends ILanguageWorkerWithDocumentSymbols>
 {
   constructor(private readonly _worker: WorkerProxy<T>) {}
 
-  public provideDocumentSymbols(
+  async provideDocumentSymbols(
     model: monacoNS.editor.IReadOnlyModel,
     token: monacoNS.CancellationToken,
   ): Promise<monacoNS.languages.DocumentSymbol[] | undefined> {
-    const resource = model.uri;
-
-    return this._worker(resource)
-      .then((worker) => worker.findDocumentSymbols(resource.toString()))
-      .then((items) => {
-        if (!items) {
-          return;
+    const worker = await this._worker(model.uri);
+    const items = await worker.findDocumentSymbols(model.uri.toString());
+    if (items) {
+      return items.map((item) => {
+        if (isDocumentSymbol(item)) {
+          return toDocumentSymbol(item);
         }
-        return items.map((item) => {
-          if (isDocumentSymbol(item)) {
-            return toDocumentSymbol(item);
-          }
-          return {
-            name: item.name,
-            detail: "",
-            containerName: item.containerName,
-            kind: toSymbolKind(item.kind),
-            range: toRange(item.location.range),
-            selectionRange: toRange(item.location.range),
-            tags: [],
-          };
-        });
+        return {
+          name: item.name,
+          detail: "",
+          containerName: item.containerName,
+          kind: toSymbolKind(item.kind),
+          range: toRange(item.location.range),
+          selectionRange: toRange(item.location.range),
+          tags: item.tags ?? [],
+        };
       });
+    }
   }
 }
 
@@ -807,12 +832,12 @@ function toDocumentSymbol(symbol: lst.DocumentSymbol): monacoNS.languages.Docume
     selectionRange: toRange(symbol.selectionRange),
     tags: symbol.tags ?? [],
     children: (symbol.children ?? []).map((item) => toDocumentSymbol(item)),
+    containerName: Reflect.get(symbol, "containerName"),
   };
 }
 
 function toSymbolKind(kind: lst.SymbolKind): monacoNS.languages.SymbolKind {
-  let mKind = Monaco.languages.SymbolKind;
-
+  const mKind = Monaco.languages.SymbolKind;
   switch (kind) {
     case lst.SymbolKind.File:
       return mKind.File;
@@ -867,89 +892,19 @@ export class DocumentLinkAdapter<T extends ILanguageWorkerWithDocumentLinks>
 {
   constructor(private _worker: WorkerProxy<T>) {}
 
-  public provideLinks(
+  async provideLinks(
     model: monacoNS.editor.IReadOnlyModel,
     token: monacoNS.CancellationToken,
   ): Promise<monacoNS.languages.ILinksList | undefined> {
-    const resource = model.uri;
-
-    return this._worker(resource)
-      .then((worker) => worker.findDocumentLinks(resource.toString()))
-      .then((items) => {
-        if (!items) {
-          return;
-        }
-        return {
-          links: items.map((item) => ({
-            range: toRange(item.range),
-            url: item.target,
-          })),
-        };
-      });
-  }
-}
-
-// #endregion
-
-// #region DocumentFormattingEditProvider, DocumentRangeFormattingEditProvider
-
-export interface ILanguageWorkerWithFormat {
-  doFormat(
-    uri: string,
-    range: lst.Range | null,
-    options: lst.FormattingOptions,
-    docText?: string,
-  ): Promise<lst.TextEdit[]>;
-}
-
-export class DocumentFormattingEditProvider<T extends ILanguageWorkerWithFormat>
-  implements monacoNS.languages.DocumentFormattingEditProvider
-{
-  constructor(private _worker: WorkerProxy<T>) {}
-
-  public provideDocumentFormattingEdits(
-    model: monacoNS.editor.IReadOnlyModel,
-    options: monacoNS.languages.FormattingOptions,
-    token: monacoNS.CancellationToken,
-  ): Promise<monacoNS.languages.TextEdit[] | undefined> {
-    const resource = model.uri;
-
-    return this._worker(resource).then((worker) => {
-      return worker
-        .doFormat(resource.toString(), null, { ...options })
-        .then((edits) => {
-          if (!edits || edits.length === 0) {
-            return;
-          }
-          return edits.map<monacoNS.languages.TextEdit>(toTextEdit);
-        });
-    });
-  }
-}
-
-export class DocumentRangeFormattingEditProvider<T extends ILanguageWorkerWithFormat>
-  implements monacoNS.languages.DocumentRangeFormattingEditProvider
-{
-  constructor(private _worker: WorkerProxy<T>) {}
-
-  public provideDocumentRangeFormattingEdits(
-    model: monacoNS.editor.IReadOnlyModel,
-    range: monacoNS.Range,
-    options: monacoNS.languages.FormattingOptions,
-    token: monacoNS.CancellationToken,
-  ): Promise<monacoNS.languages.TextEdit[] | undefined> {
-    const resource = model.uri;
-
-    return this._worker(resource).then((worker) => {
-      return worker
-        .doFormat(resource.toString(), fromRange(range), { ...options })
-        .then((edits) => {
-          if (!edits || edits.length === 0) {
-            return;
-          }
-          return edits.map<monacoNS.languages.TextEdit>(toTextEdit);
-        });
-    });
+    const worker = await this._worker(model.uri);
+    const items = await worker.findDocumentLinks(model.uri.toString());
+    if (items) {
+      const links = items.map((item) => ({
+        range: toRange(item.range),
+        url: item.target,
+      }));
+      return { links };
+    }
   }
 }
 
@@ -967,60 +922,80 @@ export class DocumentColorAdapter<T extends ILanguageWorkerWithDocumentColors>
 {
   constructor(private readonly _worker: WorkerProxy<T>) {}
 
-  public provideDocumentColors(
+  async provideDocumentColors(
     model: monacoNS.editor.IReadOnlyModel,
     token: monacoNS.CancellationToken,
   ): Promise<monacoNS.languages.IColorInformation[] | undefined> {
-    const resource = model.uri;
-
-    return this._worker(resource)
-      .then((worker) => worker.findDocumentColors(resource.toString()))
-      .then((infos) => {
-        if (!infos) {
-          return;
-        }
-        return infos.map((item) => ({
-          color: item.color,
-          range: toRange(item.range),
-        }));
-      });
+    const worker = await this._worker(model.uri);
+    const colors = await worker.findDocumentColors(model.uri.toString());
+    if (colors) {
+      return colors.map((item) => ({
+        color: item.color,
+        range: toRange(item.range),
+      }));
+    }
   }
 
-  public provideColorPresentations(
+  async provideColorPresentations(
     model: monacoNS.editor.IReadOnlyModel,
     info: monacoNS.languages.IColorInformation,
     token: monacoNS.CancellationToken,
   ): Promise<monacoNS.languages.IColorPresentation[] | undefined> {
-    const resource = model.uri;
-
-    return this._worker(resource)
-      .then((worker) =>
-        worker.getColorPresentations(
-          resource.toString(),
-          info.color,
-          fromRange(info.range),
-        )
-      )
-      .then((presentations) => {
-        if (!presentations) {
-          return;
-        }
-        return presentations.map((presentation) => {
-          let item: monacoNS.languages.IColorPresentation = {
-            label: presentation.label,
-          };
-          if (presentation.textEdit) {
-            item.textEdit = toTextEdit(presentation.textEdit);
-          }
-          if (presentation.additionalTextEdits) {
-            item.additionalTextEdits = presentation.additionalTextEdits.map<
-              monacoNS.languages.TextEdit
-            >(toTextEdit);
-          }
-          return item;
-        });
-      });
+    const worker = await this._worker(model.uri);
+    const presentations = await worker.getColorPresentations(model.uri.toString(), info.color, fromRange(info.range));
+    if (presentations) {
+      return presentations.map((presentation) => ({
+        label: presentation.label,
+        textEdit: toTextEdit(presentation.textEdit),
+        additionalTextEdits: presentation.additionalTextEdits?.map(toTextEdit),
+      }));
+    }
   }
+}
+
+// #endregion
+
+// #region DocumentHighlightAdapter
+
+export interface ILanguageWorkerWithDocumentHighlights {
+  findDocumentHighlights(uri: string, position: lst.Position): Promise<lst.DocumentHighlight[]>;
+}
+
+export class DocumentHighlightAdapter<
+  T extends ILanguageWorkerWithDocumentHighlights,
+> implements monacoNS.languages.DocumentHighlightProvider {
+  constructor(private readonly _worker: WorkerProxy<T>) {}
+
+  async provideDocumentHighlights(
+    model: monacoNS.editor.IReadOnlyModel,
+    position: monacoNS.Position,
+    token: monacoNS.CancellationToken,
+  ): Promise<monacoNS.languages.DocumentHighlight[] | undefined> {
+    const worker = await this._worker(model.uri);
+    const entries = await worker.findDocumentHighlights(model.uri.toString(), fromPosition(position));
+    if (entries) {
+      return entries.map((entry) => {
+        return <monacoNS.languages.DocumentHighlight> {
+          range: toRange(entry.range),
+          kind: toDocumentHighlightKind(entry.kind),
+        };
+      });
+    }
+  }
+}
+
+function toDocumentHighlightKind(
+  kind: lst.DocumentHighlightKind | undefined,
+): monacoNS.languages.DocumentHighlightKind {
+  switch (kind) {
+    case lst.DocumentHighlightKind.Read:
+      return Monaco.languages.DocumentHighlightKind.Read;
+    case lst.DocumentHighlightKind.Write:
+      return Monaco.languages.DocumentHighlightKind.Write;
+    case lst.DocumentHighlightKind.Text:
+      return Monaco.languages.DocumentHighlightKind.Text;
+  }
+  return Monaco.languages.DocumentHighlightKind.Text;
 }
 
 // #endregion
@@ -1028,10 +1003,7 @@ export class DocumentColorAdapter<T extends ILanguageWorkerWithDocumentColors>
 // #region FoldingRangeAdapter
 
 export interface ILanguageWorkerWithFoldingRanges {
-  getFoldingRanges(
-    uri: string,
-    context?: { rangeLimit?: number },
-  ): Promise<lst.FoldingRange[]>;
+  getFoldingRanges(uri: string, context?: { rangeLimit?: number }): Promise<lst.FoldingRange[]>;
 }
 
 export class FoldingRangeAdapter<T extends ILanguageWorkerWithFoldingRanges>
@@ -1039,32 +1011,25 @@ export class FoldingRangeAdapter<T extends ILanguageWorkerWithFoldingRanges>
 {
   constructor(private _worker: WorkerProxy<T>) {}
 
-  public provideFoldingRanges(
+  async provideFoldingRanges(
     model: monacoNS.editor.IReadOnlyModel,
     context: monacoNS.languages.FoldingContext,
     token: monacoNS.CancellationToken,
   ): Promise<monacoNS.languages.FoldingRange[] | undefined> {
-    const resource = model.uri;
-
-    return this._worker(resource)
-      .then((worker) => worker.getFoldingRanges(resource.toString(), context))
-      .then((ranges) => {
-        if (!ranges) {
-          return;
+    const worker = await this._worker(model.uri);
+    const ranges = await worker.getFoldingRanges(model.uri.toString(), context);
+    if (ranges) {
+      return ranges.map((range) => {
+        const result: monacoNS.languages.FoldingRange = {
+          start: range.startLine + 1,
+          end: range.endLine + 1,
+        };
+        if (typeof range.kind !== "undefined") {
+          result.kind = toFoldingRangeKind(range.kind);
         }
-        return ranges.map((range) => {
-          const result: monacoNS.languages.FoldingRange = {
-            start: range.startLine + 1,
-            end: range.endLine + 1,
-          };
-          if (typeof range.kind !== "undefined") {
-            result.kind = toFoldingRangeKind(
-              <lst.FoldingRangeKind> range.kind,
-            );
-          }
-          return result;
-        });
+        return result;
       });
+    }
   }
 }
 
@@ -1079,7 +1044,7 @@ function toFoldingRangeKind(
     case lst.FoldingRangeKind.Region:
       return Monaco.languages.FoldingRangeKind.Region;
   }
-  return void 0;
+  return undefined;
 }
 
 // #endregion
@@ -1087,10 +1052,7 @@ function toFoldingRangeKind(
 // #region SelectionRangeAdapter
 
 export interface ILanguageWorkerWithSelectionRanges {
-  getSelectionRanges(
-    uri: string,
-    positions: lst.Position[],
-  ): Promise<lst.SelectionRange[]>;
+  getSelectionRanges(uri: string, positions: lst.Position[]): Promise<lst.SelectionRange[]>;
 }
 
 export class SelectionRangeAdapter<T extends ILanguageWorkerWithSelectionRanges>
@@ -1098,36 +1060,124 @@ export class SelectionRangeAdapter<T extends ILanguageWorkerWithSelectionRanges>
 {
   constructor(private _worker: WorkerProxy<T>) {}
 
-  public provideSelectionRanges(
+  async provideSelectionRanges(
     model: monacoNS.editor.IReadOnlyModel,
     positions: monacoNS.Position[],
     token: monacoNS.CancellationToken,
   ): Promise<monacoNS.languages.SelectionRange[][] | undefined> {
-    const resource = model.uri;
-
-    return this._worker(resource)
-      .then((worker) =>
-        worker.getSelectionRanges(
-          resource.toString(),
-          positions.map<lst.Position>(fromPosition),
-        )
-      )
-      .then((selectionRanges) => {
-        if (!selectionRanges) {
-          return;
-        }
-        return selectionRanges.map(
-          (selectionRange: lst.SelectionRange | undefined) => {
-            const result: monacoNS.languages.SelectionRange[] = [];
-            while (selectionRange) {
-              result.push({ range: toRange(selectionRange.range) });
-              selectionRange = selectionRange.parent;
-            }
-            return result;
-          },
-        );
-      });
+    const worker = await this._worker(model.uri);
+    const selectionRanges = await worker.getSelectionRanges(model.uri.toString(), positions.map(fromPosition));
+    if (selectionRanges) {
+      return selectionRanges.map(
+        (selectionRange: lst.SelectionRange | undefined) => {
+          const result: monacoNS.languages.SelectionRange[] = [];
+          while (selectionRange) {
+            result.push({ range: toRange(selectionRange.range) });
+            selectionRange = selectionRange.parent;
+          }
+          return result;
+        },
+      );
+    }
   }
+}
+
+// #endregion
+
+// #region LinkedEditingRangeAdapter
+
+export interface ILanguageWorkerWithLinkedEditingRange {
+  getLinkedEditingRangeAtPosition(
+    uri: string,
+    position: lst.Position,
+  ): Promise<{ ranges: lst.Range[]; wordPattern?: string } | null>;
+}
+
+export class LinkedEditingRangeAdapter<T extends ILanguageWorkerWithLinkedEditingRange>
+  implements monacoNS.languages.LinkedEditingRangeProvider
+{
+  constructor(private _worker: WorkerProxy<T>) {}
+
+  async provideLinkedEditingRanges(
+    model: monacoNS.editor.ITextModel,
+    position: monacoNS.Position,
+    token: monacoNS.CancellationToken,
+  ): Promise<monacoNS.languages.LinkedEditingRanges | undefined> {
+    const worker = await this._worker(model.uri);
+    const linkedEditingRange = await worker.getLinkedEditingRangeAtPosition(
+      model.uri.toString(),
+      fromPosition(position),
+    );
+    if (linkedEditingRange) {
+      const { wordPattern, ranges } = linkedEditingRange;
+      return {
+        ranges: ranges.map((range) => toRange(range)),
+        wordPattern: wordPattern ? new RegExp(wordPattern) : undefined,
+      };
+    }
+  }
+}
+
+// #endregion
+
+// #region InlayHintsAdapter
+
+export interface ILanguageWorkerWithInlayHints {
+  provideInlayHints(uri: string, range: lst.Range): Promise<lst.InlayHint[] | undefined>;
+}
+
+export class InlayHintsAdapter<T extends ILanguageWorkerWithInlayHints>
+  implements monacoNS.languages.InlayHintsProvider
+{
+  constructor(private _worker: WorkerProxy<T>) {}
+
+  public async provideInlayHints(
+    model: monacoNS.editor.ITextModel,
+    range: monacoNS.Range,
+    token: monacoNS.CancellationToken,
+  ): Promise<monacoNS.languages.InlayHintList> {
+    const worker = await this._worker(model.uri);
+    const ret = await worker.provideInlayHints(model.uri.toString(), fromRange(range));
+    const hints: monacoNS.languages.InlayHint[] = [];
+    if (ret) {
+      for (const hint of ret) {
+        hints.push(toInlayHint(hint));
+      }
+    }
+    return { hints, dispose: () => {} };
+  }
+}
+
+function toInlayHint(hint: lst.InlayHint): monacoNS.languages.InlayHint {
+  return {
+    label: toLabelText(hint.label),
+    tooltip: hint.tooltip,
+    textEdits: hint.textEdits?.map(toTextEdit),
+    position: toPosition(hint.position),
+    kind: hint.kind,
+    paddingLeft: hint.paddingLeft,
+    paddingRight: hint.paddingRight,
+  };
+}
+
+function toLabelText(label: lst.InlayHintLabelPart[] | string): string | monacoNS.languages.InlayHintLabelPart[] {
+  if (typeof label === "string") {
+    return label;
+  }
+  return label.map(toInlayHintLabelPart);
+}
+
+function toInlayHintLabelPart(part: lst.InlayHintLabelPart): monacoNS.languages.InlayHintLabelPart {
+  return {
+    label: part.value,
+    tooltip: part.tooltip,
+    command: toCommand(part.command),
+    location: toLocationLink(part.location),
+  };
+}
+
+function toPosition(position: lst.Position): monacoNS.Position {
+  return new Monaco.Position(position.line + 1, position.character + 1);
 }
 
 // #endregion

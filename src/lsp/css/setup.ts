@@ -51,9 +51,9 @@ export function setup(
   lf.registerDefault(languageId, workerProxy, ["/", "-", ":"]);
   languages.registerColorProvider(languageId, new lf.DocumentColorAdapter(workerProxy));
   languages.registerDefinitionProvider(languageId, new lf.DefinitionAdapter(workerProxy));
+  languages.registerReferenceProvider(languageId, new lf.ReferenceAdapter(workerProxy));
   languages.registerDocumentHighlightProvider(languageId, new lf.DocumentHighlightAdapter(workerProxy));
   languages.registerRenameProvider(languageId, new lf.RenameAdapter(workerProxy));
-  // languages.registerReferenceProvider(languageId, new lf.ReferenceAdapter(workerProxy));
 
   // register diagnostics adapter
   new lf.DiagnosticsAdapter(languageId, workerProxy, diagnosticsEmitter.event);

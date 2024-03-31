@@ -40,13 +40,7 @@ export class CSSWorker {
   private _languageSettings: Options;
   private _languageService: cssService.LanguageService;
 
-  constructor(
-    ctx: monacoNS.worker.IWorkerContext,
-    createData: CreateData,
-  ) {
-    this._ctx = ctx;
-    this._languageId = createData.languageId;
-    this._languageSettings = createData.options;
+  constructor(ctx: monacoNS.worker.IWorkerContext, createData: CreateData) {
     const data = createData.options.data;
     const customDataProviders: cssService.ICSSDataProvider[] = [];
     if (data?.dataProviders) {
@@ -58,6 +52,9 @@ export class CSSWorker {
       useDefaultDataProvider: data?.useDefaultDataProvider,
       customDataProviders,
     };
+    this._ctx = ctx;
+    this._languageId = createData.languageId;
+    this._languageSettings = createData.options;
     this._languageService = cssService.getCSSLanguageService(lsOptions);
   }
 
@@ -79,61 +76,13 @@ export class CSSWorker {
     return this._languageService.doComplete(document, position, stylesheet);
   }
 
-  async doHover(
-    uri: string,
-    position: cssService.Position,
-  ): Promise<cssService.Hover | null> {
+  async doHover(uri: string, position: cssService.Position): Promise<cssService.Hover | null> {
     const document = this._getTextDocument(uri);
     if (!document) {
       return null;
     }
     const stylesheet = this._languageService.parseStylesheet(document);
     return this._languageService.doHover(document, position, stylesheet);
-  }
-
-  async findDefinition(uri: string, position: cssService.Position): Promise<cssService.Location[] | null> {
-    const document = this._getTextDocument(uri);
-    if (!document) {
-      return null;
-    }
-    const stylesheet = this._languageService.parseStylesheet(document);
-    const definition = this._languageService.findDefinition(document, position, stylesheet);
-    if (definition) {
-      return [definition];
-    }
-    return null;
-  }
-
-  async findReferences(uri: string, position: cssService.Position): Promise<cssService.Location[]> {
-    const document = this._getTextDocument(uri);
-    if (!document) {
-      return [];
-    }
-    const stylesheet = this._languageService.parseStylesheet(document);
-    return this._languageService.findReferences(document, position, stylesheet);
-  }
-
-  async findDocumentHighlights(
-    uri: string,
-    position: cssService.Position,
-  ): Promise<cssService.DocumentHighlight[]> {
-    const document = this._getTextDocument(uri);
-    if (!document) {
-      return [];
-    }
-    const stylesheet = this._languageService.parseStylesheet(document);
-    return this._languageService.findDocumentHighlights(document, position, stylesheet);
-  }
-
-  async findDocumentSymbols(
-    uri: string,
-  ): Promise<cssService.SymbolInformation[]> {
-    const document = this._getTextDocument(uri);
-    if (!document) {
-      return [];
-    }
-    const stylesheet = this._languageService.parseStylesheet(document);
-    return this._languageService.findDocumentSymbols(document, stylesheet);
   }
 
   async doCodeActions(
@@ -147,53 +96,6 @@ export class CSSWorker {
     }
     const stylesheet = this._languageService.parseStylesheet(document);
     return this._languageService.doCodeActions(document, range, context, stylesheet);
-  }
-
-  async findDocumentColors(
-    uri: string,
-  ): Promise<cssService.ColorInformation[]> {
-    const document = this._getTextDocument(uri);
-    if (!document) {
-      return [];
-    }
-    const stylesheet = this._languageService.parseStylesheet(document);
-    return this._languageService.findDocumentColors(document, stylesheet);
-  }
-
-  async getColorPresentations(
-    uri: string,
-    color: cssService.Color,
-    range: cssService.Range,
-  ): Promise<cssService.ColorPresentation[]> {
-    const document = this._getTextDocument(uri);
-    if (!document) {
-      return [];
-    }
-    const stylesheet = this._languageService.parseStylesheet(document);
-    return this._languageService.getColorPresentations(document, stylesheet, color, range);
-  }
-
-  async getFoldingRanges(
-    uri: string,
-    context?: { rangeLimit?: number },
-  ): Promise<cssService.FoldingRange[]> {
-    const document = this._getTextDocument(uri);
-    if (!document) {
-      return [];
-    }
-    return this._languageService.getFoldingRanges(document, context);
-  }
-
-  async getSelectionRanges(
-    uri: string,
-    positions: cssService.Position[],
-  ): Promise<cssService.SelectionRange[]> {
-    const document = this._getTextDocument(uri);
-    if (!document) {
-      return [];
-    }
-    const stylesheet = this._languageService.parseStylesheet(document);
-    return this._languageService.getSelectionRanges(document, positions, stylesheet);
   }
 
   async doRename(
@@ -220,6 +122,85 @@ export class CSSWorker {
     }
     const settings = { ...this._languageSettings.format, ...options };
     return this._languageService.format(document, range!, settings);
+  }
+
+  async findDocumentSymbols(uri: string): Promise<cssService.SymbolInformation[]> {
+    const document = this._getTextDocument(uri);
+    if (!document) {
+      return [];
+    }
+    const stylesheet = this._languageService.parseStylesheet(document);
+    return this._languageService.findDocumentSymbols(document, stylesheet);
+  }
+
+  async findDefinition(uri: string, position: cssService.Position): Promise<cssService.Location[] | null> {
+    const document = this._getTextDocument(uri);
+    if (!document) {
+      return null;
+    }
+    const stylesheet = this._languageService.parseStylesheet(document);
+    const definition = this._languageService.findDefinition(document, position, stylesheet);
+    if (definition) {
+      return [definition];
+    }
+    return null;
+  }
+
+  async findReferences(uri: string, position: cssService.Position): Promise<cssService.Location[]> {
+    const document = this._getTextDocument(uri);
+    if (!document) {
+      return [];
+    }
+    const stylesheet = this._languageService.parseStylesheet(document);
+    return this._languageService.findReferences(document, position, stylesheet);
+  }
+
+  async findDocumentHighlights(uri: string, position: cssService.Position): Promise<cssService.DocumentHighlight[]> {
+    const document = this._getTextDocument(uri);
+    if (!document) {
+      return [];
+    }
+    const stylesheet = this._languageService.parseStylesheet(document);
+    return this._languageService.findDocumentHighlights(document, position, stylesheet);
+  }
+
+  async findDocumentColors(uri: string): Promise<cssService.ColorInformation[]> {
+    const document = this._getTextDocument(uri);
+    if (!document) {
+      return [];
+    }
+    const stylesheet = this._languageService.parseStylesheet(document);
+    return this._languageService.findDocumentColors(document, stylesheet);
+  }
+
+  async getColorPresentations(
+    uri: string,
+    color: cssService.Color,
+    range: cssService.Range,
+  ): Promise<cssService.ColorPresentation[]> {
+    const document = this._getTextDocument(uri);
+    if (!document) {
+      return [];
+    }
+    const stylesheet = this._languageService.parseStylesheet(document);
+    return this._languageService.getColorPresentations(document, stylesheet, color, range);
+  }
+
+  async getFoldingRanges(uri: string, context?: { rangeLimit?: number }): Promise<cssService.FoldingRange[]> {
+    const document = this._getTextDocument(uri);
+    if (!document) {
+      return [];
+    }
+    return this._languageService.getFoldingRanges(document, context);
+  }
+
+  async getSelectionRanges(uri: string, positions: cssService.Position[]): Promise<cssService.SelectionRange[]> {
+    const document = this._getTextDocument(uri);
+    if (!document) {
+      return [];
+    }
+    const stylesheet = this._languageService.parseStylesheet(document);
+    return this._languageService.getSelectionRanges(document, positions, stylesheet);
   }
 
   private _getTextDocument(uri: string): cssService.TextDocument | null {

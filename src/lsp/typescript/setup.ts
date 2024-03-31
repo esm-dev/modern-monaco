@@ -3,12 +3,12 @@ import type ts from "typescript";
 import type { FormattingOptions } from "vscode-languageserver-types";
 import type { ImportMap } from "~/import-map";
 import type { VFS } from "~/vfs";
-import type { CreateData, Host, TypeScriptWorker } from "./worker";
-import * as lf from "./language-features";
+import type { CreateData, Host, TypeScriptWorker, VersionedContent } from "./worker";
 
 // ! external module, don't remove the `.js` extension
+import * as lf from "../language-features.js";
 import { cache } from "../../cache.js";
-import { blankImportMap, isBlank, loadImportMapFromVFS, parseImportMapFromJson } from "../../import-map.js";
+import { isBlank, loadImportMapFromVFS, parseImportMapFromJson, toImportMap } from "../../import-map.js";
 
 type TSWorker = monacoNS.editor.MonacoWebWorker<TypeScriptWorker>;
 
@@ -23,9 +23,6 @@ export async function setup(
   formattingOptions?: FormattingOptions & { semicolon?: "ignore" | "insert" | "remove" },
   vfs?: VFS,
 ) {
-  // register monacoNS for language features module
-  lf.setup(monaco);
-
   if (!worker) {
     worker = createWorker(monaco, languageSettings, formattingOptions, vfs);
   }
@@ -33,36 +30,31 @@ export async function setup(
     worker = await worker;
   }
 
-  const diagnosticsOptions: lf.DiagnosticsOptions = {
-    noSemanticValidation: languageId === "javascript",
-    noSyntaxValidation: false,
-    onlyVisible: false,
-  };
-  const workerAccessor = (...uris: monacoNS.Uri[]): Promise<TypeScriptWorker> => {
+  const languages = monaco.languages;
+  const workerProxy = (...uris: monacoNS.Uri[]): Promise<TypeScriptWorker> => {
     return (worker as TSWorker).withSyncedResources(uris);
   };
-  const languages = monaco.languages;
 
   // @ts-expect-error `onWorker` is added by esm-monaco
-  MonacoEnvironment.onWorker(languageId, workerAccessor);
+  MonacoEnvironment.onWorker(languageId, workerProxy);
 
-  // register language features
-  languages.registerCodeActionProvider(languageId, new lf.CodeActionAdaptor(workerAccessor));
-  languages.registerCompletionItemProvider(languageId, new lf.SuggestAdapter(workerAccessor));
-  languages.registerDefinitionProvider(languageId, new lf.DefinitionAdapter(workerAccessor));
-  languages.registerDocumentHighlightProvider(languageId, new lf.DocumentHighlightAdapter(workerAccessor));
-  languages.registerDocumentRangeFormattingEditProvider(languageId, new lf.FormatAdapter(workerAccessor));
-  languages.registerDocumentSymbolProvider(languageId, new lf.OutlineAdapter(workerAccessor));
-  languages.registerHoverProvider(languageId, new lf.QuickInfoAdapter(workerAccessor));
-  languages.registerInlayHintsProvider(languageId, new lf.InlayHintsAdapter(workerAccessor));
-  languages.registerLinkedEditingRangeProvider(languageId, new lf.LinkedEditingRangeAdapter(workerAccessor));
-  languages.registerOnTypeFormattingEditProvider(languageId, new lf.FormatOnTypeAdapter(workerAccessor));
-  languages.registerRenameProvider(languageId, new lf.RenameAdapter(workerAccessor));
-  languages.registerSignatureHelpProvider(languageId, new lf.SignatureHelpAdapter(workerAccessor));
-  // languages.registerReferenceProvider(languageId, new lf.ReferenceAdapter(workerAccessor));
+  // set monacoNS and register language features
+  lf.setup(monaco);
+  lf.registerDefault(languageId, workerProxy, [".", "<", "/", "\"", "'"], true);
+  languages.registerCodeActionProvider(languageId, new lf.CodeActionAdaptor(workerProxy));
+  languages.registerSignatureHelpProvider(languageId, new lf.SignatureHelpAdapter(workerProxy, ["(", ","]));
+  languages.registerDocumentHighlightProvider(languageId, new lf.DocumentHighlightAdapter(workerProxy));
+  languages.registerDefinitionProvider(languageId, new lf.DefinitionAdapter(workerProxy));
+  languages.registerReferenceProvider(languageId, new lf.ReferenceAdapter(workerProxy));
+  languages.registerRenameProvider(languageId, new lf.RenameAdapter(workerProxy));
+
+  // unimpemented features
+  // languages.registerOnTypeFormattingEditProvider(languageId, new lf.FormatOnTypeAdapter(workerAccessor));
+  // languages.registerInlayHintsProvider(languageId, new lf.InlayHintsAdapter(workerAccessor));
+  // languages.registerLinkedEditingRangeProvider(languageId, new lf.LinkedEditingRangeAdapter(workerAccessor));
 
   // register diagnostics adapter
-  new lf.DiagnosticsAdapter(languageId, workerAccessor, diagnosticsOptions, refreshDiagnosticEventEmitter.event);
+  new lf.DiagnosticsAdapter(languageId, workerProxy, refreshDiagnosticEventEmitter.event);
 }
 
 export function getWorkerUrl() {
@@ -88,7 +80,8 @@ async function createWorker(
     noEmit: true,
     ...(languageSettings?.compilerOptions as ts.CompilerOptions),
   };
-  const defaultImportMap = blankImportMap();
+  const defaultImportMap = toImportMap(languageSettings?.importMap);
+  const types = new TypesStore();
   const remixImportMap = (im: ImportMap): ImportMap => {
     if (isBlank(defaultImportMap)) {
       return im;
@@ -101,17 +94,8 @@ async function createWorker(
   };
   const promises = [
     // @ts-expect-error 'libs.js' is generated at build time
-    import("./libs.js").then((m) => lf.types.setLibs(Object.assign(m.default, languageSettings?.extraLibs))),
+    import("./libs.js").then((m) => Object.assign(m.default, languageSettings?.extraLibs)),
   ];
-
-  if (languageSettings?.importMap) {
-    const { imports, scopes } = languageSettings.importMap as ImportMap;
-    defaultImportMap.imports = Object.assign({}, imports);
-    defaultImportMap.scopes = Object.assign({}, scopes);
-  }
-
-  // resolve types of the default compiler options
-  await resolveTypes(defaultCompilerOptions, vfs);
 
   let compilerOptions: ts.CompilerOptions = { ...defaultCompilerOptions };
   let importMap = { ...defaultImportMap };
@@ -128,7 +112,9 @@ async function createWorker(
   }
 
   // wait for all promises to resolve
-  await Promise.all(promises);
+  const [libs] = await Promise.all(promises);
+  // resolve types of the default compiler options
+  await types.resolve(compilerOptions, vfs);
 
   const {
     tabSize = 4,
@@ -138,8 +124,8 @@ async function createWorker(
   const createData: CreateData = {
     compilerOptions,
     importMap,
-    libs: lf.types.libs,
-    types: lf.types.types,
+    libs,
+    types: types.all,
     hasVFS: !!vfs,
     formatOptions: {
       tabSize,
@@ -183,12 +169,12 @@ async function createWorker(
       (compilerOptions.$types as string[] ?? []).map((url) =>
         vfs.watch(url, async (e) => {
           if (e.kind === "remove") {
-            lf.types.removeType(url);
+            types.remove(url);
           } else {
             const content = await vfs.readTextFile(url);
-            lf.types.addType(content, url);
+            types.add(content, url);
           }
-          updateCompilerOptions({ types: lf.types.types });
+          updateCompilerOptions({ types: types.all });
         })
       );
     const watchImportMapJSON = () => {
@@ -221,9 +207,8 @@ async function createWorker(
         const newOptions = { ...defaultCompilerOptions, ...options };
         if (JSON.stringify(newOptions) !== JSON.stringify(compilerOptions)) {
           compilerOptions = newOptions;
-          updateCompilerOptions({
-            compilerOptions,
-            types: lf.types.types,
+          types.resolve(compilerOptions, vfs).then(() => {
+            updateCompilerOptions({ compilerOptions, types: types.all });
           });
         }
         disposes = watchTypes();
@@ -262,47 +247,96 @@ async function createWorker(
   return worker;
 }
 
-/** Resolve types of the compiler options. */
-async function resolveTypes(compilerOptions: ts.CompilerOptions, vfs?: VFS) {
-  const types = compilerOptions.types;
-  if (Array.isArray(types)) {
-    delete compilerOptions.types;
-    await Promise.all(types.map(async (type) => {
-      if (/^https?:\/\//.test(type)) {
-        const res = await cache.fetch(type);
-        const dtsUrl = res.headers.get("x-typescript-types");
-        if (dtsUrl) {
-          res.body.cancel?.();
-          const res2 = await cache.fetch(dtsUrl);
-          if (res2.ok) {
-            return [dtsUrl, await res2.text()];
+class TypesStore {
+  private _types: Record<string, VersionedContent> = {};
+  private _removedtypes: Record<string, number> = {};
+
+  get all() {
+    return this._types;
+  }
+
+  public setTypes(types: Record<string, string>) {
+    const toRemove = Object.keys(this._types).filter(
+      (key) => !types[key],
+    );
+    for (const key of toRemove) {
+      this.remove(key);
+    }
+    for (const [filePath, content] of Object.entries(types)) {
+      this.add(content, filePath);
+    }
+  }
+
+  public add(content: string, filePath: string): boolean {
+    if (
+      this._types[filePath]
+      && this._types[filePath].content === content
+    ) {
+      return false;
+    }
+    let version = 1;
+    if (this._removedtypes[filePath]) {
+      version = this._removedtypes[filePath] + 1;
+    }
+    if (this._types[filePath]) {
+      version = this._types[filePath].version + 1;
+    }
+    this._types[filePath] = { content, version };
+    return true;
+  }
+
+  public remove(filePath: string): boolean {
+    const lib = this._types[filePath];
+    if (lib) {
+      delete this._types[filePath];
+      this._removedtypes[filePath] = lib.version;
+      return true;
+    }
+    return false;
+  }
+
+  /** Resolve types of the compiler options. */
+  async resolve(compilerOptions: ts.CompilerOptions, vfs?: VFS) {
+    const types = compilerOptions.types;
+    if (Array.isArray(types)) {
+      delete compilerOptions.types;
+      await Promise.all(types.map(async (type) => {
+        if (/^https?:\/\//.test(type)) {
+          const res = await cache.fetch(type);
+          const dtsUrl = res.headers.get("x-typescript-types");
+          if (dtsUrl) {
+            res.body.cancel?.();
+            const res2 = await cache.fetch(dtsUrl);
+            if (res2.ok) {
+              return [dtsUrl, await res2.text()];
+            } else {
+              console.error(
+                `Failed to fetch "${dtsUrl}": ` + await res2.text(),
+              );
+            }
+          } else if (res.ok) {
+            return [type, await res.text()];
           } else {
             console.error(
-              `Failed to fetch "${dtsUrl}": ` + await res2.text(),
+              `Failed to fetch "${dtsUrl}": ` + await res.text(),
             );
           }
-        } else if (res.ok) {
-          return [type, await res.text()];
-        } else {
-          console.error(
-            `Failed to fetch "${dtsUrl}": ` + await res.text(),
-          );
+        } else if (typeof type === "string" && vfs) {
+          const dtsUrl = new URL(type.replace(/\.d\.ts$/, "") + ".d.ts", "file:///");
+          try {
+            return [dtsUrl.href, await vfs.readTextFile(dtsUrl)];
+          } catch (error) {
+            console.error(`Failed to read "${dtsUrl.href}": ` + error.message);
+          }
         }
-      } else if (typeof type === "string" && vfs) {
-        const dtsUrl = new URL(type.replace(/\.d\.ts$/, "") + ".d.ts", "file:///");
-        try {
-          return [dtsUrl.href, await vfs.readTextFile(dtsUrl)];
-        } catch (error) {
-          console.error(`Failed to read "${dtsUrl.href}": ` + error.message);
+        return null;
+      })).then((entries) => {
+        if (vfs) {
+          compilerOptions.$types = entries.map(([url]) => url).filter((url) => url.startsWith("file://"));
         }
-      }
-      return null;
-    })).then((entries) => {
-      if (vfs) {
-        compilerOptions.$types = entries.map(([url]) => url).filter((url) => url.startsWith("file://"));
-      }
-      lf.types.setTypes(Object.fromEntries(entries.filter(Boolean)));
-    });
+        this.setTypes(Object.fromEntries(entries.filter(Boolean)));
+      });
+    }
   }
 }
 
@@ -312,7 +346,6 @@ async function readCompilerOptions(vfs: VFS) {
   try {
     const tsconfigjson = await vfs.readTextFile("tsconfig.json");
     const tsconfig = parseJsonc(tsconfigjson);
-    await resolveTypes(tsconfig.compilerOptions, vfs);
     compilerOptions.$src = "file:///tsconfig.json";
     Object.assign(compilerOptions, tsconfig.compilerOptions);
   } catch (error) {
