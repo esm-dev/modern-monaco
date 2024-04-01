@@ -1023,7 +1023,6 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
         title: codeFix.description,
         kind: "quickfix",
       };
-
       if (codeFix.changes.length > 0) {
         const edits: lst.TextEdit[] = [];
         for (const change of codeFix.changes) {
@@ -1033,11 +1032,14 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
         }
         action.edit = { changes: { [uri]: edits } };
       }
-
       if (codeFix.commands?.length > 0) {
-        action.command = codeFix.commands[0] as unknown as lst.Command;
+        const command: any = codeFix.commands[0];
+        action.command = {
+          title: command.title,
+          command: command.id,
+          arguments: command.arguments,
+        };
       }
-
       return action;
     });
   }

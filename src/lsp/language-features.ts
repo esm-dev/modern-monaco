@@ -457,9 +457,7 @@ export function toTextEdit(textEdit: lst.TextEdit | undefined): monacoNS.languag
 }
 
 function toCommand(c: lst.Command | undefined): monacoNS.languages.Command | undefined {
-  return c && c.command === "editor.action.triggerSuggest"
-    ? { id: c.command, title: c.title, arguments: c.arguments }
-    : undefined;
+  return c ? { id: c.command ?? Reflect.get(c, "id"), title: c.title, arguments: c.arguments } : undefined;
 }
 
 // #endregion
@@ -594,15 +592,11 @@ export class CodeActionAdaptor<T extends ILanguageWorkerWithCodeAction>
       insertSpaces: modelOptions.insertSpaces,
     };
     const worker = await this._worker(model.uri);
-    const codeActions = await worker.doCodeAction(
-      model.uri.toString(),
-      fromRange(range),
-      errorCodes,
-      formatOptions,
-    );
+    const codeActions = await worker.doCodeAction(model.uri.toString(), fromRange(range), errorCodes, formatOptions);
     if (codeActions) {
       return {
         actions: codeActions.map(action => ({
+          kind: action.kind ?? "quickfix",
           title: action.title,
           edit: action.edit && toWorkspaceEdit(action.edit),
           diagnostics: context.markers,
