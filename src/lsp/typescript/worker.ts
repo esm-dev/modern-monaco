@@ -40,7 +40,6 @@ export interface CreateData {
   types: Record<string, VersionedContent>;
   hasVFS: boolean;
   formatOptions?: ts.FormatCodeSettings & Pick<ts.UserPreferences, "quotePreference">;
-  inlayHintsOptions?: ts.UserPreferences;
 }
 
 /** TypeScriptWorker removes all but the `fileName` property to avoid serializing circular JSON structures. */
@@ -65,8 +64,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   private _libs: Record<string, string>;
   private _types: Record<string, VersionedContent>;
   private _hasVFS: boolean;
-  private _formatOptions?: ts.FormatCodeSettings & Pick<ts.UserPreferences, "quotePreference">;
-  private _inlayHintsOptions?: ts.UserPreferences;
+  private _formatOptions?: CreateData["formatOptions"];
   private _languageService = ts.createLanguageService(this);
   private _httpLibs = new Map<string, string>();
   private _httpModules = new Map<string, string>();
@@ -79,10 +77,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   private _fetchPromises = new Map<string, Promise<void>>();
   private _refreshDiagnosticsTimer: number | null = null;
 
-  constructor(
-    ctx: monacoNS.worker.IWorkerContext<Host>,
-    createData: CreateData,
-  ) {
+  constructor(ctx: monacoNS.worker.IWorkerContext<Host>, createData: CreateData) {
     this._ctx = ctx;
     this._compilerOptions = createData.compilerOptions;
     this._importMap = createData.importMap;
@@ -92,7 +87,6 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     this._libs = createData.libs;
     this._types = createData.types;
     this._formatOptions = createData.formatOptions;
-    this._inlayHintsOptions = createData.inlayHintsOptions;
   }
 
   // #region language service host
@@ -418,6 +412,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   // #endregion
 
   // #region language features
+
   async doValidation(uri: string): Promise<lst.Diagnostic[] | null> {
     const document = this._getScriptDocument(uri);
     if (!document) {
@@ -466,8 +461,9 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     return {
       isIncomplete: completions.isIncomplete,
       items: completions.entries.map(entry => {
+        const context = { uri, offset, languageId: document.languageId };
         // data used for resolving item details (see 'doResolveCompletionItem')
-        const data = { entryData: entry.data, context: { uri, offset, languageId: document.languageId } };
+        const data = { entryData: entry.data, context };
         const tags: lst.CompletionItemTag[] = [];
         if (entry.kindModifiers?.includes("deprecated")) {
           tags.push(CompletionItemTag.Deprecated);
@@ -585,11 +581,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     }
     const start = document.offsetAt(range.start);
     const end = document.offsetAt(range.end);
-    const codeFixes = await this._getCodeFixesAtPosition(uri, start, end, errorCodes, {
-      convertTabsToSpaces: formatOptions.insertSpaces,
-      tabSize: formatOptions.tabSize,
-      indentSize: formatOptions.tabSize,
-    });
+    const codeFixes = await this._getCodeFixesAtPosition(uri, start, end, errorCodes, toTsFormatOptions(formatOptions));
     return codeFixes.map(codeFix => {
       const action: lst.CodeAction = {
         title: codeFix.description,
@@ -623,12 +615,12 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     }
 
     const documentPosition = document.offsetAt(position);
-    const renameInfos = this._languageService.findRenameLocations(uri, documentPosition, false, false, {});
+    const locations = this._languageService.findRenameLocations(uri, documentPosition, false, false, {});
     const edits: lst.TextEdit[] = [];
-    renameInfos?.map(renameInfo => {
-      if (renameInfo.fileName === uri) {
+    locations?.map(loc => {
+      if (loc.fileName === uri) {
         edits.push({
-          range: convertRange(document, renameInfo.textSpan),
+          range: convertRange(document, loc.textSpan),
           newText: newName,
         });
       }
@@ -641,18 +633,30 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     range: lst.Range | null,
     formatOptions: lst.FormattingOptions,
     docText?: string,
-  ): Promise<lst.TextEdit[]> {
-    const document = this._getScriptDocument(uri);
+  ): Promise<lst.TextEdit[] | null> {
+    const document = docText ? TextDocument.create(uri, "typescript", 0, docText) : this._getScriptDocument(uri);
     if (!document) {
-      return [];
+      return null;
     }
-    return [];
+    const formattingOptions = this._mergeFormatOptions(toTsFormatOptions(formatOptions));
+    let edits: ts.TextChange[];
+    if (range) {
+      const start = document.offsetAt(range.start);
+      const end = document.offsetAt(range.end);
+      edits = this._languageService.getFormattingEditsForRange(uri, start, end, formattingOptions);
+    } else {
+      edits = this._languageService.getFormattingEditsForDocument(uri, formattingOptions);
+    }
+    return edits.map(({ span, newText }) => ({
+      range: convertRange(document, span),
+      newText,
+    }));
   }
 
-  async findDocumentSymbols(uri: string): Promise<(lst.DocumentSymbol)[]> {
+  async findDocumentSymbols(uri: string): Promise<lst.DocumentSymbol[] | null> {
     const document = this._getScriptDocument(uri);
     if (!document) {
-      return [];
+      return null;
     }
     const toSymbol = (item: ts.NavigationTree, containerLabel?: string): lst.DocumentSymbol => {
       const result: lst.DocumentSymbol = {
@@ -696,10 +700,10 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     return null;
   }
 
-  async findReferences(uri: string, position: lst.Position): Promise<lst.Location[]> {
+  async findReferences(uri: string, position: lst.Position): Promise<lst.Location[] | null> {
     const document = this._getScriptDocument(uri);
     if (!document) {
-      return [];
+      return null;
     }
     const references = this._languageService.getReferencesAtPosition(uri, document.offsetAt(position));
     const result: lst.Location[] = [];
@@ -715,10 +719,10 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     return result;
   }
 
-  async findDocumentHighlights(uri: string, position: lst.Position): Promise<lst.DocumentHighlight[]> {
+  async findDocumentHighlights(uri: string, position: lst.Position): Promise<lst.DocumentHighlight[] | null> {
     const document = this._getScriptDocument(uri);
     if (!document) {
-      return [];
+      return null;
     }
     const highlights = this._languageService.getDocumentHighlights(uri, document.offsetAt(position), [uri]);
     const out: lst.DocumentHighlight[] = [];
@@ -733,10 +737,10 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     return out;
   }
 
-  async getFoldingRanges(uri: string): Promise<lst.FoldingRange[]> {
+  async getFoldingRanges(uri: string): Promise<lst.FoldingRange[] | null> {
     const document = this._getScriptDocument(uri);
     if (!document) {
-      return [];
+      return null;
     }
     const spans = this._languageService.getOutliningSpans(uri);
     const ranges: lst.FoldingRange[] = [];
@@ -756,10 +760,10 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     return ranges;
   }
 
-  async getSelectionRanges(uri: string, positions: lst.Position[]): Promise<lst.SelectionRange[]> {
+  async getSelectionRanges(uri: string, positions: lst.Position[]): Promise<lst.SelectionRange[] | null> {
     const document = this._getScriptDocument(uri);
     if (!document) {
-      return [];
+      return null;
     }
     function convertSelectionRange(selectionRange: ts.SelectionRange): lst.SelectionRange {
       const parent = selectionRange.parent ? convertSelectionRange(selectionRange.parent) : undefined;
@@ -793,15 +797,12 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     this._refreshDiagnostics();
   }
 
-  async updateCompilerOptions({
-    compilerOptions,
-    importMap,
-    types,
-  }: {
+  async updateCompilerOptions(options: {
     compilerOptions?: ts.CompilerOptions;
     importMap?: ImportMap;
     types?: Record<string, VersionedContent>;
   }): Promise<void> {
+    const { compilerOptions, importMap, types } = options;
     if (compilerOptions) {
       this._compilerOptions = compilerOptions;
     }
@@ -970,7 +971,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     end: number,
     errorCodes: number[],
     formatOptions: ts.FormatCodeSettings,
-  ): Promise<ReadonlyArray<ts.CodeFixAction>> {
+  ): Promise<ts.CodeFixAction[]> {
     let span = [start + 1, end - 1] as [number, number];
     // fix url/path span
     if (start === end && (this._httpRedirects.length > 0 || errorCodes.includes(2307))) {
@@ -1078,9 +1079,10 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   //   }
   // }
 
+  /** notifies the host to refresh diagnostics. */
   private _refreshDiagnostics(): void {
     if (this._refreshDiagnosticsTimer !== null) {
-      return;
+      clearTimeout(this._refreshDiagnosticsTimer);
     }
     this._refreshDiagnosticsTimer = setTimeout(() => {
       this._refreshDiagnosticsTimer = null;
@@ -1454,6 +1456,14 @@ function toSignatureHelpTriggerReason(context: monacoNS.languages.SignatureHelpC
     default:
       return { kind: "invoked" };
   }
+}
+
+function toTsFormatOptions(options: lst.FormattingOptions): ts.FormatCodeSettings {
+  return {
+    convertTabsToSpaces: options.insertSpaces,
+    tabSize: options.tabSize,
+    indentSize: options.tabSize,
+  };
 }
 
 initializeWorker(TypeScriptWorker);

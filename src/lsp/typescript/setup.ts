@@ -107,14 +107,11 @@ async function createWorker(
 
   // wait for all promises to resolve
   const [libs] = await Promise.all(promises);
+
   // resolve types of the default compiler options
   await types.resolve(compilerOptions, vfs);
 
-  const {
-    tabSize = 4,
-    trimTrailingWhitespace = true,
-    semicolon = "insert",
-  } = formattingOptions ?? {};
+  const { tabSize = 4, trimTrailingWhitespace = true, semicolon = "insert" } = formattingOptions ?? {};
   const createData: CreateData = {
     compilerOptions,
     importMap,
@@ -184,7 +181,7 @@ async function createWorker(
               im.$src = $src;
               importMap = remixImportMap(im);
             } catch (error) {
-              console.error("Failed to read import map:", error);
+              console.error("Failed to parse import map:", error);
               importMap = { ...defaultImportMap };
             }
           }

@@ -79,9 +79,7 @@ export class JSONWorker {
     options: jsonService.FormattingOptions,
     docText?: string,
   ): Promise<jsonService.TextEdit[] | null> {
-    const document = docText
-      ? jsonService.TextDocument.create(uri, "json", 0, docText)
-      : this._getTextDocument(uri);
+    const document = docText ? jsonService.TextDocument.create(uri, "json", 0, docText) : this._getTextDocument(uri);
     if (!document) {
       return null;
     }

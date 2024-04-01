@@ -63,8 +63,9 @@ async function loadMonaco(highlighter: HighlighterCore, options?: InitOption, on
     workerProxies: {},
     onWorker: (languageId: string, workerProxy: () => any) => {
       const workerProxies = Reflect.get(MonacoEnvironment, "workerProxies");
-      if (Array.isArray(workerProxies[languageId])) {
-        workerProxies[languageId][0]();
+      const promise = workerProxies[languageId];
+      if (typeof promise === "object" && promise !== null && "resolve" in promise) {
+        promise.resolve();
       }
       workerProxies[languageId] = workerProxy;
     },

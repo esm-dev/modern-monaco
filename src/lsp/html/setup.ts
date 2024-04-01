@@ -13,13 +13,7 @@ export function setup(
   const { tabSize, insertSpaces, insertFinalNewline, trimFinalNewlines } = formattingOptions ?? {};
   const createData: CreateData = {
     languageId,
-    options: {
-      data: {
-        useDefaultDataProvider: true,
-        dataProviders: Array.isArray(languageSettings?.customTags)
-          ? { custom: { version: 1.1, tags: languageSettings.customTags as any } }
-          : undefined,
-      },
+    settings: {
       suggest: {},
       format: {
         tabSize,
@@ -37,38 +31,20 @@ export function setup(
         wrapAttributes: "auto",
       },
     },
+    data: {
+      useDefaultDataProvider: true,
+      dataProviders: Array.isArray(languageSettings?.customTags)
+        ? { custom: { version: 1.1, tags: languageSettings.customTags as any } }
+        : undefined,
+    },
   };
   const embeddedLanguages = { javascript: "js", css: "css", importmap: "importmap" };
-  const worker = editor.createWebWorker<HTMLWorker>({
+  const htmlWorker = editor.createWebWorker<HTMLWorker>({
     moduleId: "lsp/html/worker",
     label: languageId,
     createData,
-    host: {
-      // redirects lsp requests of embedded languages
-      async redirectLSPRequest(rsl: string, method: string, uri: string, ...args: any[]) {
-        // @ts-expect-error `workerProxies` is added by esm-monaco
-        const { workerProxies } = MonacoEnvironment;
-        const langaugeId = rsl === "importmap" ? "json" : rsl;
-        const workerProxy = workerProxies[langaugeId];
-        if (typeof workerProxy === "function") {
-          const embeddedUri = Uri.parse(uri + ".__EMBEDDED__." + embeddedLanguages[rsl]);
-          return workerProxy(embeddedUri).then(worker => worker[method]?.(embeddedUri.toString(), ...args));
-        }
-        if (!workerProxy) {
-          workerProxies[langaugeId] = [() => {
-            // refresh diagnostics
-            lfs.refreshDiagnostics(langaugeId);
-          }];
-        }
-      },
-    },
   });
-  const codeLensEmitter = new monaco.Emitter<monacoNS.languages.CodeLensProvider>();
   const codeLensProvider: monacoNS.languages.CodeLensProvider = {
-    onDidChange: codeLensEmitter.event,
-    resolveCodeLens: (_model, codeLens, _token) => {
-      return codeLens;
-    },
     provideCodeLenses: (model, _token) => {
       const m = model.findNextMatch(
         `type=['"]importmap['"]`,
@@ -104,19 +80,18 @@ export function setup(
       }
     },
   };
-  const workerProxy: lfs.WorkerProxy<HTMLWorker> = (
-    ...uris: monacoNS.Uri[]
-  ): Promise<HTMLWorker> => {
-    return worker.withSyncedResources(uris);
+  const htmlWorkerProxy: lfs.WorkerProxy<HTMLWorker> = async (...uris) => {
+    return htmlWorker.withSyncedResources(uris);
   };
+  const workerProxy = lfs.proxyWorkerWithEmbeddedLanguages(embeddedLanguages, htmlWorkerProxy);
 
   // @ts-expect-error `onWorker` is added by esm-monaco
-  MonacoEnvironment.onWorker(languageId, workerProxy);
+  MonacoEnvironment.onWorker(languageId, htmlWorkerProxy);
 
   // set monacoNS and register language features
   lfs.setup(monaco);
+  lfs.attachEmbeddedLanguages(embeddedLanguages, htmlWorkerProxy);
   lfs.registerDefault(languageId, workerProxy, [".", ":", "<", "\"", "=", "/"]);
-  lfs.attachEmbeddedLanguages(workerProxy, embeddedLanguages);
   languages.registerDocumentHighlightProvider(languageId, new lfs.DocumentHighlightAdapter(workerProxy));
   languages.registerDefinitionProvider(languageId, new lfs.DefinitionAdapter(workerProxy));
   languages.registerRenameProvider(languageId, new lfs.RenameAdapter(workerProxy));

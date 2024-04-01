@@ -34,12 +34,7 @@ export function setup(
       },
     },
   };
-  const codeLensEmitter = new monaco.Emitter<monacoNS.languages.CodeLensProvider>();
   const codeLensProvider: monacoNS.languages.CodeLensProvider = {
-    onDidChange: codeLensEmitter.event,
-    resolveCodeLens: (model, codeLens, token) => {
-      return codeLens;
-    },
     provideCodeLenses: function(model, token) {
       const isImportMap = ["importmap.json", "import_map.json", "import-map.json", "importMap.json"].some((name) => model.uri.path === "/" + name);
       if (isImportMap) {

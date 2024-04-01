@@ -121,7 +121,7 @@ export async function loadImportMapFromVFS(vfs: import("./vfs").VFS, verify?: (i
     }
   } catch (error) {
     // ignore error, fallback to a blank import map
-    console.error(`Failed to read import map from "${src}":` + error.message);
+    console.error(`Failed to load import map from "${src}":`, error.message);
   }
   const importMap = blankImportMap();
   importMap.$src = src;

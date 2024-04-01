@@ -21,7 +21,7 @@ export interface HTMLDataConfiguration {
   dataProviders?: { [providerId: string]: htmlService.HTMLDataV1 };
 }
 
-export interface Options {
+export interface Settings {
   /**
    * Settings for the HTML formatter.
    */
@@ -30,29 +30,22 @@ export interface Options {
    * Code completion settings.
    */
   readonly suggest?: htmlService.CompletionConfiguration;
-  /**
-   * Configures the HTML data types known by the HTML langauge service.
-   */
-  readonly data?: HTMLDataConfiguration;
 }
 
 export interface CreateData {
   languageId: string;
-  options: Options;
-}
-
-export interface Host {
-  redirectLSPRequest<T>(langaugeId: string, method: string, uri: string, ...args: any[]): Promise<T>;
+  settings: Settings;
+  data?: HTMLDataConfiguration;
 }
 
 export class HTMLWorker {
-  private _ctx: monacoNS.worker.IWorkerContext<Host>;
+  private _ctx: monacoNS.worker.IWorkerContext;
   private _languageService: htmlService.LanguageService;
-  private _languageSettings: Options;
+  private _languageSettings: Settings;
   private _languageId: string;
 
-  constructor(ctx: monacoNS.worker.IWorkerContext<Host>, createData: CreateData) {
-    const data = createData.options.data;
+  constructor(ctx: monacoNS.worker.IWorkerContext, createData: CreateData) {
+    const data = createData.data;
     const useDefaultDataProvider = data?.useDefaultDataProvider;
     const customDataProviders: htmlService.IHTMLDataProvider[] = [];
     if (data?.dataProviders) {
@@ -63,7 +56,7 @@ export class HTMLWorker {
       }
     }
     this._ctx = ctx;
-    this._languageSettings = createData.options;
+    this._languageSettings = createData.settings;
     this._languageId = createData.languageId;
     this._languageService = htmlService.getLanguageService({
       useDefaultDataProvider,
@@ -105,11 +98,14 @@ export class HTMLWorker {
         }
       }
     }
-    for (const rsl of rs.getEmbeddedLanguages()) {
-      const ret = await this._ctx.host.redirectLSPRequest(rsl, "doValidation", uri);
-      if (Array.isArray(ret) && ret.length > 0) {
-        diagnostic.push(...ret);
-      }
+    const rsls = rs.getEmbeddedLanguages();
+    if (rsls.length > 0) {
+      return {
+        $embedded: {
+          languageIds: rsls,
+          origin: diagnostic,
+        },
+      } as any;
     }
     return diagnostic;
   }
@@ -122,7 +118,7 @@ export class HTMLWorker {
     const rs = getDocumentRegions(this._languageService, document);
     const rsl = rs.getEmbeddedLanguageAtPosition(position);
     if (rsl) {
-      return await this._ctx.host.redirectLSPRequest(rsl, "doComplete", uri, position) ?? null;
+      return { $embedded: rsl } as any;
     }
     const htmlDocument = this._languageService.parseHTMLDocument(document);
     return this._languageService.doComplete(
@@ -141,7 +137,7 @@ export class HTMLWorker {
     const rs = getDocumentRegions(this._languageService, document);
     const rsl = rs.getEmbeddedLanguageAtPosition(position);
     if (rsl) {
-      return await this._ctx.host.redirectLSPRequest(rsl, "doHover", uri, position) ?? null;
+      return { $embedded: rsl } as any;
     }
     const htmlDocument = this._languageService.parseHTMLDocument(document);
     return this._languageService.doHover(document, position, htmlDocument);
@@ -162,47 +158,12 @@ export class HTMLWorker {
       // unformat `<script>` tag
       contentUnformatted: contentUnformatted + ", script",
     };
-    const htmlEdits = this._languageService.format(document, formatRange, formattingOptions);
-
-    for (const region of getDocumentRegions(this._languageService, document).regions) {
-      if (!region.attributeValue && region.languageId === "importmap") {
-        const regionText = document.getText().substring(region.start, region.end);
-        const regionDoc = htmlService.TextDocument.create(
-          uri + "#" + region.languageId,
-          region.languageId,
-          0,
-          regionText,
-        );
-        try {
-          const edits = await this._ctx.host.redirectLSPRequest(
-            region.languageId,
-            "doFormat",
-            uri,
-            formatRange,
-            options,
-            regionText,
-          );
-          if (Array.isArray(edits)) {
-            const formatted = htmlService.TextDocument.applyEdits(regionDoc, edits);
-            const indent = "  ";
-            htmlEdits.push({
-              range: {
-                start: document.positionAt(region.start),
-                end: document.positionAt(region.end),
-              },
-              newText: [indent, ...formatted.split("\n").map(l => indent + l), indent].join("\n"),
-            });
-          }
-        } catch (error) {
-          // ignore
-        }
-      }
-    }
+    const edits = this._languageService.format(document, formatRange, formattingOptions);
 
     // add last newline if needed
     if (this._languageSettings.format?.endWithNewline) {
       const text = document.getText();
-      htmlEdits.push({
+      edits.push({
         range: {
           start: document.positionAt(text.length),
           end: document.positionAt(text.length),
@@ -211,7 +172,25 @@ export class HTMLWorker {
       });
     }
 
-    return htmlEdits;
+    // const rs = getDocumentRegions(this._languageService, document);
+    // const mark: Record<string, string> = {};
+    // for (const { attributeValue, languageId, start, end } of rs.regions) {
+    //   if (!attributeValue && (languageId === "importmap" || languageId === "javascript")) {
+    //     mark[languageId] = document.getText().substring(start, end);
+    //   }
+    // }
+    // const rsls = Object.keys(mark);
+    // if (rsls.length > 0) {
+    //   return {
+    //     $embedded: {
+    //       languageIds: rsls,
+    //       data: Object.values(mark),
+    //       origin: edits,
+    //     },
+    //   } as any;
+    // }
+
+    return edits;
   }
 
   async doRename(uri: string, position: lst.Position, newName: string): Promise<lst.WorkspaceEdit | null> {
@@ -222,19 +201,7 @@ export class HTMLWorker {
     const rs = getDocumentRegions(this._languageService, document);
     const rsl = rs.getEmbeddedLanguageAtPosition(position);
     if (rsl) {
-      const ret: lst.WorkspaceEdit | undefined = await this._ctx.host.redirectLSPRequest(
-        rsl,
-        "doRename",
-        uri,
-        position,
-        newName,
-      );
-      console.log(rsl, ret);
-      if (!ret || !ret.changes) {
-        return null;
-      }
-      ret.changes = Object.fromEntries([[uri, Object.values(ret.changes)[0]]]);
-      return ret;
+      return { $embedded: rsl } as any;
     }
     const htmlDocument = this._languageService.parseHTMLDocument(document);
     return this._languageService.doRename(
@@ -253,7 +220,7 @@ export class HTMLWorker {
     const rs = getDocumentRegions(this._languageService, document);
     const rsl = rs.getEmbeddedLanguageAtPosition(position);
     if (rsl) {
-      return await this._ctx.host.redirectLSPRequest(rsl, "findDocumentHighlights", uri, position) ?? null;
+      return { $embedded: rsl } as any;
     }
     const htmlDocument = this._languageService.parseHTMLDocument(document);
     return this._languageService.findDocumentHighlights(
@@ -274,31 +241,23 @@ export class HTMLWorker {
     const rs = getDocumentRegions(this._languageService, document);
     const rsl = rs.getEmbeddedLanguageAtPosition(position);
     if (rsl) {
-      return await this._ctx.host.redirectLSPRequest(
-        rsl,
-        "findDefinition",
-        uri,
-        position,
-      ) ?? null;
+      return { $embedded: rsl } as any;
     }
     return null;
   }
 
-  async findDocumentLinks(uri: string): Promise<lst.DocumentLink[]> {
+  async findDocumentLinks(uri: string): Promise<lst.DocumentLink[] | null> {
     const document = this._getTextDocument(uri);
     if (!document) {
-      return [];
+      return null;
     }
-    return this._languageService.findDocumentLinks(
-      document,
-      null!, /*TODO@aeschli*/
-    );
+    return this._languageService.findDocumentLinks(document, null!);
   }
 
-  async findDocumentSymbols(uri: string): Promise<lst.SymbolInformation[]> {
+  async findDocumentSymbols(uri: string): Promise<lst.SymbolInformation[] | null> {
     const document = this._getTextDocument(uri);
     if (!document) {
-      return [];
+      return null;
     }
     const htmlDocument = this._languageService.parseHTMLDocument(document);
     return this._languageService.findDocumentSymbols(
@@ -307,20 +266,23 @@ export class HTMLWorker {
     );
   }
 
-  async getFoldingRanges(uri: string, context?: { rangeLimit?: number }): Promise<lst.FoldingRange[]> {
+  async getFoldingRanges(uri: string, context?: { rangeLimit?: number }): Promise<lst.FoldingRange[] | null> {
     const document = this._getTextDocument(uri);
     if (!document) {
-      return [];
+      return null;
     }
-    const ranges: lst.FoldingRange[] = [];
+    const ranges = this._languageService.getFoldingRanges(document, context);
     const rs = getDocumentRegions(this._languageService, document);
-    for (const rsl of rs.getEmbeddedLanguages(true)) {
-      const range = await this._ctx.host.redirectLSPRequest(rsl, "getFoldingRanges", uri, context);
-      if (Array.isArray(range)) {
-        ranges.push(...range);
-      }
+    const rsls = rs.getEmbeddedLanguages(true);
+    if (rsls.length > 0) {
+      return {
+        $embedded: {
+          languageIds: rsls,
+          origin: ranges,
+        },
+      } as any;
     }
-    return ranges.concat(this._languageService.getFoldingRanges(document, context));
+    return ranges;
   }
 
   async getSelectionRanges(uri: string, positions: lst.Position[]): Promise<lst.SelectionRange[]> {
@@ -331,28 +293,28 @@ export class HTMLWorker {
     return this._languageService.getSelectionRanges(document, positions);
   }
 
-  async findDocumentColors(uri: string): Promise<lst.ColorInformation[]> {
+  async findDocumentColors(uri: string): Promise<lst.ColorInformation[] | null> {
     const document = this._getTextDocument(uri);
     if (!document) {
-      return [];
+      return null;
     }
     const rs = getDocumentRegions(this._languageService, document);
     if (rs.hasEmbeddedLanguage("css")) {
-      return await this._ctx.host.redirectLSPRequest("css", "findDocumentColors", uri) ?? [];
+      return { $embedded: "css" } as any;
     }
-    return [];
+    return null;
   }
 
-  async getColorPresentations(uri: string, color: lst.Color, range: lst.Range): Promise<lst.ColorPresentation[]> {
+  async getColorPresentations(uri: string, color: lst.Color, range: lst.Range): Promise<lst.ColorPresentation[] | null> {
     const document = this._getTextDocument(uri);
     if (!document) {
-      return [];
+      return null;
     }
     const rs = getDocumentRegions(this._languageService, document);
     if (rs.hasEmbeddedLanguage("css")) {
-      return await this._ctx.host.redirectLSPRequest("css", "getColorPresentations", uri, color, range) ?? [];
+      return { $embedded: "css" } as any;
     }
-    return [];
+    return null;
   }
 
   async getEmbeddedDocument(uri: string, languageId: string): Promise<{ content: string } | null> {

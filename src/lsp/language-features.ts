@@ -69,22 +69,21 @@ export interface ILanguageWorkerWithEmbeddedSupport {
 }
 
 export function attachEmbeddedLanguages<T extends ILanguageWorkerWithEmbeddedSupport>(
-  worker: WorkerProxy<T>,
   embeddedLanguages: Record<string, string>,
+  workerProxy: WorkerProxy<T>,
 ) {
   const { editor, Uri } = Monaco;
   const embeddedLanguageIds = Object.keys(embeddedLanguages);
-  const toEbeddedUri = (model: monacoNS.editor.IModel, languageId: string) => {
+  const toEmbeddedUri = (model: monacoNS.editor.IModel, languageId: string) => {
     return Uri.parse(model.uri.path + ".__EMBEDDED__." + embeddedLanguages[languageId]);
   };
   const validateModel = async (model: monacoNS.editor.IModel) => {
     if (model.getLanguageId() !== "html") {
       return;
     }
-    const getEmbeddedDocument = (languageId: string) => worker(model.uri).then((worker) => worker.getEmbeddedDocument(model.uri.toString(), languageId));
-
+    const getEmbeddedDocument = (languageId: string) => workerProxy(model.uri).then((worker) => worker.getEmbeddedDocument(model.uri.toString(), languageId));
     const attachEmbeddedLanguage = async (languageId: string) => {
-      const uri = toEbeddedUri(model, languageId);
+      const uri = toEmbeddedUri(model, languageId);
       const doc = await getEmbeddedDocument(languageId);
       if (doc) {
         const emebeddedModel = editor.getModel(uri);
@@ -107,7 +106,7 @@ export function attachEmbeddedLanguages<T extends ILanguageWorkerWithEmbeddedSup
   };
   const cleanUp = (model: monacoNS.editor.IModel) => {
     embeddedLanguageIds.forEach((languageId) => {
-      const uri = toEbeddedUri(model, languageId);
+      const uri = toEmbeddedUri(model, languageId);
       editor.getModel(uri)?.dispose();
     });
   };
@@ -120,6 +119,59 @@ export function attachEmbeddedLanguages<T extends ILanguageWorkerWithEmbeddedSup
     validateModel(model);
   });
   editor.getModels().forEach(validateModel);
+}
+
+export function proxyWorkerWithEmbeddedLanguages<T extends ILanguageWorkerWithEmbeddedSupport>(
+  embeddedLanguages: Record<string, string>,
+  rawWorkerProxy: WorkerProxy<T>,
+): WorkerProxy<T> {
+  const redirectLSPRequest = async (rsl: string, method: string, uri: string, ...args: any[]) => {
+    // @ts-expect-error `workerProxies` is added by esm-monaco
+    const { workerProxies } = MonacoEnvironment;
+    const langaugeId = rsl === "importmap" ? "json" : rsl;
+    const workerProxy = workerProxies[langaugeId];
+    if (typeof workerProxy === "function") {
+      const embeddedUri = Monaco.Uri.parse(uri + ".__EMBEDDED__." + embeddedLanguages[rsl]);
+      return workerProxy(embeddedUri).then(worker => worker[method]?.(embeddedUri.toString(), ...args));
+    }
+    if (!workerProxy) {
+      workerProxies[langaugeId] = {
+        resolve: () => {
+          // refresh diagnostics
+          refreshDiagnostics(langaugeId);
+        },
+      };
+    }
+    return null;
+  };
+
+  return async (...uris) => {
+    const worker = await rawWorkerProxy(...uris);
+    return new Proxy(worker, {
+      get(target, prop, receiver) {
+        const value: any = Reflect.get(target, prop, receiver);
+        if (typeof value === "function") {
+          return async (uri: string, ...args: any[]) => {
+            const ret = await value(uri, ...args);
+            if (typeof ret === "object" && ret != null && !Array.isArray(ret) && "$embedded" in ret) {
+              const embedded = ret.$embedded;
+              if (typeof embedded === "string") {
+                return redirectLSPRequest(embedded, prop as string, uri, ...args);
+              } else if (typeof embedded === "object" && embedded != null) {
+                const { languageIds, data, origin } = embedded;
+                const promises = languageIds.map((rsl: string, i: number) => redirectLSPRequest(rsl, prop as string, uri, ...args, data?.[i]));
+                const results = await Promise.all(promises);
+                return origin.concat(...results.filter((r) => Array.isArray(r)));
+              }
+              return null;
+            }
+            return ret;
+          };
+        }
+        return value;
+      },
+    });
+  };
 }
 
 // #endregion
