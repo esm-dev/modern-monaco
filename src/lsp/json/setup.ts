@@ -1,10 +1,8 @@
 import type monacoNS from "monaco-editor-core";
 import type { FormattingOptions } from "vscode-languageserver-types";
 import type { CreateData, JSONWorker } from "./worker";
+import * as lfs from "../language-features.js";
 import { schemas } from "./schemas";
-
-// ! external module, don't remove the `.js` extension
-import * as lf from "../language-features.js";
 
 export function setup(
   monaco: typeof monacoNS,
@@ -13,8 +11,6 @@ export function setup(
   formattingOptions?: FormattingOptions,
 ) {
   const { editor, languages } = monaco;
-  const diagnosticsEmitter = new monaco.Emitter<void>();
-  const codeLensEmitter = new monaco.Emitter<monacoNS.languages.CodeLensProvider>();
   const createData: CreateData = {
     languageId,
     options: {
@@ -38,15 +34,14 @@ export function setup(
       },
     },
   };
+  const codeLensEmitter = new monaco.Emitter<monacoNS.languages.CodeLensProvider>();
   const codeLensProvider: monacoNS.languages.CodeLensProvider = {
     onDidChange: codeLensEmitter.event,
     resolveCodeLens: (model, codeLens, token) => {
       return codeLens;
     },
     provideCodeLenses: function(model, token) {
-      const isImportMap = ["importmap.json", "import_map.json", "import-map.json", "importMap.json"].some((name) =>
-        model.uri.path === "/" + name
-      );
+      const isImportMap = ["importmap.json", "import_map.json", "import-map.json", "importMap.json"].some((name) => model.uri.path === "/" + name);
       if (isImportMap) {
         const m2 = model.findNextMatch(`"imports":\\s*\\{`, { column: 1, lineNumber: 1 }, true, false, null, false);
         return {
@@ -71,7 +66,7 @@ export function setup(
     label: languageId,
     createData,
   });
-  const workerProxy: lf.WorkerProxy<JSONWorker> = (
+  const workerProxy: lfs.WorkerProxy<JSONWorker> = (
     ...uris: monacoNS.Uri[]
   ): Promise<JSONWorker> => {
     return worker.withSyncedResources(uris);
@@ -94,12 +89,9 @@ export function setup(
   MonacoEnvironment.onWorker(languageId, workerProxy);
 
   // set monacoNS and register language features
-  lf.setup(monaco);
-  lf.registerDefault(languageId, workerProxy, [" ", ":", "\""]);
+  lfs.setup(monaco);
+  lfs.registerDefault(languageId, workerProxy, [" ", ":", "\""]);
   languages.registerCodeLensProvider(languageId, codeLensProvider);
-
-  // register diagnostics adapter
-  new lf.DiagnosticsAdapter(languageId, workerProxy, diagnosticsEmitter.event);
 }
 
 export function getWorkerUrl() {

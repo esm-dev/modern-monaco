@@ -7,6 +7,7 @@
 import type monacoNS from "monaco-editor-core";
 import type * as lst from "vscode-languageserver-types";
 import * as htmlService from "vscode-html-languageservice";
+import { initializeWorker } from "../../editor-worker.js";
 import { getDocumentRegions } from "./embedded-support";
 
 export interface HTMLDataConfiguration {
@@ -382,6 +383,4 @@ export class HTMLWorker {
   }
 }
 
-// ! external module, don't remove the `.js` extension
-import { initializeWorker } from "../../editor-worker.js";
 initializeWorker(HTMLWorker);

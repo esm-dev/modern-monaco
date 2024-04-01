@@ -197,9 +197,7 @@ Deno.serve((req) => {
       "content-type": getContentType(url.pathname),
     });
     return new Response(
-      `import { VFS } from "/vfs.js";export const vfs = new VFS({ scope: "test", initial: ${
-        JSON.stringify(files, null, 2)
-      } });`,
+      `import { VFS } from "/vfs.js";export const vfs = new VFS({ scope: "test", initial: ${JSON.stringify(files, null, 2)} });`,
       { headers },
     );
   }

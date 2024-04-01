@@ -1,9 +1,7 @@
 import type monacoNS from "monaco-editor-core";
 import type { FormattingOptions } from "vscode-languageserver-types";
 import type { CreateData, CSSWorker } from "./worker";
-
-// ! external module, don't remove the `.js` extension
-import * as lf from "../language-features.js";
+import * as lfs from "../language-features.js";
 
 export function setup(
   monaco: typeof monacoNS,
@@ -12,7 +10,6 @@ export function setup(
   formattingOptions?: FormattingOptions,
 ) {
   const languages = monaco.languages;
-  const diagnosticsEmitter = new monaco.Emitter<void>();
   const { tabSize, insertSpaces, insertFinalNewline, trimFinalNewlines } = formattingOptions ?? {};
   const createData: CreateData = {
     languageId,
@@ -37,7 +34,7 @@ export function setup(
     label: languageId,
     createData,
   });
-  const workerProxy: lf.WorkerProxy<CSSWorker> = (
+  const workerProxy: lfs.WorkerProxy<CSSWorker> = (
     ...uris: monacoNS.Uri[]
   ): Promise<CSSWorker> => {
     return worker.withSyncedResources(uris);
@@ -47,16 +44,13 @@ export function setup(
   MonacoEnvironment.onWorker(languageId, workerProxy);
 
   // set monacoNS and register language features
-  lf.setup(monaco);
-  lf.registerDefault(languageId, workerProxy, ["/", "-", ":"]);
-  languages.registerColorProvider(languageId, new lf.DocumentColorAdapter(workerProxy));
-  languages.registerDefinitionProvider(languageId, new lf.DefinitionAdapter(workerProxy));
-  languages.registerReferenceProvider(languageId, new lf.ReferenceAdapter(workerProxy));
-  languages.registerDocumentHighlightProvider(languageId, new lf.DocumentHighlightAdapter(workerProxy));
-  languages.registerRenameProvider(languageId, new lf.RenameAdapter(workerProxy));
-
-  // register diagnostics adapter
-  new lf.DiagnosticsAdapter(languageId, workerProxy, diagnosticsEmitter.event);
+  lfs.setup(monaco);
+  lfs.registerDefault(languageId, workerProxy, ["/", "-", ":"]);
+  languages.registerColorProvider(languageId, new lfs.DocumentColorAdapter(workerProxy));
+  languages.registerDefinitionProvider(languageId, new lfs.DefinitionAdapter(workerProxy));
+  languages.registerReferenceProvider(languageId, new lfs.ReferenceAdapter(workerProxy));
+  languages.registerDocumentHighlightProvider(languageId, new lfs.DocumentHighlightAdapter(workerProxy));
+  languages.registerRenameProvider(languageId, new lfs.RenameAdapter(workerProxy));
 }
 
 export function getWorkerUrl() {

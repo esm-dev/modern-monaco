@@ -21,15 +21,13 @@ export const schemas: SchemaConfiguration[] = [
           type: "object",
           properties: {
             "@jsxImportSource": {
-              description:
-                "The key is the specifier for JSX import source, with a value that represents the target specifier.",
+              description: "The key is the specifier for JSX import source, with a value that represents the target specifier.",
               type: "string",
               default: "https://esm.sh/react@18.2.0",
             },
           },
           additionalProperties: {
-            description:
-              "The key is the specifier or partial specifier to match, with a value that represents the target specifier.",
+            description: "The key is the specifier or partial specifier to match, with a value that represents the target specifier.",
             type: "string",
           },
         },

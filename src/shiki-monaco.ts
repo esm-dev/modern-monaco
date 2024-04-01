@@ -9,9 +9,7 @@ import { INITIAL, StackElementMetadata } from "@shikijs/core/textmate";
 export interface MonacoTheme extends monacoNs.editor.IStandaloneThemeData {}
 
 export function textmateThemeToMonacoTheme(theme: ThemeRegistrationResolved): MonacoTheme {
-  let rules = "rules" in theme
-    ? theme.rules as MonacoTheme["rules"]
-    : undefined;
+  let rules = "rules" in theme ? theme.rules as MonacoTheme["rules"] : undefined;
 
   if (!rules) {
     rules = [];
@@ -29,23 +27,20 @@ export function textmateThemeToMonacoTheme(theme: ThemeRegistrationResolved): Mo
     }
   }
 
-  const colors = Object.fromEntries(
-    Object.entries(theme.colors || {})
-      .map(([key, value]) => [key, `#${normalizeColor(value)}`]),
-  );
-
   return {
     base: theme.type === "light" ? "vs" : "vs-dark",
+    colors: Object.fromEntries(Object.entries(theme.colors ?? {}).map(([key, value]) => [key, `#${normalizeColor(value)}`])),
     inherit: false,
-    colors,
     rules,
   };
 }
 
-export function shikiToMonaco(
-  highlighter: ShikiInternal<any, any>,
-  monaco: typeof monacoNs,
-) {
+export function shikiToMonaco(highlighter: ShikiInternal<any, any>, monaco: typeof monacoNs) {
+  // Do not attempt to tokenize if a line is too long
+  // default to 20000 (as in monaco-editor-core defaults)
+  const tokenizeMaxLineLength = 20000;
+  const tokenizeTimeLimit = 500;
+
   // Convert themes to Monaco themes and register them
   const themeMap = new Map<string, MonacoTheme>();
   const themeIds = highlighter.getLoadedThemes();
@@ -67,7 +62,7 @@ export function shikiToMonaco(
     const theme = themeMap.get(themeName);
     colorMap.length = ret.colorMap.length;
     ret.colorMap.forEach((color, i) => {
-      colorMap[i] = color;
+      colorMap[i] = normalizeColor(color);
     });
     colorToScopeMap.clear();
     theme?.rules.forEach((rule) => {
@@ -82,10 +77,6 @@ export function shikiToMonaco(
   // Set the first theme as the default theme
   monaco.editor.setTheme(themeIds[0]);
 
-  function findScopeByColor(color: string) {
-    return colorToScopeMap.get(color);
-  }
-
   const monacoLanguageIds = new Set(monaco.languages.getLanguages().map(l => l.id));
   for (const lang of highlighter.getLoadedLanguages()) {
     if (monacoLanguageIds.has(lang)) {
@@ -94,11 +85,6 @@ export function shikiToMonaco(
           return new TokenizerState(INITIAL);
         },
         tokenize(line, state: TokenizerState) {
-          // Do not attempt to tokenize if a line is too long
-          // default to 20000 (as in monaco-editor-core defaults)
-          const tokenizeMaxLineLength = 20000;
-          const tokenizeTimeLimit = 500;
-
           if (line.length >= tokenizeMaxLineLength) {
             return {
               endState: state,
@@ -108,21 +94,20 @@ export function shikiToMonaco(
 
           const grammar = highlighter.getLanguage(lang);
           const result = grammar.tokenizeLine2(line, state.ruleStack, tokenizeTimeLimit);
-
           if (result.stoppedEarly) {
             console.warn(`Time limit reached when tokenizing line: ${line.substring(0, 100)}`);
           }
 
           const tokensLength = result.tokens.length / 2;
-          const tokens: any[] = [];
+          const tokens: any[] = new Array(tokensLength);
           for (let j = 0; j < tokensLength; j++) {
             const startIndex = result.tokens[2 * j];
             const metadata = result.tokens[2 * j + 1];
-            const color = normalizeColor(colorMap[StackElementMetadata.getForeground(metadata)] || "");
+            const color = colorMap[StackElementMetadata.getForeground(metadata)] ?? "";
             // Because Monaco only support one scope per token,
             // we workaround this to use color to trace back the scope
-            const scope = findScopeByColor(color) || "";
-            tokens.push({ startIndex, scopes: scope });
+            const scope = colorToScopeMap.get(color) ?? "";
+            tokens[j] = { startIndex, scopes: scope };
           }
 
           return { endState: new TokenizerState(result.ruleStack), tokens };
@@ -146,16 +131,12 @@ class TokenizerState implements monacoNs.languages.IState {
   }
 
   public equals(other: monacoNs.languages.IState): boolean {
-    if (
-      !other
-      || !(other instanceof TokenizerState)
-      || other !== this
-      || other._ruleStack !== this._ruleStack
-    ) {
-      return false;
-    }
-
-    return true;
+    return (
+      other
+      && other instanceof TokenizerState
+      && other === this
+      && other._ruleStack === this._ruleStack
+    );
   }
 }
 

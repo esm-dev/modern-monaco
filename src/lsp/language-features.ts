@@ -18,8 +18,11 @@ export function setup(monaco: typeof monacoNS) {
 
 // #region register default language features
 
+const refreshEmitters: Map<string, monacoNS.Emitter<void>> = new Map();
+
 export function registerDefault<
   T extends
+    & ILanguageWorkerWithValidation
     & ILanguageWorkerWithCompletions
     & ILanguageWorkerWithHover
     & ILanguageWorkerWithFormat
@@ -32,19 +35,29 @@ export function registerDefault<
   completionTriggerCharacters: string[],
   noFoldingRangeAdapter?: boolean,
 ) {
-  const { languages } = Monaco;
+  const { languages, Emitter } = Monaco;
+
+  // create diagnostics adapter
+  const refreshEmitter = new Emitter<void>();
+  new DiagnosticsAdapter(languageId, workerProxy, refreshEmitter.event);
+  refreshEmitters.set(languageId, refreshEmitter);
+
+  // register language features
   languages.registerCompletionItemProvider(languageId, new CompletionAdapter(workerProxy, completionTriggerCharacters));
   languages.registerHoverProvider(languageId, new HoverAdapter(workerProxy));
   languages.registerDocumentSymbolProvider(languageId, new DocumentSymbolAdapter(workerProxy));
   languages.registerDocumentFormattingEditProvider(languageId, new DocumentFormattingEditProvider(workerProxy));
-  languages.registerDocumentRangeFormattingEditProvider(
-    languageId,
-    new DocumentRangeFormattingEditProvider(workerProxy),
-  );
+  languages.registerDocumentRangeFormattingEditProvider(languageId, new DocumentRangeFormattingEditProvider(workerProxy));
   languages.registerSelectionRangeProvider(languageId, new SelectionRangeAdapter(workerProxy));
   if (!noFoldingRangeAdapter) {
     languages.registerFoldingRangeProvider(languageId, new FoldingRangeAdapter(workerProxy));
   }
+}
+
+export function refreshDiagnostics(...langaugeIds: string[]) {
+  langaugeIds.forEach((langaugeId) => {
+    refreshEmitters.get(langaugeId)?.fire();
+  });
 }
 
 // #endregion
@@ -68,8 +81,7 @@ export function attachEmbeddedLanguages<T extends ILanguageWorkerWithEmbeddedSup
     if (model.getLanguageId() !== "html") {
       return;
     }
-    const getEmbeddedDocument = (languageId: string) =>
-      worker(model.uri).then((worker) => worker.getEmbeddedDocument(model.uri.toString(), languageId));
+    const getEmbeddedDocument = (languageId: string) => worker(model.uri).then((worker) => worker.getEmbeddedDocument(model.uri.toString(), languageId));
 
     const attachEmbeddedLanguage = async (languageId: string) => {
       const uri = toEbeddedUri(model, languageId);
@@ -114,11 +126,11 @@ export function attachEmbeddedLanguages<T extends ILanguageWorkerWithEmbeddedSup
 
 // #region DiagnosticsAdapter
 
-export interface ILanguageWorkerWithDiagnostics {
-  doValidation(uri: string): Promise<lst.Diagnostic[]>;
+export interface ILanguageWorkerWithValidation {
+  doValidation(uri: string): Promise<lst.Diagnostic[] | null>;
 }
 
-export class DiagnosticsAdapter<T extends ILanguageWorkerWithDiagnostics> {
+export class DiagnosticsAdapter<T extends ILanguageWorkerWithValidation> {
   private readonly _listeners: { [uri: string]: monacoNS.IDisposable } = Object.create(null);
 
   constructor(
@@ -177,25 +189,10 @@ export class DiagnosticsAdapter<T extends ILanguageWorkerWithDiagnostics> {
   private async _doValidate(model: monacoNS.editor.ITextModel): Promise<void> {
     const worker = await this._worker(model.uri);
     const diagnostics = await worker.doValidation(model.uri.toString());
-    const markers = diagnostics.map(toMarker);
-    if (!model.isDisposed()) {
+    if (diagnostics && !model.isDisposed()) {
+      const markers = diagnostics.map(toMarker);
       Monaco.editor.setModelMarkers(model, this._languageId, markers);
     }
-  }
-}
-
-function toSeverity(lsSeverity: number | undefined): monacoNS.MarkerSeverity {
-  switch (lsSeverity) {
-    case lst.DiagnosticSeverity.Error:
-      return Monaco.MarkerSeverity.Error;
-    case lst.DiagnosticSeverity.Warning:
-      return Monaco.MarkerSeverity.Warning;
-    case lst.DiagnosticSeverity.Information:
-      return Monaco.MarkerSeverity.Info;
-    case lst.DiagnosticSeverity.Hint:
-      return Monaco.MarkerSeverity.Hint;
-    default:
-      return Monaco.MarkerSeverity.Info;
   }
 }
 
@@ -223,6 +220,21 @@ function toMarker({
   };
 }
 
+function toSeverity(lsSeverity: number | undefined): monacoNS.MarkerSeverity {
+  switch (lsSeverity) {
+    case lst.DiagnosticSeverity.Error:
+      return Monaco.MarkerSeverity.Error;
+    case lst.DiagnosticSeverity.Warning:
+      return Monaco.MarkerSeverity.Warning;
+    case lst.DiagnosticSeverity.Information:
+      return Monaco.MarkerSeverity.Info;
+    case lst.DiagnosticSeverity.Hint:
+      return Monaco.MarkerSeverity.Hint;
+    default:
+      return Monaco.MarkerSeverity.Info;
+  }
+}
+
 function toRelatedInformation(info: lst.DiagnosticRelatedInformation): monacoNS.editor.IRelatedInformation {
   const { location: { uri, range }, message } = info;
   const { start, end } = range;
@@ -245,9 +257,7 @@ export interface ILanguageWorkerWithCompletions {
   doResolveCompletionItem?(item: lst.CompletionItem): Promise<lst.CompletionItem | null>;
 }
 
-export class CompletionAdapter<T extends ILanguageWorkerWithCompletions>
-  implements monacoNS.languages.CompletionItemProvider
-{
+export class CompletionAdapter<T extends ILanguageWorkerWithCompletions> implements monacoNS.languages.CompletionItemProvider {
   constructor(
     private readonly _worker: WorkerProxy<T>,
     private readonly _triggerCharacters: string[],
@@ -529,9 +539,7 @@ interface ILanguageWorkerWithSignatureHelp {
   ): Promise<lst.SignatureHelp | null>;
 }
 
-export class SignatureHelpAdapter<T extends ILanguageWorkerWithSignatureHelp>
-  implements monacoNS.languages.SignatureHelpProvider
-{
+export class SignatureHelpAdapter<T extends ILanguageWorkerWithSignatureHelp> implements monacoNS.languages.SignatureHelpProvider {
   constructor(
     private readonly _worker: WorkerProxy<T>,
     private readonly _triggerCharacters: string[],
@@ -574,9 +582,7 @@ export interface ILanguageWorkerWithCodeAction {
   ): Promise<lst.CodeAction[] | null>;
 }
 
-export class CodeActionAdaptor<T extends ILanguageWorkerWithCodeAction>
-  implements monacoNS.languages.CodeActionProvider
-{
+export class CodeActionAdaptor<T extends ILanguageWorkerWithCodeAction> implements monacoNS.languages.CodeActionProvider {
   constructor(private readonly _worker: WorkerProxy<T>) {}
 
   public async provideCodeActions(
@@ -664,12 +670,10 @@ export interface ILanguageWorkerWithFormat {
     range: lst.Range | null,
     options: lst.FormattingOptions,
     docText?: string,
-  ): Promise<lst.TextEdit[]>;
+  ): Promise<lst.TextEdit[] | null>;
 }
 
-export class DocumentFormattingEditProvider<T extends ILanguageWorkerWithFormat>
-  implements monacoNS.languages.DocumentFormattingEditProvider
-{
+export class DocumentFormattingEditProvider<T extends ILanguageWorkerWithFormat> implements monacoNS.languages.DocumentFormattingEditProvider {
   constructor(private _worker: WorkerProxy<T>) {}
 
   async provideDocumentFormattingEdits(
@@ -685,9 +689,7 @@ export class DocumentFormattingEditProvider<T extends ILanguageWorkerWithFormat>
   }
 }
 
-export class DocumentRangeFormattingEditProvider<T extends ILanguageWorkerWithFormat>
-  implements monacoNS.languages.DocumentRangeFormattingEditProvider
-{
+export class DocumentRangeFormattingEditProvider<T extends ILanguageWorkerWithFormat> implements monacoNS.languages.DocumentRangeFormattingEditProvider {
   constructor(private _worker: WorkerProxy<T>) {}
 
   async provideDocumentRangeFormattingEdits(
@@ -715,9 +717,7 @@ export interface ILanguageWorkerWithDefinitions {
   ): Promise<(lst.Location & { originSelectionRange?: lst.Range })[] | null>;
 }
 
-export class DefinitionAdapter<T extends ILanguageWorkerWithDefinitions>
-  implements monacoNS.languages.DefinitionProvider
-{
+export class DefinitionAdapter<T extends ILanguageWorkerWithDefinitions> implements monacoNS.languages.DefinitionProvider {
   constructor(private readonly _worker: WorkerProxy<T>) {}
 
   async provideDefinition(
@@ -755,7 +755,7 @@ function toLocationLink(
 // #region ReferenceAdapter
 
 export interface ILanguageWorkerWithReferences {
-  findReferences(uri: string, position: lst.Position): Promise<lst.Location[]>;
+  findReferences(uri: string, position: lst.Position): Promise<lst.Location[] | null>;
 }
 
 export class ReferenceAdapter<T extends ILanguageWorkerWithReferences> implements monacoNS.languages.ReferenceProvider {
@@ -783,9 +783,7 @@ export interface ILanguageWorkerWithDocumentSymbols {
   findDocumentSymbols(uri: string): Promise<(lst.SymbolInformation | lst.DocumentSymbol)[] | null>;
 }
 
-export class DocumentSymbolAdapter<T extends ILanguageWorkerWithDocumentSymbols>
-  implements monacoNS.languages.DocumentSymbolProvider
-{
+export class DocumentSymbolAdapter<T extends ILanguageWorkerWithDocumentSymbols> implements monacoNS.languages.DocumentSymbolProvider {
   constructor(private readonly _worker: WorkerProxy<T>) {}
 
   async provideDocumentSymbols(
@@ -878,12 +876,10 @@ function toSymbolKind(kind: lst.SymbolKind): monacoNS.languages.SymbolKind {
 // #region DocumentLinkAdapter
 
 export interface ILanguageWorkerWithDocumentLinks {
-  findDocumentLinks(uri: string): Promise<lst.DocumentLink[]>;
+  findDocumentLinks(uri: string): Promise<lst.DocumentLink[] | null>;
 }
 
-export class DocumentLinkAdapter<T extends ILanguageWorkerWithDocumentLinks>
-  implements monacoNS.languages.LinkProvider
-{
+export class DocumentLinkAdapter<T extends ILanguageWorkerWithDocumentLinks> implements monacoNS.languages.LinkProvider {
   constructor(private _worker: WorkerProxy<T>) {}
 
   async provideLinks(
@@ -907,13 +903,11 @@ export class DocumentLinkAdapter<T extends ILanguageWorkerWithDocumentLinks>
 // #region DocumentColorAdapter
 
 export interface ILanguageWorkerWithDocumentColors {
-  findDocumentColors(uri: string): Promise<lst.ColorInformation[]>;
-  getColorPresentations(uri: string, color: lst.Color, range: lst.Range): Promise<lst.ColorPresentation[]>;
+  findDocumentColors(uri: string): Promise<lst.ColorInformation[] | null>;
+  getColorPresentations(uri: string, color: lst.Color, range: lst.Range): Promise<lst.ColorPresentation[] | null>;
 }
 
-export class DocumentColorAdapter<T extends ILanguageWorkerWithDocumentColors>
-  implements monacoNS.languages.DocumentColorProvider
-{
+export class DocumentColorAdapter<T extends ILanguageWorkerWithDocumentColors> implements monacoNS.languages.DocumentColorProvider {
   constructor(private readonly _worker: WorkerProxy<T>) {}
 
   async provideDocumentColors(
@@ -952,7 +946,7 @@ export class DocumentColorAdapter<T extends ILanguageWorkerWithDocumentColors>
 // #region DocumentHighlightAdapter
 
 export interface ILanguageWorkerWithDocumentHighlights {
-  findDocumentHighlights(uri: string, position: lst.Position): Promise<lst.DocumentHighlight[]>;
+  findDocumentHighlights(uri: string, position: lst.Position): Promise<lst.DocumentHighlight[] | null>;
 }
 
 export class DocumentHighlightAdapter<
@@ -997,12 +991,10 @@ function toDocumentHighlightKind(
 // #region FoldingRangeAdapter
 
 export interface ILanguageWorkerWithFoldingRanges {
-  getFoldingRanges(uri: string, context?: { rangeLimit?: number }): Promise<lst.FoldingRange[]>;
+  getFoldingRanges(uri: string, context?: { rangeLimit?: number }): Promise<lst.FoldingRange[] | null>;
 }
 
-export class FoldingRangeAdapter<T extends ILanguageWorkerWithFoldingRanges>
-  implements monacoNS.languages.FoldingRangeProvider
-{
+export class FoldingRangeAdapter<T extends ILanguageWorkerWithFoldingRanges> implements monacoNS.languages.FoldingRangeProvider {
   constructor(private _worker: WorkerProxy<T>) {}
 
   async provideFoldingRanges(
@@ -1027,9 +1019,7 @@ export class FoldingRangeAdapter<T extends ILanguageWorkerWithFoldingRanges>
   }
 }
 
-function toFoldingRangeKind(
-  kind: lst.FoldingRangeKind,
-): monacoNS.languages.FoldingRangeKind | undefined {
+function toFoldingRangeKind(kind: lst.FoldingRangeKind): monacoNS.languages.FoldingRangeKind | undefined {
   switch (kind) {
     case lst.FoldingRangeKind.Comment:
       return Monaco.languages.FoldingRangeKind.Comment;
@@ -1046,12 +1036,10 @@ function toFoldingRangeKind(
 // #region SelectionRangeAdapter
 
 export interface ILanguageWorkerWithSelectionRanges {
-  getSelectionRanges(uri: string, positions: lst.Position[]): Promise<lst.SelectionRange[]>;
+  getSelectionRanges(uri: string, positions: lst.Position[]): Promise<lst.SelectionRange[] | null>;
 }
 
-export class SelectionRangeAdapter<T extends ILanguageWorkerWithSelectionRanges>
-  implements monacoNS.languages.SelectionRangeProvider
-{
+export class SelectionRangeAdapter<T extends ILanguageWorkerWithSelectionRanges> implements monacoNS.languages.SelectionRangeProvider {
   constructor(private _worker: WorkerProxy<T>) {}
 
   async provideSelectionRanges(
@@ -1087,9 +1075,7 @@ export interface ILanguageWorkerWithLinkedEditingRange {
   ): Promise<{ ranges: lst.Range[]; wordPattern?: string } | null>;
 }
 
-export class LinkedEditingRangeAdapter<T extends ILanguageWorkerWithLinkedEditingRange>
-  implements monacoNS.languages.LinkedEditingRangeProvider
-{
+export class LinkedEditingRangeAdapter<T extends ILanguageWorkerWithLinkedEditingRange> implements monacoNS.languages.LinkedEditingRangeProvider {
   constructor(private _worker: WorkerProxy<T>) {}
 
   async provideLinkedEditingRanges(
@@ -1117,12 +1103,10 @@ export class LinkedEditingRangeAdapter<T extends ILanguageWorkerWithLinkedEditin
 // #region InlayHintsAdapter
 
 export interface ILanguageWorkerWithInlayHints {
-  provideInlayHints(uri: string, range: lst.Range): Promise<lst.InlayHint[] | undefined>;
+  provideInlayHints(uri: string, range: lst.Range): Promise<lst.InlayHint[] | null>;
 }
 
-export class InlayHintsAdapter<T extends ILanguageWorkerWithInlayHints>
-  implements monacoNS.languages.InlayHintsProvider
-{
+export class InlayHintsAdapter<T extends ILanguageWorkerWithInlayHints> implements monacoNS.languages.InlayHintsProvider {
   constructor(private _worker: WorkerProxy<T>) {}
 
   public async provideInlayHints(

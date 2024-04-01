@@ -17,11 +17,11 @@ import {
   SelectionRange,
   SymbolKind,
   TextDocument,
-  TextEdit,
 } from "vscode-languageserver-types";
 import ts from "typescript";
-import { type ImportMap, isBlank, resolve } from "../../import-map.js";
 import { cache } from "../../cache.js";
+import { initializeWorker } from "../../editor-worker.js";
+import { type ImportMap, isBlank, resolve } from "../../import-map.js";
 
 export interface Host {
   openModel(uri: string): Promise<boolean>;
@@ -418,438 +418,10 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   // #endregion
 
   // #region language features
-
-  async getSyntacticDiagnostics(fileName: string): Promise<Diagnostic[]> {
-    const diagnostics = this._languageService.getSyntacticDiagnostics(fileName);
-    return clearFiles(diagnostics);
-  }
-
-  async getSemanticDiagnostics(fileName: string): Promise<Diagnostic[]> {
-    const diagnostics = this._languageService.getSemanticDiagnostics(fileName);
-    return clearFiles(diagnostics);
-  }
-
-  async getSuggestionDiagnostics(fileName: string): Promise<Diagnostic[]> {
-    const diagnostics = this._languageService.getSuggestionDiagnostics(fileName);
-    const finDiagnostics = clearFiles(diagnostics);
-    if (this._httpRedirects.length > 0) {
-      this._httpRedirects.forEach(({ node, url }) => {
-        finDiagnostics.push({
-          file: { fileName },
-          start: node.getStart(),
-          length: node.getWidth(),
-          code: 7000,
-          category: ts.DiagnosticCategory.Message,
-          messageText: `The module was redirected to ${url}`,
-        });
-      });
-    }
-    return finDiagnostics;
-  }
-
-  // async getCompilerOptionsDiagnostics(fileName: string): Promise<Diagnostic[]> {
-  //   const diagnostics = this._languageService.getCompilerOptionsDiagnostics();
-  //   return clearFiles(diagnostics);
-  // }
-
-  async getCompletionsAtPosition(fileName: string, position: number): Promise<ts.CompletionInfo | undefined> {
-    const completions = this._languageService.getCompletionsAtPosition(
-      fileName,
-      position,
-      {
-        quotePreference: this._formatOptions?.quotePreference,
-        allowRenameOfImportPath: true,
-        importModuleSpecifierEnding: "js",
-        importModuleSpecifierPreference: "shortest",
-        includeCompletionsForModuleExports: true,
-        includeCompletionsForImportStatements: true,
-        includePackageJsonAutoImports: "off",
-        organizeImportsIgnoreCase: false,
-      },
-    );
-    // filter repeated auto-import suggestions from a types module
-    if (completions) {
-      const autoImports = new Set<string>();
-      completions.entries = completions.entries.filter((entry) => {
-        const { data } = entry;
-        if (!data || !isDts(data.fileName)) {
-          return true;
-        }
-        if (data.moduleSpecifier in this._importMap.imports || this._dtsMap.has(data.moduleSpecifier)) {
-          autoImports.add(data.exportName + " " + data.moduleSpecifier);
-          return true;
-        }
-        const specifier = this._getSpecifierFromDts(data.fileName);
-        if (specifier && !autoImports.has(data.exportName + " " + specifier)) {
-          autoImports.add(data.exportName + " " + specifier);
-          return true;
-        }
-        return false;
-      });
-    }
-    return completions;
-  }
-
-  async getCompletionEntryDetails(
-    fileName: string,
-    position: number,
-    entryName: string,
-    data?: ts.CompletionEntryData,
-  ): Promise<ts.CompletionEntryDetails | undefined> {
-    try {
-      const detail = this._languageService.getCompletionEntryDetails(
-        fileName,
-        position,
-        entryName,
-        {
-          insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: true,
-          semicolons: ts.SemicolonPreference.Insert,
-        },
-        undefined,
-        undefined,
-        data,
-      );
-      // fix the url of auto import suggestions from a types module
-      detail?.codeActions?.forEach((action) => {
-        if (action.description.startsWith("Add import from ")) {
-          const specifier = action.description.slice(17, -1);
-          const newSpecifier = this._getSpecifierFromDts(
-            isDts(specifier) ? specifier : specifier + ".d.ts",
-          );
-          if (newSpecifier) {
-            action.description = `Add type import from "${newSpecifier}"`;
-            action.changes.forEach((change) => {
-              change.textChanges.forEach((textChange) => {
-                textChange.newText = textChange.newText.replace(
-                  specifier,
-                  newSpecifier,
-                );
-              });
-            });
-          }
-        }
-      });
-      return detail;
-    } catch (error) {
-      return;
-    }
-  }
-
-  async getSignatureHelpItems(
-    fileName: string,
-    position: number,
-    options: ts.SignatureHelpItemsOptions | undefined,
-  ): Promise<ts.SignatureHelpItems | undefined> {
-    return this._languageService.getSignatureHelpItems(
-      fileName,
-      position,
-      options,
-    );
-  }
-
-  async getQuickInfoAtPosition(fileName: string, position: number): Promise<ts.QuickInfo | undefined> {
-    const info = this._languageService.getQuickInfoAtPosition(fileName, position);
-    if (!info) {
-      return;
-    }
-
-    // pettier display for module specifiers
-    const { kind, kindModifiers, displayParts, textSpan } = info;
-    if (kind === ts.ScriptElementKind.moduleElement && displayParts?.length === 3) {
-      const moduleName = displayParts[2].text;
-      // show pathname for `file:` specifiers
-      if (moduleName.startsWith("\"file:") && fileName.startsWith("file:")) {
-        const model = this._getModel(fileName);
-        const literalText = model.getValue().substring(
-          textSpan.start,
-          textSpan.start + textSpan.length,
-        );
-        const specifier = JSON.parse(literalText);
-        info.displayParts[2].text = "\"" + new URL(specifier, fileName).pathname + "\"";
-      } else if (
-        // show module url for `http:` specifiers instead of the types url
-        kindModifiers === "declare" && moduleName.startsWith("\"http")
-      ) {
-        const specifier = JSON.parse(moduleName);
-        for (const [url, dts] of this._dtsMap) {
-          if (specifier + ".d.ts" === dts) {
-            info.displayParts[2].text = "\"" + url + "\"";
-            info.tags = [{
-              name: "types",
-              text: [{ kind: "text", text: dts }],
-            }];
-            if (/^https:\/\/esm\.sh\//.test(url)) {
-              const { pathname } = new URL(url);
-              const pathSegments = pathname.split("/").slice(1);
-              if (/^v\d$/.test(pathSegments[0])) {
-                pathSegments.shift();
-              }
-              let scope = "";
-              let pkgName = pathSegments.shift();
-              if (pkgName?.startsWith("@")) {
-                scope = pkgName;
-                pkgName = pathSegments.shift();
-              }
-              if (!pkgName) {
-                continue;
-              }
-              const npmPkgId = [scope, pkgName.split("@")[0]].filter(Boolean).join("/");
-              const npmPkgUrl = `https://www.npmjs.com/package/${npmPkgId}`;
-              info.tags.unshift({
-                name: "npm",
-                text: [{ kind: "text", text: `[${npmPkgId}](${npmPkgUrl})` }],
-              });
-            }
-            break;
-          }
-        }
-      }
-    }
-    return info;
-  }
-
-  async getDocumentHighlights(
-    fileName: string,
-    position: number,
-    filesToSearch: string[],
-  ): Promise<ReadonlyArray<ts.DocumentHighlights> | undefined> {
-    return this._languageService.getDocumentHighlights(
-      fileName,
-      position,
-      filesToSearch,
-    );
-  }
-
-  async getDefinitionAndBoundSpan(
-    fileName: string,
-    position: number,
-  ): Promise<ts.DefinitionInfoAndBoundSpan | undefined> {
-    return this._languageService.getDefinitionAndBoundSpan(fileName, position);
-  }
-
-  async getReferencesAtPosition(
-    fileName: string,
-    position: number,
-  ): Promise<ts.ReferenceEntry[] | undefined> {
-    return this._languageService.getReferencesAtPosition(fileName, position);
-  }
-
-  async getNavigationTree(fileName: string): Promise<ts.NavigationTree | undefined> {
-    return this._languageService.getNavigationTree(fileName);
-  }
-
-  // async getFormattingEditsForDocument(
-  //   fileName: string,
-  //   formatOptions: ts.FormatCodeSettings,
-  // ): Promise<ts.TextChange[]> {
-  //   return this._languageService.getFormattingEditsForDocument(
-  //     fileName,
-  //     this._mergeFormatOptions(formatOptions),
-  //   );
-  // }
-
-  async getFormattingEditsForRange(
-    fileName: string,
-    start: number,
-    end: number,
-    formatOptions: ts.FormatCodeSettings,
-  ): Promise<ts.TextChange[]> {
-    return this._languageService.getFormattingEditsForRange(
-      fileName,
-      start,
-      end,
-      this._mergeFormatOptions(formatOptions),
-    );
-  }
-
-  async getFormattingEditsAfterKeystroke(
-    fileName: string,
-    postion: number,
-    ch: string,
-    formatOptions: ts.FormatCodeSettings,
-  ): Promise<ts.TextChange[]> {
-    return this._languageService.getFormattingEditsAfterKeystroke(
-      fileName,
-      postion,
-      ch,
-      this._mergeFormatOptions(formatOptions),
-    );
-  }
-
-  async findRenameLocations(
-    fileName: string,
-    position: number,
-    findInStrings: boolean,
-    findInComments: boolean,
-    providePrefixAndSuffixTextForRename: boolean,
-  ): Promise<readonly ts.RenameLocation[] | undefined> {
-    return this._languageService.findRenameLocations(
-      fileName,
-      position,
-      findInStrings,
-      findInComments,
-      providePrefixAndSuffixTextForRename,
-    );
-  }
-
-  async getLinkedEditingRangeAtPosition(
-    fileName: string,
-    position: number,
-  ): Promise<ts.LinkedEditingInfo | undefined> {
-    return this._languageService.getLinkedEditingRangeAtPosition(fileName, position);
-  }
-
-  async getRenameInfo(
-    fileName: string,
-    position: number,
-    options: ts.UserPreferences,
-  ): Promise<ts.RenameInfo> {
-    return this._languageService.getRenameInfo(fileName, position, options);
-  }
-
-  // async getEmitOutput(fileName: string): Promise<ts.EmitOutput> {
-  //   return this._languageService.getEmitOutput(fileName);
-  // }
-
-  async getCodeFixesAtPosition(
-    fileName: string,
-    start: number,
-    end: number,
-    errorCodes: number[],
-    formatOptions: ts.FormatCodeSettings,
-  ): Promise<ReadonlyArray<ts.CodeFixAction>> {
-    let span = [start + 1, end - 1] as [number, number];
-    // fix url/path span
-    if (start === end && (this._httpRedirects.length > 0 || errorCodes.includes(2307))) {
-      const a = this._languageService.getReferencesAtPosition(fileName, start);
-      if (a && a.length > 0) {
-        const b = a[0];
-        span = [b.textSpan.start, b.textSpan.start + b.textSpan.length];
-      }
-    }
-    const fixes: ts.CodeFixAction[] = [];
-    if (this._httpRedirects.length > 0) {
-      const i = this._httpRedirects.findIndex(({ node }) => {
-        return node.getStart() === span[0] - 1 && node.getEnd() === span[1] + 1;
-      });
-      if (i >= 0) {
-        const { url, node } = this._httpRedirects[i];
-        const fixName = `Update module specifier to ${url}`;
-        fixes.push({
-          fixName,
-          description: fixName,
-          changes: [{
-            fileName,
-            textChanges: [{
-              span: { start: node.getStart(), length: node.getWidth() },
-              newText: JSON.stringify(url),
-            }],
-          }],
-          commands: [{
-            id: "remove-http-redirect",
-            title: "Remove http redirect",
-            arguments: [i],
-          }],
-        });
-      }
-    }
-    if (errorCodes.includes(2307)) {
-      const model = this._getModel(fileName);
-      const specifier = model.getValue().slice(...span);
-      const importMapSrc = this._importMap.$src;
-      if (this._unknownModules.has(specifier)) {
-        const fixName = `Cache module from '${specifier}'`;
-        fixes.push({
-          fixName,
-          description: fixName,
-          changes: [],
-          commands: [{
-            id: "cache-http-module",
-            title: "Try to cache the module from the network",
-            arguments: [specifier, fileName],
-          }],
-        });
-      } else if (/^@?\w[\w.-]*(\/|$)/.test(specifier) && importMapSrc) {
-        const url = `https://esm.sh/${specifier}`;
-        const res = await cache.fetch(url);
-        if (res.ok && res.url.startsWith(url + "@")) {
-          res.body?.cancel();
-          const segments = new URL(res.url).pathname.split("/");
-          const pkgNameWithVersion = segments[1].startsWith("@") ? segments.slice(1, 3).join("/") : segments[1];
-          const pkgName = pkgNameWithVersion.slice(0, pkgNameWithVersion.lastIndexOf("@"));
-          const fixName = `Add ${specifier}(https://esm.sh/${pkgNameWithVersion}) to import map`;
-          fixes.push({
-            fixName,
-            description: fixName,
-            changes: [],
-            commands: [{
-              id: "vfs.importmap.add_module",
-              title: "Add module to import map",
-              arguments: [importMapSrc, pkgName, `https://esm.sh/${pkgNameWithVersion}`],
-            }],
-          });
-        }
-      }
-    }
-    try {
-      const tsFixes = this._languageService.getCodeFixesAtPosition(
-        fileName,
-        start,
-        end,
-        errorCodes,
-        this._mergeFormatOptions(formatOptions),
-        {},
-      );
-      return fixes.concat(tsFixes);
-    } catch (err) {
-      return fixes;
-    }
-  }
-
-  async provideInlayHints(
-    fileName: string,
-    start: number,
-    end: number,
-  ): Promise<readonly ts.InlayHint[]> {
-    const preferences: ts.UserPreferences = this._inlayHintsOptions ?? {};
-    const span: ts.TextSpan = { start, length: end - start };
-    try {
-      return this._languageService.provideInlayHints(
-        fileName,
-        span,
-        preferences,
-      );
-    } catch {
-      return [];
-    }
-  }
-
-  // async organizeImports(
-  //   fileName: string,
-  //   formatOptions: ts.FormatCodeSettings,
-  // ): Promise<readonly ts.FileTextChanges[]> {
-  //   try {
-  //     return this._languageService.organizeImports(
-  //       {
-  //         type: "file",
-  //         fileName,
-  //         mode: ts.OrganizeImportsMode.SortAndCombine,
-  //       },
-  //       this._mergeFormatOptions(formatOptions),
-  //       undefined,
-  //     );
-  //   } catch {
-  //     return [];
-  //   }
-  // }
-
-  // #endregion
-
-  // #region language features as embedded language
-  async doValidation(uri: string): Promise<lst.Diagnostic[]> {
+  async doValidation(uri: string): Promise<lst.Diagnostic[] | null> {
     const document = this._getScriptDocument(uri);
     if (!document) {
-      return [];
+      return null;
     }
     const languageId = document.languageId;
     const diagnostics: lst.Diagnostic[] = [];
@@ -886,7 +458,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
       return null;
     }
     const offset = document.offsetAt(position);
-    const completions = await this.getCompletionsAtPosition(uri, offset);
+    const completions = this._getCompletionsAtPosition(uri, offset);
     if (!completions) {
       return { isIncomplete: false, items: [] };
     }
@@ -922,26 +494,26 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     if (!document) {
       return null;
     }
-    const details = await this.getCompletionEntryDetails(uri, offset, item.label, item.data.entryData);
-    if (details) {
-      const detail = ts.displayPartsToString(details.displayParts);
-      const documentation = ts.displayPartsToString(details.documentation);
-      const additionalTextEdits: lst.TextEdit[] = [];
-      if (details.codeActions) {
-        details.codeActions.forEach((action) =>
-          action.changes.forEach((change) =>
-            change.textChanges.forEach(({ span, newText }) => {
-              additionalTextEdits.push({
-                range: convertRange(document, span),
-                newText,
-              });
-            })
-          )
-        );
-      }
-      return { label: item.label, detail, documentation, additionalTextEdits };
+    const details = this._getCompletionEntryDetails(uri, offset, item.label, item.data.entryData);
+    if (!details) {
+      return null;
     }
-    return null;
+    const detail = ts.displayPartsToString(details.displayParts);
+    const documentation = ts.displayPartsToString(details.documentation);
+    const additionalTextEdits: lst.TextEdit[] = [];
+    if (details.codeActions) {
+      details.codeActions.forEach((action) =>
+        action.changes.forEach((change) =>
+          change.textChanges.forEach(({ span, newText }) => {
+            additionalTextEdits.push({
+              range: convertRange(document, span),
+              newText,
+            });
+          })
+        )
+      );
+    }
+    return { label: item.label, detail, documentation, additionalTextEdits };
   }
 
   async doSignatureHelp(
@@ -985,7 +557,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
       return null;
     }
 
-    const info = await this.getQuickInfoAtPosition(uri, document.offsetAt(position));
+    const info = this._getQuickInfoAtPosition(uri, document.offsetAt(position));
     if (info) {
       const contents = ts.displayPartsToString(info.displayParts);
       const documentation = ts.displayPartsToString(info.documentation);
@@ -1013,7 +585,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     }
     const start = document.offsetAt(range.start);
     const end = document.offsetAt(range.end);
-    const codeFixes = await this.getCodeFixesAtPosition(uri, start, end, errorCodes, {
+    const codeFixes = await this._getCodeFixesAtPosition(uri, start, end, errorCodes, {
       convertTabsToSpaces: formatOptions.insertSpaces,
       tabSize: formatOptions.tabSize,
       indentSize: formatOptions.tabSize,
@@ -1247,6 +819,265 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
 
   // #region private methods
 
+  private _getCompletionsAtPosition(fileName: string, position: number): ts.CompletionInfo | undefined {
+    const completions = this._languageService.getCompletionsAtPosition(
+      fileName,
+      position,
+      {
+        quotePreference: this._formatOptions?.quotePreference,
+        allowRenameOfImportPath: true,
+        importModuleSpecifierEnding: "js",
+        importModuleSpecifierPreference: "shortest",
+        includeCompletionsForModuleExports: true,
+        includeCompletionsForImportStatements: true,
+        includePackageJsonAutoImports: "off",
+        organizeImportsIgnoreCase: false,
+      },
+    );
+    // filter repeated auto-import suggestions from a types module
+    if (completions) {
+      const autoImports = new Set<string>();
+      completions.entries = completions.entries.filter((entry) => {
+        const { data } = entry;
+        if (!data || !isDts(data.fileName)) {
+          return true;
+        }
+        if (data.moduleSpecifier in this._importMap.imports || this._dtsMap.has(data.moduleSpecifier)) {
+          autoImports.add(data.exportName + " " + data.moduleSpecifier);
+          return true;
+        }
+        const specifier = this._getSpecifierFromDts(data.fileName);
+        if (specifier && !autoImports.has(data.exportName + " " + specifier)) {
+          autoImports.add(data.exportName + " " + specifier);
+          return true;
+        }
+        return false;
+      });
+      return completions;
+    }
+    return undefined;
+  }
+
+  private _getCompletionEntryDetails(
+    fileName: string,
+    position: number,
+    entryName: string,
+    data?: ts.CompletionEntryData,
+  ): ts.CompletionEntryDetails | undefined {
+    try {
+      const detail = this._languageService.getCompletionEntryDetails(
+        fileName,
+        position,
+        entryName,
+        {
+          insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: true,
+          semicolons: ts.SemicolonPreference.Insert,
+        },
+        undefined,
+        undefined,
+        data,
+      );
+      // fix the url of auto import suggestions from a types module
+      detail?.codeActions?.forEach((action) => {
+        if (action.description.startsWith("Add import from ")) {
+          const specifier = action.description.slice(17, -1);
+          const newSpecifier = this._getSpecifierFromDts(
+            isDts(specifier) ? specifier : specifier + ".d.ts",
+          );
+          if (newSpecifier) {
+            action.description = `Add type import from "${newSpecifier}"`;
+            action.changes.forEach((change) => {
+              change.textChanges.forEach((textChange) => {
+                textChange.newText = textChange.newText.replace(
+                  specifier,
+                  newSpecifier,
+                );
+              });
+            });
+          }
+        }
+      });
+      return detail;
+    } catch (error) {
+      return;
+    }
+  }
+
+  private _getQuickInfoAtPosition(fileName: string, position: number): ts.QuickInfo | undefined {
+    const info = this._languageService.getQuickInfoAtPosition(fileName, position);
+    if (!info) {
+      return;
+    }
+
+    // pettier display for module specifiers
+    const { kind, kindModifiers, displayParts, textSpan } = info;
+    if (kind === ts.ScriptElementKind.moduleElement && displayParts?.length === 3) {
+      const moduleName = displayParts[2].text;
+      // show pathname for `file:` specifiers
+      if (moduleName.startsWith("\"file:") && fileName.startsWith("file:")) {
+        const model = this._getModel(fileName);
+        const literalText = model.getValue().substring(
+          textSpan.start,
+          textSpan.start + textSpan.length,
+        );
+        const specifier = JSON.parse(literalText);
+        info.displayParts[2].text = "\"" + new URL(specifier, fileName).pathname + "\"";
+      } else if (
+        // show module url for `http:` specifiers instead of the types url
+        kindModifiers === "declare" && moduleName.startsWith("\"http")
+      ) {
+        const specifier = JSON.parse(moduleName);
+        for (const [url, dts] of this._dtsMap) {
+          if (specifier + ".d.ts" === dts) {
+            info.displayParts[2].text = "\"" + url + "\"";
+            info.tags = [{
+              name: "types",
+              text: [{ kind: "text", text: dts }],
+            }];
+            if (/^https:\/\/esm\.sh\//.test(url)) {
+              const { pathname } = new URL(url);
+              const pathSegments = pathname.split("/").slice(1);
+              if (/^v\d$/.test(pathSegments[0])) {
+                pathSegments.shift();
+              }
+              let scope = "";
+              let pkgName = pathSegments.shift();
+              if (pkgName?.startsWith("@")) {
+                scope = pkgName;
+                pkgName = pathSegments.shift();
+              }
+              if (!pkgName) {
+                continue;
+              }
+              const npmPkgId = [scope, pkgName.split("@")[0]].filter(Boolean).join("/");
+              const npmPkgUrl = `https://www.npmjs.com/package/${npmPkgId}`;
+              info.tags.unshift({
+                name: "npm",
+                text: [{ kind: "text", text: `[${npmPkgId}](${npmPkgUrl})` }],
+              });
+            }
+            break;
+          }
+        }
+      }
+    }
+    return info;
+  }
+
+  private async _getCodeFixesAtPosition(
+    fileName: string,
+    start: number,
+    end: number,
+    errorCodes: number[],
+    formatOptions: ts.FormatCodeSettings,
+  ): Promise<ReadonlyArray<ts.CodeFixAction>> {
+    let span = [start + 1, end - 1] as [number, number];
+    // fix url/path span
+    if (start === end && (this._httpRedirects.length > 0 || errorCodes.includes(2307))) {
+      const a = this._languageService.getReferencesAtPosition(fileName, start);
+      if (a && a.length > 0) {
+        const b = a[0];
+        span = [b.textSpan.start, b.textSpan.start + b.textSpan.length];
+      }
+    }
+    const fixes: ts.CodeFixAction[] = [];
+    if (this._httpRedirects.length > 0) {
+      const i = this._httpRedirects.findIndex(({ node }) => {
+        return node.getStart() === span[0] - 1 && node.getEnd() === span[1] + 1;
+      });
+      if (i >= 0) {
+        const { url, node } = this._httpRedirects[i];
+        const fixName = `Update module specifier to ${url}`;
+        fixes.push({
+          fixName,
+          description: fixName,
+          changes: [{
+            fileName,
+            textChanges: [{
+              span: { start: node.getStart(), length: node.getWidth() },
+              newText: JSON.stringify(url),
+            }],
+          }],
+          commands: [{
+            id: "remove-http-redirect",
+            title: "Remove http redirect",
+            arguments: [i],
+          }],
+        });
+      }
+    }
+    if (errorCodes.includes(2307)) {
+      const model = this._getModel(fileName);
+      const specifier = model.getValue().slice(...span);
+      const importMapSrc = this._importMap.$src;
+      if (this._unknownModules.has(specifier)) {
+        const fixName = `Cache module from '${specifier}'`;
+        fixes.push({
+          fixName,
+          description: fixName,
+          changes: [],
+          commands: [{
+            id: "cache-http-module",
+            title: "Try to cache the module from the network",
+            arguments: [specifier, fileName],
+          }],
+        });
+      } else if (/^@?\w[\w.-]*(\/|$)/.test(specifier) && importMapSrc) {
+        const url = `https://esm.sh/${specifier}`;
+        const res = await cache.fetch(url);
+        if (res.ok && res.url.startsWith(url + "@")) {
+          res.body?.cancel();
+          const segments = new URL(res.url).pathname.split("/");
+          const pkgNameWithVersion = segments[1].startsWith("@") ? segments.slice(1, 3).join("/") : segments[1];
+          const pkgName = pkgNameWithVersion.slice(0, pkgNameWithVersion.lastIndexOf("@"));
+          const fixName = `Add ${specifier}(https://esm.sh/${pkgNameWithVersion}) to import map`;
+          fixes.push({
+            fixName,
+            description: fixName,
+            changes: [],
+            commands: [{
+              id: "vfs.importmap.add_module",
+              title: "Add module to import map",
+              arguments: [importMapSrc, pkgName, `https://esm.sh/${pkgNameWithVersion}`],
+            }],
+          });
+        }
+      }
+    }
+    try {
+      const tsFixes = this._languageService.getCodeFixesAtPosition(
+        fileName,
+        start,
+        end,
+        errorCodes,
+        this._mergeFormatOptions(formatOptions),
+        {},
+      );
+      return fixes.concat(tsFixes);
+    } catch (err) {
+      return fixes;
+    }
+  }
+
+  // private async _organizeImports(
+  //   fileName: string,
+  //   formatOptions: ts.FormatCodeSettings,
+  // ): Promise<readonly ts.FileTextChanges[]> {
+  //   try {
+  //     return this._languageService.organizeImports(
+  //       {
+  //         type: "file",
+  //         fileName,
+  //         mode: ts.OrganizeImportsMode.SortAndCombine,
+  //       },
+  //       this._mergeFormatOptions(formatOptions),
+  //       undefined,
+  //     );
+  //   } catch {
+  //     return [];
+  //   }
+  // }
+
   private _refreshDiagnostics(): void {
     if (this._refreshDiagnosticsTimer !== null) {
       return;
@@ -1441,32 +1272,6 @@ function isDts(fileName: string): boolean {
   return fileName.endsWith(".d.ts") || fileName.endsWith(".d.mts") || fileName.endsWith(".d.cts");
 }
 
-// Clear the `file` field, which cannot be JSON stringified because it
-// contains cyclic data structures, except for the `fileName`
-// property.
-// Do a deep clone so we don't mutate the ts.Diagnostic object (see https://github.com/microsoft/monaco-editor/issues/2392)
-function clearFiles(tsDiagnostics: ts.Diagnostic[]): Diagnostic[] {
-  const diagnostics: Diagnostic[] = [];
-  for (const tsDiagnostic of tsDiagnostics) {
-    const diagnostic: Diagnostic = {
-      ...tsDiagnostic,
-      file: tsDiagnostic.file ? { fileName: tsDiagnostic.file.fileName } : undefined,
-    };
-    if (tsDiagnostic.relatedInformation) {
-      diagnostic.relatedInformation = [];
-      for (const tsRelatedDiagnostic of tsDiagnostic.relatedInformation) {
-        const relatedDiagnostic: DiagnosticRelatedInformation = {
-          ...tsRelatedDiagnostic,
-        };
-        relatedDiagnostic.file = relatedDiagnostic.file ? { fileName: relatedDiagnostic.file.fileName } : undefined;
-        diagnostic.relatedInformation.push(relatedDiagnostic);
-      }
-    }
-    diagnostics.push(diagnostic);
-  }
-  return diagnostics;
-}
-
 function convertRange(
   document: lst.TextDocument,
   span: { start?: number; length?: number },
@@ -1651,35 +1456,4 @@ function toSignatureHelpTriggerReason(context: monacoNS.languages.SignatureHelpC
   }
 }
 
-// const JS_WORD_REGEX = /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g;
-
-// function getWordAtText(text: string, offset: number, wordDefinition: RegExp): { start: number; length: number } {
-//   let lineStart = offset;
-//   while (lineStart > 0 && !isNewlineCharacter(text.charCodeAt(lineStart - 1))) {
-//     lineStart--;
-//   }
-//   const offsetInLine = offset - lineStart;
-//   const lineText = text.slice(lineStart);
-
-//   // make a copy of the regex as to not keep the state
-//   const flags = wordDefinition.ignoreCase ? "gi" : "g";
-//   wordDefinition = new RegExp(wordDefinition.source, flags);
-
-//   let match = wordDefinition.exec(lineText);
-//   while (match && match.index + match[0].length < offsetInLine) {
-//     match = wordDefinition.exec(lineText);
-//   }
-//   if (match && match.index <= offsetInLine) {
-//     return { start: match.index + lineStart, length: match[0].length };
-//   }
-
-//   return { start: offset, length: 0 };
-// }
-
-// function isNewlineCharacter(charCode: number) {
-//   return charCode === 10 || charCode === 13;
-// }
-
-// ! external module, don't remove the `.js` extension
-import { initializeWorker } from "../../editor-worker.js";
 initializeWorker(TypeScriptWorker);

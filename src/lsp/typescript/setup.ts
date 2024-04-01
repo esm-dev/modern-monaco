@@ -4,17 +4,14 @@ import type { FormattingOptions } from "vscode-languageserver-types";
 import type { ImportMap } from "~/import-map";
 import type { VFS } from "~/vfs";
 import type { CreateData, Host, TypeScriptWorker, VersionedContent } from "./worker";
-
-// ! external module, don't remove the `.js` extension
-import * as lf from "../language-features.js";
 import { cache } from "../../cache.js";
 import { isBlank, loadImportMapFromVFS, parseImportMapFromJson, toImportMap } from "../../import-map.js";
+import * as lfs from "../language-features.js";
 
 type TSWorker = monacoNS.editor.MonacoWebWorker<TypeScriptWorker>;
 
 // javascript and typescript share the same worker
 let worker: TSWorker | Promise<TSWorker> | null = null;
-let refreshDiagnosticEventEmitter: monacoNS.Emitter<void> | null = null;
 
 export async function setup(
   monaco: typeof monacoNS,
@@ -39,22 +36,19 @@ export async function setup(
   MonacoEnvironment.onWorker(languageId, workerProxy);
 
   // set monacoNS and register language features
-  lf.setup(monaco);
-  lf.registerDefault(languageId, workerProxy, [".", "<", "/", "\"", "'"], true);
-  languages.registerCodeActionProvider(languageId, new lf.CodeActionAdaptor(workerProxy));
-  languages.registerSignatureHelpProvider(languageId, new lf.SignatureHelpAdapter(workerProxy, ["(", ","]));
-  languages.registerDocumentHighlightProvider(languageId, new lf.DocumentHighlightAdapter(workerProxy));
-  languages.registerDefinitionProvider(languageId, new lf.DefinitionAdapter(workerProxy));
-  languages.registerReferenceProvider(languageId, new lf.ReferenceAdapter(workerProxy));
-  languages.registerRenameProvider(languageId, new lf.RenameAdapter(workerProxy));
+  lfs.setup(monaco);
+  lfs.registerDefault(languageId, workerProxy, [".", "<", "/", "\"", "'"], true);
+  languages.registerCodeActionProvider(languageId, new lfs.CodeActionAdaptor(workerProxy));
+  languages.registerSignatureHelpProvider(languageId, new lfs.SignatureHelpAdapter(workerProxy, ["(", ","]));
+  languages.registerDocumentHighlightProvider(languageId, new lfs.DocumentHighlightAdapter(workerProxy));
+  languages.registerDefinitionProvider(languageId, new lfs.DefinitionAdapter(workerProxy));
+  languages.registerReferenceProvider(languageId, new lfs.ReferenceAdapter(workerProxy));
+  languages.registerRenameProvider(languageId, new lfs.RenameAdapter(workerProxy));
 
   // unimpemented features
-  // languages.registerOnTypeFormattingEditProvider(languageId, new lf.FormatOnTypeAdapter(workerAccessor));
-  // languages.registerInlayHintsProvider(languageId, new lf.InlayHintsAdapter(workerAccessor));
-  // languages.registerLinkedEditingRangeProvider(languageId, new lf.LinkedEditingRangeAdapter(workerAccessor));
-
-  // register diagnostics adapter
-  new lf.DiagnosticsAdapter(languageId, workerProxy, refreshDiagnosticEventEmitter.event);
+  // languages.registerOnTypeFormattingEditProvider(languageId, new lfs.FormatOnTypeAdapter(workerProxy));
+  // languages.registerInlayHintsProvider(languageId, new lfs.InlayHintsAdapter(workerProxy));
+  // languages.registerLinkedEditingRangeProvider(languageId, new lfs.LinkedEditingRangeAdapter(workerProxy));
 }
 
 export function getWorkerUrl() {
@@ -154,7 +148,7 @@ async function createWorker(
         return true; // model is opened or error is not NotFound
       },
       refreshDiagnostics: async () => {
-        refreshDiagnosticEventEmitter.fire();
+        lfs.refreshDiagnostics("javascript", "typescript", "jsx", "tsx");
       },
     } satisfies Host,
   });
@@ -163,7 +157,7 @@ async function createWorker(
     const updateCompilerOptions: TypeScriptWorker["updateCompilerOptions"] = async (options) => {
       const proxy = await worker.getProxy();
       await proxy.updateCompilerOptions(options);
-      refreshDiagnosticEventEmitter.fire();
+      lfs.refreshDiagnostics("javascript", "typescript", "jsx", "tsx");
     };
     const watchTypes = () =>
       (compilerOptions.$types as string[] ?? []).map((url) =>
@@ -243,7 +237,6 @@ async function createWorker(
     },
   });
 
-  refreshDiagnosticEventEmitter = new monaco.Emitter();
   return worker;
 }
 

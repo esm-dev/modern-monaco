@@ -38,9 +38,7 @@ class Cache {
         await waitIDBRequest<CacheFile>(tx.put(file));
       }
       const content = await res.arrayBuffer();
-      const headers = [...res.headers.entries()].filter(([k]) =>
-        ["cache-control", "content-type", "content-length", "x-typescript-types"].includes(k)
-      );
+      const headers = [...res.headers.entries()].filter(([k]) => ["cache-control", "content-type", "content-length", "x-typescript-types"].includes(k));
       const tx = db.transaction("files", "readwrite").objectStore("files");
       file.url = res.url;
       file.headers = headers;

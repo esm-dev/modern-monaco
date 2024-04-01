@@ -122,12 +122,10 @@ export function getDocumentRegions(languageService: LanguageService, document: T
   return {
     regions,
     importedScripts,
-    getEmbeddedDocument: (languageId, ignoreAttributeValues) =>
-      getEmbeddedDocument(document, regions, languageId, ignoreAttributeValues),
+    getEmbeddedDocument: (languageId, ignoreAttributeValues) => getEmbeddedDocument(document, regions, languageId, ignoreAttributeValues),
     getEmbeddedLanguages: (ignoreAttributeValues) => getEmbeddedLanguages(regions, ignoreAttributeValues),
     getEmbeddedLanguageAtPosition: (position) => getEmbeddedLanguageAtPosition(document, regions, position),
-    hasEmbeddedLanguage: (languageId, ignoreAttributeValues) =>
-      regions.some(r => r.languageId === languageId && (!ignoreAttributeValues || !r.attributeValue)),
+    hasEmbeddedLanguage: (languageId, ignoreAttributeValues) => regions.some(r => r.languageId === languageId && (!ignoreAttributeValues || !r.attributeValue)),
   };
 }
 
