@@ -31,15 +31,14 @@ export interface Options {
 }
 
 export interface CreateData {
-  languageId: string;
   options: Options;
 }
 
 export class CSSWorker {
   private _ctx: monacoNS.worker.IWorkerContext;
-  private _languageId: string;
   private _languageSettings: Options;
   private _languageService: cssService.LanguageService;
+  private _documentCache = new Map<string, [number, cssService.TextDocument, cssService.Stylesheet | undefined]>();
 
   constructor(ctx: monacoNS.worker.IWorkerContext, createData: CreateData) {
     const data = createData.options.data;
@@ -54,7 +53,6 @@ export class CSSWorker {
       customDataProviders,
     };
     this._ctx = ctx;
-    this._languageId = createData.languageId;
     this._languageSettings = createData.options;
     this._languageService = cssService.getCSSLanguageService(lsOptions);
   }
@@ -64,7 +62,7 @@ export class CSSWorker {
     if (!document) {
       return null;
     }
-    const stylesheet = this._languageService.parseStylesheet(document);
+    const stylesheet = this._getStylesheet(document);
     return this._languageService.doValidation(document, stylesheet);
   }
 
@@ -73,7 +71,7 @@ export class CSSWorker {
     if (!document) {
       return null;
     }
-    const stylesheet = this._languageService.parseStylesheet(document);
+    const stylesheet = this._getStylesheet(document);
     return this._languageService.doComplete(document, position, stylesheet);
   }
 
@@ -82,7 +80,7 @@ export class CSSWorker {
     if (!document) {
       return null;
     }
-    const stylesheet = this._languageService.parseStylesheet(document);
+    const stylesheet = this._getStylesheet(document);
     return this._languageService.doHover(document, position, stylesheet);
   }
 
@@ -95,7 +93,7 @@ export class CSSWorker {
     if (!document) {
       return null;
     }
-    const stylesheet = this._languageService.parseStylesheet(document);
+    const stylesheet = this._getStylesheet(document);
     return this._languageService.doCodeActions(document, range, context, stylesheet);
   }
 
@@ -108,7 +106,7 @@ export class CSSWorker {
     if (!document) {
       return null;
     }
-    const stylesheet = this._languageService.parseStylesheet(document);
+    const stylesheet = this._getStylesheet(document);
     return this._languageService.doRename(document, position, newName, stylesheet);
   }
 
@@ -130,7 +128,7 @@ export class CSSWorker {
     if (!document) {
       return null;
     }
-    const stylesheet = this._languageService.parseStylesheet(document);
+    const stylesheet = this._getStylesheet(document);
     return this._languageService.findDocumentSymbols(document, stylesheet);
   }
 
@@ -139,7 +137,7 @@ export class CSSWorker {
     if (!document) {
       return null;
     }
-    const stylesheet = this._languageService.parseStylesheet(document);
+    const stylesheet = this._getStylesheet(document);
     const definition = this._languageService.findDefinition(document, position, stylesheet);
     if (definition) {
       return [definition];
@@ -152,7 +150,7 @@ export class CSSWorker {
     if (!document) {
       return null;
     }
-    const stylesheet = this._languageService.parseStylesheet(document);
+    const stylesheet = this._getStylesheet(document);
     return this._languageService.findReferences(document, position, stylesheet);
   }
 
@@ -164,7 +162,7 @@ export class CSSWorker {
     if (!document) {
       return null;
     }
-    const stylesheet = this._languageService.parseStylesheet(document);
+    const stylesheet = this._getStylesheet(document);
     return this._languageService.findDocumentHighlights(document, position, stylesheet);
   }
 
@@ -173,7 +171,7 @@ export class CSSWorker {
     if (!document) {
       return null;
     }
-    const stylesheet = this._languageService.parseStylesheet(document);
+    const stylesheet = this._getStylesheet(document);
     return this._languageService.findDocumentColors(document, stylesheet);
   }
 
@@ -186,7 +184,7 @@ export class CSSWorker {
     if (!document) {
       return null;
     }
-    const stylesheet = this._languageService.parseStylesheet(document);
+    const stylesheet = this._getStylesheet(document);
     return this._languageService.getColorPresentations(document, stylesheet, color, range);
   }
 
@@ -203,23 +201,38 @@ export class CSSWorker {
     if (!document) {
       return null;
     }
-    const stylesheet = this._languageService.parseStylesheet(document);
+    const stylesheet = this._getStylesheet(document);
     return this._languageService.getSelectionRanges(document, positions, stylesheet);
   }
 
+  async onDocumentRemoved(uri: string): Promise<void> {
+    this._documentCache.delete(uri);
+  }
+
   private _getTextDocument(uri: string): cssService.TextDocument | null {
-    const models = this._ctx.getMirrorModels();
-    for (const model of models) {
+    for (const model of this._ctx.getMirrorModels()) {
       if (model.uri.toString() === uri) {
-        return cssService.TextDocument.create(
-          uri,
-          this._languageId,
-          model.version,
-          model.getValue(),
-        );
+        const cached = this._documentCache.get(uri);
+        if (cached && cached[0] === model.version) {
+          return cached[1];
+        }
+        const document = cssService.TextDocument.create(uri, "css", model.version, model.getValue());
+        this._documentCache.set(uri, [model.version, document, undefined]);
+        return document;
       }
     }
     return null;
+  }
+
+  private _getStylesheet(document: cssService.TextDocument): cssService.Stylesheet | null {
+    const { uri, version } = document;
+    const cached = this._documentCache.get(uri);
+    if (cached && cached[0] === version && cached[2]) {
+      return cached[2];
+    }
+    const stylesheet = this._languageService.parseStylesheet(document);
+    this._documentCache.set(uri, [version, document, stylesheet]);
+    return stylesheet;
   }
 }
 

@@ -68,16 +68,18 @@ export function setup(
   };
 
   // reset schema on model change
-  const resetSchema = (uri: monacoNS.Uri) => {
-    return worker.getProxy().then((worker) => {
-      worker.resetSchema(uri.toString());
-    });
+  const resetSchema = async (uri: monacoNS.Uri) => {
+    (await worker.getProxy()).resetSchema(uri.toString());
   };
   editor.onWillDisposeModel((model) => {
-    resetSchema(model.uri);
+    if (model.getLanguageId() === languageId) {
+      resetSchema(model.uri);
+    }
   });
   editor.onDidChangeModelLanguage((event) => {
-    resetSchema(event.model.uri);
+    if (event.model.getLanguageId() === languageId) {
+      resetSchema(event.model.uri);
+    }
   });
 
   // @ts-expect-error `onWorker` is added by esm-monaco

@@ -12,7 +12,6 @@ export function setup(
   const languages = monaco.languages;
   const { tabSize, insertSpaces, insertFinalNewline, trimFinalNewlines } = formattingOptions ?? {};
   const createData: CreateData = {
-    languageId,
     options: {
       data: {
         useDefaultDataProvider: true,

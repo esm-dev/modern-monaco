@@ -5,7 +5,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type monacoNS from "monaco-editor-core";
-import type * as lst from "vscode-languageserver-types";
 import * as htmlService from "vscode-html-languageservice";
 import { initializeWorker } from "../../editor-worker.js";
 import { getDocumentRegions } from "./embedded-support";
@@ -33,7 +32,6 @@ export interface Settings {
 }
 
 export interface CreateData {
-  languageId: string;
   settings: Settings;
   data?: HTMLDataConfiguration;
 }
@@ -42,7 +40,7 @@ export class HTMLWorker {
   private _ctx: monacoNS.worker.IWorkerContext;
   private _languageService: htmlService.LanguageService;
   private _languageSettings: Settings;
-  private _languageId: string;
+  private _documentCache = new Map<string, [number, htmlService.TextDocument, htmlService.HTMLDocument | undefined]>();
 
   constructor(ctx: monacoNS.worker.IWorkerContext, createData: CreateData) {
     const data = createData.data;
@@ -57,19 +55,15 @@ export class HTMLWorker {
     }
     this._ctx = ctx;
     this._languageSettings = createData.settings;
-    this._languageId = createData.languageId;
-    this._languageService = htmlService.getLanguageService({
-      useDefaultDataProvider,
-      customDataProviders,
-    });
+    this._languageService = htmlService.getLanguageService({ useDefaultDataProvider, customDataProviders });
   }
 
-  async doValidation(uri: string): Promise<lst.Diagnostic[]> {
+  async doValidation(uri: string): Promise<htmlService.Diagnostic[] | null> {
     const document = this._getTextDocument(uri);
     if (!document) {
-      return [];
+      return null;
     }
-    const diagnostic: lst.Diagnostic[] = [];
+    const diagnostic: htmlService.Diagnostic[] = [];
     const rs = getDocumentRegions(this._languageService, document);
     if (rs.hasEmbeddedLanguage("importmap")) {
       const imr = rs.regions.find((region) => region.languageId === "importmap")!;
@@ -110,7 +104,7 @@ export class HTMLWorker {
     return diagnostic;
   }
 
-  async doComplete(uri: string, position: lst.Position): Promise<lst.CompletionList | null> {
+  async doComplete(uri: string, position: htmlService.Position): Promise<htmlService.CompletionList | null> {
     const document = this._getTextDocument(uri);
     if (!document) {
       return null;
@@ -120,7 +114,7 @@ export class HTMLWorker {
     if (rsl) {
       return { $embedded: rsl } as any;
     }
-    const htmlDocument = this._languageService.parseHTMLDocument(document);
+    const htmlDocument = this._getHTMLDocument(document);
     return this._languageService.doComplete(
       document,
       position,
@@ -129,7 +123,7 @@ export class HTMLWorker {
     );
   }
 
-  async doHover(uri: string, position: lst.Position): Promise<lst.Hover | null> {
+  async doHover(uri: string, position: htmlService.Position): Promise<htmlService.Hover | null> {
     const document = this._getTextDocument(uri);
     if (!document) {
       return null;
@@ -139,14 +133,14 @@ export class HTMLWorker {
     if (rsl) {
       return { $embedded: rsl } as any;
     }
-    const htmlDocument = this._languageService.parseHTMLDocument(document);
+    const htmlDocument = this._getHTMLDocument(document);
     return this._languageService.doHover(document, position, htmlDocument);
   }
 
-  async doFormat(uri: string, formatRange: lst.Range, options: lst.FormattingOptions): Promise<lst.TextEdit[]> {
+  async doFormat(uri: string, formatRange: htmlService.Range, options: htmlService.FormattingOptions): Promise<htmlService.TextEdit[] | null> {
     const document = this._getTextDocument(uri);
     if (!document) {
-      return [];
+      return null;
     }
 
     const contentUnformatted = this._languageSettings.format?.contentUnformatted ?? "";
@@ -193,7 +187,7 @@ export class HTMLWorker {
     return edits;
   }
 
-  async doRename(uri: string, position: lst.Position, newName: string): Promise<lst.WorkspaceEdit | null> {
+  async doRename(uri: string, position: htmlService.Position, newName: string): Promise<htmlService.WorkspaceEdit | null> {
     const document = this._getTextDocument(uri);
     if (!document) {
       return null;
@@ -203,16 +197,11 @@ export class HTMLWorker {
     if (rsl) {
       return { $embedded: rsl } as any;
     }
-    const htmlDocument = this._languageService.parseHTMLDocument(document);
-    return this._languageService.doRename(
-      document,
-      position,
-      newName,
-      htmlDocument,
-    );
+    const htmlDocument = this._getHTMLDocument(document);
+    return this._languageService.doRename(document, position, newName, htmlDocument);
   }
 
-  async findDocumentHighlights(uri: string, position: lst.Position): Promise<lst.DocumentHighlight[]> {
+  async findDocumentHighlights(uri: string, position: htmlService.Position): Promise<htmlService.DocumentHighlight[]> {
     const document = this._getTextDocument(uri);
     if (!document) {
       return [];
@@ -222,7 +211,7 @@ export class HTMLWorker {
     if (rsl) {
       return { $embedded: rsl } as any;
     }
-    const htmlDocument = this._languageService.parseHTMLDocument(document);
+    const htmlDocument = this._getHTMLDocument(document);
     return this._languageService.findDocumentHighlights(
       document,
       position,
@@ -230,10 +219,7 @@ export class HTMLWorker {
     );
   }
 
-  async findDefinition(
-    uri: string,
-    position: lst.Position,
-  ): Promise<(lst.Location & { originSelectionRange?: lst.Range })[] | null> {
+  async findDefinition(uri: string, position: htmlService.Position): Promise<(htmlService.Location & { originSelectionRange?: htmlService.Range })[] | null> {
     const document = this._getTextDocument(uri);
     if (!document) {
       return null;
@@ -246,7 +232,7 @@ export class HTMLWorker {
     return null;
   }
 
-  async findDocumentLinks(uri: string): Promise<lst.DocumentLink[] | null> {
+  async findDocumentLinks(uri: string): Promise<htmlService.DocumentLink[] | null> {
     const document = this._getTextDocument(uri);
     if (!document) {
       return null;
@@ -254,19 +240,19 @@ export class HTMLWorker {
     return this._languageService.findDocumentLinks(document, null!);
   }
 
-  async findDocumentSymbols(uri: string): Promise<lst.SymbolInformation[] | null> {
+  async findDocumentSymbols(uri: string): Promise<htmlService.SymbolInformation[] | null> {
     const document = this._getTextDocument(uri);
     if (!document) {
       return null;
     }
-    const htmlDocument = this._languageService.parseHTMLDocument(document);
+    const htmlDocument = this._getHTMLDocument(document);
     return this._languageService.findDocumentSymbols(
       document,
       htmlDocument,
     );
   }
 
-  async getFoldingRanges(uri: string, context?: { rangeLimit?: number }): Promise<lst.FoldingRange[] | null> {
+  async getFoldingRanges(uri: string, context?: { rangeLimit?: number }): Promise<htmlService.FoldingRange[] | null> {
     const document = this._getTextDocument(uri);
     if (!document) {
       return null;
@@ -285,7 +271,7 @@ export class HTMLWorker {
     return ranges;
   }
 
-  async getSelectionRanges(uri: string, positions: lst.Position[]): Promise<lst.SelectionRange[]> {
+  async getSelectionRanges(uri: string, positions: htmlService.Position[]): Promise<htmlService.SelectionRange[]> {
     const document = this._getTextDocument(uri);
     if (!document) {
       return [];
@@ -293,7 +279,7 @@ export class HTMLWorker {
     return this._languageService.getSelectionRanges(document, positions);
   }
 
-  async findDocumentColors(uri: string): Promise<lst.ColorInformation[] | null> {
+  async findDocumentColors(uri: string): Promise<htmlService.ColorInformation[] | null> {
     const document = this._getTextDocument(uri);
     if (!document) {
       return null;
@@ -305,7 +291,7 @@ export class HTMLWorker {
     return null;
   }
 
-  async getColorPresentations(uri: string, color: lst.Color, range: lst.Range): Promise<lst.ColorPresentation[] | null> {
+  async getColorPresentations(uri: string, color: htmlService.Color, range: htmlService.Range): Promise<htmlService.ColorPresentation[] | null> {
     const document = this._getTextDocument(uri);
     if (!document) {
       return null;
@@ -330,18 +316,46 @@ export class HTMLWorker {
     return null;
   }
 
+  async doAutoInsert(uri: string, kind: "autoQuote" | "autoClose", position: htmlService.Position): Promise<string | null> {
+    const document = this._getTextDocument(uri);
+    if (!document) {
+      return null;
+    }
+    const htmlDocument = this._getHTMLDocument(document);
+    if (kind === "autoQuote") {
+      return this._languageService.doQuoteComplete(document, position, htmlDocument, this._languageSettings.suggest);
+    }
+    return this._languageService.doTagComplete(document, position, htmlDocument);
+  }
+
+  async onDocumentRemoved(uri: string): Promise<void> {
+    this._documentCache.delete(uri);
+  }
+
   private _getTextDocument(uri: string): htmlService.TextDocument | null {
     for (const model of this._ctx.getMirrorModels()) {
       if (model.uri.toString() === uri) {
-        return htmlService.TextDocument.create(
-          uri,
-          this._languageId,
-          model.version,
-          model.getValue(),
-        );
+        const cached = this._documentCache.get(uri);
+        if (cached && cached[0] === model.version) {
+          return cached[1];
+        }
+        const document = htmlService.TextDocument.create(uri, "html", model.version, model.getValue());
+        this._documentCache.set(uri, [model.version, document, undefined]);
+        return document;
       }
     }
     return null;
+  }
+
+  private _getHTMLDocument(document: htmlService.TextDocument): htmlService.HTMLDocument | null {
+    const { uri, version } = document;
+    const cached = this._documentCache.get(uri);
+    if (cached && cached[0] === version && cached[2]) {
+      return cached[2];
+    }
+    const htmlDocument = this._languageService.parseHTMLDocument(document);
+    this._documentCache.set(uri, [version, document, htmlDocument]);
+    return htmlDocument;
   }
 }
 

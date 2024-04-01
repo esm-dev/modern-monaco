@@ -9,10 +9,9 @@ export function setup(
   languageSettings?: Record<string, unknown>,
   formattingOptions?: FormattingOptions,
 ) {
-  const { editor, languages, Uri } = monaco;
+  const { editor, languages } = monaco;
   const { tabSize, insertSpaces, insertFinalNewline, trimFinalNewlines } = formattingOptions ?? {};
   const createData: CreateData = {
-    languageId,
     settings: {
       suggest: {},
       format: {
@@ -80,9 +79,7 @@ export function setup(
       }
     },
   };
-  const htmlWorkerProxy: lfs.WorkerProxy<HTMLWorker> = async (...uris) => {
-    return htmlWorker.withSyncedResources(uris);
-  };
+  const htmlWorkerProxy: lfs.WorkerProxy<HTMLWorker> = (...uris) => htmlWorker.withSyncedResources(uris);
   const workerProxy = lfs.proxyWorkerWithEmbeddedLanguages(embeddedLanguages, htmlWorkerProxy);
 
   // @ts-expect-error `onWorker` is added by esm-monaco
@@ -90,7 +87,7 @@ export function setup(
 
   // set monacoNS and register language features
   lfs.setup(monaco);
-  lfs.attachEmbeddedLanguages(embeddedLanguages, htmlWorkerProxy);
+  lfs.attachEmbeddedLanguages(languageId, embeddedLanguages, htmlWorkerProxy);
   lfs.registerDefault(languageId, workerProxy, [".", ":", "<", "\"", "=", "/"]);
   languages.registerDocumentHighlightProvider(languageId, new lfs.DocumentHighlightAdapter(workerProxy));
   languages.registerDefinitionProvider(languageId, new lfs.DefinitionAdapter(workerProxy));

@@ -28,14 +28,22 @@ export function registerDefault<
     & ILanguageWorkerWithFormat
     & ILanguageWorkerWithDocumentSymbols
     & ILanguageWorkerWithFoldingRanges
-    & ILanguageWorkerWithSelectionRanges,
+    & ILanguageWorkerWithSelectionRanges
+    & { onDocumentRemoved(uri: string): void },
 >(
   languageId: string,
   workerProxy: WorkerProxy<T>,
   completionTriggerCharacters: string[],
   noFoldingRangeAdapter?: boolean,
 ) {
-  const { languages, Emitter } = Monaco;
+  const { editor, languages, Emitter } = Monaco;
+
+  // remove document cache from worker when the model is disposed
+  editor.onWillDisposeModel((model) => {
+    if (model.getLanguageId() === languageId) {
+      workerProxy().then((worker) => worker.onDocumentRemoved(model.uri.toString()));
+    }
+  });
 
   // create diagnostics adapter
   const refreshEmitter = new Emitter<void>();
@@ -69,6 +77,7 @@ export interface ILanguageWorkerWithEmbeddedSupport {
 }
 
 export function attachEmbeddedLanguages<T extends ILanguageWorkerWithEmbeddedSupport>(
+  langaugeId: string,
   embeddedLanguages: Record<string, string>,
   workerProxy: WorkerProxy<T>,
 ) {
@@ -78,7 +87,7 @@ export function attachEmbeddedLanguages<T extends ILanguageWorkerWithEmbeddedSup
     return Uri.parse(model.uri.path + ".__EMBEDDED__." + embeddedLanguages[languageId]);
   };
   const validateModel = async (model: monacoNS.editor.IModel) => {
-    if (model.getLanguageId() !== "html") {
+    if (model.getLanguageId() !== langaugeId) {
       return;
     }
     const getEmbeddedDocument = (languageId: string) => workerProxy(model.uri).then((worker) => worker.getEmbeddedDocument(model.uri.toString(), languageId));
@@ -322,8 +331,7 @@ export class CompletionAdapter<T extends ILanguageWorkerWithCompletions> impleme
   async provideCompletionItems(
     model: monacoNS.editor.IReadOnlyModel,
     position: monacoNS.Position,
-    context: monacoNS.languages.CompletionContext,
-    token: monacoNS.CancellationToken,
+    context: monacoNS.languages.CompletionContext, // todo: use context
   ): Promise<monacoNS.languages.CompletionList | undefined> {
     const worker = await this._worker(model.uri);
     const info = await worker.doComplete(model.uri.toString(), fromPosition(position));
@@ -380,7 +388,6 @@ export class CompletionAdapter<T extends ILanguageWorkerWithCompletions> impleme
 
   async resolveCompletionItem(
     item: monacoNS.languages.CompletionItem & { data?: any },
-    token: monacoNS.CancellationToken,
   ): Promise<monacoNS.languages.CompletionItem> {
     if (item.data?.context) {
       // @ts-expect-error `workerProxies` is added by esm-monaco
@@ -454,8 +461,7 @@ function isInsertReplaceEdit(
   edit: lst.TextEdit | lst.InsertReplaceEdit,
 ): edit is lst.InsertReplaceEdit {
   return (
-    typeof (<lst.InsertReplaceEdit> edit).insert !== "undefined"
-    && typeof (<lst.InsertReplaceEdit> edit).replace !== "undefined"
+    typeof (<lst.InsertReplaceEdit> edit).insert !== "undefined" && typeof (<lst.InsertReplaceEdit> edit).replace !== "undefined"
   );
 }
 
@@ -536,7 +542,6 @@ export class HoverAdapter<T extends ILanguageWorkerWithHover> implements monacoN
   async provideHover(
     model: monacoNS.editor.IReadOnlyModel,
     position: monacoNS.Position,
-    token: monacoNS.CancellationToken,
   ): Promise<monacoNS.languages.Hover | undefined> {
     const worker = await this._worker(model.uri);
     const info = await worker.doHover(model.uri.toString(), fromPosition(position));
@@ -604,7 +609,7 @@ export class SignatureHelpAdapter<T extends ILanguageWorkerWithSignatureHelp> im
   async provideSignatureHelp(
     model: monacoNS.editor.ITextModel,
     position: monacoNS.Position,
-    token: monacoNS.CancellationToken,
+    _token: monacoNS.CancellationToken,
     context: monacoNS.languages.SignatureHelpContext,
   ): Promise<monacoNS.languages.SignatureHelpResult | undefined> {
     const resource = model.uri;
@@ -641,7 +646,6 @@ export class CodeActionAdaptor<T extends ILanguageWorkerWithCodeAction> implemen
     model: monacoNS.editor.ITextModel,
     range: monacoNS.Range,
     context: monacoNS.languages.CodeActionContext,
-    token: monacoNS.CancellationToken,
   ): Promise<monacoNS.languages.CodeActionList | undefined> {
     const errorCodes = context.markers.filter((m) => m.code).map((m) => m.code).map(Number);
     const modelOptions = model.getOptions();
@@ -681,7 +685,6 @@ export class RenameAdapter<T extends ILanguageWorkerWithRename> implements monac
     model: monacoNS.editor.IReadOnlyModel,
     position: monacoNS.Position,
     newName: string,
-    token: monacoNS.CancellationToken,
   ): Promise<monacoNS.languages.WorkspaceEdit | undefined> {
     const worker = await this._worker(model.uri);
     const edit = await worker.doRename(model.uri.toString(), fromPosition(position), newName);
@@ -731,7 +734,6 @@ export class DocumentFormattingEditProvider<T extends ILanguageWorkerWithFormat>
   async provideDocumentFormattingEdits(
     model: monacoNS.editor.IReadOnlyModel,
     options: monacoNS.languages.FormattingOptions,
-    token: monacoNS.CancellationToken,
   ): Promise<monacoNS.languages.TextEdit[] | undefined> {
     const worker = await this._worker(model.uri);
     const edits = await worker.doFormat(model.uri.toString(), null, options as lst.FormattingOptions);
@@ -748,7 +750,6 @@ export class DocumentRangeFormattingEditProvider<T extends ILanguageWorkerWithFo
     model: monacoNS.editor.IReadOnlyModel,
     range: monacoNS.Range,
     options: monacoNS.languages.FormattingOptions,
-    token: monacoNS.CancellationToken,
   ): Promise<monacoNS.languages.TextEdit[] | undefined> {
     const worker = await this._worker(model.uri);
     const edits = await worker.doFormat(model.uri.toString(), fromRange(range), options as lst.FormattingOptions);
@@ -775,7 +776,6 @@ export class DefinitionAdapter<T extends ILanguageWorkerWithDefinitions> impleme
   async provideDefinition(
     model: monacoNS.editor.IReadOnlyModel,
     position: monacoNS.Position,
-    token: monacoNS.CancellationToken,
   ): Promise<monacoNS.languages.Definition | undefined> {
     const worker = await this._worker(model.uri);
     const definition = await worker.findDefinition(model.uri.toString(), fromPosition(position));
@@ -816,8 +816,7 @@ export class ReferenceAdapter<T extends ILanguageWorkerWithReferences> implement
   async provideReferences(
     model: monacoNS.editor.IReadOnlyModel,
     position: monacoNS.Position,
-    context: monacoNS.languages.ReferenceContext,
-    token: monacoNS.CancellationToken,
+    context: monacoNS.languages.ReferenceContext, // todo: use context.includeDeclaration
   ): Promise<monacoNS.languages.Location[] | undefined> {
     const worker = await this._worker(model.uri);
     const references = await worker.findReferences(model.uri.toString(), fromPosition(position));
@@ -840,7 +839,6 @@ export class DocumentSymbolAdapter<T extends ILanguageWorkerWithDocumentSymbols>
 
   async provideDocumentSymbols(
     model: monacoNS.editor.IReadOnlyModel,
-    token: monacoNS.CancellationToken,
   ): Promise<monacoNS.languages.DocumentSymbol[] | undefined> {
     const worker = await this._worker(model.uri);
     const items = await worker.findDocumentSymbols(model.uri.toString());
@@ -936,7 +934,6 @@ export class DocumentLinkAdapter<T extends ILanguageWorkerWithDocumentLinks> imp
 
   async provideLinks(
     model: monacoNS.editor.IReadOnlyModel,
-    token: monacoNS.CancellationToken,
   ): Promise<monacoNS.languages.ILinksList | undefined> {
     const worker = await this._worker(model.uri);
     const items = await worker.findDocumentLinks(model.uri.toString());
@@ -964,7 +961,6 @@ export class DocumentColorAdapter<T extends ILanguageWorkerWithDocumentColors> i
 
   async provideDocumentColors(
     model: monacoNS.editor.IReadOnlyModel,
-    token: monacoNS.CancellationToken,
   ): Promise<monacoNS.languages.IColorInformation[] | undefined> {
     const worker = await this._worker(model.uri);
     const colors = await worker.findDocumentColors(model.uri.toString());
@@ -979,7 +975,6 @@ export class DocumentColorAdapter<T extends ILanguageWorkerWithDocumentColors> i
   async provideColorPresentations(
     model: monacoNS.editor.IReadOnlyModel,
     info: monacoNS.languages.IColorInformation,
-    token: monacoNS.CancellationToken,
   ): Promise<monacoNS.languages.IColorPresentation[] | undefined> {
     const worker = await this._worker(model.uri);
     const presentations = await worker.getColorPresentations(model.uri.toString(), info.color, fromRange(info.range));
@@ -1009,7 +1004,6 @@ export class DocumentHighlightAdapter<
   async provideDocumentHighlights(
     model: monacoNS.editor.IReadOnlyModel,
     position: monacoNS.Position,
-    token: monacoNS.CancellationToken,
   ): Promise<monacoNS.languages.DocumentHighlight[] | undefined> {
     const worker = await this._worker(model.uri);
     const entries = await worker.findDocumentHighlights(model.uri.toString(), fromPosition(position));
@@ -1024,9 +1018,7 @@ export class DocumentHighlightAdapter<
   }
 }
 
-function toDocumentHighlightKind(
-  kind: lst.DocumentHighlightKind | undefined,
-): monacoNS.languages.DocumentHighlightKind {
+function toDocumentHighlightKind(kind: lst.DocumentHighlightKind | undefined): monacoNS.languages.DocumentHighlightKind {
   switch (kind) {
     case lst.DocumentHighlightKind.Read:
       return Monaco.languages.DocumentHighlightKind.Read;
@@ -1052,7 +1044,6 @@ export class FoldingRangeAdapter<T extends ILanguageWorkerWithFoldingRanges> imp
   async provideFoldingRanges(
     model: monacoNS.editor.IReadOnlyModel,
     context: monacoNS.languages.FoldingContext,
-    token: monacoNS.CancellationToken,
   ): Promise<monacoNS.languages.FoldingRange[] | undefined> {
     const worker = await this._worker(model.uri);
     const ranges = await worker.getFoldingRanges(model.uri.toString(), context);
@@ -1097,7 +1088,6 @@ export class SelectionRangeAdapter<T extends ILanguageWorkerWithSelectionRanges>
   async provideSelectionRanges(
     model: monacoNS.editor.IReadOnlyModel,
     positions: monacoNS.Position[],
-    token: monacoNS.CancellationToken,
   ): Promise<monacoNS.languages.SelectionRange[][] | undefined> {
     const worker = await this._worker(model.uri);
     const selectionRanges = await worker.getSelectionRanges(model.uri.toString(), positions.map(fromPosition));
@@ -1133,7 +1123,6 @@ export class LinkedEditingRangeAdapter<T extends ILanguageWorkerWithLinkedEditin
   async provideLinkedEditingRanges(
     model: monacoNS.editor.ITextModel,
     position: monacoNS.Position,
-    token: monacoNS.CancellationToken,
   ): Promise<monacoNS.languages.LinkedEditingRanges | undefined> {
     const worker = await this._worker(model.uri);
     const linkedEditingRange = await worker.getLinkedEditingRangeAtPosition(
@@ -1164,7 +1153,6 @@ export class InlayHintsAdapter<T extends ILanguageWorkerWithInlayHints> implemen
   public async provideInlayHints(
     model: monacoNS.editor.ITextModel,
     range: monacoNS.Range,
-    token: monacoNS.CancellationToken,
   ): Promise<monacoNS.languages.InlayHintList> {
     const worker = await this._worker(model.uri);
     const ret = await worker.provideInlayHints(model.uri.toString(), fromRange(range));

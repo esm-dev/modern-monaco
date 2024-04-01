@@ -26,6 +26,7 @@ export interface CreateData {
 export class JSONWorker {
   private _ctx: monacoNS.worker.IWorkerContext;
   private _languageService: jsonService.LanguageService;
+  private _documentCache = new Map<string, [number, jsonService.TextDocument, jsonService.JSONDocument | undefined]>();
 
   constructor(ctx: monacoNS.worker.IWorkerContext, createData: CreateData) {
     this._ctx = ctx;
@@ -47,7 +48,7 @@ export class JSONWorker {
     if (!document) {
       return null;
     }
-    const jsonDocument = this._languageService.parseJSONDocument(document);
+    const jsonDocument = this._getJSONDocument(document);
     return this._languageService.doValidation(document, jsonDocument);
   }
 
@@ -56,7 +57,7 @@ export class JSONWorker {
     if (!document) {
       return null;
     }
-    const jsonDocument = this._languageService.parseJSONDocument(document);
+    const jsonDocument = this._getJSONDocument(document);
     return this._languageService.doComplete(document, position, jsonDocument);
   }
 
@@ -69,7 +70,7 @@ export class JSONWorker {
     if (!document) {
       return null;
     }
-    const jsonDocument = this._languageService.parseJSONDocument(document);
+    const jsonDocument = this._getJSONDocument(document);
     return this._languageService.doHover(document, position, jsonDocument);
   }
 
@@ -91,7 +92,7 @@ export class JSONWorker {
     if (!document) {
       return null;
     }
-    const jsonDocument = this._languageService.parseJSONDocument(document);
+    const jsonDocument = this._getJSONDocument(document);
     return this._languageService.findDocumentSymbols2(
       document,
       jsonDocument,
@@ -103,7 +104,7 @@ export class JSONWorker {
     if (!document) {
       return null;
     }
-    const jsonDocument = this._languageService.parseJSONDocument(document);
+    const jsonDocument = this._getJSONDocument(document);
     return this._languageService.findDocumentColors(document, jsonDocument);
   }
 
@@ -116,7 +117,7 @@ export class JSONWorker {
     if (!document) {
       return null;
     }
-    const jsonDocument = this._languageService.parseJSONDocument(document);
+    const jsonDocument = this._getJSONDocument(document);
     return this._languageService.getColorPresentations(
       document,
       jsonDocument,
@@ -141,7 +142,7 @@ export class JSONWorker {
     if (!document) {
       return null;
     }
-    const jsonDocument = this._languageService.parseJSONDocument(document);
+    const jsonDocument = this._getJSONDocument(document);
     return this._languageService.getSelectionRanges(document, positions, jsonDocument);
   }
 
@@ -149,19 +150,34 @@ export class JSONWorker {
     return this._languageService.resetSchema(uri);
   }
 
+  async onDocumentRemoved(uri: string): Promise<void> {
+    this._documentCache.delete(uri);
+  }
+
   private _getTextDocument(uri: string): jsonService.TextDocument | null {
-    const models = this._ctx.getMirrorModels();
-    for (const model of models) {
+    for (const model of this._ctx.getMirrorModels()) {
       if (model.uri.toString() === uri) {
-        return jsonService.TextDocument.create(
-          uri,
-          "json",
-          model.version,
-          model.getValue(),
-        );
+        const cached = this._documentCache.get(uri);
+        if (cached && cached[0] === model.version) {
+          return cached[1];
+        }
+        const document = jsonService.TextDocument.create(uri, "html", model.version, model.getValue());
+        this._documentCache.set(uri, [model.version, document, undefined]);
+        return document;
       }
     }
     return null;
+  }
+
+  private _getJSONDocument(document: jsonService.TextDocument): jsonService.JSONDocument | null {
+    const { uri, version } = document;
+    const cached = this._documentCache.get(uri);
+    if (cached && cached[0] === version && cached[2]) {
+      return cached[2];
+    }
+    const htmlDocument = this._languageService.parseJSONDocument(document);
+    this._documentCache.set(uri, [version, document, htmlDocument]);
+    return htmlDocument;
   }
 }
 

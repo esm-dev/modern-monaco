@@ -124,12 +124,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     const types = Object.keys(this._types);
     const libs = Object.keys(this._libs);
     const filenames = new Array<string>(
-      models.length
-        + types.length
-        + libs.length
-        + this._httpLibs.size
-        + this._httpModules.size
-        + this._httpTsModules.size,
+      models.length + types.length + libs.length + this._httpLibs.size + this._httpModules.size + this._httpTsModules.size,
     );
     let i = 0;
     for (const model of models) {
@@ -157,9 +152,10 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     if (fileName in this._types) {
       return String(this._types[fileName].version);
     }
-    let model = this._getModel(fileName);
+    const model = this._getModel(fileName);
     if (model) {
-      return model.version + "." + this._importMapVersion;
+      // change on import map will affect all models
+      return this._importMapVersion + "." + model.version;
     }
     return "1"; // default lib is static
   }
@@ -178,16 +174,19 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
 
   getDefaultLibFileName(options: ts.CompilerOptions): string {
     switch (options.target) {
-      case 99 /* ESNext */:
+      case 99 /* ESNext */: {
         const esnext = "lib.esnext.full.d.ts";
-        if (esnext in this._libs || esnext in this._types) return esnext;
+        if (esnext in this._libs || esnext in this._types) {
+          return esnext;
+        }
+      }
       case 7 /* ES2020 */:
       case 6 /* ES2019 */:
       case 5 /* ES2018 */:
       case 4 /* ES2017 */:
       case 3 /* ES2016 */:
       case 2 /* ES2015 */:
-      default:
+      default: {
         // Support a dynamic lookup for the ES20XX version based on the target
         // which is safe unless TC39 changes their numbering system
         const eslib = `lib.es${2013 + (options.target || 99)}.full.d.ts`;
@@ -199,19 +198,12 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
         }
 
         return "lib.es6.d.ts"; // We don't use lib.es2015.full.d.ts due to breaking change.
+      }
       case 1:
       case 0:
         return "lib.d.ts";
     }
   }
-
-  // async getScriptText(fileName: string): Promise<string | undefined> {
-  //   return this._getScriptText(fileName);
-  // }
-
-  // async getLibFiles(): Promise<Record<string, string>> {
-  //   return this._libs;
-  // }
 
   getScriptKind(fileName: string): ts.ScriptKind {
     if (fileName in this._libs || fileName in this._types || this._httpLibs.has(fileName)) {
@@ -816,6 +808,10 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     }
   }
 
+  async onDocumentRemoved(uri: string): Promise<void> {
+    // do nothing
+  }
+
   // #endregion
 
   // #region private methods
@@ -1087,7 +1083,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     this._refreshDiagnosticsTimer = setTimeout(() => {
       this._refreshDiagnosticsTimer = null;
       this._ctx.host.refreshDiagnostics();
-    }, 500);
+    }, 100);
   }
 
   /** rollback the version to force reinvoke `resolveModuleNameLiterals` method. */
@@ -1100,12 +1096,9 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   }
 
   private _fileExists(fileName: string): boolean {
-    let models = this._ctx.getMirrorModels();
-    for (let i = 0; i < models.length; i++) {
-      const uri = models[i].uri;
-      if (uri.toString() === fileName || uri.toString(true) === fileName) {
-        return true;
-      }
+    const model = this._getModel(fileName);
+    if (model) {
+      return true;
     }
     return (
       fileName in this._libs
@@ -1141,7 +1134,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   }
 
   private _getModel(fileName: string): monacoNS.worker.IMirrorModel | null {
-    let models = this._ctx.getMirrorModels();
+    const models = this._ctx.getMirrorModels();
     for (let i = 0; i < models.length; i++) {
       const uri = models[i].uri;
       if (uri.toString() === fileName || uri.toString(true) === fileName) {
