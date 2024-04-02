@@ -41,14 +41,18 @@ export function isBlank(importMap: ImportMap) {
 /** Resolve the specifier with the import map. */
 export function resolve(importMap: ImportMap, specifier: string, containingFile: string): string {
   const { $baseURL, imports, scopes } = importMap;
-  const scriptUrl = new URL(containingFile);
-  const sameOriginScopes = Object.entries(scopes)
-    .map(([scope, imports]) => [new URL(scope, $baseURL), imports] as const)
-    .filter(([scopeUrl]) => scopeUrl.origin === scriptUrl.origin)
-    .sort(([a], [b]) => b.pathname.split("/").length - a.pathname.split("/").length);
+  const { origin, pathname } = new URL(containingFile);
+  const sameOriginScopes: [string, ImportMap["imports"]][] = [];
+  for (const scopeName in scopes) {
+    const scopeUrl = new URL(scopeName, $baseURL);
+    if (scopeUrl.origin === origin) {
+      sameOriginScopes.push([scopeUrl.pathname, scopes[scopeName]]);
+    }
+  }
+  sameOriginScopes.sort(([a], [b]) => b.split("/").length - a.split("/").length);
   if (sameOriginScopes.length > 0) {
-    for (const [scopeUrl, scopeImports] of sameOriginScopes) {
-      if (scriptUrl.pathname.startsWith(scopeUrl.pathname)) {
+    for (const [scopePathname, scopeImports] of sameOriginScopes) {
+      if (pathname.startsWith(scopePathname)) {
         const match = matchImports(specifier, scopeImports);
         if (match) {
           return match;
@@ -56,7 +60,7 @@ export function resolve(importMap: ImportMap, specifier: string, containingFile:
       }
     }
   }
-  if (scriptUrl.origin === new URL($baseURL).origin) {
+  if (origin === new URL($baseURL).origin) {
     const match = matchImports(specifier, imports);
     if (match) {
       return match;
