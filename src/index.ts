@@ -2,9 +2,11 @@ import type monacoNS from "monaco-editor-core";
 import type { HighlighterCore } from "@shikijs/core";
 import type { ShikiInitOptions } from "./shiki.ts";
 import type { VFS } from "./vfs.ts";
+import type { LSPConfig } from "./lsp/index.ts";
+import type { RenderOptions } from "./render.ts";
 import { shikiToMonaco } from "./shiki-monaco.ts";
-import { createWorker, type LSPConfig, margeProviders } from "./lsp/index.ts";
-import { render, type RenderOptions } from "./render.ts";
+import { createWorker, margeProviders } from "./lsp/index.ts";
+import { render } from "./render.ts";
 import { getLanguageIdFromPath, getLanguageIdsInVFS, initShiki } from "./shiki.ts";
 import { loadTMGrammar, loadTMTheme, tmGrammars } from "./shiki.ts";
 
@@ -34,6 +36,7 @@ const editorProps = [
   "readOnlyMessage",
   "rulers",
   "scrollbar",
+  "stickyScroll",
   "tabSize",
   "wordWrap",
 ];
@@ -109,7 +112,7 @@ async function loadMonaco(highlighter: HighlighterCore, options?: InitOption, on
   monaco.editor.registerLinkOpener({
     async open(link) {
       if (cdns.has(link.authority)) {
-        return false;
+        return true;
       }
       window.open(link.toString(), "_blank");
       return true;
@@ -153,6 +156,14 @@ async function loadMonaco(highlighter: HighlighterCore, options?: InitOption, on
       return false;
     },
   });
+
+  // add keybinding `cmd+k` open command palette (only for macintosh)
+  if (globalThis.navigator?.userAgent?.includes("Macintosh")) {
+    monaco.editor.addKeybindingRule({
+      keybinding: monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK,
+      command: "editor.action.quickCommand",
+    });
+  }
 
   // use the shiki as the tokenizer for the monaco editor
   const allLanguages = new Set([...tmGrammars.map(g => g.name), ...highlighter.getLoadedLanguages()]);
@@ -250,7 +261,7 @@ export function lazy(options?: InitOption) {
           if (key) {
             let value: any = this.getAttribute(attrName);
             if (value === "") {
-              value = attrName === "minimap" ? { enabled: true } : true;
+              value = key === "minimap" || key === "stickyScroll" ? { enabled: true } : true;
             } else {
               try {
                 value = JSON.parse(value);
