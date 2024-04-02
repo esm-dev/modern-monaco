@@ -3,6 +3,7 @@ import { editor, languages, Uri } from "monaco-editor-core";
 export const defaultEditorOptions: editor.IStandaloneEditorConstructionOptions = {
   automaticLayout: true,
   minimap: { enabled: false },
+  stickyScroll: { enabled: false },
   scrollBeyondLastLine: false,
   smoothScrolling: true,
   matchBrackets: "never",
