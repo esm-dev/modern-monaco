@@ -137,7 +137,11 @@ export class HTMLWorker {
     return this._languageService.doHover(document, position, htmlDocument);
   }
 
-  async doFormat(uri: string, formatRange: htmlService.Range, options: htmlService.FormattingOptions): Promise<htmlService.TextEdit[] | null> {
+  async doFormat(
+    uri: string,
+    formatRange: htmlService.Range,
+    options: htmlService.FormattingOptions,
+  ): Promise<htmlService.TextEdit[] | null> {
     const document = this._getTextDocument(uri);
     if (!document) {
       return null;
@@ -219,7 +223,10 @@ export class HTMLWorker {
     );
   }
 
-  async findDefinition(uri: string, position: htmlService.Position): Promise<(htmlService.Location & { originSelectionRange?: htmlService.Range })[] | null> {
+  async findDefinition(
+    uri: string,
+    position: htmlService.Position,
+  ): Promise<(htmlService.Location & { originSelectionRange?: htmlService.Range })[] | null> {
     const document = this._getTextDocument(uri);
     if (!document) {
       return null;
@@ -291,7 +298,11 @@ export class HTMLWorker {
     return null;
   }
 
-  async getColorPresentations(uri: string, color: htmlService.Color, range: htmlService.Range): Promise<htmlService.ColorPresentation[] | null> {
+  async getColorPresentations(
+    uri: string,
+    color: htmlService.Color,
+    range: htmlService.Range,
+  ): Promise<htmlService.ColorPresentation[] | null> {
     const document = this._getTextDocument(uri);
     if (!document) {
       return null;

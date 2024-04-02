@@ -1,6 +1,6 @@
 {
   "indentWidth": 2,
-  "lineWidth": 160,
+  "lineWidth": 140,
   "typescript": {
     "module.sortImportDeclarations": "maintain"
   },

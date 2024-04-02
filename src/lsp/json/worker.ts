@@ -175,9 +175,9 @@ export class JSONWorker {
     if (cached && cached[0] === version && cached[2]) {
       return cached[2];
     }
-    const htmlDocument = this._languageService.parseJSONDocument(document);
-    this._documentCache.set(uri, [version, document, htmlDocument]);
-    return htmlDocument;
+    const jsonDocument = this._languageService.parseJSONDocument(document);
+    this._documentCache.set(uri, [version, document, jsonDocument]);
+    return jsonDocument;
   }
 }
 

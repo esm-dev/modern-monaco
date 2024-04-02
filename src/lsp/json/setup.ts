@@ -36,7 +36,9 @@ export function setup(
   };
   const codeLensProvider: monacoNS.languages.CodeLensProvider = {
     provideCodeLenses: function(model, token) {
-      const isImportMap = ["importmap.json", "import_map.json", "import-map.json", "importMap.json"].some((name) => model.uri.path === "/" + name);
+      const isImportMap = ["importmap.json", "import_map.json", "import-map.json", "importMap.json"].some((name) =>
+        model.uri.path === "/" + name
+      );
       if (isImportMap) {
         const m2 = model.findNextMatch(`"imports":\\s*\\{`, { column: 1, lineNumber: 1 }, true, false, null, false);
         return {
