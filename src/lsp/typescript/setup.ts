@@ -107,7 +107,7 @@ async function createWorker(
   // resolve types of the default compiler options
   await types.resolve(compilerOptions, vfs);
 
-  const { tabSize = 4, trimTrailingWhitespace = true, semicolon = "insert" } = formattingOptions ?? {};
+  const { tabSize = 4, trimTrailingWhitespace = true, insertSpaces = true, semicolon = "insert" } = formattingOptions ?? {};
   const createData: CreateData = {
     compilerOptions,
     importMap,
@@ -118,6 +118,21 @@ async function createWorker(
       tabSize,
       trimTrailingWhitespace,
       semicolons: semicolon as ts.SemicolonPreference,
+      insertSpaceAfterCommaDelimiter: insertSpaces,
+      insertSpaceAfterSemicolonInForStatements: insertSpaces,
+      insertSpaceBeforeAndAfterBinaryOperators: insertSpaces,
+      insertSpaceAfterConstructor: insertSpaces,
+      insertSpaceAfterKeywordsInControlFlowStatements: insertSpaces,
+      insertSpaceAfterFunctionKeywordForAnonymousFunctions: insertSpaces,
+      insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: insertSpaces,
+      insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: insertSpaces,
+      insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces: insertSpaces,
+      insertSpaceAfterOpeningAndBeforeClosingEmptyBraces: insertSpaces,
+      insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: insertSpaces,
+      insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces: insertSpaces,
+      insertSpaceAfterTypeAssertion: insertSpaces,
+      insertSpaceBeforeFunctionParenthesis: insertSpaces,
+      insertSpaceBeforeTypeAnnotation: insertSpaces,
     },
   };
   const worker = monaco.editor.createWebWorker<TypeScriptWorker>({
