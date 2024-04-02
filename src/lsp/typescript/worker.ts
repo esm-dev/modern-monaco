@@ -63,7 +63,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   private _isBlankImportMap: boolean;
   private _libs: Record<string, string>;
   private _types: Record<string, VersionedContent>;
-  private _hasVFS: boolean;
+  private _jsxImportUrl: string;
   private _formatOptions?: CreateData["formatOptions"];
   private _languageService = ts.createLanguageService(this);
   private _httpLibs = new Map<string, string>();
@@ -73,9 +73,11 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   private _dtsMap = new Map<string, string>();
   private _unknownModules = new Set<string>();
   private _naModules = new Set<string>();
+  private _hasVFS: boolean;
   private _openPromises = new Map<string, Promise<void>>();
   private _fetchPromises = new Map<string, Promise<void>>();
   private _refreshDiagnosticsTimer: number | null = null;
+  private _documentCache = new Map<string, [string, lst.TextDocument]>();
 
   constructor(ctx: monacoNS.worker.IWorkerContext<Host>, createData: CreateData) {
     this._ctx = ctx;
@@ -83,10 +85,11 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     this._importMap = createData.importMap;
     this._importMapVersion = 0;
     this._isBlankImportMap = isBlank(createData.importMap);
-    this._hasVFS = createData.hasVFS;
     this._libs = createData.libs;
     this._types = createData.types;
     this._formatOptions = createData.formatOptions;
+    this._hasVFS = createData.hasVFS;
+    this._fixJsxImportSource();
   }
 
   // #region language service host
@@ -101,21 +104,18 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
 
   fileExists(filename: string): boolean {
     if (filename.startsWith("/node_modules/")) return false;
-    return this._fileExists(filename);
+    return (
+      filename in this._libs
+      || `lib.${filename}.d.ts` in this._libs
+      || filename in this._types
+      || this._httpLibs.has(filename)
+      || this._httpModules.has(filename)
+      || this._httpTsModules.has(filename)
+      || !!this._getModel(filename)
+    );
   }
 
   getCompilationSettings(): ts.CompilerOptions {
-    if (!this._compilerOptions.jsxImportSource) {
-      const jsxImportSource = this._importMap.imports["@jsxImportSource"];
-      if (jsxImportSource) {
-        const compilerOptions = { ...this._compilerOptions };
-        compilerOptions.jsxImportSource = jsxImportSource;
-        if (!compilerOptions.jsx) {
-          compilerOptions.jsx = ts.JsxEmit.ReactJSX;
-        }
-        return compilerOptions;
-      }
-    }
     return this._compilerOptions;
   }
 
@@ -157,7 +157,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
       // change on import map will affect all models
       return this._importMapVersion + "." + model.version;
     }
-    return "1"; // default lib is static
+    return "1"; // static/remote modules/types
   }
 
   getScriptSnapshot(fileName: string): ts.IScriptSnapshot | undefined {
@@ -245,23 +245,24 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     _containingSourceFile: ts.SourceFile,
     _reusedNames: readonly ts.StringLiteralLike[] | undefined,
   ): readonly ts.ResolvedModuleWithFailedLookupLocations[] {
-    const jsxImportUrl = this._getJsxImportUrl();
     return moduleLiterals.map((literal): ts.ResolvedModuleWithFailedLookupLocations["resolvedModule"] => {
       let specifier = literal.text;
-      let isJsxImportSource = specifier === jsxImportUrl;
       let inImportMap = false;
+      let isJsxImportSource = specifier === this._jsxImportUrl;
       if (!this._isBlankImportMap) {
-        if (!isJsxImportSource) {
-          isJsxImportSource = specifier === jsxImportUrl;
-        }
         const url = resolve(this._importMap, specifier, containingFile);
         inImportMap = url !== specifier;
-        specifier = url;
+        if (inImportMap) {
+          isJsxImportSource = url === this._jsxImportUrl;
+          specifier = url;
+        }
       }
-      if (!/^(((file|https?):\/\/)|\.{0,2}\/)/.test(specifier)) {
+      let moduleUrl: URL;
+      try {
+        moduleUrl = new URL(specifier, containingFile);
+      } catch (error) {
         return undefined;
       }
-      const moduleUrl = new URL(specifier, containingFile);
       if (getScriptExtension(moduleUrl.pathname, null) === null) {
         const ext = getScriptExtension(containingFile, null);
         if (ext === ".d.ts" || ext === ".d.mts" || ext === ".d.cts") {
@@ -336,7 +337,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
           };
         }
         if (!this._fetchPromises.has(moduleName)) {
-          const download = isJsxImportSource || inImportMap || /^https?:\/\//.test(containingFile)
+          const download = isJsxImportSource || inImportMap || isHttpUrl(containingFile)
             || /\w@[~v^]?\d+(\.\d+){0,2}([&?/]|$)/.test(moduleUrl.pathname);
           const promise = download ? cache.fetch(moduleUrl) : cache.query(moduleUrl);
           this._fetchPromises.set(
@@ -504,6 +505,28 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     return { label: item.label, detail, documentation, additionalTextEdits };
   }
 
+  async doHover(uri: string, position: lst.Position): Promise<lst.Hover | null> {
+    const document = this._getScriptDocument(uri);
+    if (!document) {
+      return null;
+    }
+
+    const info = this._getQuickInfoAtPosition(uri, document.offsetAt(position));
+    if (info) {
+      const contents = ts.displayPartsToString(info.displayParts);
+      const documentation = ts.displayPartsToString(info.documentation);
+      const tags = info.tags?.map((tag) => tagToString(tag)).join("  \n\n") ?? null;
+      return {
+        range: convertRange(document, info.textSpan),
+        contents: [
+          { language: "typescript", value: contents },
+          documentation + (tags ? "\n\n" + tags : ""),
+        ],
+      };
+    }
+    return null;
+  }
+
   async doSignatureHelp(
     uri: string,
     position: number,
@@ -537,28 +560,6 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
       return signature;
     });
     return { signatures, activeSignature, activeParameter };
-  }
-
-  async doHover(uri: string, position: lst.Position): Promise<lst.Hover | null> {
-    const document = this._getScriptDocument(uri);
-    if (!document) {
-      return null;
-    }
-
-    const info = this._getQuickInfoAtPosition(uri, document.offsetAt(position));
-    if (info) {
-      const contents = ts.displayPartsToString(info.displayParts);
-      const documentation = ts.displayPartsToString(info.documentation);
-      const tags = info.tags?.map((tag) => tagToString(tag)).join("  \n\n") ?? null;
-      return {
-        range: convertRange(document, info.textSpan),
-        contents: [
-          { language: "typescript", value: contents },
-          documentation + (tags ? "\n\n" + tags : ""),
-        ],
-      };
-    }
-    return null;
   }
 
   async doCodeAction(
@@ -797,19 +798,24 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     const { compilerOptions, importMap, types } = options;
     if (compilerOptions) {
       this._compilerOptions = compilerOptions;
+      this._fixJsxImportSource();
     }
     if (importMap) {
       this._importMap = importMap;
       this._importMapVersion++;
       this._isBlankImportMap = isBlank(importMap);
+      this._fixJsxImportSource();
     }
     if (types) {
+      for (const uri of Object.keys(this._types)) {
+        this._documentCache.delete(uri);
+      }
       this._types = types;
     }
   }
 
   async onDocumentRemoved(uri: string): Promise<void> {
-    // do nothing
+    this._documentCache.delete(uri);
   }
 
   // #endregion
@@ -1056,25 +1062,6 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     }
   }
 
-  // private async _organizeImports(
-  //   fileName: string,
-  //   formatOptions: ts.FormatCodeSettings,
-  // ): Promise<readonly ts.FileTextChanges[]> {
-  //   try {
-  //     return this._languageService.organizeImports(
-  //       {
-  //         type: "file",
-  //         fileName,
-  //         mode: ts.OrganizeImportsMode.SortAndCombine,
-  //       },
-  //       this._mergeFormatOptions(formatOptions),
-  //       undefined,
-  //     );
-  //   } catch {
-  //     return [];
-  //   }
-  // }
-
   /** notifies the host to refresh diagnostics. */
   private _refreshDiagnostics(): void {
     if (this._refreshDiagnosticsTimer !== null) {
@@ -1083,7 +1070,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     this._refreshDiagnosticsTimer = setTimeout(() => {
       this._refreshDiagnosticsTimer = null;
       this._ctx.host.refreshDiagnostics();
-    }, 100);
+    }, 150);
   }
 
   /** rollback the version to force reinvoke `resolveModuleNameLiterals` method. */
@@ -1095,40 +1082,27 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     }
   }
 
-  private _fileExists(fileName: string): boolean {
-    const model = this._getModel(fileName);
-    if (model) {
-      return true;
-    }
-    return (
-      fileName in this._libs
-      || `lib.${fileName}.d.ts` in this._libs
-      || fileName in this._types
-      || this._httpLibs.has(fileName)
-      || this._httpModules.has(fileName)
-      || this._httpTsModules.has(fileName)
-    );
-  }
-
   private _getScriptText(fileName: string): string | undefined {
-    let model = this._getModel(fileName);
-    if (model) {
-      return model.getValue();
-    }
     return this._libs[fileName]
       ?? this._libs[`lib.${fileName}.d.ts`]
       ?? this._types[fileName]?.content
       ?? this._httpLibs.get(fileName)
       ?? this._httpModules.get(fileName)
-      ?? this._httpTsModules.get(fileName);
+      ?? this._httpTsModules.get(fileName)
+      ?? this._getModel(fileName)?.getValue();
   }
 
   private _getScriptDocument(uri: string): lst.TextDocument | null {
+    const version = this.getScriptVersion(uri);
+    const cached = this._documentCache.get(uri);
+    if (cached && cached[0] === version) {
+      return cached[1];
+    }
     const scriptText = this._getScriptText(uri);
     if (scriptText) {
-      const scriptKind = this.getScriptKind(uri);
-      const isTS = scriptKind === ts.ScriptKind.TS || scriptKind === ts.ScriptKind.TSX;
-      return TextDocument.create(uri, isTS ? "typescript" : "javascript", 0, scriptText);
+      const document = TextDocument.create(uri, "typescript", 0, scriptText);
+      this._documentCache.set(uri, [version, document]);
+      return document;
     }
     return null;
   }
@@ -1157,21 +1131,6 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
         return specifier;
       }
     }
-  }
-
-  private _getJsxImportUrl(): string | null {
-    let runtimePath = "/jsx-runtime";
-    if (this._compilerOptions.jsx === ts.JsxEmit.ReactJSXDev) {
-      runtimePath = "/jsx-dev-runtime";
-    }
-    if (this._compilerOptions.jsxImportSource) {
-      const url = new URL(this._compilerOptions.jsxImportSource + runtimePath);
-      return url.href;
-    } else if (!this._isBlankImportMap) {
-      const url = new URL(this._importMap.imports["@jsxImportSource"] + runtimePath);
-      return url.href;
-    }
-    return null;
   }
 
   private _convertDiagnostic(document: lst.TextDocument, diagnostic: ts.Diagnostic): lst.Diagnostic {
@@ -1222,10 +1181,29 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   }
 
   private _mergeFormatOptions(formatOptions: ts.FormatCodeSettings): ts.FormatCodeSettings {
-    return {
-      ...this._formatOptions,
-      ...formatOptions,
-    };
+    return { ...this._formatOptions, ...formatOptions };
+  }
+
+  private _fixJsxImportSource(): void {
+    const compilerOptions = this._compilerOptions;
+    if (!compilerOptions.jsxImportSource) {
+      const jsxImportSource = this._importMap.imports["@jsxImportSource"];
+      if (jsxImportSource) {
+        compilerOptions.jsxImportSource = jsxImportSource;
+        if (!compilerOptions.jsx) {
+          compilerOptions.jsx = ts.JsxEmit.ReactJSX;
+        }
+      }
+    }
+
+    let runtimePath = "/jsx-runtime";
+    if (this._compilerOptions.jsx === ts.JsxEmit.ReactJSXDev) {
+      runtimePath = "/jsx-dev-runtime";
+    }
+    if (this._compilerOptions.jsxImportSource) {
+      const url = new URL(this._compilerOptions.jsxImportSource + runtimePath);
+      this._jsxImportUrl = url.toString();
+    }
   }
 
   // #endregion
@@ -1263,14 +1241,15 @@ function getScriptExtension(url: URL | string, defaultExt = ".js"): string | nul
   }
 }
 
+function isHttpUrl(url: string): boolean {
+  return url.startsWith("http://") || url.startsWith("https://");
+}
+
 function isDts(fileName: string): boolean {
   return fileName.endsWith(".d.ts") || fileName.endsWith(".d.mts") || fileName.endsWith(".d.cts");
 }
 
-function convertRange(
-  document: lst.TextDocument,
-  span: { start?: number; length?: number },
-): lst.Range {
+function convertRange(document: lst.TextDocument, span: { start?: number; length?: number }): lst.Range {
   if (typeof span.start === "undefined") {
     const pos = document.positionAt(0);
     return Range.create(pos, pos);
