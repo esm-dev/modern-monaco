@@ -160,12 +160,17 @@ export class VFS {
       }
       if (editor) {
         editor.setModel(model);
+        editor.updateOptions({ readOnly: false });
         if (selectionOrPosition) {
-          if ("endLineNumber" in selectionOrPosition) {
+          if ("startLineNumber" in selectionOrPosition) {
             editor.setSelection(selectionOrPosition);
           } else {
             editor.setPosition(selectionOrPosition);
           }
+          const pos = editor.getPosition();
+          editor.setScrollTop(
+            editor.getScrolledVisiblePosition(new monaco.Position(pos.lineNumber - 7, pos.column)).top,
+          );
         } else {
           this._viewState[href] && editor.restoreViewState(this._viewState[href]);
         }
@@ -289,6 +294,8 @@ export class VFS {
   }
 
   bindMonaco(monaco: typeof monacoNS) {
+    this._monaco = monaco;
+
     monaco.editor.addCommand({
       id: "vfs.importmap.add_module",
       run: async (_: unknown, importMapSrc: string, specifier: string, uri: string) => {
@@ -311,22 +318,6 @@ export class VFS {
         }
       },
     });
-
-    monaco.editor.registerEditorOpener({
-      openCodeEditor: async (editor, resource, selectionOrPosition) => {
-        try {
-          await this.openModel(resource.toString(), editor, selectionOrPosition);
-          return true;
-        } catch (err) {
-          if (err instanceof ErrorNotFound) {
-            return false;
-          }
-          throw err;
-        }
-      },
-    });
-
-    this._monaco = monaco;
   }
 }
 

@@ -6,6 +6,8 @@
 
 import type monacoNS from "monaco-editor-core";
 import * as lst from "vscode-languageserver-types";
+import { cache } from "../cache.js";
+
 let Monaco: typeof monacoNS;
 
 export interface WorkerProxy<T> {
@@ -923,10 +925,9 @@ export class DefinitionAdapter<T extends ILanguageWorkerWithDefinitions> impleme
     const worker = await this._worker(model.uri);
     const definition = await worker.findDefinition(model.uri.toString(), fromPosition(position));
     if (definition) {
-      return (Array.isArray(definition) ? definition : [definition]).map(location => {
-        const link = toLocationLink(location);
-        return link;
-      });
+      const links = (Array.isArray(definition) ? definition : [definition]).map(toLocationLink);
+      await ensureHttpModels(links);
+      return links;
     }
   }
 }
@@ -935,9 +936,7 @@ function isLocationLink(location: lst.Location | lst.LocationLink): location is 
   return "targetUri" in location;
 }
 
-function toLocationLink(
-  location: lst.Location | lst.LocationLink,
-): monacoNS.languages.LocationLink {
+function toLocationLink(location: lst.Location | lst.LocationLink): monacoNS.languages.LocationLink {
   let uri: string;
   let range: lst.Range;
   let originSelectionRange: lst.Range | undefined;
@@ -962,6 +961,25 @@ function toLocationLink(
   };
 }
 
+async function ensureHttpModels(links: monacoNS.languages.LocationLink[]): Promise<void> {
+  const { editor, Uri } = Monaco;
+  const httpUrls = new Set<string>(
+    links
+      .map(link => link.uri)
+      .filter(uri => !editor.getModel(uri) && (uri.scheme === "https" || uri.scheme === "http"))
+      .map(uri => uri.toString()),
+  );
+  await Promise.all(
+    [...httpUrls].map(async url => {
+      const text = await cache.fetch(url).then(res => res.text());
+      const uri = Uri.parse(url);
+      if (!editor.getModel(uri)) {
+        editor.createModel(text, undefined, uri);
+      }
+    }),
+  );
+}
+
 // #endregion
 
 // #region ReferenceAdapter
@@ -981,7 +999,9 @@ export class ReferenceAdapter<T extends ILanguageWorkerWithReferences> implement
     const worker = await this._worker(model.uri);
     const references = await worker.findReferences(model.uri.toString(), fromPosition(position));
     if (references) {
-      return references.map(toLocationLink);
+      const links = references.map(toLocationLink);
+      await ensureHttpModels(links);
+      return links;
     }
   }
 }

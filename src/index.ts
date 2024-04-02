@@ -50,6 +50,11 @@ async function loadMonaco(highlighter: HighlighterCore, options?: InitOption, on
   const vfs = options?.vfs;
   const lspProviders = margeProviders(options.lsp);
 
+  if (vfs) {
+    vfs.bindMonaco(monaco);
+  }
+
+  // insert the monaco editor core css
   if (!document.getElementById("monaco-editor-core-css")) {
     const styleEl = document.createElement("style");
     styleEl.id = "monaco-editor-core-css";
@@ -59,6 +64,7 @@ async function loadMonaco(highlighter: HighlighterCore, options?: InitOption, on
     document.head.appendChild(styleEl);
   }
 
+  // set the global `MonacoEnvironment` object
   Reflect.set(globalThis, "MonacoEnvironment", {
     workerProxies: {},
     onWorker: (languageId: string, workerProxy: () => any) => {
@@ -91,10 +97,64 @@ async function loadMonaco(highlighter: HighlighterCore, options?: InitOption, on
     getLanguageIdFromUri: (uri: monacoNS.Uri) => getLanguageIdFromPath(uri.path),
   });
 
-  if (vfs) {
-    vfs.bindMonaco(monaco);
-  }
+  // since this editor supports https modules, disable the link opener for the cdn links
+  const cdns = new Set([
+    "cdn.jsdelivr.net",
+    "cdn.skypack.dev",
+    "esm.sh",
+    "esm.run",
+    "ga.jspm.io",
+    "unpkg.com",
+  ]);
+  monaco.editor.registerLinkOpener({
+    async open(link) {
+      if (cdns.has(link.authority)) {
+        return false;
+      }
+      window.open(link.toString(), "_blank");
+      return true;
+    },
+  });
 
+  // register the editor opener for the monaco editor
+  monaco.editor.registerEditorOpener({
+    openCodeEditor: async (editor, resource, selectionOrPosition) => {
+      if (vfs && resource.scheme === "file") {
+        try {
+          await vfs.openModel(resource.toString(), editor, selectionOrPosition);
+          return true;
+        } catch (err) {
+          if (err instanceof vfs.ErrorNotFound) {
+            return false;
+          }
+          throw err;
+        }
+      }
+      try {
+        const model = monaco.editor.getModel(resource);
+        if (model) {
+          editor.setModel(model);
+          if (selectionOrPosition) {
+            if ("startLineNumber" in selectionOrPosition) {
+              editor.setSelection(selectionOrPosition);
+            } else {
+              editor.setPosition(selectionOrPosition);
+            }
+            const pos = editor.getPosition();
+            editor.setScrollTop(
+              editor.getScrolledVisiblePosition(new monaco.Position(pos.lineNumber - 7, pos.column)).top,
+            );
+          }
+          const isHttpUrl = resource.scheme === "https" || resource.scheme === "http";
+          editor.updateOptions({ readOnly: isHttpUrl });
+          return true;
+        }
+      } catch (error) {}
+      return false;
+    },
+  });
+
+  // use the shiki as the tokenizer for the monaco editor
   const allLanguages = new Set([...tmGrammars.map(g => g.name), ...highlighter.getLoadedLanguages()]);
   allLanguages.forEach((id) => {
     monaco.languages.register({ id, aliases: tmGrammars.find(g => g.name === id)?.aliases });
