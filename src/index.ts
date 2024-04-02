@@ -114,8 +114,6 @@ async function loadMonaco(highlighter: HighlighterCore, options?: InitOption, on
       if (cdns.has(link.authority)) {
         return true;
       }
-      window.open(link.toString(), "_blank");
-      return true;
     },
   });
 
