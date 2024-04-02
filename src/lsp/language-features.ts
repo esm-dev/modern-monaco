@@ -90,7 +90,8 @@ export function attachEmbeddedLanguages<T extends ILanguageWorkerWithEmbeddedSup
     if (model.getLanguageId() !== langaugeId) {
       return;
     }
-    const getEmbeddedDocument = (languageId: string) => workerProxy(model.uri).then((worker) => worker.getEmbeddedDocument(model.uri.toString(), languageId));
+    const getEmbeddedDocument = (languageId: string) =>
+      workerProxy(model.uri).then((worker) => worker.getEmbeddedDocument(model.uri.toString(), languageId));
     const attachEmbeddedLanguage = async (languageId: string) => {
       const uri = toEmbeddedUri(model, languageId);
       const doc = await getEmbeddedDocument(languageId);
@@ -168,7 +169,9 @@ export function proxyWorkerWithEmbeddedLanguages<T extends ILanguageWorkerWithEm
                 return redirectLSPRequest(embedded, prop as string, uri, ...args);
               } else if (typeof embedded === "object" && embedded != null) {
                 const { languageIds, data, origin } = embedded;
-                const promises = languageIds.map((rsl: string, i: number) => redirectLSPRequest(rsl, prop as string, uri, ...args, data?.[i]));
+                const promises = languageIds.map((rsl: string, i: number) =>
+                  redirectLSPRequest(rsl, prop as string, uri, ...args, data?.[i])
+                );
                 const results = await Promise.all(promises);
                 return origin.concat(...results.filter((r) => Array.isArray(r)));
               }
@@ -619,6 +622,11 @@ export class SignatureHelpAdapter<T extends ILanguageWorkerWithSignatureHelp> im
     if (!helpInfo || model.isDisposed()) {
       return undefined;
     }
+    helpInfo.signatures?.forEach(s => {
+      if (typeof s.documentation === "string") {
+        s.documentation = { kind: "markdown", value: s.documentation };
+      }
+    });
     return {
       value: <monacoNS.languages.SignatureHelp> helpInfo,
       dispose() {},
@@ -728,7 +736,9 @@ export interface ILanguageWorkerWithFormat {
   ): Promise<lst.TextEdit[] | null>;
 }
 
-export class DocumentFormattingEditProvider<T extends ILanguageWorkerWithFormat> implements monacoNS.languages.DocumentFormattingEditProvider {
+export class DocumentFormattingEditProvider<T extends ILanguageWorkerWithFormat>
+  implements monacoNS.languages.DocumentFormattingEditProvider
+{
   constructor(private _worker: WorkerProxy<T>) {}
 
   async provideDocumentFormattingEdits(
@@ -743,7 +753,9 @@ export class DocumentFormattingEditProvider<T extends ILanguageWorkerWithFormat>
   }
 }
 
-export class DocumentRangeFormattingEditProvider<T extends ILanguageWorkerWithFormat> implements monacoNS.languages.DocumentRangeFormattingEditProvider {
+export class DocumentRangeFormattingEditProvider<T extends ILanguageWorkerWithFormat>
+  implements monacoNS.languages.DocumentRangeFormattingEditProvider
+{
   constructor(private _worker: WorkerProxy<T>) {}
 
   async provideDocumentRangeFormattingEdits(
@@ -1117,7 +1129,9 @@ export interface ILanguageWorkerWithLinkedEditingRange {
   ): Promise<{ ranges: lst.Range[]; wordPattern?: string } | null>;
 }
 
-export class LinkedEditingRangeAdapter<T extends ILanguageWorkerWithLinkedEditingRange> implements monacoNS.languages.LinkedEditingRangeProvider {
+export class LinkedEditingRangeAdapter<T extends ILanguageWorkerWithLinkedEditingRange>
+  implements monacoNS.languages.LinkedEditingRangeProvider
+{
   constructor(private _worker: WorkerProxy<T>) {}
 
   async provideLinkedEditingRanges(
