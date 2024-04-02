@@ -932,7 +932,7 @@ export class DefinitionAdapter<T extends ILanguageWorkerWithDefinitions> impleme
 }
 
 function isLocationLink(location: lst.Location | lst.LocationLink): location is lst.LocationLink {
-  return "originSelectionRange" in location;
+  return "targetUri" in location;
 }
 
 function toLocationLink(
