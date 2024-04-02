@@ -1431,25 +1431,17 @@ function toSignatureHelpTriggerReason(context: monacoNS.languages.SignatureHelpC
   }
 }
 
-function toTsFormatOptions({ tabSize, insertSpaces }: lst.FormattingOptions): ts.FormatCodeSettings {
+function toTsFormatOptions({ tabSize, trimTrailingWhitespace, insertSpaces }: lst.FormattingOptions): ts.FormatCodeSettings {
   return {
-    tabSize: tabSize,
+    tabSize,
+    trimTrailingWhitespace,
     indentSize: tabSize,
+    convertTabsToSpaces: insertSpaces,
     insertSpaceAfterCommaDelimiter: insertSpaces,
     insertSpaceAfterSemicolonInForStatements: insertSpaces,
     insertSpaceBeforeAndAfterBinaryOperators: insertSpaces,
-    insertSpaceAfterConstructor: insertSpaces,
     insertSpaceAfterKeywordsInControlFlowStatements: insertSpaces,
-    insertSpaceAfterFunctionKeywordForAnonymousFunctions: insertSpaces,
-    insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: insertSpaces,
     insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: insertSpaces,
-    insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces: insertSpaces,
-    insertSpaceAfterOpeningAndBeforeClosingEmptyBraces: insertSpaces,
-    insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: insertSpaces,
-    insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces: insertSpaces,
-    insertSpaceAfterTypeAssertion: insertSpaces,
-    insertSpaceBeforeFunctionParenthesis: insertSpaces,
-    insertSpaceBeforeTypeAnnotation: insertSpaces,
   };
 }
 
