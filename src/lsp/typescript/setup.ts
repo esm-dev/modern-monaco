@@ -37,6 +37,7 @@ export async function setup(
 
   // set monacoNS and register language features
   lfs.setup(monaco);
+  lfs.enableAutoInsert(languageId, workerProxy, [">", "/"]);
   lfs.registerDefault(languageId, workerProxy, [".", "<", "/", "\"", "'"]);
   languages.registerCodeActionProvider(languageId, new lfs.CodeActionAdaptor(workerProxy));
   languages.registerSignatureHelpProvider(languageId, new lfs.SignatureHelpAdapter(workerProxy, ["(", ","]));

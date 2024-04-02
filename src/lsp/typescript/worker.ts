@@ -647,6 +647,18 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     }));
   }
 
+  async doAutoInsert(uri: string, position: lst.Position, ch: string): Promise<string | null> {
+    const document = this._getScriptDocument(uri);
+    if (!document) {
+      return null;
+    }
+    const info = this._languageService.getJsxClosingTagAtPosition(uri, document.offsetAt(position));
+    if (info) {
+      return "$0" + info.newText;
+    }
+    return null;
+  }
+
   async findDocumentSymbols(uri: string): Promise<lst.DocumentSymbol[] | null> {
     const document = this._getScriptDocument(uri);
     if (!document) {
