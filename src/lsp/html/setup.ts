@@ -88,6 +88,7 @@ export function setup(
   // set monacoNS and register language features
   lfs.setup(monaco);
   lfs.attachEmbeddedLanguages(languageId, embeddedLanguages, htmlWorkerProxy);
+  lfs.enableAutoInsert(languageId, workerProxy, [">", "/", "="]);
   lfs.registerDefault(languageId, workerProxy, [".", ":", "<", "\"", "=", "/"]);
   languages.registerLinkProvider(languageId, new lfs.DocumentLinkAdapter(workerProxy));
   languages.registerColorProvider(languageId, new lfs.DocumentColorAdapter(workerProxy));

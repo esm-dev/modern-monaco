@@ -41,7 +41,7 @@ export async function setup(
   languages.registerCodeActionProvider(languageId, new lfs.CodeActionAdaptor(workerProxy));
   languages.registerSignatureHelpProvider(languageId, new lfs.SignatureHelpAdapter(workerProxy, ["(", ","]));
 
-  // unimpemented features
+  // unimplemented features
   // languages.registerOnTypeFormattingEditProvider(languageId, new lfs.FormatOnTypeAdapter(workerProxy));
   // languages.registerInlayHintsProvider(languageId, new lfs.InlayHintsAdapter(workerProxy));
   // languages.registerLinkedEditingRangeProvider(languageId, new lfs.LinkedEditingRangeAdapter(workerProxy));

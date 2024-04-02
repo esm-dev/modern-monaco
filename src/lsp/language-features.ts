@@ -811,6 +811,55 @@ export class DocumentRangeFormattingEditProvider<T extends ILanguageWorkerWithFo
 
 // #endregion
 
+// #region AutoInsert
+
+export interface ILanguageWorkerWithAutoInsert {
+  doAutoInsert(uri: string, position: lst.Position, ch: string): Promise<string | null>;
+}
+
+export function enableAutoInsert<T extends ILanguageWorkerWithAutoInsert>(
+  langaugeId: string,
+  workerProxy: WorkerProxy<T>,
+  triggerCharacters: string[],
+) {
+  const { editor } = Monaco;
+  const listeners: { [uri: string]: monacoNS.IDisposable } = Object.create(null);
+  const validateModel = async (model: monacoNS.editor.IModel) => {
+    if (model.getLanguageId() !== langaugeId) {
+      return;
+    }
+    listeners[model.uri.toString()] = model.onDidChangeContent(async (e: monacoNS.editor.IModelContentChangedEvent) => {
+      const lastChange = e.changes[e.changes.length - 1];
+      const lastCharacter = lastChange.text[lastChange.text.length - 1];
+      if (triggerCharacters.includes(lastCharacter)) {
+        const lastRange = lastChange.range;
+        const position = new Monaco.Position(lastRange.endLineNumber, lastRange.endColumn + lastChange.text.length);
+        const worker = await workerProxy(model.uri);
+        const snippet = await worker.doAutoInsert(model.uri.toString(), fromPosition(position), lastCharacter);
+        if (snippet) {
+          const cursor = snippet.indexOf("$0");
+          const insertText = cursor >= 0 ? snippet.replace("$0", "") : snippet;
+          const range = new Monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column);
+          model.pushEditOperations([], [{ range, text: insertText }], () => []);
+          if (cursor >= 0) {
+            const activeEditor = editor.getEditors().find((e) => e.getModel() === model);
+            activeEditor.setPosition(position.delta(0, cursor));
+          }
+        }
+      }
+    });
+  };
+  editor.onDidCreateModel(validateModel);
+  editor.onDidChangeModelLanguage(({ model }) => {
+    listeners[model.uri.toString()]?.dispose();
+    validateModel(model);
+  });
+  editor.onWillDisposeModel((model) => {
+    listeners[model.uri.toString()]?.dispose();
+  });
+  editor.getModels().forEach(validateModel);
+}
+
 // #region DocumentSymbolAdapter
 
 export interface ILanguageWorkerWithDocumentSymbols {
