@@ -89,9 +89,6 @@ export function setup(
   lfs.setup(monaco);
   lfs.attachEmbeddedLanguages(languageId, embeddedLanguages, htmlWorkerProxy);
   lfs.registerDefault(languageId, workerProxy, [".", ":", "<", "\"", "=", "/"]);
-  languages.registerDocumentHighlightProvider(languageId, new lfs.DocumentHighlightAdapter(workerProxy));
-  languages.registerDefinitionProvider(languageId, new lfs.DefinitionAdapter(workerProxy));
-  languages.registerRenameProvider(languageId, new lfs.RenameAdapter(workerProxy));
   languages.registerLinkProvider(languageId, new lfs.DocumentLinkAdapter(workerProxy));
   languages.registerColorProvider(languageId, new lfs.DocumentColorAdapter(workerProxy));
   languages.registerCodeLensProvider(languageId, codeLensProvider);

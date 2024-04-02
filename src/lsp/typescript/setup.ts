@@ -37,13 +37,9 @@ export async function setup(
 
   // set monacoNS and register language features
   lfs.setup(monaco);
-  lfs.registerDefault(languageId, workerProxy, [".", "<", "/", "\"", "'"], true);
+  lfs.registerDefault(languageId, workerProxy, [".", "<", "/", "\"", "'"]);
   languages.registerCodeActionProvider(languageId, new lfs.CodeActionAdaptor(workerProxy));
   languages.registerSignatureHelpProvider(languageId, new lfs.SignatureHelpAdapter(workerProxy, ["(", ","]));
-  languages.registerDocumentHighlightProvider(languageId, new lfs.DocumentHighlightAdapter(workerProxy));
-  languages.registerDefinitionProvider(languageId, new lfs.DefinitionAdapter(workerProxy));
-  languages.registerReferenceProvider(languageId, new lfs.ReferenceAdapter(workerProxy));
-  languages.registerRenameProvider(languageId, new lfs.RenameAdapter(workerProxy));
 
   // unimpemented features
   // languages.registerOnTypeFormattingEditProvider(languageId, new lfs.FormatOnTypeAdapter(workerProxy));

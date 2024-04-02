@@ -45,11 +45,8 @@ export function setup(
   // set monacoNS and register language features
   lfs.setup(monaco);
   lfs.registerDefault(languageId, workerProxy, ["/", "-", ":"]);
+  languages.registerCodeActionProvider(languageId, new lfs.CodeActionAdaptor(workerProxy));
   languages.registerColorProvider(languageId, new lfs.DocumentColorAdapter(workerProxy));
-  languages.registerDefinitionProvider(languageId, new lfs.DefinitionAdapter(workerProxy));
-  languages.registerReferenceProvider(languageId, new lfs.ReferenceAdapter(workerProxy));
-  languages.registerDocumentHighlightProvider(languageId, new lfs.DocumentHighlightAdapter(workerProxy));
-  languages.registerRenameProvider(languageId, new lfs.RenameAdapter(workerProxy));
 }
 
 export function getWorkerUrl() {

@@ -565,7 +565,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   async doCodeAction(
     uri: string,
     range: lst.Range,
-    errorCodes: number[],
+    context: lst.CodeActionContext,
     formatOptions: lst.FormattingOptions,
   ): Promise<lst.CodeAction[] | null> {
     const document = this._getScriptDocument(uri);
@@ -574,6 +574,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     }
     const start = document.offsetAt(range.start);
     const end = document.offsetAt(range.end);
+    const errorCodes = context.diagnostics.map(diagnostic => diagnostic.code).filter(Boolean).map(Number);
     const codeFixes = await this._getCodeFixesAtPosition(uri, start, end, errorCodes, toTsFormatOptions(formatOptions));
     return codeFixes.map(codeFix => {
       const action: lst.CodeAction = {

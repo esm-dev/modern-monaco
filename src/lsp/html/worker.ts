@@ -205,28 +205,23 @@ export class HTMLWorker {
     return this._languageService.doRename(document, position, newName, htmlDocument);
   }
 
-  async findDocumentHighlights(uri: string, position: htmlService.Position): Promise<htmlService.DocumentHighlight[]> {
+  async findDefinition(
+    uri: string,
+    position: htmlService.Position,
+  ): Promise<(htmlService.Location & { originSelectionRange?: htmlService.Range })[] | null> {
     const document = this._getTextDocument(uri);
     if (!document) {
-      return [];
+      return null;
     }
     const rs = getDocumentRegions(this._languageService, document);
     const rsl = rs.getEmbeddedLanguageAtPosition(position);
     if (rsl) {
       return { $embedded: rsl } as any;
     }
-    const htmlDocument = this._getHTMLDocument(document);
-    return this._languageService.findDocumentHighlights(
-      document,
-      position,
-      htmlDocument,
-    );
+    return null;
   }
 
-  async findDefinition(
-    uri: string,
-    position: htmlService.Position,
-  ): Promise<(htmlService.Location & { originSelectionRange?: htmlService.Range })[] | null> {
+  async findReferences(uri: string, position: htmlService.Position): Promise<htmlService.Location[] | null> {
     const document = this._getTextDocument(uri);
     if (!document) {
       return null;
@@ -255,6 +250,24 @@ export class HTMLWorker {
     const htmlDocument = this._getHTMLDocument(document);
     return this._languageService.findDocumentSymbols(
       document,
+      htmlDocument,
+    );
+  }
+
+  async findDocumentHighlights(uri: string, position: htmlService.Position): Promise<htmlService.DocumentHighlight[]> {
+    const document = this._getTextDocument(uri);
+    if (!document) {
+      return [];
+    }
+    const rs = getDocumentRegions(this._languageService, document);
+    const rsl = rs.getEmbeddedLanguageAtPosition(position);
+    if (rsl) {
+      return { $embedded: rsl } as any;
+    }
+    const htmlDocument = this._getHTMLDocument(document);
+    return this._languageService.findDocumentHighlights(
+      document,
+      position,
       htmlDocument,
     );
   }

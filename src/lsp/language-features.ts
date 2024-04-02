@@ -26,7 +26,11 @@ export function registerDefault<
     & ILanguageWorkerWithCompletions
     & ILanguageWorkerWithHover
     & ILanguageWorkerWithFormat
+    & ILanguageWorkerWithRename
     & ILanguageWorkerWithDocumentSymbols
+    & ILanguageWorkerWithDefinitions
+    & ILanguageWorkerWithReferences
+    & ILanguageWorkerWithDocumentHighlights
     & ILanguageWorkerWithFoldingRanges
     & ILanguageWorkerWithSelectionRanges
     & { onDocumentRemoved(uri: string): void },
@@ -34,7 +38,6 @@ export function registerDefault<
   languageId: string,
   workerProxy: WorkerProxy<T>,
   completionTriggerCharacters: string[],
-  noFoldingRangeAdapter?: boolean,
 ) {
   const { editor, languages, Emitter } = Monaco;
 
@@ -54,12 +57,14 @@ export function registerDefault<
   languages.registerCompletionItemProvider(languageId, new CompletionAdapter(workerProxy, completionTriggerCharacters));
   languages.registerHoverProvider(languageId, new HoverAdapter(workerProxy));
   languages.registerDocumentSymbolProvider(languageId, new DocumentSymbolAdapter(workerProxy));
+  languages.registerDefinitionProvider(languageId, new DefinitionAdapter(workerProxy));
+  languages.registerReferenceProvider(languageId, new ReferenceAdapter(workerProxy));
+  languages.registerRenameProvider(languageId, new RenameAdapter(workerProxy));
   languages.registerDocumentFormattingEditProvider(languageId, new DocumentFormattingEditProvider(workerProxy));
   languages.registerDocumentRangeFormattingEditProvider(languageId, new DocumentRangeFormattingEditProvider(workerProxy));
+  languages.registerFoldingRangeProvider(languageId, new FoldingRangeAdapter(workerProxy));
+  languages.registerDocumentHighlightProvider(languageId, new DocumentHighlightAdapter(workerProxy));
   languages.registerSelectionRangeProvider(languageId, new SelectionRangeAdapter(workerProxy));
-  if (!noFoldingRangeAdapter) {
-    languages.registerFoldingRangeProvider(languageId, new FoldingRangeAdapter(workerProxy));
-  }
 }
 
 export function refreshDiagnostics(...langaugeIds: string[]) {
@@ -642,7 +647,7 @@ export interface ILanguageWorkerWithCodeAction {
   doCodeAction(
     uri: string,
     range: lst.Range,
-    errorCodes: number[],
+    context: lst.CodeActionContext,
     formatOptions: lst.FormattingOptions,
   ): Promise<lst.CodeAction[] | null>;
 }
@@ -655,14 +660,13 @@ export class CodeActionAdaptor<T extends ILanguageWorkerWithCodeAction> implemen
     range: monacoNS.Range,
     context: monacoNS.languages.CodeActionContext,
   ): Promise<monacoNS.languages.CodeActionList | undefined> {
-    const errorCodes = context.markers.filter((m) => m.code).map((m) => m.code).map(Number);
     const modelOptions = model.getOptions();
     const formatOptions: lst.FormattingOptions = {
       tabSize: modelOptions.tabSize,
       insertSpaces: modelOptions.insertSpaces,
     };
     const worker = await this._worker(model.uri);
-    const codeActions = await worker.doCodeAction(model.uri.toString(), fromRange(range), errorCodes, formatOptions);
+    const codeActions = await worker.doCodeAction(model.uri.toString(), fromRange(range), toCodeActionContext(context), formatOptions);
     if (codeActions) {
       return {
         actions: codeActions.map(action => ({
@@ -675,6 +679,38 @@ export class CodeActionAdaptor<T extends ILanguageWorkerWithCodeAction> implemen
         dispose: () => {},
       };
     }
+  }
+}
+
+function toCodeActionContext(context: monacoNS.languages.CodeActionContext): lst.CodeActionContext {
+  return {
+    diagnostics: context.markers.map(toLstDiagnostic),
+    only: [context.only],
+    triggerKind: context.trigger,
+  };
+}
+
+function toLstDiagnostic(marker: monacoNS.editor.IMarkerData): lst.Diagnostic {
+  return {
+    code: typeof marker.code === "string" ? marker.code : marker.code?.value,
+    message: marker.message,
+    range: fromRange(marker),
+    severity: toLstDiagnosticSeverity(marker.severity),
+    source: marker.source,
+    tags: marker.tags,
+  };
+}
+
+function toLstDiagnosticSeverity(severity: monacoNS.MarkerSeverity): lst.DiagnosticSeverity {
+  switch (severity) {
+    case Monaco.MarkerSeverity.Error:
+      return lst.DiagnosticSeverity.Error;
+    case Monaco.MarkerSeverity.Warning:
+      return lst.DiagnosticSeverity.Warning;
+    case Monaco.MarkerSeverity.Hint:
+      return lst.DiagnosticSeverity.Hint;
+    default:
+      return lst.DiagnosticSeverity.Information;
   }
 }
 
@@ -773,73 +809,6 @@ export class DocumentRangeFormattingEditProvider<T extends ILanguageWorkerWithFo
 
 // #endregion
 
-// #region DefinitionAdapter
-
-export interface ILanguageWorkerWithDefinitions {
-  findDefinition(
-    uri: string,
-    position: lst.Position,
-  ): Promise<(lst.Location & { originSelectionRange?: lst.Range })[] | null>;
-}
-
-export class DefinitionAdapter<T extends ILanguageWorkerWithDefinitions> implements monacoNS.languages.DefinitionProvider {
-  constructor(private readonly _worker: WorkerProxy<T>) {}
-
-  async provideDefinition(
-    model: monacoNS.editor.IReadOnlyModel,
-    position: monacoNS.Position,
-  ): Promise<monacoNS.languages.Definition | undefined> {
-    const worker = await this._worker(model.uri);
-    const definition = await worker.findDefinition(model.uri.toString(), fromPosition(position));
-    if (definition) {
-      return (Array.isArray(definition) ? definition : [definition]).map(location => {
-        const link = toLocationLink(location);
-        return link;
-      });
-    }
-  }
-}
-
-function toLocationLink(
-  location: lst.Location & { originSelectionRange?: lst.Range },
-): monacoNS.languages.LocationLink {
-  let uri = location.uri;
-  if (uri.includes(".__EMBEDDED__.")) {
-    uri = uri.slice(0, uri.lastIndexOf(".__EMBEDDED__."));
-  }
-  return {
-    originSelectionRange: location.originSelectionRange ? toRange(location.originSelectionRange) : undefined,
-    uri: Monaco.Uri.parse(uri),
-    range: toRange(location.range),
-  };
-}
-
-// #endregion
-
-// #region ReferenceAdapter
-
-export interface ILanguageWorkerWithReferences {
-  findReferences(uri: string, position: lst.Position): Promise<lst.Location[] | null>;
-}
-
-export class ReferenceAdapter<T extends ILanguageWorkerWithReferences> implements monacoNS.languages.ReferenceProvider {
-  constructor(private readonly _worker: WorkerProxy<T>) {}
-
-  async provideReferences(
-    model: monacoNS.editor.IReadOnlyModel,
-    position: monacoNS.Position,
-    context: monacoNS.languages.ReferenceContext, // todo: use context.includeDeclaration
-  ): Promise<monacoNS.languages.Location[] | undefined> {
-    const worker = await this._worker(model.uri);
-    const references = await worker.findReferences(model.uri.toString(), fromPosition(position));
-    if (references) {
-      return references.map(toLocationLink);
-    }
-  }
-}
-
-// #endregion
-
 // #region DocumentSymbolAdapter
 
 export interface ILanguageWorkerWithDocumentSymbols {
@@ -931,6 +900,90 @@ function toSymbolKind(kind: lst.SymbolKind): monacoNS.languages.SymbolKind {
       return mKind.Array;
   }
   return mKind.Function;
+}
+
+// #endregion
+
+// #region DefinitionAdapter
+
+export interface ILanguageWorkerWithDefinitions {
+  findDefinition(
+    uri: string,
+    position: lst.Position,
+  ): Promise<(lst.Location | lst.LocationLink)[] | null>;
+}
+
+export class DefinitionAdapter<T extends ILanguageWorkerWithDefinitions> implements monacoNS.languages.DefinitionProvider {
+  constructor(private readonly _worker: WorkerProxy<T>) {}
+
+  async provideDefinition(
+    model: monacoNS.editor.IReadOnlyModel,
+    position: monacoNS.Position,
+  ): Promise<monacoNS.languages.Definition | undefined> {
+    const worker = await this._worker(model.uri);
+    const definition = await worker.findDefinition(model.uri.toString(), fromPosition(position));
+    if (definition) {
+      return (Array.isArray(definition) ? definition : [definition]).map(location => {
+        const link = toLocationLink(location);
+        return link;
+      });
+    }
+  }
+}
+
+function isLocationLink(location: lst.Location | lst.LocationLink): location is lst.LocationLink {
+  return "originSelectionRange" in location;
+}
+
+function toLocationLink(
+  location: lst.Location | lst.LocationLink,
+): monacoNS.languages.LocationLink {
+  let uri: string;
+  let range: lst.Range;
+  let originSelectionRange: lst.Range | undefined;
+  let targetSelectionRange: lst.Range | undefined;
+  if (isLocationLink(location)) {
+    uri = location.targetUri;
+    range = location.targetRange;
+    originSelectionRange = location.originSelectionRange;
+    targetSelectionRange = location.targetSelectionRange;
+  } else {
+    uri = location.uri;
+    range = location.range;
+  }
+  if (uri.includes(".__EMBEDDED__.")) {
+    uri = uri.slice(0, uri.lastIndexOf(".__EMBEDDED__."));
+  }
+  return {
+    uri: Monaco.Uri.parse(uri),
+    range: toRange(range),
+    originSelectionRange: originSelectionRange ? toRange(originSelectionRange) : undefined,
+    targetSelectionRange: targetSelectionRange ? toRange(targetSelectionRange) : undefined,
+  };
+}
+
+// #endregion
+
+// #region ReferenceAdapter
+
+export interface ILanguageWorkerWithReferences {
+  findReferences(uri: string, position: lst.Position): Promise<lst.Location[] | null>;
+}
+
+export class ReferenceAdapter<T extends ILanguageWorkerWithReferences> implements monacoNS.languages.ReferenceProvider {
+  constructor(private readonly _worker: WorkerProxy<T>) {}
+
+  async provideReferences(
+    model: monacoNS.editor.IReadOnlyModel,
+    position: monacoNS.Position,
+    context: monacoNS.languages.ReferenceContext, // todo: use context.includeDeclaration
+  ): Promise<monacoNS.languages.Location[] | undefined> {
+    const worker = await this._worker(model.uri);
+    const references = await worker.findReferences(model.uri.toString(), fromPosition(position));
+    if (references) {
+      return references.map(toLocationLink);
+    }
+  }
 }
 
 // #endregion

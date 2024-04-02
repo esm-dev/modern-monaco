@@ -74,6 +74,10 @@ export class JSONWorker {
     return this._languageService.doHover(document, position, jsonDocument);
   }
 
+  async doRename(uri: string, position: jsonService.Position, newName: string): Promise<jsonService.WorkspaceEdit | null> {
+    return null;
+  }
+
   async doFormat(
     uri: string,
     range: jsonService.Range | null,
@@ -93,10 +97,31 @@ export class JSONWorker {
       return null;
     }
     const jsonDocument = this._getJSONDocument(document);
-    return this._languageService.findDocumentSymbols2(
-      document,
-      jsonDocument,
-    );
+    return this._languageService.findDocumentSymbols2(document, jsonDocument);
+  }
+
+  async findDefinition(uri: string, position: jsonService.Position): Promise<jsonService.DefinitionLink[] | null> {
+    const document = this._getTextDocument(uri);
+    if (!document) {
+      return null;
+    }
+    const jsonDocument = this._getJSONDocument(document);
+    const definition = await this._languageService.findDefinition(document, position, jsonDocument);
+    if (definition) {
+      return definition;
+    }
+    return null;
+  }
+
+  async findReferences(uri: string, position: jsonService.Position): Promise<jsonService.Location[] | null> {
+    return null;
+  }
+
+  async findDocumentHighlights(
+    uri: string,
+    position: jsonService.Position,
+  ): Promise<jsonService.DocumentHighlight[] | null> {
+    return null;
   }
 
   async findDocumentColors(uri: string): Promise<jsonService.ColorInformation[] | null> {

@@ -84,24 +84,20 @@ export class CSSWorker {
     return this._languageService.doHover(document, position, stylesheet);
   }
 
-  async doCodeActions(
+  async doCodeAction(
     uri: string,
     range: cssService.Range,
     context: cssService.CodeActionContext,
-  ): Promise<cssService.Command[] | null> {
+  ): Promise<cssService.CodeAction[] | null> {
     const document = this._getTextDocument(uri);
     if (!document) {
       return null;
     }
     const stylesheet = this._getStylesheet(document);
-    return this._languageService.doCodeActions(document, range, context, stylesheet);
+    return this._languageService.doCodeActions2(document, range, context, stylesheet);
   }
 
-  async doRename(
-    uri: string,
-    position: cssService.Position,
-    newName: string,
-  ): Promise<cssService.WorkspaceEdit | null> {
+  async doRename(uri: string, position: cssService.Position, newName: string): Promise<cssService.WorkspaceEdit | null> {
     const document = this._getTextDocument(uri);
     if (!document) {
       return null;
