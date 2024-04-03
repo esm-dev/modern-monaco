@@ -44,16 +44,20 @@ export function registerDefault<
   const { editor, languages, Emitter } = Monaco;
 
   // remove document cache from worker when the model is disposed
+  const onDispose = (model: monacoNS.editor.ITextModel) => workerProxy().then((worker) => worker.onDocumentRemoved(model.uri.toString()));
+  editor.onDidChangeModelLanguage(({ model, oldLanguage }) => {
+    if (oldLanguage === languageId) {
+      onDispose(model);
+    }
+  });
   editor.onWillDisposeModel((model) => {
     if (model.getLanguageId() === languageId) {
-      workerProxy().then((worker) => worker.onDocumentRemoved(model.uri.toString()));
+      onDispose(model);
     }
   });
 
-  // create diagnostics adapter
-  const refreshEmitter = new Emitter<void>();
-  new DiagnosticsAdapter(languageId, workerProxy, refreshEmitter.event);
-  refreshEmitters.set(languageId, refreshEmitter);
+  // enable diagnostics
+  enableDiagnostics(languageId, workerProxy);
 
   // register language features
   languages.registerCompletionItemProvider(languageId, new CompletionAdapter(workerProxy, completionTriggerCharacters));
@@ -84,55 +88,65 @@ export interface ILanguageWorkerWithEmbeddedSupport {
 }
 
 export function attachEmbeddedLanguages<T extends ILanguageWorkerWithEmbeddedSupport>(
-  langaugeId: string,
+  languageId: string,
   embeddedLanguages: Record<string, string>,
   workerProxy: WorkerProxy<T>,
 ) {
   const { editor, Uri } = Monaco;
   const embeddedLanguageIds = Object.keys(embeddedLanguages);
-  const toEmbeddedUri = (model: monacoNS.editor.IModel, languageId: string) => {
-    return Uri.parse(model.uri.path + ".__EMBEDDED__." + embeddedLanguages[languageId]);
+  const listeners = new Map<string, monacoNS.IDisposable>();
+  const toEmbeddedUri = (uri: monacoNS.Uri, rsl: string) => {
+    return Uri.parse(uri.path + ".__EMBEDDED__." + embeddedLanguages[rsl]);
   };
   const validateModel = async (model: monacoNS.editor.IModel) => {
-    if (model.getLanguageId() !== langaugeId) {
+    if (model.getLanguageId() !== languageId) {
       return;
     }
-    const getEmbeddedDocument = (languageId: string) =>
-      workerProxy(model.uri).then((worker) => worker.getEmbeddedDocument(model.uri.toString(), languageId));
-    const attachEmbeddedLanguage = async (languageId: string) => {
-      const uri = toEmbeddedUri(model, languageId);
-      const doc = await getEmbeddedDocument(languageId);
+    const modelUri = model.uri.toString();
+    const getEmbeddedDocument = (rsl: string) => workerProxy(model.uri).then((worker) => worker.getEmbeddedDocument(modelUri, rsl));
+    const attachEmbeddedLanguage = async (rsl: string) => {
+      const uri = toEmbeddedUri(model.uri, rsl);
+      const doc = await getEmbeddedDocument(rsl);
       if (doc) {
-        const emebeddedModel = editor.getModel(uri);
-        if (!emebeddedModel) {
-          editor.createModel(doc.content, languageId === "importmap" ? "json" : languageId, uri);
+        let embeddedModel = editor.getModel(uri);
+        if (!embeddedModel) {
+          embeddedModel = editor.createModel(doc.content, rsl === "importmap" ? "json" : rsl, uri);
+          Reflect.set(embeddedModel, "_versionId", model.getVersionId());
         } else {
-          emebeddedModel.setValue(doc.content);
+          embeddedModel.setValue(doc.content);
         }
       } else {
-        const emebeddedModel = editor.getModel(uri);
-        if (emebeddedModel) {
-          emebeddedModel.dispose();
+        const embeddedModel = editor.getModel(uri);
+        if (embeddedModel) {
+          embeddedModel.dispose();
         }
       }
     };
-    embeddedLanguageIds.forEach(attachEmbeddedLanguage);
-    model.onDidChangeContent(() => {
-      embeddedLanguageIds.forEach(attachEmbeddedLanguage);
-    });
+    const attachAll = () => embeddedLanguageIds.forEach(attachEmbeddedLanguage);
+    listeners.set(modelUri, model.onDidChangeContent(attachAll));
+    attachAll();
   };
   const cleanUp = (model: monacoNS.editor.IModel) => {
-    embeddedLanguageIds.forEach((languageId) => {
-      const uri = toEmbeddedUri(model, languageId);
+    const uri = model.uri.toString();
+    if (listeners.has(uri)) {
+      listeners.get(uri).dispose();
+      listeners.delete(uri);
+    }
+    embeddedLanguageIds.forEach((rsl) => {
+      const uri = toEmbeddedUri(model.uri, rsl);
       editor.getModel(uri)?.dispose();
     });
   };
   editor.onDidCreateModel(validateModel);
   editor.onWillDisposeModel((model) => {
-    cleanUp(model);
+    if (model.getLanguageId() === languageId) {
+      cleanUp(model);
+    }
   });
-  editor.onDidChangeModelLanguage(({ model }) => {
-    cleanUp(model);
+  editor.onDidChangeModelLanguage(({ model, oldLanguage }) => {
+    if (oldLanguage === languageId) {
+      cleanUp(model);
+    }
     validateModel(model);
   });
   editor.getModels().forEach(validateModel);
@@ -195,76 +209,81 @@ export function proxyWorkerWithEmbeddedLanguages<T extends ILanguageWorkerWithEm
 
 // #endregion
 
-// #region DiagnosticsAdapter
+// #region Diagnostics
 
 export interface ILanguageWorkerWithValidation {
   doValidation(uri: string): Promise<lst.Diagnostic[] | null>;
 }
 
-export class DiagnosticsAdapter<T extends ILanguageWorkerWithValidation> {
-  private readonly _listeners: { [uri: string]: monacoNS.IDisposable } = Object.create(null);
-
-  constructor(
-    private readonly _languageId: string,
-    private readonly _worker: WorkerProxy<T>,
-    onRefresh: monacoNS.IEvent<void>,
-  ) {
-    const validateModel = (model: monacoNS.editor.IModel): void => {
-      const modelId = model.getLanguageId();
-      const uri = model.uri.toString();
-      if (modelId !== this._languageId || uri.includes(".__EMBEDDED__.")) {
-        return;
-      }
-
-      let timer: number | null = null;
-      this._listeners[uri] = model.onDidChangeContent(() => {
-        if (timer) {
-          clearTimeout(timer);
-        }
-        timer = setTimeout(() => {
-          timer = null;
-          this._doValidate(model);
-        }, 500);
-      });
-      this._doValidate(model);
-    };
-
-    const dispose = (model: monacoNS.editor.IModel): void => {
-      const key = model.uri.toString();
-      if (this._listeners[key]) {
-        this._listeners[key].dispose();
-        delete this._listeners[key];
-      }
-    };
-
-    const { editor } = Monaco;
-
-    editor.onDidCreateModel(validateModel);
-    editor.onWillDisposeModel((model) => {
-      dispose(model);
-      editor.setModelMarkers(model, this._languageId, []);
-    });
-    editor.onDidChangeModelLanguage(({ model }) => {
-      dispose(model);
-      validateModel(model);
-    });
-    onRefresh(() => {
-      editor.getModels().forEach((model) => {
-        dispose(model);
-        validateModel(model);
-      });
-    });
-    editor.getModels().forEach(validateModel);
-  }
-
-  private async _doValidate(model: monacoNS.editor.ITextModel): Promise<void> {
-    const worker = await this._worker(model.uri);
+function enableDiagnostics<T extends ILanguageWorkerWithValidation>(
+  languageId: string,
+  workerProxy: WorkerProxy<T>,
+) {
+  const { editor, Emitter } = Monaco;
+  const refreshEmitter = new Emitter<void>();
+  const listeners = new Map<string, monacoNS.IDisposable>();
+  const doValidate = async (model: monacoNS.editor.ITextModel) => {
+    const worker = await workerProxy(model.uri);
     const diagnostics = await worker.doValidation(model.uri.toString());
     if (diagnostics && !model.isDisposed()) {
       const markers = diagnostics.map(toMarker);
-      Monaco.editor.setModelMarkers(model, this._languageId, markers);
+      Monaco.editor.setModelMarkers(model, languageId, markers);
     }
-  }
+  };
+  const validateModel = (model: monacoNS.editor.IModel): void => {
+    const modelId = model.getLanguageId();
+    const uri = model.uri.toString();
+    if (modelId !== languageId || uri.includes(".__EMBEDDED__.")) {
+      return;
+    }
+
+    let timer: number | null = null;
+    const reValidate = () => {
+      if (timer) {
+        clearTimeout(timer);
+      }
+      timer = setTimeout(() => {
+        timer = null;
+        doValidate(model);
+      }, 500);
+    };
+
+    listeners.set(uri, model.onDidChangeContent(reValidate));
+    doValidate(model);
+  };
+  const dispose = (model: monacoNS.editor.IModel): void => {
+    const uri = model.uri.toString();
+    if (listeners.has(uri)) {
+      listeners.get(uri).dispose();
+      listeners.delete(uri);
+    }
+  };
+
+  editor.onDidCreateModel(validateModel);
+  editor.onWillDisposeModel((model) => {
+    if (model.getLanguageId() === languageId) {
+      dispose(model);
+    }
+    editor.setModelMarkers(model, languageId, []);
+  });
+  editor.onDidChangeModelLanguage(({ model, oldLanguage }) => {
+    if (oldLanguage === languageId) {
+      dispose(model);
+    }
+    validateModel(model);
+  });
+  editor.getModels().forEach(validateModel);
+
+  // refresh diagnostics on event
+  refreshEmitter.event(() => {
+    editor.getModels().forEach((model) => {
+      if (model.getLanguageId() === languageId) {
+        dispose(model);
+      }
+      validateModel(model);
+    });
+  });
+  refreshEmitters.set(languageId, refreshEmitter);
 }
 
 function toMarker({
@@ -823,39 +842,51 @@ export function enableAutoInsert<T extends ILanguageWorkerWithAutoInsert>(
   triggerCharacters: string[],
 ) {
   const { editor } = Monaco;
-  const listeners: { [uri: string]: monacoNS.IDisposable } = Object.create(null);
+  const listeners = new Map<string, monacoNS.IDisposable>();
   const validateModel = async (model: monacoNS.editor.IModel) => {
     if (model.getLanguageId() !== langaugeId) {
       return;
     }
-    listeners[model.uri.toString()] = model.onDidChangeContent(async (e: monacoNS.editor.IModelContentChangedEvent) => {
-      const lastChange = e.changes[e.changes.length - 1];
-      const lastCharacter = lastChange.text[lastChange.text.length - 1];
-      if (triggerCharacters.includes(lastCharacter)) {
-        const lastRange = lastChange.range;
-        const position = new Monaco.Position(lastRange.endLineNumber, lastRange.endColumn + lastChange.text.length);
-        const worker = await workerProxy(model.uri);
-        const snippet = await worker.doAutoInsert(model.uri.toString(), fromPosition(position), lastCharacter);
-        if (snippet) {
-          const cursor = snippet.indexOf("$0");
-          const insertText = cursor >= 0 ? snippet.replace("$0", "") : snippet;
-          const range = new Monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column);
-          model.pushEditOperations([], [{ range, text: insertText }], () => []);
-          if (cursor >= 0) {
-            const activeEditor = editor.getEditors().find((e) => e.getModel() === model);
-            activeEditor.setPosition(position.delta(0, cursor));
+    const modelUri = model.uri.toString();
+    listeners.set(
+      modelUri,
+      model.onDidChangeContent(async (e: monacoNS.editor.IModelContentChangedEvent) => {
+        const lastChange = e.changes[e.changes.length - 1];
+        const lastCharacter = lastChange.text[lastChange.text.length - 1];
+        if (triggerCharacters.includes(lastCharacter)) {
+          const lastRange = lastChange.range;
+          const position = new Monaco.Position(lastRange.endLineNumber, lastRange.endColumn + lastChange.text.length);
+          const worker = await workerProxy(model.uri);
+          const snippet = await worker.doAutoInsert(modelUri, fromPosition(position), lastCharacter);
+          if (snippet) {
+            const cursor = snippet.indexOf("$0");
+            const insertText = cursor >= 0 ? snippet.replace("$0", "") : snippet;
+            const range = new Monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column);
+            model.pushEditOperations([], [{ range, text: insertText }], () => []);
+            if (cursor >= 0) {
+              const activeEditor = editor.getEditors().find((e) => e.getModel() === model);
+              activeEditor.setPosition(position.delta(0, cursor));
+            }
           }
         }
-      }
-    });
+      }),
+    );
   };
   editor.onDidCreateModel(validateModel);
-  editor.onDidChangeModelLanguage(({ model }) => {
-    listeners[model.uri.toString()]?.dispose();
+  editor.onDidChangeModelLanguage(({ model, oldLanguage }) => {
+    const modelUri = model.uri.toString();
+    if (oldLanguage === langaugeId && listeners.has(modelUri)) {
+      listeners.get(modelUri).dispose();
+      listeners.delete(modelUri);
+    }
     validateModel(model);
   });
   editor.onWillDisposeModel((model) => {
-    listeners[model.uri.toString()]?.dispose();
+    const modelUri = model.uri.toString();
+    if (model.getLanguageId() === langaugeId && listeners.has(modelUri)) {
+      listeners.get(modelUri).dispose();
+      listeners.delete(modelUri);
+    }
   });
   editor.getModels().forEach(validateModel);
 }
