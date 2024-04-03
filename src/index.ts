@@ -100,18 +100,10 @@ async function loadMonaco(highlighter: HighlighterCore, options?: InitOption, on
     getLanguageIdFromUri: (uri: monacoNS.Uri) => getLanguageIdFromPath(uri.path),
   });
 
-  // since this editor supports https modules, disable the link opener for the cdn links
-  const cdns = new Set([
-    "cdn.jsdelivr.net",
-    "cdn.skypack.dev",
-    "esm.sh",
-    "esm.run",
-    "ga.jspm.io",
-    "unpkg.com",
-  ]);
+  // prevent to open the http link which is a model
   monaco.editor.registerLinkOpener({
     async open(link) {
-      if (cdns.has(link.authority)) {
+      if ((link.scheme === "https" || link.scheme === "http") && monaco.editor.getModel(link)) {
         return true;
       }
     },
