@@ -15,12 +15,28 @@ interface NamedObject {
 }
 
 export interface ShikiInitOptions {
+  /**
+   * Theme names, or theme registration objects to be loaded upfront.
+   */
   theme?: TextmateThemeName | URL | ThemeInput;
+  /**
+   * Language names, or language registration objects to be loaded upfront.
+   */
   langs?: (TextmateGrammarName | URL | LanguageInput)[];
+  /**
+   * The CDN base URL to download themes and languages from. Default: "https://esm.sh".
+   */
+  downloadCDN?: string;
 }
 
 export interface InitOptions extends ShikiInitOptions {
+  /**
+   * Virtual file system to be used by the editor.
+   */
   vfs?: VFS;
+  /**
+   * Language server protocol configuration.
+   */
   lsp?: LSPConfig;
 }
 

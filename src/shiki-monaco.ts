@@ -1,6 +1,3 @@
-// temporary workaround for performance improvement
-// remove this module once https://github.com/shikijs/shiki/pull/645 gets merged
-
 import type monacoNs from "monaco-editor-core";
 import type { ShikiInternal, ThemeRegistrationResolved } from "@shikijs/core";
 import type { StateStack } from "@shikijs/core/textmate";
@@ -67,7 +64,7 @@ export function shikiToMonaco(highlighter: ShikiInternal<any, any>, monaco: type
     colorToScopeMap.clear();
     theme?.rules.forEach((rule) => {
       const c = normalizeColor(rule.foreground);
-      if (c && !colorToScopeMap.has(c)) {
+      if (c) {
         colorToScopeMap.set(c, rule.token);
       }
     });
@@ -77,7 +74,7 @@ export function shikiToMonaco(highlighter: ShikiInternal<any, any>, monaco: type
   // Set the first theme as the default theme
   monaco.editor.setTheme(themeIds[0]);
 
-  const monacoLanguageIds = new Set(monaco.languages.getLanguages().map(l => l.id));
+  const monacoLanguageIds = new Set(monaco.languages.getLanguages().map(lang => lang.id));
   for (const lang of highlighter.getLoadedLanguages()) {
     if (monacoLanguageIds.has(lang)) {
       monaco.languages.setTokensProvider(lang, {
@@ -149,7 +146,6 @@ function normalizeColor(color: string | undefined) {
   }
 
   color = (color.charCodeAt(0) === 35 ? color.slice(1) : color).toLowerCase();
-
   // #RGB => #RRGGBB - Monaco does not support hex color with 3 or 4 digits
   if (color.length === 3 || color.length === 4) {
     color = color.split("").map(c => c + c).join("");

@@ -1,14 +1,14 @@
 import type monacoNS from "monaco-editor-core";
-import type { HighlighterCore } from "@shikijs/core";
 import type { ShikiInitOptions } from "./shiki.ts";
 import type { VFS } from "./vfs.ts";
 import type { LSPConfig } from "./lsp/index.ts";
 import type { RenderOptions } from "./render.ts";
+import type { Highlighter } from "./shiki.ts";
 import { shikiToMonaco } from "./shiki-monaco.ts";
 import { createWorker, margeProviders } from "./lsp/index.ts";
 import { render } from "./render.ts";
 import { getLanguageIdFromPath, getLanguageIdsInVFS, initShiki } from "./shiki.ts";
-import { loadTMGrammar, loadTMTheme, tmGrammars } from "./shiki.ts";
+import { tmGrammars } from "./shiki.ts";
 
 const editorProps = [
   "autoDetectHighContrast",
@@ -47,7 +47,7 @@ export interface InitOption extends ShikiInitOptions {
 }
 
 /** Load the monaco editor and use shiki as the tokenizer. */
-async function loadMonaco(highlighter: HighlighterCore, options?: InitOption, onEditorWorkerReady?: () => void) {
+async function loadMonaco(highlighter: Highlighter, options?: InitOption, onEditorWorkerReady?: () => void) {
   const monaco = await import("./editor-core.js");
   const editorWorkerUrl = monaco.getWorkerUrl();
   const vfs = options?.vfs;
@@ -165,7 +165,7 @@ async function loadMonaco(highlighter: HighlighterCore, options?: InitOption, on
         monaco.languages.setLanguageConfiguration(id, monaco.convertVscodeLanguageConfiguration(config));
       }
       if (!highlighter.getLoadedLanguages().includes(id)) {
-        highlighter.loadLanguage(loadTMGrammar(id)).then(() => {
+        highlighter.loadLanguageFromCDN(id).then(() => {
           // register tokenizer for the language
           shikiToMonaco(highlighter, monaco);
         });
@@ -186,7 +186,7 @@ async function loadMonaco(highlighter: HighlighterCore, options?: InitOption, on
 }
 
 let loading: Promise<typeof monacoNS> | undefined;
-let ssrHighlighter: HighlighterCore | Promise<HighlighterCore> | undefined;
+let ssrHighlighter: Highlighter | Promise<Highlighter> | undefined;
 
 /* Initialize and return the monaco editor namespace. */
 export function init(options: InitOption): Promise<typeof monacoNS> {
@@ -222,7 +222,7 @@ export function lazy(options?: InitOption) {
   let monacoCore: typeof monacoNS | Promise<typeof monacoNS> | null = null;
   let editorWorkerPromise: Promise<void> | null = null;
 
-  function loadMonacoCore(highlighter: HighlighterCore) {
+  function loadMonacoCore(highlighter: Highlighter) {
     if (monacoCore) {
       return monacoCore;
     }
@@ -413,7 +413,7 @@ export function lazy(options?: InitOption) {
             const loadedLangs = new Set(highlighter.getLoadedLanguages());
             Promise.all(
               ids.filter(name => !loadedLangs.has(name)).map(name =>
-                highlighter.loadLanguage(loadTMGrammar(name)).then(() => shikiToMonaco(highlighter, monaco))
+                highlighter.loadLanguageFromCDN(name).then(() => shikiToMonaco(highlighter, monaco))
               ),
             );
           }
@@ -423,7 +423,7 @@ export function lazy(options?: InitOption) {
   );
 }
 
-async function initRenderHighlighter(options: RenderOptions): Promise<HighlighterCore> {
+async function initRenderHighlighter(options: RenderOptions): Promise<Highlighter> {
   if (options.filename && !options.lang) {
     options.lang = getLanguageIdFromPath(options.filename);
   }
@@ -434,12 +434,12 @@ async function initRenderHighlighter(options: RenderOptions): Promise<Highlighte
   await Promise.all([
     () => {
       if (options.lang && !highlighter.getLoadedLanguages().includes(options.lang)) {
-        return highlighter.loadLanguage(loadTMGrammar(options.lang));
+        return highlighter.loadLanguageFromCDN(options.lang);
       }
     },
     () => {
       if (options.theme && !highlighter.getLoadedThemes().includes(options.theme)) {
-        return highlighter.loadLanguage(loadTMTheme(options.theme));
+        return highlighter.loadThemeFromCDN(options.theme);
       }
     },
   ].map((fn) => fn()));

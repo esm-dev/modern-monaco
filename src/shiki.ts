@@ -1,5 +1,4 @@
-import type { ThemeInput } from "@shikijs/core";
-import type { LanguageInput } from "@shikijs/core";
+import type { HighlighterCore, LanguageInput, ThemeInput } from "@shikijs/core";
 import type { VFS } from "./vfs";
 import loadWasm from "@shikijs/core/wasm-inlined";
 import { getHighlighterCore } from "@shikijs/core";
@@ -17,13 +16,20 @@ const vitesseDark = "vitesse-dark";
 export interface ShikiInitOptions {
   theme?: string | URL | ThemeInput;
   langs?: (LanguageInput | string | URL)[];
+  downloadCDN?: string;
+}
+
+export interface Highlighter extends HighlighterCore {
+  loadThemeFromCDN(name: string): Promise<void>;
+  loadLanguageFromCDN(name: string): Promise<void>;
 }
 
 /** Initialize shiki with the given options. */
 export async function initShiki({
   theme = vitesseDark,
   langs: languages,
-}: ShikiInitOptions) {
+  downloadCDN,
+}: ShikiInitOptions): Promise<Highlighter> {
   const langs: LanguageInput[] = [];
   const themes: ThemeInput[] = [];
 
@@ -32,43 +38,48 @@ export async function initShiki({
       if (typeof input === "string" || input instanceof URL) {
         const g = tmGrammars.find((g) => g.name === input);
         if (g?.embedded) {
-          langs.push(...g.embedded.map((id) => loadTMGrammar(id)));
+          langs.push(...g.embedded.map((id) => loadTMGrammar(id, downloadCDN)));
         }
-        langs.push(loadTMGrammar(input));
+        langs.push(loadTMGrammar(input, downloadCDN));
       } else {
         langs.push(input);
         if ((input as any).embeddedLanguages) {
-          langs.push(...Object.values((input as any).embeddedLanguages).map((id: string) => loadTMGrammar(id)));
+          langs.push(...Object.values((input as any).embeddedLanguages).map((id: string) => loadTMGrammar(id, downloadCDN)));
         }
       }
     });
   }
 
   if (typeof theme === "string" || theme instanceof URL) {
-    themes.push(loadTMTheme(theme));
+    themes.push(loadTMTheme(theme, downloadCDN));
   } else if (typeof theme === "object" && theme !== null) {
     themes.push(theme);
   }
 
-  return getHighlighterCore({ langs, themes, loadWasm });
+  const highlighterCore = await getHighlighterCore({ langs, themes, loadWasm });
+  Object.assign(highlighterCore, {
+    loadThemeFromCDN: (name: string) => highlighterCore.loadTheme(loadTMTheme(name, downloadCDN)),
+    loadLanguageFromCDN: (name: string) => highlighterCore.loadLanguage(loadTMGrammar(name, downloadCDN)),
+  });
+  return highlighterCore as unknown as Highlighter;
 }
 
 /** Load a TextMate theme from the given source. */
-export function loadTMTheme(src: string | URL) {
+function loadTMTheme(src: string | URL, cdn = "https://esm.sh") {
   if (src === vitesseDark) {
     // @ts-expect-error `VITESSE_DARK` is defined at build time
     return VITESSE_DARK;
   }
   const isThemeName = typeof src === "string" && tmThemes.has(src);
-  const url = isThemeName ? `https://esm.sh/tm-themes@${tmThemesVersion}/themes/${src}.json` : src;
+  const url = isThemeName ? new URL(`/tm-themes@${tmThemesVersion}/themes/${src}.json`, cdn) : src;
   return cache.fetch(url).then((res) => res.json());
 }
 
 /** Load a TextMate grammar from the given source. */
-export function loadTMGrammar(src: string | URL) {
+function loadTMGrammar(src: string | URL, cdn = "https://esm.sh") {
   const g = tmGrammars.find(g => g.name === src);
   if (g) {
-    const url = `https://esm.sh/tm-grammars@${tmGrammarsVersion}/grammars/${g.name}.json`;
+    const url = new URL(`/tm-grammars@${tmGrammarsVersion}/grammars/${g.name}.json`, cdn);
     return cache.fetch(url).then((res) => res.json()).then((grammar) => ({
       injectTo: g.injectTo,
       ...grammar,
