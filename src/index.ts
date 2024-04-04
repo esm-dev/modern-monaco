@@ -247,7 +247,7 @@ export function lazy(options?: InitOption) {
       async connectedCallback() {
         const renderOptions: Partial<RenderOptions> = {};
 
-        // check editor/render options from attributes
+        // parse editor/render options from attributes
         for (const attrName of this.getAttributeNames()) {
           const key = editorProps.find((k) => k.toLowerCase() === attrName);
           if (key) {
@@ -255,19 +255,41 @@ export function lazy(options?: InitOption) {
             if (value === "") {
               value = key === "minimap" || key === "stickyScroll" ? { enabled: true } : true;
             } else {
-              try {
-                value = JSON.parse(value);
-              } catch {
-                // ignore
+              value = value.trim();
+              if (value === "true") {
+                value = true;
+              } else if (value === "false") {
+                value = false;
+              } else if (value === "null") {
+                value = null;
+              } else if (/^\d+$/.test(value)) {
+                value = Number(value);
+              } else if (/^\{.+\}$/.test(value)) {
+                try {
+                  value = JSON.parse(value);
+                } catch (error) {
+                  value = undefined;
+                }
               }
             }
-            if (key === "padding" && typeof value === "number") {
-              value = { top: value, bottom: value };
+            if (key === "padding") {
+              if (typeof value === "number") {
+                value = { top: value, bottom: value };
+              } else if (/^\d+\s+\d+$/.test(value)) {
+                const [top, bottom] = value.split(/\s+/);
+                if (top && bottom) {
+                  value = { top: Number(top), bottom: Number(bottom) };
+                }
+              } else {
+                value = undefined;
+              }
             }
             if (key === "wordWrap" && (value === "on" || value === true)) {
               value = "on";
             }
-            renderOptions[key] = value;
+            if (value !== undefined) {
+              renderOptions[key] = value;
+            }
           }
         }
 
