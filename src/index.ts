@@ -4,7 +4,7 @@ import type { VFS } from "./vfs.ts";
 import type { LSPConfig } from "./lsp/index.ts";
 import type { RenderOptions } from "./render.ts";
 import type { Highlighter } from "./shiki.ts";
-import { shikiToMonaco } from "./shiki-monaco.ts";
+import { initShikiMonacoTokenizer, registerShikiMonacoTokenizer } from "./shiki-monaco.ts";
 import { createWorker, margeProviders } from "./lsp/index.ts";
 import { render } from "./render.ts";
 import { getLanguageIdFromPath, getLanguageIdsInVFS, initShiki } from "./shiki.ts";
@@ -167,7 +167,7 @@ async function loadMonaco(highlighter: Highlighter, options?: InitOption, onEdit
       if (!highlighter.getLoadedLanguages().includes(id)) {
         highlighter.loadLanguageFromCDN(id).then(() => {
           // register tokenizer for the language
-          shikiToMonaco(highlighter, monaco);
+          registerShikiMonacoTokenizer(monaco, highlighter, id);
         });
       }
       let label = id;
@@ -180,7 +180,9 @@ async function loadMonaco(highlighter: Highlighter, options?: InitOption, onEdit
       }
     });
   });
-  shikiToMonaco(highlighter, monaco);
+
+  // using the shiki as the tokenizer for the monaco editor
+  initShikiMonacoTokenizer(monaco, highlighter, [...allLanguages]);
 
   return monaco;
 }
@@ -409,13 +411,11 @@ export function lazy(options?: InitOption) {
           }
           // load required grammars in background
           if (vfs) {
-            const ids = await getLanguageIdsInVFS(vfs);
-            const loadedLangs = new Set(highlighter.getLoadedLanguages());
-            Promise.all(
-              ids.filter(name => !loadedLangs.has(name)).map(name =>
-                highlighter.loadLanguageFromCDN(name).then(() => shikiToMonaco(highlighter, monaco))
-              ),
-            );
+            for (const id of await getLanguageIdsInVFS(vfs)) {
+              highlighter.loadLanguageFromCDN(id).then(() => {
+                registerShikiMonacoTokenizer(monaco, highlighter, id);
+              });
+            }
           }
         })();
       }

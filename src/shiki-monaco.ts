@@ -32,12 +32,14 @@ export function textmateThemeToMonacoTheme(theme: ThemeRegistrationResolved): Mo
   };
 }
 
-export function shikiToMonaco(highlighter: ShikiInternal<any, any>, monaco: typeof monacoNs) {
-  // Do not attempt to tokenize if a line is too long
-  // default to 20000 (as in monaco-editor-core defaults)
-  const tokenizeMaxLineLength = 20000;
-  const tokenizeTimeLimit = 500;
+// Do not attempt to tokenize if a line is too long
+// default to 20000 (as in monaco-editor-core defaults)
+const tokenizeMaxLineLength = 20000;
+const tokenizeTimeLimit = 500;
+const colorMap: string[] = [];
+const colorToScopeMap = new Map<string, string>();
 
+export function initShikiMonacoTokenizer(monaco: typeof monacoNs, highlighter: ShikiInternal<any, any>, languageIds: string[]) {
   // Convert themes to Monaco themes and register them
   const themeMap = new Map<string, MonacoTheme>();
   const themeIds = highlighter.getLoadedThemes();
@@ -47,9 +49,6 @@ export function shikiToMonaco(highlighter: ShikiInternal<any, any>, monaco: type
     themeMap.set(themeId, monacoTheme);
     monaco.editor.defineTheme(themeId, monacoTheme);
   }
-
-  const colorMap: string[] = [];
-  const colorToScopeMap = new Map<string, string>();
 
   // Because Monaco does not have the API of reading the current theme,
   // We hijack it here to keep track of the current theme.
@@ -74,44 +73,49 @@ export function shikiToMonaco(highlighter: ShikiInternal<any, any>, monaco: type
   // Set the first theme as the default theme
   monaco.editor.setTheme(themeIds[0]);
 
-  const monacoLanguageIds = new Set(monaco.languages.getLanguages().map(lang => lang.id));
-  for (const lang of highlighter.getLoadedLanguages()) {
-    if (monacoLanguageIds.has(lang)) {
-      monaco.languages.setTokensProvider(lang, {
-        getInitialState() {
-          return new TokenizerState(INITIAL);
-        },
-        tokenize(line, state: TokenizerState) {
-          if (line.length >= tokenizeMaxLineLength) {
-            return {
-              endState: state,
-              tokens: [{ startIndex: 0, scopes: "" }],
-            };
-          }
-
-          const grammar = highlighter.getLanguage(lang);
-          const result = grammar.tokenizeLine2(line, state.ruleStack, tokenizeTimeLimit);
-          if (result.stoppedEarly) {
-            console.warn(`Time limit reached when tokenizing line: ${line.substring(0, 100)}`);
-          }
-
-          const tokensLength = result.tokens.length / 2;
-          const tokens: any[] = new Array(tokensLength);
-          for (let j = 0; j < tokensLength; j++) {
-            const startIndex = result.tokens[2 * j];
-            const metadata = result.tokens[2 * j + 1];
-            const color = colorMap[StackElementMetadata.getForeground(metadata)] ?? "";
-            // Because Monaco only support one scope per token,
-            // we workaround this to use color to trace back the scope
-            const scope = colorToScopeMap.get(color) ?? "";
-            tokens[j] = { startIndex, scopes: scope };
-          }
-
-          return { endState: new TokenizerState(result.ruleStack), tokens };
-        },
-      });
-    }
+  for (const languageId of languageIds) {
+    registerShikiMonacoTokenizer(monaco, highlighter, languageId);
   }
+}
+
+export function registerShikiMonacoTokenizer(monaco: typeof monacoNs, highlighter: ShikiInternal<any, any>, languageId: string) {
+  if (!highlighter.getLoadedLanguages().includes(languageId)) {
+    // Language not loaded
+    return;
+  }
+  monaco.languages.setTokensProvider(languageId, {
+    getInitialState() {
+      return new TokenizerState(INITIAL);
+    },
+    tokenize(line, state: TokenizerState) {
+      if (line.length >= tokenizeMaxLineLength) {
+        return {
+          endState: state,
+          tokens: [{ startIndex: 0, scopes: "" }],
+        };
+      }
+
+      const grammar = highlighter.getLanguage(languageId);
+      const result = grammar.tokenizeLine2(line, state.ruleStack, tokenizeTimeLimit);
+      if (result.stoppedEarly) {
+        console.warn(`Time limit reached when tokenizing line: ${line.substring(0, 100)}`);
+      }
+
+      const tokensLength = result.tokens.length / 2;
+      const tokens: any[] = new Array(tokensLength);
+      for (let j = 0; j < tokensLength; j++) {
+        const startIndex = result.tokens[2 * j];
+        const metadata = result.tokens[2 * j + 1];
+        const color = colorMap[StackElementMetadata.getForeground(metadata)] ?? "";
+        // Because Monaco only support one scope per token,
+        // we workaround this to use color to trace back the scope
+        const scope = colorToScopeMap.get(color) ?? "";
+        tokens[j] = { startIndex, scopes: scope };
+      }
+
+      return { endState: new TokenizerState(result.ruleStack), tokens };
+    },
+  });
 }
 
 class TokenizerState implements monacoNs.languages.IState {
