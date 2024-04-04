@@ -6,8 +6,8 @@ settings:
 
 devDependencies:
   '@shikijs/core':
-    specifier: 1.2.3
-    version: 1.2.3
+    specifier: 1.2.4
+    version: 1.2.4
   esbuild:
     specifier: 0.20.2
     version: 0.20.2
@@ -15,14 +15,14 @@ devDependencies:
     specifier: 0.47.0
     version: 0.47.0
   tm-grammars:
-    specifier: 1.6.2
-    version: 1.6.2
+    specifier: 1.6.3
+    version: 1.6.3
   tm-themes:
     specifier: 1.3.2
     version: 1.3.2
   typescript:
-    specifier: 5.4.3
-    version: 5.4.3
+    specifier: 5.4.4
+    version: 5.4.4
   vscode-css-languageservice:
     specifier: 6.2.13
     version: 6.2.13
@@ -33,8 +33,8 @@ devDependencies:
     specifier: 5.3.10
     version: 5.3.10
   vscode-language-configurations:
-    specifier: 1.87.2-patch.1
-    version: 1.87.2-patch.1
+    specifier: 1.88.0
+    version: 1.88.0
   vscode-languageserver-types:
     specifier: 3.17.5
     version: 3.17.5
@@ -248,8 +248,8 @@ packages:
     dev: true
     optional: true
 
-  /@shikijs/core@1.2.3:
-    resolution: {integrity: sha512-SM+aiQVaEK2P53dEcsvhq9+LJPr0rzwezHbMQhHaSrPN4OlOB4vp1qTdhVEKfMg6atdq8s9ZotWW/CSCzWftwg==}
+  /@shikijs/core@1.2.4:
+    resolution: {integrity: sha512-ClaUWpt8oTzjcF0MM1P81AeWyzc1sNSJlAjMG80CbwqbFqXSNz+NpQVUC0icobt3sZn43Sn27M4pHD/Jmp3zHw==}
     dev: true
 
   /@vscode/l10n@0.0.18:
@@ -295,16 +295,16 @@ packages:
     resolution: {integrity: sha512-xho7dsmSYOIek6bkMKQApWHVyoOBQ1eaBIE6CIlER40paTN0r0efrig6Q9QkCacfzIuNNxNjyb1uMVoMpi8gcA==}
     dev: true
 
-  /tm-grammars@1.6.2:
-    resolution: {integrity: sha512-3zMlR2W62y4uqartgkD8p+bNDvjIV9xzeGmtP/S+81SVLCvHaWdnBXoFFSmNOSU4SXHziMFrKt2l7hpJma65qw==}
+  /tm-grammars@1.6.3:
+    resolution: {integrity: sha512-WbcMWYlT01ufzdDNsnqWbFmRkdMBDasmyIZKO2jEXXpo8indHXSVTDcqlaFgxxHHfeEt68D6O3cXnI4S+BS9RA==}
     dev: true
 
   /tm-themes@1.3.2:
     resolution: {integrity: sha512-FDHLKK0ybFnpc3875ufwWP06WjGefzLAKBspDbO2KxIZb8nVb3dTvg6r7t39tP+G1FvbPOg341mFRH+6CR000g==}
     dev: true
 
-  /typescript@5.4.3:
-    resolution: {integrity: sha512-KrPd3PKaCLr78MalgiwJnA25Nm8HAmdwN3mYUYZgG/wizIo9EainNVQI9/yDavtVFRN2h3k8uf3GLHuhDMgEHg==}
+  /typescript@5.4.4:
+    resolution: {integrity: sha512-dGE2Vv8cpVvw28v8HCPqyb08EzbBURxDpuhJvTrusShUfGnhHBafDsLdS1EhhxyL6BJQE+2cT3dDPAv+MQ6oLw==}
     engines: {node: '>=14.17'}
     hasBin: true
     dev: true
@@ -337,8 +337,8 @@ packages:
       vscode-uri: 3.0.8
     dev: true
 
-  /vscode-language-configurations@1.87.2-patch.1:
-    resolution: {integrity: sha512-ssVw1/G7MCw2RdYej6/IJBmBVpTRpBqCpXNQZh4qG2CuWnQsVNU1BZhIhj61zMZHnMgnkocreF5lpbLZNReDYQ==}
+  /vscode-language-configurations@1.88.0:
+    resolution: {integrity: sha512-jZLJwvKFb+P0hs1MP6nm3VHFD/PmTJYLJIqL8Y2vJtABthCFuizRulyoowvZ0K/yj8e8huAp5XDp3m+NSQJyVw==}
     dev: true
 
   /vscode-languageserver-textdocument@1.0.11:

@@ -1,7 +1,7 @@
 {
   "name": "esm-monaco",
   "description": "A Code Editor powered by monaco-editor-core with radical ESM support",
-  "version": "0.0.0-beta.14",
+  "version": "0.0.0-beta.15",
   "type": "module",
   "module": "dist/index.js",
   "types": "types/index.d.ts",
@@ -51,16 +51,16 @@
   },
   "sideEffects": false,
   "devDependencies": {
-    "@shikijs/core": "1.2.3",
+    "@shikijs/core": "1.2.4",
     "esbuild": "0.20.2",
     "monaco-editor-core": "0.47.0",
-    "tm-grammars": "1.6.2",
+    "tm-grammars": "1.6.3",
     "tm-themes": "1.3.2",
-    "typescript": "5.4.3",
+    "typescript": "5.4.4",
     "vscode-css-languageservice": "6.2.13",
     "vscode-html-languageservice": "5.2.0",
     "vscode-json-languageservice": "5.3.10",
-    "vscode-language-configurations": "1.87.2-patch.1",
+    "vscode-language-configurations": "1.88.0",
     "vscode-languageserver-types": "3.17.5"
   },
   "peerDependencies": {
