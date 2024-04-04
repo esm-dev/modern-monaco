@@ -1,3 +1,5 @@
+/*! based on https://github.com/shikijs/shiki/blob/main/packages/monaco/src/index.ts */
+
 import type monacoNs from "monaco-editor-core";
 import type { ShikiInternal, ThemeRegistrationResolved } from "@shikijs/core";
 import type { StateStack } from "@shikijs/core/textmate";
