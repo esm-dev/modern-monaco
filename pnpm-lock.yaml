@@ -6,8 +6,8 @@ settings:
 
 devDependencies:
   '@shikijs/core':
-    specifier: 1.2.4
-    version: 1.2.4
+    specifier: 1.3.0
+    version: 1.3.0
   esbuild:
     specifier: 0.20.2
     version: 0.20.2
@@ -15,14 +15,14 @@ devDependencies:
     specifier: 0.47.0
     version: 0.47.0
   tm-grammars:
-    specifier: 1.6.3
-    version: 1.6.3
+    specifier: 1.6.6
+    version: 1.6.6
   tm-themes:
-    specifier: 1.3.2
-    version: 1.3.2
+    specifier: 1.3.4
+    version: 1.3.4
   typescript:
-    specifier: 5.4.4
-    version: 5.4.4
+    specifier: 5.4.5
+    version: 5.4.5
   vscode-css-languageservice:
     specifier: 6.2.13
     version: 6.2.13
@@ -248,8 +248,8 @@ packages:
     dev: true
     optional: true
 
-  /@shikijs/core@1.2.4:
-    resolution: {integrity: sha512-ClaUWpt8oTzjcF0MM1P81AeWyzc1sNSJlAjMG80CbwqbFqXSNz+NpQVUC0icobt3sZn43Sn27M4pHD/Jmp3zHw==}
+  /@shikijs/core@1.3.0:
+    resolution: {integrity: sha512-7fedsBfuILDTBmrYZNFI8B6ATTxhQAasUHllHmjvSZPnoq4bULWoTpHwmuQvZ8Aq03/tAa2IGo6RXqWtHdWaCA==}
     dev: true
 
   /@vscode/l10n@0.0.18:
@@ -295,16 +295,16 @@ packages:
     resolution: {integrity: sha512-xho7dsmSYOIek6bkMKQApWHVyoOBQ1eaBIE6CIlER40paTN0r0efrig6Q9QkCacfzIuNNxNjyb1uMVoMpi8gcA==}
     dev: true
 
-  /tm-grammars@1.6.3:
-    resolution: {integrity: sha512-WbcMWYlT01ufzdDNsnqWbFmRkdMBDasmyIZKO2jEXXpo8indHXSVTDcqlaFgxxHHfeEt68D6O3cXnI4S+BS9RA==}
+  /tm-grammars@1.6.6:
+    resolution: {integrity: sha512-HOx9TJdAXkrxhQ3YsNFYlLQzpENhc9gLxUlgJcGFmFKf7aW5fVCRj7BnjVuuilE81otpd0bh7Ss6F1TXdhbL0w==}
     dev: true
 
-  /tm-themes@1.3.2:
-    resolution: {integrity: sha512-FDHLKK0ybFnpc3875ufwWP06WjGefzLAKBspDbO2KxIZb8nVb3dTvg6r7t39tP+G1FvbPOg341mFRH+6CR000g==}
+  /tm-themes@1.3.4:
+    resolution: {integrity: sha512-hy8+CySrq4ssYpO3Wn3ckt8FqwZ1z2nIrpRKxHhkS/67oR16jFuNZ9pzKWlg+H/4I80FxpyDT9Cph6ZhBGeThQ==}
     dev: true
 
-  /typescript@5.4.4:
-    resolution: {integrity: sha512-dGE2Vv8cpVvw28v8HCPqyb08EzbBURxDpuhJvTrusShUfGnhHBafDsLdS1EhhxyL6BJQE+2cT3dDPAv+MQ6oLw==}
+  /typescript@5.4.5:
+    resolution: {integrity: sha512-vcI4UpRgg81oIRUFwR0WSIHKt11nJ7SAVlYNIu+QpqeyXP+gpQJy/Z4+F0aGxSE4MqwjyXvW/TzgkLAx2AGHwQ==}
     engines: {node: '>=14.17'}
     hasBin: true
     dev: true
