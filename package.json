@@ -53,13 +53,13 @@
   "devDependencies": {
     "@shikijs/core": "1.3.0",
     "esbuild": "0.20.2",
-    "monaco-editor-core": "0.47.0",
-    "tm-grammars": "1.6.6",
-    "tm-themes": "1.3.4",
+    "monaco-editor-core": "0.48.0",
+    "tm-grammars": "1.6.10",
+    "tm-themes": "1.4.0",
     "typescript": "5.4.5",
-    "vscode-css-languageservice": "6.2.13",
+    "vscode-css-languageservice": "6.2.14",
     "vscode-html-languageservice": "5.2.0",
-    "vscode-json-languageservice": "5.3.10",
+    "vscode-json-languageservice": "5.3.11",
     "vscode-language-configurations": "1.88.0",
     "vscode-languageserver-types": "3.17.5"
   },
