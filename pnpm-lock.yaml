@@ -9,8 +9,8 @@ importers:
   .:
     devDependencies:
       '@shikijs/core':
-        specifier: 1.3.0
-        version: 1.3.0
+        specifier: 1.4.0
+        version: 1.4.0
       esbuild:
         specifier: 0.20.2
         version: 0.20.2
@@ -18,11 +18,11 @@ importers:
         specifier: 0.48.0
         version: 0.48.0
       tm-grammars:
-        specifier: 1.6.10
-        version: 1.6.10
+        specifier: 1.9.0
+        version: 1.9.0
       tm-themes:
-        specifier: 1.4.0
-        version: 1.4.0
+        specifier: 1.4.1
+        version: 1.4.1
       typescript:
         specifier: 5.4.5
         version: 5.4.5
@@ -182,8 +182,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@shikijs/core@1.3.0':
-    resolution: {integrity: sha512-7fedsBfuILDTBmrYZNFI8B6ATTxhQAasUHllHmjvSZPnoq4bULWoTpHwmuQvZ8Aq03/tAa2IGo6RXqWtHdWaCA==}
+  '@shikijs/core@1.4.0':
+    resolution: {integrity: sha512-CxpKLntAi64h3j+TwWqVIQObPTED0FyXLHTTh3MKXtqiQNn2JGcMQQ362LftDbc9kYbDtrksNMNoVmVXzKFYUQ==}
 
   '@vscode/l10n@0.0.18':
     resolution: {integrity: sha512-KYSIHVmslkaCDyw013pphY+d7x1qV8IZupYfeIfzNA+nsaWHbn5uPuQRvdRFsa9zFzGeudPuoGoZ1Op4jrJXIQ==}
@@ -199,11 +199,11 @@ packages:
   monaco-editor-core@0.48.0:
     resolution: {integrity: sha512-HaGsPuwG+2LA9Ya2lmU7zEh8TdA33E8kh94+RplFDq+4ZjW+pa3NlxOIZGyrNrBybvicitByY3Ys9c//NLaDVQ==}
 
-  tm-grammars@1.6.10:
-    resolution: {integrity: sha512-XqL95An86/F3ncfXFZr93LTLw460qSYZr30i2gZrVOJr/TkVI9jCxE0v9Hh8Uxu3cMH1W53IfOLp5Wm3ag8GyQ==}
+  tm-grammars@1.9.0:
+    resolution: {integrity: sha512-PWkN8i819S2zt4eCACfh1mUNIxE2WynZN8y+K6ZaljAog7cVDjYrfbhuZk4+xhIQ71bjFhWVITbMJX2P5qSnHw==}
 
-  tm-themes@1.4.0:
-    resolution: {integrity: sha512-mn9Soc9hSiSitxoZcIXc2xhKVubbEZueDuStu9lCODjR4IC6qRaq/DR+s8v0POAPFlXX9Gn+puUEq5+gVzs9pA==}
+  tm-themes@1.4.1:
+    resolution: {integrity: sha512-vPA4p/jPpqdusyOQC/rjYXWY/srG9Es+6yczNy69hKVLzG/EGLPsc7G9WDJkM4ksHtdATbi2cD0jcgjd2DjDQA==}
 
   typescript@5.4.5:
     resolution: {integrity: sha512-vcI4UpRgg81oIRUFwR0WSIHKt11nJ7SAVlYNIu+QpqeyXP+gpQJy/Z4+F0aGxSE4MqwjyXvW/TzgkLAx2AGHwQ==}
@@ -302,7 +302,7 @@ snapshots:
   '@esbuild/win32-x64@0.20.2':
     optional: true
 
-  '@shikijs/core@1.3.0': {}
+  '@shikijs/core@1.4.0': {}
 
   '@vscode/l10n@0.0.18': {}
 
@@ -336,9 +336,9 @@ snapshots:
 
   monaco-editor-core@0.48.0: {}
 
-  tm-grammars@1.6.10: {}
+  tm-grammars@1.9.0: {}
 
-  tm-themes@1.4.0: {}
+  tm-themes@1.4.1: {}
 
   typescript@5.4.5: {}
 
