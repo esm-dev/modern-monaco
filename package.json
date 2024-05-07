@@ -52,9 +52,9 @@
   "sideEffects": false,
   "devDependencies": {
     "@shikijs/core": "1.4.0",
-    "esbuild": "0.20.2",
+    "esbuild": "0.21.0",
     "monaco-editor-core": "0.48.0",
-    "tm-grammars": "1.9.0",
+    "tm-grammars": "1.10.0",
     "tm-themes": "1.4.1",
     "typescript": "5.4.5",
     "vscode-css-languageservice": "6.2.14",
