@@ -181,7 +181,7 @@ function getContentType(pathname: string) {
 }
 
 const cmd = new Deno.Command(Deno.execPath(), {
-  args: ["run", "-A", "build.ts", "--watch"],
+  args: ["run", "-A", "--no-lock", "build.ts", "--watch"],
   cwd: new URL("..", import.meta.url).pathname,
 });
 cmd.spawn();

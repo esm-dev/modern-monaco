@@ -37,8 +37,8 @@
     }
   },
   "scripts": {
-    "prepublishOnly": "deno run -A build.ts",
-    "dev": "deno run -A examples/server.ts",
+    "prepublishOnly": "deno run -A --no-lock build.ts",
+    "dev": "deno run -A --no-lock examples/server.ts",
     "fmt": "dprint fmt"
   },
   "files": [

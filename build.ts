@@ -1,6 +1,6 @@
-import { build as esbuild } from "esbuild";
-import { grammars as tmGrammars } from "tm-grammars";
-import { themes as tmThemes } from "tm-themes";
+import { build as esbuild } from "https://deno.land/x/esbuild@v0.21.5/mod.js";
+import { grammars as tmGrammars } from "https://esm.sh/tm-grammars@1.12.9";
+import { themes as tmThemes } from "https://esm.sh/tm-themes@1.4.3";
 
 const build = (entryPoints: string[], define?: Record<string, string>, minify = false) => {
   return esbuild({
