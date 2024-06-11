@@ -84,13 +84,21 @@ export function setup(
     }
   });
 
-  // @ts-expect-error `onWorker` is added by esm-monaco
+  // @ts-expect-error method `onWorker` is added by esm-monaco
   MonacoEnvironment.onWorker(languageId, workerProxy);
 
   // set monacoNS and register language features
   lfs.setup(monaco);
   lfs.registerDefault(languageId, workerProxy, [" ", ":", "\""]);
   languages.registerCodeLensProvider(languageId, codeLensProvider);
+  editor.registerCommand("search-npm-modules", (_, uri: string) => {
+    // @ts-expect-error method `getModel` is polluted by esm-monaco for supporting string uri
+    return searchModulesFromNpm(editor.getModel(uri));
+  });
+}
+
+async function searchModulesFromNpm(currentModel: monacoNS.editor.ITextModel) {
+  console.log("search-npm-modules", { currentModel: currentModel.uri.toString() });
 }
 
 export function getWorkerUrl() {

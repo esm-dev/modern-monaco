@@ -41,11 +41,10 @@ class Cache {
       const headers = [...res.headers.entries()].filter(([k]) =>
         ["cache-control", "content-type", "content-length", "x-typescript-types"].includes(k)
       );
-      const tx = db.transaction("files", "readwrite").objectStore("files");
       file.url = res.url;
       file.headers = headers;
       file.content = content;
-      await waitIDBRequest<CacheFile>(tx.put(file));
+      await this.store(file);
       const resp = new Response(content, { headers });
       defineProperty(resp, "url", res.url);
       defineProperty(resp, "redirected", res.redirected);
@@ -75,6 +74,15 @@ class Cache {
       return res;
     }
     return null;
+  }
+
+  async store(file: CacheFile): Promise<void> {
+    if (!this._db) {
+      return;
+    }
+    const db = await this._db;
+    const tx = db.transaction("files", "readwrite").objectStore("files");
+    await waitIDBRequest<CacheFile>(tx.put(file));
   }
 }
 

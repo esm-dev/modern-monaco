@@ -14,8 +14,8 @@ const tmThemes: Set<string> = new Set(TM_THEMES);
 const vitesseDark = "vitesse-dark";
 
 export interface ShikiInitOptions {
+  langs?: (string | URL | LanguageInput)[];
   theme?: string | URL | ThemeInput;
-  langs?: (LanguageInput | string | URL)[];
   downloadCDN?: string;
 }
 
@@ -29,7 +29,7 @@ export async function initShiki({
   theme = vitesseDark,
   langs: languages,
   downloadCDN,
-}: ShikiInitOptions): Promise<Highlighter> {
+}: ShikiInitOptions = {}): Promise<Highlighter> {
   const langs: LanguageInput[] = [];
   const themes: ThemeInput[] = [];
 
