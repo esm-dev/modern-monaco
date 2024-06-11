@@ -142,24 +142,28 @@ const buildTypes = async () => {
   );
 };
 
-await Deno.remove("dist", { recursive: true }).catch(() => {});
-await buildEditorCore();
-await buildDist();
-await buildTypes();
-await bundleTypescriptLibs();
+if (import.meta.main) {
+  await Deno.remove("dist", { recursive: true }).catch(() => {});
+  await buildEditorCore();
+  await buildDist();
+  await buildTypes();
+  await bundleTypescriptLibs();
 
-if (Deno.args.includes("--watch")) {
-  const watcher = Deno.watchFs("src", { recursive: true });
-  console.log("Watching for file changes...");
-  let timer: number | null = null;
-  for await (const _event of watcher) {
-    timer = timer ?? setTimeout(async () => {
-      timer = null;
-      try {
-        await buildDist();
-      } catch (error) {
-        console.error(error);
-      }
-    }, 100);
+  if (Deno.args.includes("--watch")) {
+    const watcher = Deno.watchFs("src", { recursive: true });
+    console.log("Watching for file changes...");
+    let timer: number | null = null;
+    for await (const _event of watcher) {
+      timer = timer ?? setTimeout(async () => {
+        timer = null;
+        try {
+          await buildDist();
+        } catch (error) {
+          console.error(error);
+        }
+      }, 100);
+    }
+  } else {
+    Deno.exit(0);
   }
 }
