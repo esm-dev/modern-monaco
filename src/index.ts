@@ -191,7 +191,7 @@ let loading: Promise<typeof monacoNS> | undefined;
 let ssrHighlighter: Highlighter | Promise<Highlighter> | undefined;
 
 /* Initialize and return the monaco editor namespace. */
-export function init(options: InitOption): Promise<typeof monacoNS> {
+export function init(options?: InitOption): Promise<typeof monacoNS> {
   if (!loading) {
     const load = async () => {
       const langs = options?.langs ?? [];
@@ -333,8 +333,8 @@ export function lazy(options?: InitOption) {
             vfs.state.activeFile = file = list[0];
           }
         }
-        if (renderOptions.lang || file) {
-          langs.push(renderOptions.lang ?? getLanguageIdFromPath(file));
+        if (renderOptions.language || file) {
+          langs.push(renderOptions.language ?? getLanguageIdFromPath(file));
         }
         for (const l of Object.values(lspProviders)) {
           if (l.syntaxes) {
@@ -348,13 +348,13 @@ export function lazy(options?: InitOption) {
         if (!mockEl && file && vfs) {
           try {
             const code = await vfs.readTextFile(file);
-            const lang = getLanguageIdFromPath(file);
+            const language = getLanguageIdFromPath(file);
             mockEl = containerEl.cloneNode(true) as HTMLElement;
             mockEl.className = "monaco-editor-prerender";
             mockEl.innerHTML = render(highlighter, {
               ...renderOptions,
               code,
-              lang,
+              language,
             });
           } catch (error) {
             if (error instanceof vfs.ErrorNotFound) {
@@ -404,10 +404,10 @@ export function lazy(options?: InitOption) {
                 throw new Error(`[vfs] Failed to open file: ` + error.message);
               }
             }
-          } else if ((renderOptions.code && (renderOptions.lang || renderOptions.filename))) {
+          } else if ((renderOptions.code && (renderOptions.language || renderOptions.filename))) {
             const model = monaco.editor.createModel(
               renderOptions.code,
-              renderOptions.lang,
+              renderOptions.language,
               // @ts-expect-error the overwrited `createModel` method supports
               // path(string) as the third argument(URI)
               renderOptions.filename,
@@ -446,25 +446,13 @@ export function lazy(options?: InitOption) {
 }
 
 async function initRenderHighlighter(options: RenderOptions): Promise<Highlighter> {
-  if (options.filename && !options.lang) {
-    options.lang = getLanguageIdFromPath(options.filename);
+  const highlighter = await (ssrHighlighter ?? (ssrHighlighter = initShiki(options.shiki)));
+  if (options.language || options.filename) {
+    const languageId = options.language ?? getLanguageIdFromPath(options.filename);
+    if (!highlighter.getLoadedLanguages().includes(languageId)) {
+      await highlighter.loadLanguageFromCDN(languageId);
+    }
   }
-  const highlighter = await (ssrHighlighter ?? (ssrHighlighter = initShiki({
-    theme: options.theme,
-    langs: options.lang ? [options.lang] : [],
-  })));
-  await Promise.all([
-    () => {
-      if (options.lang && !highlighter.getLoadedLanguages().includes(options.lang)) {
-        return highlighter.loadLanguageFromCDN(options.lang);
-      }
-    },
-    () => {
-      if (options.theme && !highlighter.getLoadedThemes().includes(options.theme)) {
-        return highlighter.loadThemeFromCDN(options.theme);
-      }
-    },
-  ].map((fn) => fn()));
   return highlighter;
 }
 
@@ -478,12 +466,14 @@ export async function renderToString(options: RenderOptions): Promise<string> {
 export async function renderToWebComponent(options: RenderOptions): Promise<string> {
   const highlighter = await initRenderHighlighter(options);
   const prerender = render(highlighter, options);
-  return [
-    `<monaco-editor>`,
-    `<script type="application/json" class="monaco-editor-options">${JSON.stringify(options)}</script>`,
-    `<div class="monaco-editor-prerender" style="width:100%;height:100%;">`,
-    prerender,
-    `</div>`,
-    `</monaco-editor>`,
-  ].join("");
+  return (
+    "<monaco-editor>"
+    + "<script type=\"application/json\" class=\"monaco-editor-options\">"
+    + JSON.stringify(options)
+    + "</script>"
+    + "<div class=\"monaco-editor-prerender\" style=\"width:100%;height:100%;\">"
+    + prerender
+    + "</div>"
+    + "</monaco-editor>"
+  );
 }

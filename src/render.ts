@@ -1,5 +1,6 @@
 import type { editor } from "monaco-editor-core";
 import type { HighlighterCore } from "@shikijs/core";
+import type { ShikiInitOptions } from "./shiki";
 
 const DEFAULT_WINDOWS_FONT_FAMILY = "Consolas, 'Courier New', monospace";
 const DEFAULT_MAC_FONT_FAMILY = "Menlo, Monaco, 'Courier New', monospace";
@@ -8,11 +9,11 @@ const LINE_NUMBERS_COLOR = "rgba(222, 220, 213, 0.31)";
 const MINIMUM_LINE_HEIGHT = 8;
 const MINIMUM_MAX_DIGIT_WIDTH = 5;
 
-export interface RenderOptions extends editor.IStandaloneEditorConstructionOptions {
+export interface RenderOptions extends Omit<editor.IStandaloneEditorConstructionOptions, "language"> {
+  shiki?: ShikiInitOptions;
   code: string;
-  lang?: string;
   filename?: string;
-  theme?: string;
+  language?: string;
   userAgent?: string;
   fontDigitWidth?: number;
 }
@@ -40,7 +41,7 @@ export function render(highlighter: HighlighterCore, options: RenderOptions): st
     letterSpacing: 0,
   };
   const {
-    lang,
+    language,
     code,
     padding,
     fontWeight = EDITOR_FONT_DEFAULTS.fontWeight,
@@ -106,8 +107,8 @@ export function render(highlighter: HighlighterCore, options: RenderOptions): st
 
   const decorationsWidth = Number(lineDecorationsWidth) + 16;
   const html = highlighter.codeToHtml(code, {
-    lang,
-    theme: options.theme ?? highlighter.getLoadedThemes()[0],
+    lang: language,
+    theme: highlighter.getLoadedThemes()[0],
     tokenizeMaxLineLength: maxTokenizationLineLength,
   });
   const style = [

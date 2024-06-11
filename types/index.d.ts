@@ -41,12 +41,12 @@ export interface InitOptions extends ShikiInitOptions {
 }
 
 export interface RenderOptions extends monacoNS.editor.IStandaloneEditorConstructionOptions {
-  lang: string;
   code: string;
   filename?: string;
-  theme?: string;
+  language?: string;
   userAgent?: string;
-  fontMaxDigitWidth?: number;
+  fontDigitWidth?: number;
+  shiki?: ShikiInitOptions;
 }
 
 export function init(options?: InitOptions): Promise<typeof monacoNS>;
