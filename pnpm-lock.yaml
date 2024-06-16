@@ -7,13 +7,6 @@ settings:
 importers:
 
   .:
-    optionalDependencies:
-      tm-grammars:
-        specifier: 1.12.9
-        version: 1.12.9
-      tm-themes:
-        specifier: 1.4.3
-        version: 1.4.3
     devDependencies:
       '@shikijs/core':
         specifier: 1.6.3
@@ -21,6 +14,12 @@ importers:
       monaco-editor-core:
         specifier: 0.49.0
         version: 0.49.0
+      tm-grammars:
+        specifier: 1.12.9
+        version: 1.12.9
+      tm-themes:
+        specifier: 1.4.3
+        version: 1.4.3
       typescript:
         specifier: 5.4.5
         version: 5.4.5
@@ -96,11 +95,9 @@ snapshots:
 
   monaco-editor-core@0.49.0: {}
 
-  tm-grammars@1.12.9:
-    optional: true
+  tm-grammars@1.12.9: {}
 
-  tm-themes@1.4.3:
-    optional: true
+  tm-themes@1.4.3: {}
 
   typescript@5.4.5: {}
 
