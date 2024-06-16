@@ -9,14 +9,14 @@ importers:
   .:
     devDependencies:
       '@shikijs/core':
-        specifier: 1.6.3
-        version: 1.6.3
+        specifier: 1.6.5
+        version: 1.6.5
       monaco-editor-core:
         specifier: 0.49.0
         version: 0.49.0
       tm-grammars:
-        specifier: 1.12.9
-        version: 1.12.9
+        specifier: 1.12.10
+        version: 1.12.10
       tm-themes:
         specifier: 1.4.3
         version: 1.4.3
@@ -41,8 +41,8 @@ importers:
 
 packages:
 
-  '@shikijs/core@1.6.3':
-    resolution: {integrity: sha512-QnJKHFUW95GnlJLJGP6QLx4M69HM0KlXk+R2Y8lr/x4nAx1Yb/lsuxq4XwybuUjTxbJk+BT0g/kvn0bcsjGGHg==}
+  '@shikijs/core@1.6.5':
+    resolution: {integrity: sha512-XcQYt6e4L61ruAxHiL3Xg1DL/XkWWjzDdeckB/DtN8jAxoAU+bcxsV6DetC8NafHpL4YpGhxy9iXF0ND/u6HmA==}
 
   '@vscode/l10n@0.0.18':
     resolution: {integrity: sha512-KYSIHVmslkaCDyw013pphY+d7x1qV8IZupYfeIfzNA+nsaWHbn5uPuQRvdRFsa9zFzGeudPuoGoZ1Op4jrJXIQ==}
@@ -53,8 +53,8 @@ packages:
   monaco-editor-core@0.49.0:
     resolution: {integrity: sha512-MANZcpLnpcM5qceEMsdwndvyB9rlGu+Sd8mVLd6y4VpSZCQenpoUAYk0K+UAPtcnCOYhgIsR/ZS9PxzMnCFkYw==}
 
-  tm-grammars@1.12.9:
-    resolution: {integrity: sha512-6c0MSwo7SQ7+Nb/G/RiCz1wonj1JuEasKorwbRzLOGHhKd6a5VadP0piQnk0OpXVdtmI+TIDTAlbNZC/delA/w==}
+  tm-grammars@1.12.10:
+    resolution: {integrity: sha512-1DaDHDD51+5MkoldlOBVf34J70WvCsoP+9boXKOJs8ireZ17cIxDd0dYfnwfvoilv9PEuu3XPtW6K24q7+kBCw==}
 
   tm-themes@1.4.3:
     resolution: {integrity: sha512-nsUGwktLaWFMyKw2e/hNyDmcTIO+ue6Q2Mvb8L7WQkKSCflOm2TjGSspcJw6q7hi4QxQQNTuGICyvQN1UqtunQ==}
@@ -87,7 +87,7 @@ packages:
 
 snapshots:
 
-  '@shikijs/core@1.6.3': {}
+  '@shikijs/core@1.6.5': {}
 
   '@vscode/l10n@0.0.18': {}
 
@@ -95,7 +95,7 @@ snapshots:
 
   monaco-editor-core@0.49.0: {}
 
-  tm-grammars@1.12.9: {}
+  tm-grammars@1.12.10: {}
 
   tm-themes@1.4.3: {}
 
