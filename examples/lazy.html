@@ -26,11 +26,11 @@
 </head>
 
 <body>
-  <monaco-editor filename="App.tsx"></monaco-editor>
+  <monaco-editor file="App.tsx"></monaco-editor>
   <script type="module">
     import { lazy } from '/index.js';
     import { vfs } from '/init.js';
-    lazy({ vfs, ssr: true });
+    lazy({ vfs });
   </script>
 </body>
 

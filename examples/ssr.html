@@ -28,9 +28,9 @@
 <body>
   {SSR}
   <script type="module">
-    import { lazy } from '/index.js';
+    import { hydrate } from '/index.js';
     import { vfs } from '/init.js';
-    lazy({ vfs, ssr: true });
+    hydrate({ vfs });
   </script>
 </body>
 
