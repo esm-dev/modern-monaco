@@ -104,7 +104,7 @@ const buildEditorCore = async () => {
       "src/editor-worker.ts",
     ],
     undefined,
-    true,
+    false,
   );
   await modifyEditorCore();
   await Deno.remove("dist/editor-core.css").catch(() => {});
@@ -143,7 +143,9 @@ const buildTypes = async () => {
 };
 
 if (import.meta.main) {
+  // clean previous build
   await Deno.remove("dist", { recursive: true }).catch(() => {});
+
   await buildEditorCore();
   await buildDist();
   await buildTypes();
