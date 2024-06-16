@@ -3,19 +3,21 @@ import type { FormattingOptions } from "vscode-languageserver-types";
 import type { VFS } from "../vfs.ts";
 import jsonScriptTag from "./html/syntaxes/json-script-tag.json";
 
+export interface LSP {
+  setup: (
+    monaco: typeof monacoNS,
+    languageId: string,
+    langaugeSettings?: Record<string, unknown>,
+    formattingOptions?: FormattingOptions,
+    vfs?: VFS,
+  ) => void | Promise<void>;
+  getWorkerUrl: () => URL;
+}
+
 export interface LSPProvider {
   aliases?: string[];
   syntaxes?: any[];
-  import: () => Promise<{
-    setup: (
-      monaco: typeof monacoNS,
-      languageId: string,
-      langaugeSettings?: Record<string, unknown>,
-      formattingOptions?: FormattingOptions,
-      vfs?: VFS,
-    ) => void | Promise<void>;
-    getWorkerUrl: () => URL;
-  }>;
+  import: () => Promise<LSP>;
 }
 
 export interface LSPConfig {

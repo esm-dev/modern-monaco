@@ -39,8 +39,8 @@ export class VFS {
   writeFile(name: string | URL, content: string | Uint8Array, version?: number): Promise<void>;
   removeFile(name: string | URL): Promise<void>;
   watch(name: string | URL, handler: (evt: VFSEvent) => void): () => void;
-  useList(callback: (list: string[]) => void): () => void;
-  useState(callback: (state: VFSState) => void): () => void;
+  useList(effect: (list: string[]) => void): () => void;
+  useState(effect: (state: VFSState) => void): () => void;
 }
 
 export class ErrorNotFound extends Error {}

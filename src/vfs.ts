@@ -272,20 +272,20 @@ export class VFS {
     };
   }
 
-  useList(callback: (list: string[]) => void): () => void {
+  useList(effect: (list: string[]) => void): () => void {
     const unwatch = this.watch("*", (evt) => {
       if (evt.kind === "create" || evt.kind === "remove") {
-        this.list().then(callback);
+        this.list().then(effect);
       }
     });
-    this.list().then(callback);
+    this.list().then(effect);
     return () => {
       unwatch();
     };
   }
 
-  useState(callback: (state: VFSState) => void): () => void {
-    const handler = () => callback(this._state);
+  useState(effect: (state: VFSState) => void): () => void {
+    const handler = () => effect(this._state);
     this._stateChangeHandlers.add(handler);
     handler();
     return () => {

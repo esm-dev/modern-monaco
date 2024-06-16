@@ -60,19 +60,21 @@ export interface IAttributeData extends IData {
   values?: IData[];
 }
 
+export interface LSP {
+  setup: (
+    monaco: typeof monacoNS,
+    languageId: string,
+    langaugeSettings?: Record<string, unknown>,
+    formattingOptions?: Record<string, unknown>,
+    vfs?: VFS,
+  ) => Promise<void>;
+  getWorkerUrl: () => URL;
+}
+
 export interface LSPProvider {
   aliases?: string[];
   syntaxes?: any[];
-  import: () => Promise<{
-    setup: (
-      monaco: typeof monacoNS,
-      languageId: string,
-      langaugeSettings?: Record<string, unknown>,
-      formattingOptions?: Record<string, unknown>,
-      vfs?: VFS,
-    ) => Promise<void>;
-    getWorkerUrl: () => URL;
-  }>;
+  import: () => Promise<LSP>;
 }
 
 export interface LSPConfig extends LSPLanguageConfig {
@@ -96,7 +98,7 @@ declare global {
       extraLibs?: Record<string, string>;
       /** The global import maps. */
       importMap?: import("./import-map").ImportMap;
-      /** The version of the typescript module from CDN. Default: ">= 5.0.0" */
+      /** The version of the typescript from CDN. Default: ">= 5.0.0" */
       tsVersion?: string;
     };
   }
