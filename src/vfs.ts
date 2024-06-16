@@ -71,7 +71,7 @@ export class VFS {
     return this._viewState;
   }
 
-  private _openDB(options: VFSOptions) {
+  private _openDB(options: VFSOptions): Promise<IDBDatabase> {
     const dbName = ["monaco-vfs", options.scope].filter(Boolean).join("/");
     return openVFSiDB(dbName, 1, (store) => {
       for (const [name, data] of Object.entries(options.initial ?? {})) {
@@ -105,7 +105,7 @@ export class VFS {
     name: string | URL,
     attachTo?: monacoNS.editor.ICodeEditor | number | string | boolean,
     selectionOrPosition?: monacoNS.IRange | monacoNS.IPosition,
-  ) {
+  ): Promise<monacoNS.editor.ITextModel> {
     const monaco = this._monaco;
     if (!monaco) {
       throw new Error("monaco is undefined");
@@ -188,12 +188,12 @@ export class VFS {
     return waitIDBRequest<string>(db.getKey(url.href)).then((key) => key === url.href);
   }
 
-  async list() {
+  async list(): Promise<string[]> {
     const db = await this._tx(true);
     return await waitIDBRequest<string[]>(db.getAllKeys());
   }
 
-  async read(name: string | URL) {
+  async read(name: string | URL): Promise<VFile> {
     const url = toUrl(name);
     const db = await this._tx(true);
     const ret = await waitIDBRequest<VFile | undefined>(db.get(url.href));
@@ -203,17 +203,17 @@ export class VFS {
     return ret;
   }
 
-  async readFile(name: string | URL) {
+  async readFile(name: string | URL): Promise<Uint8Array> {
     const { content } = await this.read(name);
     return encode(content);
   }
 
-  async readTextFile(name: string | URL) {
+  async readTextFile(name: string | URL): Promise<string> {
     const { content } = await this.read(name);
     return decode(content);
   }
 
-  private async _write(url: string, content: string | Uint8Array, version?: number) {
+  private async _write(url: string, content: string | Uint8Array, version?: number): Promise<"create" | "modify"> {
     const db = await this._tx();
     const old = await waitIDBRequest<VFile | undefined>(db.get(url));
     const now = Date.now();
@@ -228,7 +228,7 @@ export class VFS {
     return old ? "modify" : "create";
   }
 
-  async writeFile(name: string | URL, content: string | Uint8Array, version?: number, isModelChange?: boolean) {
+  async writeFile(name: string | URL, content: string | Uint8Array, version?: number, isModelChange?: boolean): Promise<void> {
     const url = toUrl(name);
     const kind = await this._write(url.href, content, version);
     setTimeout(() => {

@@ -14,17 +14,15 @@ export interface RenderOptions extends Omit<editor.IStandaloneEditorConstruction
   code: string;
   filename?: string;
   language?: string;
-  userAgent?: string;
   fontDigitWidth?: number;
+  userAgent?: string;
 }
 
 /** Renders a mock monaco editor. */
 export function render(highlighter: HighlighterCore, options: RenderOptions): string {
-  const isBrowser = typeof globalThis.document?.createElement === "function";
+  const isBrowser = typeof globalThis.document?.querySelector === "function";
   if (!options.userAgent && !isBrowser) {
-    throw new Error(
-      "`userAgent` option is required in non-browser environment",
-    );
+    throw new Error("`userAgent` option is required in non-browser environment");
   }
 
   const userAgent = options.userAgent ?? globalThis.navigator?.userAgent ?? "";

@@ -217,7 +217,7 @@ export function init(options?: InitOption): Promise<typeof monacoNS> {
 }
 
 /** Render a mock editor, then load the monaco editor in background. */
-export function lazy(options?: InitOption) {
+export function lazy(options?: InitOption, hydrate?: boolean) {
   const vfs = options?.vfs;
   const lspProviders = margeProviders(options.lsp);
 
@@ -240,8 +240,7 @@ export function lazy(options?: InitOption) {
     class extends HTMLElement {
       constructor() {
         super();
-        this.style.display = "block";
-        this.style.position = "relative";
+        Object.assign(this.style, { display: "block", position: "relative" });
       }
 
       async connectedCallback() {
@@ -293,17 +292,19 @@ export function lazy(options?: InitOption) {
           }
         }
 
-        // check editor options from the first script child
-        const optionsScript = this.children[0] as HTMLScriptElement | null;
-        if (optionsScript && optionsScript.tagName === "SCRIPT" && optionsScript.type === "application/json") {
-          const opts = JSON.parse(optionsScript.textContent);
-          // we save the `fontDigitWidth` as a global variable, this is used for keeping the line numbers
-          // layout consistent between the SSR render and the client pre-render.
-          if (opts.fontDigitWidth) {
-            Reflect.set(globalThis, "__monaco_maxDigitWidth", opts.fontDigitWidth);
+        // get editor options of the SSR rendering if exists
+        if (hydrate) {
+          const optionsScript = this.children[0] as HTMLScriptElement | null;
+          if (optionsScript && optionsScript.tagName === "SCRIPT" && optionsScript.className === "monaco-editor-options") {
+            const opts = JSON.parse(optionsScript.textContent);
+            // we save the `fontDigitWidth` as a global variable, this is used for keeping the line numbers
+            // layout consistent between the SSR render and the client pre-render.
+            if (opts.fontDigitWidth) {
+              Reflect.set(globalThis, "__monaco_maxDigitWidth", opts.fontDigitWidth);
+            }
+            Object.assign(renderOptions, opts);
+            optionsScript.remove();
           }
-          Object.assign(renderOptions, opts);
-          optionsScript.remove();
         }
 
         // set dimension from width and height attributes
@@ -344,7 +345,7 @@ export function lazy(options?: InitOption) {
         const highlighter = await initShiki({ ...options, langs });
 
         // check the pre-rendered content, if not exists, render one
-        let mockEl = this.querySelector<HTMLElement>(".monaco-editor-prerender");
+        let mockEl = hydrate ? this.querySelector<HTMLElement>(".monaco-editor-prerender") : undefined;
         if (!mockEl && file && vfs) {
           try {
             const code = await vfs.readTextFile(file);
@@ -445,6 +446,12 @@ export function lazy(options?: InitOption) {
   );
 }
 
+/** Hydrate the monaco editor in the browser. */
+export function hydrate(options?: InitOption) {
+  return lazy(options, true);
+}
+
+/** Initialize a highlighter instance for rendering. */
 async function initRenderHighlighter(options: RenderOptions): Promise<Highlighter> {
   const highlighter = await (ssrHighlighter ?? (ssrHighlighter = initShiki(options.shiki)));
   if (options.language || options.filename) {
