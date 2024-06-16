@@ -51,7 +51,7 @@ export async function initShiki({
   }
 
   if (typeof theme === "string" || theme instanceof URL) {
-    themes.push(loadTMTheme(theme, downloadCDN));
+    themes.push(await loadTMTheme(theme, downloadCDN));
   } else if (typeof theme === "object" && theme !== null) {
     themes.push(theme);
   }
@@ -70,15 +70,28 @@ function loadTMTheme(src: string | URL, cdn = "https://esm.sh") {
     // @ts-expect-error `VITESSE_DARK` is defined at build time
     return VITESSE_DARK;
   }
-  const isThemeName = typeof src === "string" && tmThemes.has(src);
-  const url = isThemeName ? new URL(`/tm-themes@${tmThemesVersion}/themes/${src}.json`, cdn) : src;
+  const hasTheme = typeof src === "string" && tmThemes.has(src);
+  if (!hasTheme) {
+    const s = src as string;
+    if (!s.startsWith("http://") && !s.startsWith("https://")) {
+      throw new Error(`Theme "${src}" not found`);
+    }
+  }
+  const url = hasTheme ? new URL(`/tm-themes@${tmThemesVersion}/themes/${src}.json`, cdn) : src;
   return cache.fetch(url).then((res) => res.json());
 }
 
 /** Load a TextMate grammar from the given source. */
 function loadTMGrammar(src: string | URL, cdn = "https://esm.sh") {
-  const g = typeof src === "string" ? tmGrammars.find(g => g.name === src) : undefined;
-  if (g) {
+  if (typeof src === "string") {
+    const g = tmGrammars.find(g => g.name === src);
+    if (!g) {
+      if (src.startsWith("http://") || src.startsWith("https://")) {
+        return cache.fetch(src).then((res) => res.json());
+      } else {
+        throw new Error(`Grammar "${src}" not found`);
+      }
+    }
     const url = new URL(`/tm-grammars@${tmGrammarsVersion}/grammars/${g.name}.json`, cdn);
     return cache.fetch(url).then((res) => res.json()).then((grammar) => ({
       injectTo: g.injectTo,

@@ -13,14 +13,16 @@ export function textmateThemeToMonacoTheme(theme: ThemeRegistrationResolved): Mo
   if (!rules) {
     rules = [];
     const themeSettings = theme.settings || theme.tokenColors;
-    for (const { scope, settings } of themeSettings) {
-      const scopes = Array.isArray(scope) ? scope : [scope];
-      for (const s of scopes) {
-        if (settings.foreground && s) {
-          rules.push({
-            token: s,
-            foreground: normalizeColor(settings.foreground),
-          });
+    if (Array.isArray(themeSettings)) {
+      for (const { scope, settings } of themeSettings) {
+        const scopes = Array.isArray(scope) ? scope : [scope];
+        for (const s of scopes) {
+          if (typeof s === "string" && s !== "") {
+            rules.push({
+              token: s,
+              foreground: normalizeColor(settings?.foreground),
+            });
+          }
         }
       }
     }

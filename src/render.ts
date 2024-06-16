@@ -40,9 +40,10 @@ export function render(highlighter: HighlighterCore, options: RenderOptions): st
     letterSpacing: 0,
   };
   const {
+    code,
     language,
     filename,
-    code,
+    theme,
     padding,
     fontWeight = EDITOR_FONT_DEFAULTS.fontWeight,
     fontSize = EDITOR_FONT_DEFAULTS.fontSize,
@@ -108,7 +109,7 @@ export function render(highlighter: HighlighterCore, options: RenderOptions): st
   const decorationsWidth = Number(lineDecorationsWidth) + 16;
   const html = highlighter.codeToHtml(code, {
     lang: language ?? (filename ? getLanguageIdFromPath(filename) : undefined),
-    theme: highlighter.getLoadedThemes()[0],
+    theme: theme ?? highlighter.getLoadedThemes()[0],
     tokenizeMaxLineLength: maxTokenizationLineLength,
   });
   const style = [

@@ -342,6 +342,9 @@ export function lazy(options?: InitOption, hydrate?: boolean) {
             langs.push(...l.syntaxes);
           }
         }
+        if (renderOptions.theme) {
+          options.theme = renderOptions.theme;
+        }
         const highlighter = await initShiki({ ...options, langs });
 
         // check the pre-rendered content, if not exists, render one
@@ -422,14 +425,14 @@ export function lazy(options?: InitOption, hydrate?: boolean) {
           if (mockEl && editorWorkerPromise) {
             editorWorkerPromise.then(() => {
               setTimeout(() => {
-                const animate = mockEl.animate?.([{ opacity: 1 }, { opacity: 0 }], { duration: 200 });
+                const animate = mockEl.animate?.([{ opacity: 1 }, { opacity: 0 }], { duration: 150 });
                 if (animate) {
                   animate.finished.then(() => mockEl.remove());
                 } else {
                   // don't support animation api
-                  setTimeout(() => mockEl.remove(), 200);
+                  setTimeout(() => mockEl.remove(), 150);
                 }
-              }, 500);
+              }, 100);
             });
           }
           // load required grammars in background
@@ -454,11 +457,23 @@ export function hydrate(options?: InitOption) {
 /** Initialize a highlighter instance for rendering. */
 async function initRenderHighlighter(options: RenderOptions): Promise<Highlighter> {
   const highlighter = await (ssrHighlighter ?? (ssrHighlighter = initShiki(options.shiki)));
-  if (options.language || options.filename) {
-    const languageId = options.language ?? getLanguageIdFromPath(options.filename);
+  const { filename, language, theme } = options;
+  const promises: Promise<void>[] = [];
+  if (language || filename) {
+    const languageId = language ?? getLanguageIdFromPath(filename);
     if (!highlighter.getLoadedLanguages().includes(languageId)) {
-      await highlighter.loadLanguageFromCDN(languageId);
+      console.info(`[esm-monaco] Loading garmmar '${languageId}' from esm.sh ...`);
+      promises.push(highlighter.loadLanguageFromCDN(languageId));
     }
+  }
+  if (theme) {
+    if (!highlighter.getLoadedThemes().includes(theme)) {
+      console.info(`[esm-monaco] Loading theme '${theme}' from esm.sh ...`);
+      promises.push(highlighter.loadThemeFromCDN(theme));
+    }
+  }
+  if (promises.length > 0) {
+    await Promise.all(promises);
   }
   return highlighter;
 }
