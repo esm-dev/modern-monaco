@@ -58,8 +58,8 @@ export async function initShiki({
 
   const highlighterCore = await getHighlighterCore({ langs, themes, loadWasm });
   Object.assign(highlighterCore, {
-    loadThemeFromCDN: (name: string) => highlighterCore.loadTheme(loadTMTheme(name, downloadCDN)),
-    loadLanguageFromCDN: (name: string) => highlighterCore.loadLanguage(loadTMGrammar(name, downloadCDN)),
+    loadThemeFromCDN: (themeName: string) => highlighterCore.loadTheme(loadTMTheme(themeName, downloadCDN)),
+    loadLanguageFromCDN: (lang: string) => highlighterCore.loadLanguage(loadTMGrammar(lang, downloadCDN)),
   });
   return highlighterCore as unknown as Highlighter;
 }
@@ -77,7 +77,7 @@ function loadTMTheme(src: string | URL, cdn = "https://esm.sh") {
 
 /** Load a TextMate grammar from the given source. */
 function loadTMGrammar(src: string | URL, cdn = "https://esm.sh") {
-  const g = tmGrammars.find(g => g.name === src);
+  const g = typeof src === "string" ? tmGrammars.find(g => g.name === src) : undefined;
   if (g) {
     const url = new URL(`/tm-grammars@${tmGrammarsVersion}/grammars/${g.name}.json`, cdn);
     return cache.fetch(url).then((res) => res.json()).then((grammar) => ({

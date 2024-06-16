@@ -471,8 +471,7 @@ export async function renderToString(options: RenderOptions): Promise<string> {
 
 /** Render a `<monaco-editor>` component in HTML string. */
 export async function renderToWebComponent(options: RenderOptions): Promise<string> {
-  const highlighter = await initRenderHighlighter(options);
-  const prerender = render(highlighter, options);
+  const prerender = await renderToString(options);
   return (
     "<monaco-editor>"
     + "<script type=\"application/json\" class=\"monaco-editor-options\">"
