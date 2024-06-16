@@ -1,3 +1,6 @@
+> [!WARNING]
+> **This project is currently under active development and is not ready for production use.**
+
 # esm-monaco
 
 A Code Editor powered by monaco-editor-core with radical ESM support. Core features include:
@@ -12,9 +15,6 @@ A Code Editor powered by monaco-editor-core with radical ESM support. Core featu
 - Embedded languages(CSS/JavaScript) with LSP support in HTML.
 - Auto-closing HTML/JSX tags powered by LSP.
 - Bring your own `typescript` version (BYOT).
-
-> [!WARNING]
-> esm-monaco is currently under active development and is not ready for production use.
 
 ## Installation
 
