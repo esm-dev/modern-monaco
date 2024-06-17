@@ -14,21 +14,22 @@ A Code Editor powered by monaco-editor-core with radical ESM support. Core featu
 - Using [import maps](https://github.com/WICG/import-maps) to resolving **bare specifier** import in JavaScript/TypeScript.
 - Embedded languages(CSS/JavaScript) with LSP support in HTML.
 - Auto-closing HTML/JSX tags powered by LSP.
-- Bring your own `typescript` version (BYOT).
 
 ## Installation
 
-You can install the package from NPM in your node project with [vite](http://vitejs.dev) or [esbuild](https://esbuild.github.io) bundler.
+You can install the package from NPM in your node project with a bundler like [vite](http://vitejs.dev).
 
 ```bash
-npm i esm-monaco
+npm i esm-monaco typescript
 ```
 
-or import it from [esm.sh](https://esm.sh/) in browser without installation:
+or import it from [esm.sh](https://esm.sh/) in browser without build step:
 
 ```js
 import * from "https://esm.sh/esm-monaco"
 ```
+
+> **Note**: The `typescript` package is required for LSP support. We recommend `typescript@5.x.x` or later.
 
 ## Usage
 
@@ -108,7 +109,7 @@ export default {
 }
 ```
 
-## Eidtor Theme & Language Grammar
+## Editor Theme & Language Grammar
 
 [Todo]
 
