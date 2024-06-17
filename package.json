@@ -1,7 +1,7 @@
 {
   "name": "esm-monaco",
   "description": "A Code Editor powered by monaco-editor-core with radical ESM support",
-  "version": "0.0.0-beta.19",
+  "version": "0.0.0-beta.20",
   "type": "module",
   "module": "dist/index.js",
   "types": "types/index.d.ts",
