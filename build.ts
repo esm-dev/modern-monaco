@@ -2,7 +2,7 @@ import { build as esbuild } from "https://deno.land/x/esbuild@v0.21.5/mod.js";
 import { grammars as tmGrammars } from "https://esm.sh/tm-grammars@1.12.9";
 import { themes as tmThemes } from "https://esm.sh/tm-themes@1.4.3";
 
-const build = (entryPoints: string[], define?: Record<string, string>, minify = false) => {
+const build = (entryPoints: string[], define?: Record<string, string>) => {
   return esbuild({
     target: "esnext",
     format: "esm",
@@ -10,15 +10,13 @@ const build = (entryPoints: string[], define?: Record<string, string>, minify = 
     outdir: "dist",
     bundle: true,
     treeShaking: true,
-    minify,
-    sourcemap: minify,
     logLevel: "info",
     define,
     loader: {
       ".ttf": "dataurl",
     },
     external: [
-      !minify ? "*/cache.js" : "",
+      !entryPoints.includes("src/editor-core.ts") ? "*/cache.js" : "",
       "typescript",
       "*/editor-core.js",
       "*/editor-worker.js",
@@ -71,10 +69,9 @@ const modifyEditorCore = async () => {
   const css = ret.outputFiles[0].text.replace("font-size:140%", "font-size:100%");
   // [patch] fix the outline color of the input box
   const addonCss = `.monaco-inputbox input{outline: 1px solid var(--vscode-focusBorder,rgba(127, 127, 127, 0.5))}`;
-  const sourceMapComment = "\n//# sourceMappingURL=editor-core.js.map";
   await Deno.writeTextFile(
     "dist/editor-core.js",
-    js.replace(sourceMapComment, "\nexport const _CSS = " + JSON.stringify(css + addonCss) + sourceMapComment),
+    js + "\nexport const _CSS = " + JSON.stringify(css + addonCss),
   );
 };
 const copyDts = (...files: [src: string, dest: string][]) => {
@@ -98,14 +95,10 @@ const tmDefine = () => {
   };
 };
 const buildEditorCore = async () => {
-  await build(
-    [
-      "src/editor-core.ts",
-      "src/editor-worker.ts",
-    ],
-    undefined,
-    false,
-  );
+  await build([
+    "src/editor-core.ts",
+    "src/editor-worker.ts",
+  ]);
   await modifyEditorCore();
   await Deno.remove("dist/editor-core.css").catch(() => {});
   await Deno.remove("dist/editor-core.css.map").catch(() => {});
