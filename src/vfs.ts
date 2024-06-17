@@ -113,7 +113,7 @@ export class VFS {
     const url = toUrl(name);
     const href = url.href;
     const uri = monaco.Uri.parse(href);
-    const { content, version } = await this.read(url);
+    const { content, version } = await this.open(url);
     const model = monaco.editor.getModel(uri) ?? monaco.editor.createModel(decode(content), undefined, uri);
     if (!Reflect.has(model, "__VFS__")) {
       const onDidChange = createPersistTask(() => {
@@ -122,7 +122,7 @@ export class VFS {
       const disposable = model.onDidChangeContent(onDidChange);
       const unwatch = this.watch(href, async (evt) => {
         if (evt.kind === "modify" && !evt.isModelChange) {
-          const { content } = await this.read(url);
+          const { content } = await this.open(url);
           if (model.getValue() !== decode(content)) {
             model.setValue(decode(content));
             model.pushStackElement();
@@ -188,12 +188,12 @@ export class VFS {
     return waitIDBRequest<string>(db.getKey(url.href)).then((key) => key === url.href);
   }
 
-  async list(): Promise<string[]> {
+  async ls(): Promise<string[]> {
     const db = await this._tx(true);
     return await waitIDBRequest<string[]>(db.getAllKeys());
   }
 
-  async read(name: string | URL): Promise<VFile> {
+  async open(name: string | URL): Promise<VFile> {
     const url = toUrl(name);
     const db = await this._tx(true);
     const ret = await waitIDBRequest<VFile | undefined>(db.get(url.href));
@@ -204,12 +204,12 @@ export class VFS {
   }
 
   async readFile(name: string | URL): Promise<Uint8Array> {
-    const { content } = await this.read(name);
+    const { content } = await this.open(name);
     return encode(content);
   }
 
   async readTextFile(name: string | URL): Promise<string> {
-    const { content } = await this.read(name);
+    const { content } = await this.open(name);
     return decode(content);
   }
 
@@ -243,7 +243,7 @@ export class VFS {
     }, 0);
   }
 
-  async removeFile(name: string | URL): Promise<void> {
+  async remove(name: string | URL): Promise<void> {
     const { pathname, href } = toUrl(name);
     const db = await this._tx();
     await waitIDBRequest(db.delete(href));
@@ -275,10 +275,10 @@ export class VFS {
   useList(effect: (list: string[]) => void): () => void {
     const unwatch = this.watch("*", (evt) => {
       if (evt.kind === "create" || evt.kind === "remove") {
-        this.list().then(effect);
+        this.ls().then(effect);
       }
     });
-    this.list().then(effect);
+    this.ls().then(effect);
     return () => {
       unwatch();
     };

@@ -268,7 +268,7 @@
         option.append(deleteIcon)
         deleteIcon.addEventListener('click', async (e) => {
           e.stopPropagation()
-          vfs.removeFile(filename)
+          vfs.remove(filename)
           if (isActive) {
             toggleFolder()
           }

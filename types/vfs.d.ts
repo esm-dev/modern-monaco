@@ -26,18 +26,18 @@ export interface VFSState {
 export class VFS {
   constructor(options?: VFSOptions);
   readonly ErrorNotFound: typeof ErrorNotFound;
+  exists(name: string | URL): Promise<boolean>;
+  ls(): Promise<string[]>;
+  open(name: string | URL): Promise<VFile>;
   openModel(
     name: string | URL,
     attachTo?: editor.ICodeEditor | number | string | boolean,
     selectionOrPosition?: IRange | IPosition,
   ): Promise<editor.ITextModel>;
-  exists(name: string | URL): Promise<boolean>;
-  list(): Promise<string[]>;
-  read(name: string | URL): Promise<VFile>;
   readFile(name: string | URL): Promise<Uint8Array>;
   readTextFile(name: string | URL): Promise<string>;
   writeFile(name: string | URL, content: string | Uint8Array, version?: number): Promise<void>;
-  removeFile(name: string | URL): Promise<void>;
+  remove(name: string | URL): Promise<void>;
   watch(name: string | URL, handler: (evt: VFSEvent) => void): () => void;
   useList(effect: (list: string[]) => void): () => void;
   useState(effect: (state: VFSState) => void): () => void;

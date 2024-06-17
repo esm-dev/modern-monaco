@@ -330,7 +330,7 @@ export function lazy(options?: InitOption, hydrate?: boolean) {
           if (vfs.state.activeFile) {
             file = vfs.state.activeFile;
           } else {
-            const list = await vfs.list();
+            const list = await vfs.ls();
             vfs.state.activeFile = file = list[0];
           }
         }

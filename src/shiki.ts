@@ -121,7 +121,7 @@ export function getLanguageIdFromPath(path: string): string | undefined {
 export const getLanguageIdsInVFS = async (vfs: VFS) => {
   const grammars = new Set<string>();
   try {
-    const list = await vfs.list();
+    const list = await vfs.ls();
     for (const path of list) {
       const g = getGarmmarInfoFromPath(path);
       if (g) {
