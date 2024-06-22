@@ -92,7 +92,7 @@ async function serveDist(url: URL, req: Request, notFound: (url: URL, req: Reque
             const text = new TextDecoder().decode(chunk);
             if (text.includes("from \"typescript\"")) {
               controller.enqueue(new TextEncoder().encode(
-                text.replace("from \"typescript\"", "from \"https://esm.sh/typescript@5.4.5?dev\""),
+                text.replace("from \"typescript\"", "from \"https://esm.sh/typescript@5.5.2\""),
               ));
               replaced = true;
             } else {

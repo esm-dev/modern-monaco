@@ -9,20 +9,20 @@ importers:
   .:
     devDependencies:
       '@shikijs/core':
-        specifier: 1.6.5
-        version: 1.6.5
+        specifier: 1.9.0
+        version: 1.9.0
       monaco-editor-core:
-        specifier: 0.49.0
-        version: 0.49.0
+        specifier: 0.50.0
+        version: 0.50.0
       tm-grammars:
-        specifier: 1.12.10
-        version: 1.12.10
+        specifier: 1.12.11
+        version: 1.12.11
       tm-themes:
         specifier: 1.4.3
         version: 1.4.3
       typescript:
-        specifier: 5.4.5
-        version: 5.4.5
+        specifier: 5.5.2
+        version: 5.5.2
       vscode-css-languageservice:
         specifier: 6.2.14
         version: 6.2.14
@@ -41,8 +41,8 @@ importers:
 
 packages:
 
-  '@shikijs/core@1.6.5':
-    resolution: {integrity: sha512-XcQYt6e4L61ruAxHiL3Xg1DL/XkWWjzDdeckB/DtN8jAxoAU+bcxsV6DetC8NafHpL4YpGhxy9iXF0ND/u6HmA==}
+  '@shikijs/core@1.9.0':
+    resolution: {integrity: sha512-cbSoY8P/jgGByG8UOl3jnP/CWg/Qk+1q+eAKWtcrU3pNoILF8wTsLB0jT44qUBV8Ce1SvA9uqcM9Xf+u3fJFBw==}
 
   '@vscode/l10n@0.0.18':
     resolution: {integrity: sha512-KYSIHVmslkaCDyw013pphY+d7x1qV8IZupYfeIfzNA+nsaWHbn5uPuQRvdRFsa9zFzGeudPuoGoZ1Op4jrJXIQ==}
@@ -50,17 +50,17 @@ packages:
   jsonc-parser@3.2.1:
     resolution: {integrity: sha512-AilxAyFOAcK5wA1+LeaySVBrHsGQvUFCDWXKpZjzaL0PqW+xfBOttn8GNtWKFWqneyMZj41MWF9Kl6iPWLwgOA==}
 
-  monaco-editor-core@0.49.0:
-    resolution: {integrity: sha512-MANZcpLnpcM5qceEMsdwndvyB9rlGu+Sd8mVLd6y4VpSZCQenpoUAYk0K+UAPtcnCOYhgIsR/ZS9PxzMnCFkYw==}
+  monaco-editor-core@0.50.0:
+    resolution: {integrity: sha512-XKdublTat9qDKwJhMbm6nnTUKA75MU7jWVooZeXcZKP0/y2jscNWQ9FpCiRtWk33Teemihx155WQ7o7xgf89eA==}
 
-  tm-grammars@1.12.10:
-    resolution: {integrity: sha512-1DaDHDD51+5MkoldlOBVf34J70WvCsoP+9boXKOJs8ireZ17cIxDd0dYfnwfvoilv9PEuu3XPtW6K24q7+kBCw==}
+  tm-grammars@1.12.11:
+    resolution: {integrity: sha512-9PA4MU6gZAg14mBhyDBsJzJyEg0hJkOfnVJnpsid9VjFPJLaQMEDNFWyKQ2w7jyvQp/xwgxSTqL45Q4k39wYNg==}
 
   tm-themes@1.4.3:
     resolution: {integrity: sha512-nsUGwktLaWFMyKw2e/hNyDmcTIO+ue6Q2Mvb8L7WQkKSCflOm2TjGSspcJw6q7hi4QxQQNTuGICyvQN1UqtunQ==}
 
-  typescript@5.4.5:
-    resolution: {integrity: sha512-vcI4UpRgg81oIRUFwR0WSIHKt11nJ7SAVlYNIu+QpqeyXP+gpQJy/Z4+F0aGxSE4MqwjyXvW/TzgkLAx2AGHwQ==}
+  typescript@5.5.2:
+    resolution: {integrity: sha512-NcRtPEOsPFFWjobJEtfihkLCZCXZt/os3zf8nTxjVH3RvTSxjrCamJpbExGvYOF+tFHc3pA65qpdwPbzjohhew==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -87,19 +87,19 @@ packages:
 
 snapshots:
 
-  '@shikijs/core@1.6.5': {}
+  '@shikijs/core@1.9.0': {}
 
   '@vscode/l10n@0.0.18': {}
 
   jsonc-parser@3.2.1: {}
 
-  monaco-editor-core@0.49.0: {}
+  monaco-editor-core@0.50.0: {}
 
-  tm-grammars@1.12.10: {}
+  tm-grammars@1.12.11: {}
 
   tm-themes@1.4.3: {}
 
-  typescript@5.4.5: {}
+  typescript@5.5.2: {}
 
   vscode-css-languageservice@6.2.14:
     dependencies:

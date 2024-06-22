@@ -1,7 +1,7 @@
 import type { HighlighterCore, LanguageInput, ThemeInput } from "@shikijs/core";
 import type { VFS } from "./vfs";
 import loadWasm from "@shikijs/core/wasm-inlined";
-import { getHighlighterCore } from "@shikijs/core";
+import { createHighlighterCore } from "@shikijs/core";
 import { version as tmGrammarsVersion } from "../node_modules/tm-grammars/package.json";
 import { version as tmThemesVersion } from "../node_modules/tm-themes/package.json";
 import { cache } from "./cache.js";
@@ -56,7 +56,7 @@ export async function initShiki({
     themes.push(theme);
   }
 
-  const highlighterCore = await getHighlighterCore({ langs, themes, loadWasm });
+  const highlighterCore = await createHighlighterCore({ langs, themes, loadWasm });
   Object.assign(highlighterCore, {
     loadThemeFromCDN: (themeName: string) => highlighterCore.loadTheme(loadTMTheme(themeName, downloadCDN)),
     loadLanguageFromCDN: (lang: string) => highlighterCore.loadLanguage(loadTMGrammar(lang, downloadCDN)),
