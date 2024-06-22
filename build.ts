@@ -1,5 +1,5 @@
 import { build as esbuild } from "https://deno.land/x/esbuild@v0.21.5/mod.js";
-import { grammars as tmGrammars } from "https://esm.sh/tm-grammars@1.12.9";
+import { grammars as tmGrammars } from "https://esm.sh/tm-grammars@1.12.11";
 import { themes as tmThemes } from "https://esm.sh/tm-themes@1.4.3";
 
 const build = (entryPoints: string[], define?: Record<string, string>) => {
