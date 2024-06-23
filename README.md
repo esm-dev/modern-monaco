@@ -45,7 +45,7 @@ There are three working modes for esm-monaco:
 <monaco-editor></monaco-editor>
 
 <script type="module">
-  import { lazy, VFS } from "esm-monaco";
+  import { lazy, VFS } from "https://esm.sh/esm-monaco";
 
   // create a virtual file system
   const vfs = new VFS({ scope: "APP_ID" });
@@ -62,7 +62,7 @@ There are three working modes for esm-monaco:
 <div id="editor"></div>
 
 <script type="module">
-  import { init, VFS } from "esm-monaco";
+  import { init, VFS } from "https://esm.sh/esm-monaco";
 
   // create a virtual file system
   const vfs = new VFS({ scope: "APP_ID" });
@@ -72,7 +72,7 @@ There are three working modes for esm-monaco:
   const monacoNS = await init({ vfs });
 
   // create a monaco editor instance
-  const editor = monaco.editor.create( document.getElementById("editor"), {
+  const editor = monaco.editor.create(document.getElementById("editor"), {
     /* add your editor options here */
   });
 
@@ -93,10 +93,10 @@ export default {
       filename: "app.js",
       userAgent: req.headers.get("User-Agent"), // for font detection
     });
-    return new Response(`
+    return new Response(html`
       ${ssrOut}
       <script type="module">
-        import { hydrate, VFS } from "esm-monaco";
+        import { hydrate, VFS } from "https://esm.sh/esm-monaco";
 
         // create a virtual file system
         const vfs = new VFS({ scope: "APP_ID" });
