@@ -4,6 +4,8 @@ import type { FormattingOptions } from "vscode-languageserver-types";
 import type { ImportMap } from "~/import-map";
 import type { VFS } from "~/vfs";
 import type { CreateData, Host, TypeScriptWorker, VersionedContent } from "./worker";
+
+// ! external modules, don't remove the `.js` extension
 import { cache } from "../../cache.js";
 import { isBlank, loadImportMapFromVFS, parseImportMapFromJson, toImportMap } from "../../import-map.js";
 import * as lfs from "../language-features.js";

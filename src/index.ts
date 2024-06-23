@@ -4,7 +4,7 @@ import type { VFS } from "./vfs.ts";
 import type { LSPConfig } from "./lsp/index.ts";
 import { createWorker, margeProviders } from "./lsp/index.ts";
 
-// ! external module, don't remove the `.js` extension
+// ! external modules, don't remove the `.js` extension
 import { getLanguageIdFromPath, getLanguageIdsInVFS, initShiki, setDefaultWasmLoader, tmGrammars } from "./shiki.js";
 import { initShikiMonacoTokenizer, registerShikiMonacoTokenizer } from "./shiki.js";
 import { render } from "./shiki.js";

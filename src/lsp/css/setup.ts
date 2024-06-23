@@ -1,6 +1,8 @@
 import type monacoNS from "monaco-editor-core";
 import type { FormattingOptions } from "vscode-languageserver-types";
-import type { CreateData, CSSWorker } from "./worker";
+import type { CreateData, CSSWorker } from "./worker.ts";
+
+// ! external modules, don't remove the `.js` extension
 import * as lfs from "../language-features.js";
 
 export function setup(

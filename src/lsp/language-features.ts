@@ -6,6 +6,8 @@
 
 import type monacoNS from "monaco-editor-core";
 import * as lst from "vscode-languageserver-types";
+
+// ! external modules, don't remove the `.js` extension
 import { cache } from "../cache.js";
 
 let Monaco: typeof monacoNS;

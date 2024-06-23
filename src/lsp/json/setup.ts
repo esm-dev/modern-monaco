@@ -1,8 +1,10 @@
 import type monacoNS from "monaco-editor-core";
 import type { FormattingOptions } from "vscode-languageserver-types";
-import type { CreateData, JSONWorker } from "./worker";
+import type { CreateData, JSONWorker } from "./worker.ts";
+import { schemas } from "./schemas.ts";
+
+// ! external modules, don't remove the `.js` extension
 import * as lfs from "../language-features.js";
-import { schemas } from "./schemas";
 
 export function setup(
   monaco: typeof monacoNS,

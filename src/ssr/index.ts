@@ -1,4 +1,4 @@
-// ! external module, don't remove the `.js` extension
+// ! external modules, don't remove the `.js` extension
 import { setDefaultWasmLoader } from "../shiki.js";
 import { getWasmInstance } from "../shiki-wasm.js";
 

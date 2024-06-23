@@ -19,6 +19,8 @@ import {
   TextDocument,
 } from "vscode-languageserver-types";
 import ts from "typescript";
+
+// ! external modules, don't remove the `.js` extension
 import { cache } from "../../cache.js";
 import { initializeWorker } from "../../editor-worker.js";
 import { type ImportMap, isBlank, resolve } from "../../import-map.js";

@@ -1,7 +1,7 @@
 import type { RenderOptions } from "../render.ts";
 import type { Highlighter } from "../shiki.ts";
 
-// ! external module, don't remove the `.js` extension
+// ! external modules, don't remove the `.js` extension
 import { getLanguageIdFromPath, initShiki } from "../shiki.js";
 import { render } from "../shiki.js";
 

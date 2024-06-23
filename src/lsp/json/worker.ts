@@ -6,6 +6,8 @@
 
 import type monacoNS from "monaco-editor-core";
 import * as jsonService from "vscode-json-languageservice";
+
+// ! external modules, don't remove the `.js` extension
 import { cache } from "../../cache.js";
 import { initializeWorker } from "../../editor-worker.js";
 

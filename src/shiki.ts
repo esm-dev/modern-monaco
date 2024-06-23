@@ -4,7 +4,7 @@ import { createHighlighterCore, setDefaultWasmLoader } from "@shikijs/core";
 import { version as tmGrammarsVersion } from "../node_modules/tm-grammars/package.json";
 import { version as tmThemesVersion } from "../node_modules/tm-themes/package.json";
 
-// ! external module, don't remove the `.js` extension
+// ! external modules, don't remove the `.js` extension
 import { cache } from "./cache.js";
 
 // @ts-expect-error `TM_GRAMMARS` is defined at build time

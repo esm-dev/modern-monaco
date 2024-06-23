@@ -1,6 +1,6 @@
 import type monacoNS from "monaco-editor-core";
 
-// ! external module, don't remove the `.js` extension
+// ! external modules, don't remove the `.js` extension
 import { loadImportMapFromVFS, parseImportMapFromJson } from "./import-map.js";
 import { createPersistTask, createProxy, decode, encode, openVFSiDB, toUrl, waitIDBRequest } from "./util.js";
 

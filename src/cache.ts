@@ -1,4 +1,4 @@
-// ! external module, don't remove the `.js` extension
+// ! external modules, don't remove the `.js` extension
 import { defineProperty, openVFSiDB, toUrl, waitIDBRequest } from "./util.js";
 
 interface CacheFile {

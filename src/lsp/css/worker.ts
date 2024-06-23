@@ -6,6 +6,8 @@
 
 import type monacoNS from "monaco-editor-core";
 import * as cssService from "vscode-css-languageservice";
+
+// ! external modules, don't remove the `.js` extension
 import { initializeWorker } from "../../editor-worker.js";
 
 export interface CSSDataConfiguration {
