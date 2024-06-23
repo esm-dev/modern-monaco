@@ -6,14 +6,19 @@
 A Code Editor powered by monaco-editor-core with radical ESM support. Core features include:
 
 - ESM only, load dependencies on demand, no `MonacoEnvironment` required.
-- Using [Shiki](https://shiki.style) for syntax highlighting with tons of themes and languages.
+- Using [Shiki](https://shiki.style) for syntax highlighting with tons of themes and grammars.
 - Pre-highlighting code with Shiki and load the editor.js in background.
 - Support **server-side rendering(SSR)** with hydration in client side.
 - Virtual File System(VFS) for multiple files editing.
 - Automatically loading `.d.ts` from [esm.sh](https://esm.sh) for type checking.
 - Using [import maps](https://github.com/WICG/import-maps) to resolving **bare specifier** import in JavaScript/TypeScript.
-- Embedded languages(CSS/JavaScript) with LSP support in HTML.
-- Auto-closing HTML/JSX tags powered by LSP.
+- Embedded languages(importmap/CSS/JavaScript) with LSP support in HTML.
+- Auto-closing HTML/JSX tags. (powered by LSP)
+
+Planned features:
+
+- [ ] Emmet
+- [ ] Inline `html` highlight
 
 ## Installation
 
@@ -109,7 +114,7 @@ export default {
 }
 ```
 
-## Editor Theme & Language Grammar
+## Editor Theme & Language Grammars
 
 [Todo]
 
