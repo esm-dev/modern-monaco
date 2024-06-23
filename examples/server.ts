@@ -123,7 +123,7 @@ async function servePages(url: URL, req: Request) {
     let body = (await Deno.open(fileUrl)).readable;
     if (filename === "ssr.html") {
       let replaced = false;
-      const murl = "../dist/ssr.js";
+      const murl = "../dist/ssr/index.js";
       const { renderToWebComponent } = await import(murl);
       const ssrOutput = await renderToWebComponent({
         filename: "App.tsx",

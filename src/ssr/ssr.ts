@@ -1,12 +1,9 @@
-import type { RenderOptions } from "./render.ts";
-import type { Highlighter } from "./shiki.ts";
+import type { RenderOptions } from "../render.ts";
+import type { Highlighter } from "../shiki.ts";
 
 // ! external module, don't remove the `.js` extension
-import { getLanguageIdFromPath, initShiki, setDefaultWasmLoader } from "./shiki.js";
-import { render } from "./shiki.js";
-
-// @ts-expect-error the 'onig.wasm' is created at build time
-setDefaultWasmLoader(import("./onig.wasm"));
+import { getLanguageIdFromPath, initShiki } from "../shiki.js";
+import { render } from "../shiki.js";
 
 let ssrHighlighter: Highlighter | Promise<Highlighter> | undefined;
 

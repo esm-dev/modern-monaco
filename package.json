@@ -30,8 +30,8 @@
       "types": "./types/vfs.d.ts"
     },
     "./ssr": {
-      "workerd": "./dist/ssr-workerd.js",
-      "import": "./dist/ssr.js",
+      "workerd": "./dist/ssr/workerd.js",
+      "import": "./dist/ssr/index.js",
       "types": "./types/ssr.d.ts"
     },
     "./shiki": {
