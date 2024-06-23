@@ -43,6 +43,7 @@ const bundleTypescriptLibs = async () => {
       dtsFiles.push(entry.name);
     }
   }
+  dtsFiles.sort();
   const libs = Object.fromEntries(
     await Promise.all(dtsFiles.map(async (name) => {
       return [name, await Deno.readTextFile(libDir + "/" + name)];
