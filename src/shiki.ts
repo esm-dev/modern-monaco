@@ -1,9 +1,10 @@
 import type { HighlighterCore, LanguageInput, ThemeInput } from "@shikijs/core";
-import type { VFS } from "./vfs";
-import loadWasm from "@shikijs/core/wasm-inlined";
-import { createHighlighterCore } from "@shikijs/core";
+import type { VFS } from "./vfs.ts";
+import { createHighlighterCore, setDefaultWasmLoader } from "@shikijs/core";
 import { version as tmGrammarsVersion } from "../node_modules/tm-grammars/package.json";
 import { version as tmThemesVersion } from "../node_modules/tm-themes/package.json";
+
+// ! external module, don't remove the `.js` extension
 import { cache } from "./cache.js";
 
 // @ts-expect-error `TM_GRAMMARS` is defined at build time
@@ -56,7 +57,7 @@ export async function initShiki({
     themes.push(theme);
   }
 
-  const highlighterCore = await createHighlighterCore({ langs, themes, loadWasm });
+  const highlighterCore = await createHighlighterCore({ langs, themes });
   Object.assign(highlighterCore, {
     loadThemeFromCDN: (themeName: string) => highlighterCore.loadTheme(loadTMTheme(themeName, downloadCDN)),
     loadLanguageFromCDN: (lang: string) => highlighterCore.loadLanguage(loadTMGrammar(lang, downloadCDN)),
@@ -137,4 +138,6 @@ export const getLanguageIdsInVFS = async (vfs: VFS) => {
   return Array.from(grammars);
 };
 
-export { tmGrammars, tmThemes };
+export * from "./render.ts";
+export * from "./shiki-monaco.ts";
+export { setDefaultWasmLoader, tmGrammars, tmThemes };

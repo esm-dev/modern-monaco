@@ -1,7 +1,7 @@
 import type { editor } from "monaco-editor-core";
 import type { HighlighterCore } from "@shikijs/core";
-import type { ShikiInitOptions } from "./shiki";
-import { getLanguageIdFromPath } from "./shiki";
+import type { ShikiInitOptions } from "./shiki.ts";
+import { getLanguageIdFromPath } from "./shiki.ts";
 
 const DEFAULT_WINDOWS_FONT_FAMILY = "Consolas, 'Courier New', monospace";
 const DEFAULT_MAC_FONT_FAMILY = "Menlo, Monaco, 'Courier New', monospace";

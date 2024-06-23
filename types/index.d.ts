@@ -40,17 +40,6 @@ export interface InitOptions extends ShikiInitOptions {
   lsp?: LSPConfig;
 }
 
-export interface RenderOptions extends monacoNS.editor.IStandaloneEditorConstructionOptions {
-  code: string;
-  filename?: string;
-  language?: string;
-  userAgent?: string;
-  fontDigitWidth?: number;
-  shiki?: ShikiInitOptions;
-}
-
 export function init(options?: InitOptions): Promise<typeof monacoNS>;
 export function lazy(options?: InitOptions): void;
 export function hydrate(options?: InitOptions): void;
-export function renderToString(options: RenderOptions): Promise<string>;
-export function renderToWebComponent(options: RenderOptions): Promise<string>;

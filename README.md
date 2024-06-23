@@ -84,7 +84,7 @@ There are three working modes for esm-monaco:
 ### SSR Mode
 
 ```js
-import { renderToWebComponent } from "esm-monaco";
+import { renderToWebComponent } from "esm-monaco/ssr";
 
 export default {
   fetch(req) => {

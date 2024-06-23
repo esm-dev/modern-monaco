@@ -29,6 +29,17 @@
       "import": "./dist/vfs.js",
       "types": "./types/vfs.d.ts"
     },
+    "./ssr": {
+      "workerd": "./dist/ssr-workerd.js",
+      "import": "./dist/ssr.js",
+      "types": "./types/ssr.d.ts"
+    },
+    "./shiki": {
+      "import": "./dist/shiki.js"
+    },
+    "./shiki-wasm": {
+      "import": "./dist/shiki-wasm.js"
+    },
     "./util": {
       "import": "./dist/util.js"
     },

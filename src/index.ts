@@ -1,14 +1,16 @@
 import type monacoNS from "monaco-editor-core";
-import type { ShikiInitOptions } from "./shiki.ts";
+import type { Highlighter, RenderOptions, ShikiInitOptions } from "./shiki.ts";
 import type { VFS } from "./vfs.ts";
 import type { LSPConfig } from "./lsp/index.ts";
-import type { RenderOptions } from "./render.ts";
-import type { Highlighter } from "./shiki.ts";
-import { initShikiMonacoTokenizer, registerShikiMonacoTokenizer } from "./shiki-monaco.ts";
 import { createWorker, margeProviders } from "./lsp/index.ts";
-import { render } from "./render.ts";
-import { getLanguageIdFromPath, getLanguageIdsInVFS, initShiki } from "./shiki.ts";
-import { tmGrammars } from "./shiki.ts";
+
+// ! external module, don't remove the `.js` extension
+import { getLanguageIdFromPath, getLanguageIdsInVFS, initShiki, setDefaultWasmLoader, tmGrammars } from "./shiki.js";
+import { initShikiMonacoTokenizer, registerShikiMonacoTokenizer } from "./shiki.js";
+import { render } from "./shiki.js";
+import { getWasmInstance } from "./shiki-wasm.js";
+
+setDefaultWasmLoader(getWasmInstance);
 
 const editorProps = [
   "autoDetectHighContrast",

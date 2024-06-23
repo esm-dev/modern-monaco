@@ -1,6 +1,7 @@
 import { build as esbuild } from "https://deno.land/x/esbuild@v0.21.5/mod.js";
-import { grammars as tmGrammars } from "https://esm.sh/tm-grammars@1.12.11";
-import { themes as tmThemes } from "https://esm.sh/tm-themes@1.4.3";
+import { grammars as tmGrammars } from "./node_modules/tm-grammars/index.js";
+import { themes as tmThemes } from "./node_modules/tm-themes/index.js";
+import { wasmBinary } from "./node_modules/@shikijs/core/dist/wasm-inlined.mjs";
 
 const build = (entryPoints: string[], define?: Record<string, string>) => {
   return esbuild({
@@ -23,9 +24,12 @@ const build = (entryPoints: string[], define?: Record<string, string>) => {
       "*/import-map.js",
       "*/language-features.js",
       "*/libs.js",
-      "*/util.js",
       "*/setup.js",
+      "*/shiki.js",
+      "*/shiki-wasm.js",
+      "*/util.js",
       "*/worker.js",
+      "*/onig.wasm",
     ],
     entryPoints,
   });
@@ -105,21 +109,25 @@ const buildEditorCore = async () => {
 };
 const buildDist = async () => {
   await build([
-    "src/vfs.ts",
-    "src/util.ts",
-    "src/import-map.ts",
     "src/cache.ts",
-    "src/lsp/language-features.ts",
-    "src/lsp/html/setup.ts",
-    "src/lsp/html/worker.ts",
+    "src/index.ts",
+    "src/import-map.ts",
+    "src/shiki-wasm.ts",
+    "src/ssr.ts",
+    "src/ssr-workerd.ts",
+    "src/util.ts",
+    "src/vfs.ts",
     "src/lsp/css/setup.ts",
     "src/lsp/css/worker.ts",
+    "src/lsp/html/setup.ts",
+    "src/lsp/html/worker.ts",
     "src/lsp/json/setup.ts",
     "src/lsp/json/worker.ts",
+    "src/lsp/language-features.ts",
     "src/lsp/typescript/setup.ts",
     "src/lsp/typescript/worker.ts",
   ]);
-  await build(["src/index.ts"], tmDefine());
+  await build(["src/shiki.ts"], tmDefine());
 };
 const buildTypes = async () => {
   await copyDts(
@@ -143,6 +151,7 @@ if (import.meta.main) {
   await buildDist();
   await buildTypes();
   await bundleTypescriptLibs();
+  await Deno.writeFile("dist/onig.wasm", wasmBinary);
 
   if (Deno.args.includes("--watch")) {
     const watcher = Deno.watchFs("src", { recursive: true });
