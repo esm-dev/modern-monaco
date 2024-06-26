@@ -33,8 +33,8 @@ importers:
         specifier: 5.4.0
         version: 5.4.0
       vscode-language-configurations:
-        specifier: 1.88.0
-        version: 1.88.0
+        specifier: 1.90.2
+        version: 1.90.2
       vscode-languageserver-types:
         specifier: 3.17.5
         version: 3.17.5
@@ -73,8 +73,8 @@ packages:
   vscode-json-languageservice@5.4.0:
     resolution: {integrity: sha512-NCkkCr63OHVkE4lcb0xlUAaix6vE5gHQW4NrswbLEh3ArXj81lrGuFTsGEYEUXlNHdnc53vWPcjeSy/nMTrfXg==}
 
-  vscode-language-configurations@1.88.0:
-    resolution: {integrity: sha512-jZLJwvKFb+P0hs1MP6nm3VHFD/PmTJYLJIqL8Y2vJtABthCFuizRulyoowvZ0K/yj8e8huAp5XDp3m+NSQJyVw==}
+  vscode-language-configurations@1.90.2:
+    resolution: {integrity: sha512-YEvHVSmZbjVhzRdJ04ygZ5La0T9YMCGXoILn1yJgYXpTe61rDtturr7J7592SYx0Iv+6nP2JpNsdR9TdSASA9g==}
 
   vscode-languageserver-textdocument@1.0.11:
     resolution: {integrity: sha512-X+8T3GoiwTVlJbicx/sIAF+yuJAqz8VvwJyoMVhwEMoEKE/fkDmrqUgDMyBECcM2A2frVZIUj5HI/ErRXCfOeA==}
@@ -123,7 +123,7 @@ snapshots:
       vscode-languageserver-types: 3.17.5
       vscode-uri: 3.0.8
 
-  vscode-language-configurations@1.88.0: {}
+  vscode-language-configurations@1.90.2: {}
 
   vscode-languageserver-textdocument@1.0.11: {}
 
