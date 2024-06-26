@@ -83,19 +83,21 @@ const copyDts = (...files: [src: string, dest: string][]) => {
   return Promise.all(files.map(([src, dest]) => Deno.copyFile("node_modules/" + src, "types/" + dest)));
 };
 const tmDefine = () => {
-  const grammarKeys = ["name", "scopeName", "aliases", "embedded", "embeddedIn", "injectTo"];
+  const keys = ["name", "scopeName", "aliases", "embedded", "embeddedIn", "injectTo"];
 
   // add aliases for javascript and typescript
-  const javascriptGrammar = tmGrammars.find((g) => g.name === "javascript");
-  const typescriptGrammar = tmGrammars.find((g) => g.name === "typescript");
-  javascriptGrammar!.aliases!.push("mjs", "cjs");
-  typescriptGrammar!.aliases!.push("mts", "cts");
+  tmGrammars.find((g) => g.name === "javascript")!.aliases = ["js", "mjs", "cjs"];
+  tmGrammars.find((g) => g.name === "typescript")!.aliases = ["ts", "mts", "cts"];
+
+  // update embedded grammars
+  tmGrammars.find((g) => g.name === "html")!.embedded = ["json", "css", "javascript"];
+  for (const id of ["javascript", "typescript", "jsx", "tsx"]) {
+    tmGrammars.find((v) => v.name === id)!.embedded = ["html", "css"];
+  }
 
   return {
     TM_THEMES: JSON.stringify(tmThemes.map((v) => v.name)),
-    TM_GRAMMARS: JSON.stringify(
-      tmGrammars.map((v) => Object.fromEntries(grammarKeys.map((k) => [k, v[k as keyof typeof v]]))),
-    ),
+    TM_GRAMMARS: JSON.stringify(tmGrammars.map((v) => Object.fromEntries(keys.map((k) => [k, v[k as keyof typeof v]])))),
     VITESSE_DARK: Deno.readTextFileSync("node_modules/tm-themes/themes/vitesse-dark.json"),
   };
 };

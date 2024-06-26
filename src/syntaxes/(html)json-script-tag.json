@@ -1,0 +1,69 @@
+{
+  "name": "JSON Script Tag in HTML",
+  "scopeName": "text.html.json-script-tag",
+  "injectTo": [
+    "text.html"
+  ],
+  "injectionSelector": "L:text.html",
+  "patterns": [
+    {
+      "begin": "(<)(script)\\b(?=[^>]*type=(importmap|'importmap'|\"importmap\"|json|'json'|\"json\"|'application/json'|\"application/json\"))(?![^/>]*/>\\s*$)",
+      "beginCaptures": {
+        "1": {
+          "name": "punctuation.definition.tag.begin.html"
+        },
+        "2": {
+          "name": "entity.name.tag.html"
+        }
+      },
+      "end": "(</)(script)(>)",
+      "endCaptures": {
+        "1": {
+          "name": "punctuation.definition.tag.begin.html"
+        },
+        "2": {
+          "name": "entity.name.tag.html"
+        },
+        "3": {
+          "name": "punctuation.definition.tag.end.html"
+        }
+      },
+      "patterns": [
+        {
+          "name": "entity.other.attribute-name.html",
+          "match": "\\b([a-zA-Z\\-:_]+)"
+        },
+        {
+          "name": "punctuation.separator.key-value.html",
+          "match": "="
+        },
+        {
+          "name": "string.quoted.double.html",
+          "match": "(\"|').*?(\"|')"
+        },
+        {
+          "begin": "(>)",
+          "beginCaptures": {
+            "0": {
+              "name": "meta.tag.metadata.json.start.html"
+            },
+            "1": {
+              "name": "punctuation.definition.tag.end.html"
+            }
+          },
+          "end": "(?=</script>)",
+          "endCaptures": {
+            "0": {
+              "name": "meta.tag.metadata.json.end.html"
+            }
+          },
+          "patterns": [
+            {
+              "include": "source.json"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

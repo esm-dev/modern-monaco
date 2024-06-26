@@ -3,6 +3,7 @@ import type { Highlighter, RenderOptions, ShikiInitOptions } from "./shiki.ts";
 import type { VFS } from "./vfs.ts";
 import type { LSPConfig } from "./lsp/index.ts";
 import { createWorker, margeProviders } from "./lsp/index.ts";
+import syntaxes from "./syntaxes/index.ts";
 
 // ! external modules, don't remove the `.js` extension
 import { getLanguageIdFromPath, getLanguageIdsInVFS, initShiki, setDefaultWasmLoader, tmGrammars } from "./shiki.js";
@@ -205,11 +206,7 @@ export function init(options?: InitOption): Promise<typeof monacoNS> {
           langs.push(...ids);
         }
       }
-      for (const l of Object.values(lspProviders)) {
-        if (l.syntaxes) {
-          langs.push(...l.syntaxes);
-        }
-      }
+      langs.push(...(syntaxes as any[]));
       const hightlighter = await initShiki({ ...options, langs });
       return loadMonaco(hightlighter, options);
     };
@@ -339,11 +336,7 @@ export function lazy(options?: InitOption, hydrate?: boolean) {
         if (renderOptions.language || file) {
           langs.push(renderOptions.language ?? getLanguageIdFromPath(file));
         }
-        for (const l of Object.values(lspProviders)) {
-          if (l.syntaxes) {
-            langs.push(...l.syntaxes);
-          }
-        }
+        langs.push(...(syntaxes as any[]));
         if (renderOptions.theme) {
           options.theme = renderOptions.theme;
         }

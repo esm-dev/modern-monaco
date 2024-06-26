@@ -1,7 +1,6 @@
 import type monacoNS from "monaco-editor-core";
 import type { FormattingOptions } from "vscode-languageserver-types";
 import type { VFS } from "../vfs.ts";
-import jsonScriptTag from "./html/syntaxes/json-script-tag.json";
 
 export interface LSP {
   setup: (
@@ -16,7 +15,6 @@ export interface LSP {
 
 export interface LSPProvider {
   aliases?: string[];
-  syntaxes?: any[];
   import: () => Promise<LSP>;
 }
 
@@ -27,7 +25,6 @@ export interface LSPConfig {
 
 export const builtinProviders: Record<string, LSPProvider> = {
   html: {
-    syntaxes: [jsonScriptTag],
     // @ts-expect-error 'setup.js' is generated at build time
     import: () => import("./lsp/html/setup.js"),
   },

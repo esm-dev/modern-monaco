@@ -6,6 +6,7 @@ import { version as tmThemesVersion } from "../node_modules/tm-themes/package.js
 
 // ! external modules, don't remove the `.js` extension
 import { cache } from "./cache.js";
+import { isObject } from "./util.ts";
 
 // @ts-expect-error `TM_GRAMMARS` is defined at build time
 const tmGrammars: { name: string; aliases?: string[]; embedded?: string[]; injectTo?: string[] }[] = TM_GRAMMARS;
@@ -42,18 +43,15 @@ export async function initShiki({
           langs.push(...g.embedded.map((id) => loadTMGrammar(id, downloadCDN)));
         }
         langs.push(loadTMGrammar(input, downloadCDN));
-      } else {
+      } else if (isObject(input)) {
         langs.push(input);
-        if ((input as any).embeddedLanguages) {
-          langs.push(...Object.values((input as any).embeddedLanguages).map((id: string) => loadTMGrammar(id, downloadCDN)));
-        }
       }
     });
   }
 
   if (typeof theme === "string" || theme instanceof URL) {
     themes.push(await loadTMTheme(theme, downloadCDN));
-  } else if (typeof theme === "object" && theme !== null) {
+  } else if (isObject(theme)) {
     themes.push(theme);
   }
 
