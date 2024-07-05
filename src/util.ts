@@ -38,7 +38,7 @@ export function createPersistTask(persist: () => void | Promise<void>, delay = 5
   let timer: number | null = null;
   const askToExit = (e: BeforeUnloadEvent) => {
     e.preventDefault();
-    e.returnValue = true;
+    return false;
   };
   return () => {
     if (timer !== null) {
@@ -79,25 +79,8 @@ export function createProxy(obj: object, onChange: () => void) {
   return proxy;
 }
 
-/** open the given indexedDB for VFS. */
-export function openVFSiDB(
-  name: string,
-  version?: number,
-  onStoreCreate?: (store: IDBObjectStore) => void,
-) {
-  const req = indexedDB.open(name, version);
-  req.onupgradeneeded = () => {
-    const db = req.result;
-    if (!db.objectStoreNames.contains("files")) {
-      const store = db.createObjectStore("files", { keyPath: "url" });
-      onStoreCreate?.(store);
-    }
-  };
-  return waitIDBRequest<IDBDatabase>(req);
-}
-
-/** wait for the given IDBRequest. */
-export function waitIDBRequest<T>(req: IDBRequest): Promise<T> {
+/** promisify the given IDBRequest. */
+export function promisifyIDBRequest<T>(req: IDBRequest): Promise<T> {
   return new Promise((resolve, reject) => {
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);

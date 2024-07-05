@@ -2,7 +2,7 @@ import type monacoNS from "monaco-editor-core";
 
 // ! external modules, don't remove the `.js` extension
 import { loadImportMapFromVFS, parseImportMapFromJson } from "./import-map.js";
-import { createPersistTask, createProxy, decode, encode, openVFSiDB, toUrl, waitIDBRequest } from "./util.js";
+import { createPersistTask, createProxy, decode, encode, promisifyIDBRequest, toUrl } from "./util.js";
 
 interface VFile {
   url: string;
@@ -35,6 +35,23 @@ export class VFS {
   private _viewState: Record<string, monacoNS.editor.ICodeEditorViewState> = {};
   private _stateChangeHandlers = new Set<() => void>();
   private _watchHandlers = new Map<string, Set<(evt: VFSEvent) => void>>();
+
+  static dbStoreName = "files";
+  static openIDB(
+    name: string,
+    version?: number,
+    onStoreCreate?: (store: IDBObjectStore) => void,
+  ) {
+    const req = indexedDB.open(name, version);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(VFS.dbStoreName)) {
+        const store = db.createObjectStore(VFS.dbStoreName, { keyPath: "url" });
+        onStoreCreate?.(store);
+      }
+    };
+    return promisifyIDBRequest<IDBDatabase>(req);
+  }
 
   constructor(options: VFSOptions) {
     this._db = this._openDB(options);
@@ -73,7 +90,7 @@ export class VFS {
 
   private _openDB(options: VFSOptions): Promise<IDBDatabase> {
     const dbName = ["monaco-vfs", options.scope].filter(Boolean).join("/");
-    return openVFSiDB(dbName, 1, (store) => {
+    return VFS.openIDB(dbName, 1, (store) => {
       for (const [name, data] of Object.entries(options.initial ?? {})) {
         const url = toUrl(name);
         const now = Date.now();
@@ -96,9 +113,7 @@ export class VFS {
   }
 
   private async _tx(readonly = false) {
-    const db = this._db instanceof Promise ? await this._db : this._db;
-    const storeKey = "files";
-    return db.transaction(storeKey, readonly ? "readonly" : "readwrite").objectStore(storeKey);
+    return (await this._db).transaction(VFS.dbStoreName, readonly ? "readonly" : "readwrite").objectStore(VFS.dbStoreName);
   }
 
   async openModel(
@@ -185,18 +200,18 @@ export class VFS {
   async exists(name: string | URL): Promise<boolean> {
     const url = toUrl(name);
     const db = await this._tx(true);
-    return waitIDBRequest<string>(db.getKey(url.href)).then((key) => key === url.href);
+    return promisifyIDBRequest<string>(db.getKey(url.href)).then((key) => key === url.href);
   }
 
   async ls(): Promise<string[]> {
     const db = await this._tx(true);
-    return await waitIDBRequest<string[]>(db.getAllKeys());
+    return await promisifyIDBRequest<string[]>(db.getAllKeys());
   }
 
   async open(name: string | URL): Promise<VFile> {
     const url = toUrl(name);
     const db = await this._tx(true);
-    const ret = await waitIDBRequest<VFile | undefined>(db.get(url.href));
+    const ret = await promisifyIDBRequest<VFile | undefined>(db.get(url.href));
     if (!ret) {
       throw new ErrorNotFound(name);
     }
@@ -215,7 +230,7 @@ export class VFS {
 
   private async _write(url: string, content: string | Uint8Array, version?: number): Promise<"create" | "modify"> {
     const db = await this._tx();
-    const old = await waitIDBRequest<VFile | undefined>(db.get(url));
+    const old = await promisifyIDBRequest<VFile | undefined>(db.get(url));
     const now = Date.now();
     const file: VFile = {
       url,
@@ -224,7 +239,7 @@ export class VFS {
       ctime: old?.ctime ?? now,
       mtime: now,
     };
-    await waitIDBRequest(db.put(file));
+    await promisifyIDBRequest(db.put(file));
     return old ? "modify" : "create";
   }
 
@@ -246,7 +261,7 @@ export class VFS {
   async remove(name: string | URL): Promise<void> {
     const { pathname, href } = toUrl(name);
     const db = await this._tx();
-    await waitIDBRequest(db.delete(href));
+    await promisifyIDBRequest(db.delete(href));
     setTimeout(() => {
       for (const key of [href, "*"]) {
         const handlers = this._watchHandlers.get(key);

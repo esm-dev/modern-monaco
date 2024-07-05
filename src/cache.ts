@@ -1,5 +1,6 @@
 // ! external modules, don't remove the `.js` extension
-import { defineProperty, openVFSiDB, toUrl, waitIDBRequest } from "./util.js";
+import { defineProperty, promisifyIDBRequest, toUrl } from "./util.js";
+import { VFS } from "./vfs.js";
 
 interface CacheFile {
   url: string;
@@ -14,7 +15,7 @@ class Cache {
 
   constructor(cacheName = "monaco-cache") {
     if (globalThis.indexedDB) {
-      this._db = openVFSiDB(cacheName).then((db) => this._db = db);
+      this._db = VFS.openIDB(cacheName).then((db) => this._db = db);
     }
   }
 
@@ -36,7 +37,7 @@ class Cache {
       if (res.redirected) {
         const tx = db.transaction("files", "readwrite").objectStore("files");
         file.headers.push(["location", res.url]);
-        await waitIDBRequest<CacheFile>(tx.put(file));
+        await promisifyIDBRequest<CacheFile>(tx.put(file));
       }
       const content = await res.arrayBuffer();
       const headers = [...res.headers.entries()].filter(([k]) =>
@@ -61,7 +62,7 @@ class Cache {
     const url = toUrl(key).href;
     const db = await this._db;
     const tx = db.transaction("files", "readonly").objectStore("files");
-    const ret = await waitIDBRequest<CacheFile>(tx.get(url));
+    const ret = await promisifyIDBRequest<CacheFile>(tx.get(url));
     if (ret && ret.headers) {
       const headers = new Headers(ret.headers);
       if (headers.has("location")) {
@@ -83,7 +84,7 @@ class Cache {
     }
     const db = await this._db;
     const tx = db.transaction("files", "readwrite").objectStore("files");
-    await waitIDBRequest<CacheFile>(tx.put(file));
+    await promisifyIDBRequest<CacheFile>(tx.put(file));
   }
 }
 
