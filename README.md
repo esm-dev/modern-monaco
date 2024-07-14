@@ -18,8 +18,8 @@ A Code Editor powered by monaco-editor-core with radical ESM support. Core featu
 
 Planned features:
 
-- [ ] add import maps codelens (search NPM packages, update version, etc.)
-- [ ] add vscode `window` API
+- [ ] add import maps codelens (search NPM packages, update package version, etc.)
+- [ ] add vscode `window` like API (showInputBox, showErrorMessage, etc.)
 - [ ] support Emmet
 - [ ] enable LSP for inline `html` and `css` in JavaScript/TypeScript
 
@@ -37,7 +37,7 @@ or import it from [esm.sh](https://esm.sh/) in browser without build step:
 import * from "https://esm.sh/esm-monaco"
 ```
 
-> **Note**: The `typescript` package is required for LSP support. We recommend `typescript@5.x.x` or later.
+> **Note**: The `typescript` package is required for JavaScript/TypeScript LSP support. We recommend `typescript@5.x.x` or later.
 
 ## Usage
 
