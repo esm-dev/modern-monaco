@@ -8,9 +8,7 @@ export interface LanguageWorker<D extends object> {
 export function initializeWorker<W extends LanguageWorker<D>, D extends object>(Worker: W): void {
   globalThis.onmessage = () => {
     // Ignore first message in this case and initialize if not yet initialized
-    initialize((ctx: monacoNS.worker.IWorkerContext, createData: D) => {
-      return new Worker(ctx, createData);
-    });
+    initialize((ctx: monacoNS.worker.IWorkerContext, createData: D) => new Worker(ctx, createData));
   };
 }
 

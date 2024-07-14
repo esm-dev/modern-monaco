@@ -2,7 +2,7 @@ import type monacoNS from "monaco-editor-core";
 import type { Highlighter, RenderOptions, ShikiInitOptions } from "./shiki.ts";
 import type { VFS } from "./vfs.ts";
 import type { LSPConfig } from "./lsp/index.ts";
-import { createWorker, margeProviders } from "./lsp/index.ts";
+import { createWebWorker, margeProviders } from "./lsp/index.ts";
 import syntaxes from "./syntaxes/index.ts";
 
 // ! external modules, don't remove the `.js` extension
@@ -52,7 +52,6 @@ export interface InitOption extends ShikiInitOptions {
 /** Load the monaco editor and use shiki as the tokenizer. */
 async function loadMonaco(highlighter: Highlighter, options?: InitOption, onEditorWorkerReady?: () => void) {
   const monaco = await import("./editor-core.js");
-  const editorWorkerUrl = monaco.getWorkerUrl();
   const vfs = options?.vfs;
   const lspProviders = margeProviders(options.lsp);
 
@@ -82,15 +81,12 @@ async function loadMonaco(highlighter: Highlighter, options?: InitOption, onEdit
       workerProxies[languageId] = workerProxy;
     },
     getWorker: async (_workerId: string, label: string) => {
-      let url = editorWorkerUrl;
       let provider = lspProviders[label];
       if (!provider) {
         provider = Object.values(lspProviders).find((p) => p.aliases?.includes(label));
       }
-      if (provider) {
-        url = (await (provider.import())).getWorkerUrl();
-      }
-      const worker = await createWorker(url);
+      const url = provider ? (await provider.import()).getWorkerUrl() : monaco.getWorkerUrl();
+      const worker = createWebWorker(url);
       if (!provider) {
         const onMessage = (e: MessageEvent) => {
           onEditorWorkerReady?.();

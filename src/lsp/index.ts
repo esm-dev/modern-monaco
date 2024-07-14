@@ -43,15 +43,16 @@ export const builtinProviders: Record<string, LSPProvider> = {
   },
 };
 
-export async function createWorker(url: URL): Promise<Worker> {
+export function createWebWorker(url: URL, name?: string): Worker {
+  let workerUrl: URL | string = url;
   if (url.origin !== location.origin) {
     const workerBlob = new Blob([`import "${url.href}"`], { type: "application/javascript" });
-    return new Worker(URL.createObjectURL(workerBlob), {
-      type: "module",
-      name: url.pathname.slice(1),
-    });
+    workerUrl = URL.createObjectURL(workerBlob);
   }
-  return new Worker(url, { type: "module" });
+  return new Worker(workerUrl, {
+    type: "module",
+    name: name ?? url.pathname.slice(1).split("/").slice(-2).join("/"),
+  });
 }
 
 export function margeProviders(config?: LSPConfig) {
