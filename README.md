@@ -14,12 +14,14 @@ A Code Editor powered by monaco-editor-core with radical ESM support. Core featu
 - Using [import maps](https://github.com/WICG/import-maps) to resolving **bare specifier** import in JavaScript/TypeScript.
 - Embedded languages(importmap/CSS/JavaScript) with LSP support in HTML.
 - Inline `html` and `css` highlight in JavaScript/TypeScript.
-- Auto-closing HTML/JSX tags. (powered by LSP)
+- Auto-closing HTML/JSX tags.
 
 Planned features:
 
-- [ ] Emmet
-- [ ] LSP for inline `html` and `css` in JavaScript/TypeScript.
+- [ ] add import maps codelens (search NPM packages, update version, etc.)
+- [ ] add vscode `window` API
+- [ ] support Emmet
+- [ ] enable LSP for inline `html` and `css` in JavaScript/TypeScript
 
 ## Installation
 
