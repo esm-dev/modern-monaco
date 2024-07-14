@@ -27,6 +27,7 @@ const build = (entryPoints: string[], define?: Record<string, string>) => {
       "*/setup.js",
       "*/shiki.js",
       "*/shiki-wasm.js",
+      "*/vfs.js",
       "*/util.js",
       "*/worker.js",
       "*/onig.wasm",

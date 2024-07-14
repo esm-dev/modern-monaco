@@ -6,7 +6,7 @@ import { version as tmThemesVersion } from "../node_modules/tm-themes/package.js
 
 // ! external modules, don't remove the `.js` extension
 import { cache } from "./cache.js";
-import { isObject } from "./util.ts";
+import { isObject } from "./util.js";
 
 // @ts-expect-error `TM_GRAMMARS` is defined at build time
 const tmGrammars: { name: string; aliases?: string[]; embedded?: string[]; injectTo?: string[] }[] = TM_GRAMMARS;

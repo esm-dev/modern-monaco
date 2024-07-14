@@ -87,6 +87,7 @@ export function registerShikiMonacoTokenizer(monaco: typeof monacoNs, highlighte
     // Language not loaded
     return;
   }
+
   monaco.languages.setTokensProvider(languageId, {
     getInitialState() {
       return new TokenizerState(INITIAL);

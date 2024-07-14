@@ -9,7 +9,7 @@ interface CacheFile {
   headers?: [string, string][];
 }
 
-/** A simple cache for fetch requests using IndexedDB. */
+/** A cache that stores responses in IndexedDB. */
 class Cache {
   private _db: Promise<IDBDatabase> | IDBDatabase | null = null;
 
