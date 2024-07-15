@@ -28,7 +28,7 @@ interface VFSOptions {
   initial?: Record<string, string[] | string | Uint8Array>;
 }
 
-/** Virtual file system for monaco editor. */
+/** A virtual file system for esm-monaco editor. */
 export class VFS {
   private _monaco: typeof monacoNS;
   private _db: Promise<IDBDatabase> | IDBDatabase;
@@ -320,6 +320,7 @@ export class VFS {
   }
 }
 
+/** Create a proxy object that triggers persist in localStorage when the object is modified. */
 function createPersistStateStorage<T extends object>(storeKey: string, onDidChange?: () => void, freeze = false): T {
   let state: T;
   const init = {} as T;

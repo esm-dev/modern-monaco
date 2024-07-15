@@ -1,18 +1,8 @@
-// global text encoder and decoder
+const global = globalThis;
 const enc = new TextEncoder();
 const dec = new TextDecoder();
-const on = globalThis.addEventListener.bind(globalThis);
-const off = globalThis.removeEventListener.bind(globalThis);
-
-/** Define property with value. */
-export function defineProperty(obj: any, prop: string, value: any) {
-  Object.defineProperty(obj, prop, { value });
-}
-
-/** Convert string to URL. */
-export function toUrl(name: string | URL) {
-  return typeof name === "string" ? new URL(name, "file:///") : name;
-}
+const on = global.addEventListener.bind(global);
+const off = global.removeEventListener.bind(global);
 
 /** Convert string to Uint8Array. */
 export function encode(data: string | Uint8Array): Uint8Array {
@@ -24,7 +14,17 @@ export function decode(data: string | Uint8Array) {
   return data instanceof Uint8Array ? dec.decode(data) : data;
 }
 
-/** Check if the value is an object. */
+/** Define property with value. */
+export function defineProperty(obj: any, prop: string, value: any) {
+  Object.defineProperty(obj, prop, { value });
+}
+
+/** Convert string to URL. */
+export function toUrl(name: string | URL) {
+  return typeof name === "string" ? new URL(name, "file:///") : name;
+}
+
+/** Check if the value is a plain object. */
 export function isPlainObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && v.constructor === Object;
 }
