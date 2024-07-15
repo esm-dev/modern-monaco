@@ -372,7 +372,9 @@ export function lazy(options?: InitOption, hydrate?: boolean) {
           const editor = monaco.editor.create(containerEl, renderOptions);
           if (vfs) {
             editor.onWillChangeModel((e) => {
-              vfs.viewState[e.oldModelUrl.toString()] = editor.saveViewState();
+              if (e.oldModelUrl.scheme === "file") {
+                vfs.viewState[e.oldModelUrl.toString()] = Object.freeze(editor.saveViewState());
+              }
             });
           }
           if (vfs && file) {

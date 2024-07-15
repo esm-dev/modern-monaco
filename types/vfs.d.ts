@@ -1,5 +1,11 @@
 import type { editor, IPosition, IRange } from "./monaco.d.ts";
 
+declare global {
+  interface VFSState {
+    activeFile?: string;
+  }
+}
+
 export interface VFile {
   url: string;
   version: number;
@@ -17,10 +23,6 @@ export interface VFSEvent {
 export interface VFSOptions {
   scope?: string;
   initial?: Record<string, string[] | string | Uint8Array>;
-}
-
-export interface VFSState {
-  activeFile?: string;
 }
 
 export class VFS {

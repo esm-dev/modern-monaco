@@ -1,6 +1,8 @@
 // global text encoder and decoder
 const enc = new TextEncoder();
 const dec = new TextDecoder();
+const on = globalThis.addEventListener.bind(globalThis);
+const off = globalThis.removeEventListener.bind(globalThis);
 
 /** Define property with value. */
 export function defineProperty(obj: any, prop: string, value: any) {
@@ -23,8 +25,8 @@ export function decode(data: string | Uint8Array) {
 }
 
 /** Check if the value is an object. */
-export function isObject(v: unknown): v is Record<string, unknown> {
-  return v && typeof v === "object" && !Array.isArray(v);
+export function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && v.constructor === Object;
 }
 
 /**
@@ -44,24 +46,45 @@ export function createPersistTask(persist: () => void | Promise<void>, delay = 5
     if (timer !== null) {
       return;
     }
-    globalThis.addEventListener("beforeunload", askToExit);
+    on("beforeunload", askToExit);
     timer = setTimeout(async () => {
       timer = null;
       await persist();
-      globalThis.removeEventListener("beforeunload", askToExit);
+      off("beforeunload", askToExit);
+    }, delay);
+  };
+}
+
+/**
+ * Create a task that persists the data to the storage synchronously.
+ * @param persist - The function that persists the data synchronously.
+ * @param delay - The delay in milliseconds before persisting the data. Default is 500ms.
+ * @returns The persist trigger function.
+ */
+export function createSyncPersistTask(persist: () => void, delay = 500) {
+  let timer: number | null = null;
+  return () => {
+    if (timer !== null) {
+      return;
+    }
+    on("beforeunload", persist);
+    timer = setTimeout(() => {
+      timer = null;
+      off("beforeunload", persist);
+      persist();
     }, delay);
   };
 }
 
 /** Create a proxy object that triggers onChange when the object is modified. */
-export function createProxy(obj: object, onChange: () => void) {
+export function createProxy<T extends object>(obj: T, onChange: () => void): T {
   let filled = false;
-  const proxy = new Proxy(Object.create(null), {
+  const proxy: T = new Proxy(Object.create(null), {
     get(target, key) {
       return Reflect.get(target, key);
     },
     set(target, key, value) {
-      if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+      if (isPlainObject(value) && !Object.isFrozen(value)) {
         // proxy nested object
         value = createProxy(value, onChange);
       }
@@ -71,7 +94,7 @@ export function createProxy(obj: object, onChange: () => void) {
       }
       return ok;
     },
-  }) as Record<string, any>;
+  });
   for (const [key, value] of Object.entries(obj)) {
     proxy[key] = value;
   }

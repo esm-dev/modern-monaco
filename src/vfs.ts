@@ -2,7 +2,8 @@ import type monacoNS from "monaco-editor-core";
 
 // ! external modules, don't remove the `.js` extension
 import { loadImportMapFromVFS, parseImportMapFromJson } from "./import-map.js";
-import { createPersistTask, createProxy, decode, encode, promisifyIDBRequest, toUrl } from "./util.js";
+import { createPersistTask, createSyncPersistTask } from "./util.js";
+import { createProxy, decode, encode, promisifyIDBRequest, toUrl } from "./util.js";
 
 interface VFile {
   url: string;
@@ -18,7 +19,7 @@ interface VFSEvent {
   isModelChange?: boolean;
 }
 
-export interface VFSState {
+interface VFSState {
   activeFile?: string;
 }
 
@@ -29,10 +30,10 @@ interface VFSOptions {
 
 /** Virtual file system for monaco editor. */
 export class VFS {
-  private _db: Promise<IDBDatabase> | IDBDatabase;
   private _monaco: typeof monacoNS;
-  private _state: VFSState = {};
+  private _db: Promise<IDBDatabase> | IDBDatabase;
   private _viewState: Record<string, monacoNS.editor.ICodeEditorViewState> = {};
+  private _state: VFSState = {};
   private _stateChangeHandlers = new Set<() => void>();
   private _watchHandlers = new Map<string, Set<(evt: VFSEvent) => void>>();
 
@@ -56,23 +57,9 @@ export class VFS {
   constructor(options: VFSOptions) {
     this._db = this._openDB(options);
     if (globalThis.localStorage) {
-      const state = {};
-      const storeKey = ["monaco:state", options.scope].filter(Boolean).join(".");
-      const persist = createPersistTask(() => {
-        localStorage.setItem(storeKey, JSON.stringify(this._state));
-      }, 100);
-      const storeValue = localStorage.getItem(storeKey);
-      if (storeValue) {
-        try {
-          Object.assign(state, JSON.parse(storeValue));
-        } catch (e) {
-          console.error(e);
-        }
-      }
-      this._state = createProxy(state, () => {
-        this._stateChangeHandlers.forEach((handler) => handler());
-        persist();
-      });
+      const { scope = "default" } = options;
+      this._state = createPersistStateStorage("monaco:vfs.state." + scope, () => this._stateChangeHandlers.forEach((handler) => handler()));
+      this._viewState = createPersistStateStorage("monaco:vfs.viewState." + scope, undefined, true);
     }
   }
 
@@ -104,7 +91,7 @@ export class VFS {
         store.add(item);
       }
     }).then((db) => {
-      // reopen db on close
+      // reopen db on 'close' event
       db.onclose = () => {
         this._db = this._openDB(options);
       };
@@ -112,8 +99,9 @@ export class VFS {
     });
   }
 
-  private async _tx(readonly = false) {
-    return (await this._db).transaction(VFS.dbStoreName, readonly ? "readonly" : "readwrite").objectStore(VFS.dbStoreName);
+  private async _tx(readonly = false): Promise<IDBObjectStore> {
+    const db = await this._db;
+    return db.transaction(VFS.dbStoreName, readonly ? "readonly" : "readwrite").objectStore(VFS.dbStoreName);
   }
 
   async openModel(
@@ -131,9 +119,7 @@ export class VFS {
     const { content, version } = await this.open(url);
     const model = monaco.editor.getModel(uri) ?? monaco.editor.createModel(decode(content), undefined, uri);
     if (!Reflect.has(model, "__VFS__")) {
-      const onDidChange = createPersistTask(() => {
-        return this.writeFile(uri.toString(), model.getValue(), version + model.getVersionId(), true);
-      }, 500);
+      const onDidChange = createPersistTask(() => this.writeFile(uri.toString(), model.getValue(), version + model.getVersionId(), true));
       const disposable = model.onDidChangeContent(onDidChange);
       const unwatch = this.watch(href, async (evt) => {
         if (evt.kind === "modify" && !evt.isModelChange) {
@@ -199,19 +185,19 @@ export class VFS {
 
   async exists(name: string | URL): Promise<boolean> {
     const url = toUrl(name);
-    const db = await this._tx(true);
-    return promisifyIDBRequest<string>(db.getKey(url.href)).then((key) => key === url.href);
+    const store = await this._tx(true);
+    return promisifyIDBRequest<string>(store.getKey(url.href)).then((key) => key === url.href);
   }
 
   async ls(): Promise<string[]> {
-    const db = await this._tx(true);
-    return await promisifyIDBRequest<string[]>(db.getAllKeys());
+    const store = await this._tx(true);
+    return await promisifyIDBRequest<string[]>(store.getAllKeys());
   }
 
   async open(name: string | URL): Promise<VFile> {
     const url = toUrl(name);
-    const db = await this._tx(true);
-    const ret = await promisifyIDBRequest<VFile | undefined>(db.get(url.href));
+    const store = await this._tx(true);
+    const ret = await promisifyIDBRequest<VFile | undefined>(store.get(url.href));
     if (!ret) {
       throw new ErrorNotFound(name);
     }
@@ -228,9 +214,9 @@ export class VFS {
     return decode(content);
   }
 
-  private async _write(url: string, content: string | Uint8Array, version?: number): Promise<"create" | "modify"> {
-    const db = await this._tx();
-    const old = await promisifyIDBRequest<VFile | undefined>(db.get(url));
+  private async _writeFile(url: string, content: string | Uint8Array, version?: number): Promise<"create" | "modify"> {
+    const store = await this._tx();
+    const old = await promisifyIDBRequest<VFile | undefined>(store.get(url));
     const now = Date.now();
     const file: VFile = {
       url,
@@ -239,13 +225,13 @@ export class VFS {
       ctime: old?.ctime ?? now,
       mtime: now,
     };
-    await promisifyIDBRequest(db.put(file));
+    await promisifyIDBRequest(store.put(file));
     return old ? "modify" : "create";
   }
 
   async writeFile(name: string | URL, content: string | Uint8Array, version?: number, isModelChange?: boolean): Promise<void> {
     const url = toUrl(name);
-    const kind = await this._write(url.href, content, version);
+    const kind = await this._writeFile(url.href, content, version);
     setTimeout(() => {
       for (const key of [url.href, "*"]) {
         const handlers = this._watchHandlers.get(key);
@@ -260,8 +246,8 @@ export class VFS {
 
   async remove(name: string | URL): Promise<void> {
     const { pathname, href } = toUrl(name);
-    const db = await this._tx();
-    await promisifyIDBRequest(db.delete(href));
+    const store = await this._tx();
+    await promisifyIDBRequest(store.delete(href));
     setTimeout(() => {
       for (const key of [href, "*"]) {
         const handlers = this._watchHandlers.get(key);
@@ -288,15 +274,13 @@ export class VFS {
   }
 
   useList(effect: (list: string[]) => void): () => void {
-    const unwatch = this.watch("*", (evt) => {
+    const dispose = this.watch("*", (evt) => {
       if (evt.kind === "create" || evt.kind === "remove") {
         this.ls().then(effect);
       }
     });
     this.ls().then(effect);
-    return () => {
-      unwatch();
-    };
+    return () => dispose();
   }
 
   useState(effect: (state: VFSState) => void): () => void {
@@ -334,6 +318,26 @@ export class VFS {
       },
     });
   }
+}
+
+function createPersistStateStorage<T extends object>(storeKey: string, onDidChange?: () => void, freeze = false): T {
+  let state: T;
+  const init = {} as T;
+  const storeValue = localStorage.getItem(storeKey);
+  if (storeValue) {
+    try {
+      for (const [key, value] of Object.entries(JSON.parse(storeValue))) {
+        init[key] = freeze ? Object.freeze(value) : value;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+  const persist = createSyncPersistTask(() => localStorage.setItem(storeKey, JSON.stringify(state)), 1000);
+  return state = createProxy(init, () => {
+    onDidChange?.();
+    persist();
+  });
 }
 
 /** Error for file not found. */
