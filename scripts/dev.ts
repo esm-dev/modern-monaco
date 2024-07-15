@@ -119,7 +119,7 @@ async function serveDist(url: URL, req: Request, notFound: (url: URL, req: Reque
 async function servePages(url: URL, req: Request) {
   const filename = url.pathname.slice(1) || "index.html";
   try {
-    const fileUrl = new URL(filename, import.meta.url);
+    const fileUrl = new URL("../examples/" + filename, import.meta.url);
     let body = (await Deno.open(fileUrl)).readable;
     if (filename === "ssr.html") {
       let replaced = false;
@@ -181,7 +181,7 @@ function getContentType(pathname: string) {
 }
 
 const cmd = new Deno.Command(Deno.execPath(), {
-  args: ["run", "-A", "--no-lock", "--no-npm", "build.ts", "--watch"],
+  args: ["run", "-A", "--no-lock", "scripts/build.ts", "--watch"],
   cwd: new URL("..", import.meta.url).pathname,
 });
 cmd.spawn();

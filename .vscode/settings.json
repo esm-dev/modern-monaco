@@ -1,0 +1,6 @@
+{
+  "deno.lint": false,
+  "deno.enablePaths": [
+    "scripts/",
+  ]
+}
