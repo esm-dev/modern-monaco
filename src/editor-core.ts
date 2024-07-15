@@ -5,7 +5,6 @@ export const defaultEditorOptions: editor.IStandaloneEditorConstructionOptions =
   minimap: { enabled: false },
   stickyScroll: { enabled: false },
   scrollBeyondLastLine: false,
-  smoothScrolling: true,
   matchBrackets: "never",
   theme: "vitesse-dark",
 };
