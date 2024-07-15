@@ -57,7 +57,7 @@ export class VFS {
     this._db = this._openDB(options);
     if (globalThis.localStorage) {
       const state = {};
-      const storeKey = ["monaco-state", options.scope].filter(Boolean).join("/");
+      const storeKey = ["monaco:state", options.scope].filter(Boolean).join(".");
       const persist = createPersistTask(() => {
         localStorage.setItem(storeKey, JSON.stringify(this._state));
       }, 100);
