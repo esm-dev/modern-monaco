@@ -43,9 +43,9 @@ import * from "https://esm.sh/esm-monaco"
 
 There are three working modes for esm-monaco:
 
-- **Lazy**: hightlight the code with Shiki and load the editor.js in background.
-- **Manual**: create a monaco editor instance manually.
+- **Lazy**: hightlight the code with Shiki and load `monaco-editor-core` in background.
 - **SSR**: render the editor in server side, and hydrate it in client side.
+- **Manual**: create a monaco editor instance manually.
 
 ### Lazy Mode
 
@@ -61,31 +61,6 @@ There are three working modes for esm-monaco:
 
   // initialize the editor lazily
   lazy({ vfs });
-</script>
-```
-
-### Manual Mode
-
-```html
-<div id="editor"></div>
-
-<script type="module">
-  import { init, VFS } from "https://esm.sh/esm-monaco";
-
-  // create a virtual file system
-  const vfs = new VFS({ scope: "APP_ID" });
-  vfs.write("app.js", `console.log("Hello, world!")`);
-
-  // load the monaco-editor-core
-  const monacoNS = await init({ vfs });
-
-  // create a monaco editor instance
-  const editor = monaco.editor.create(document.getElementById("editor"), {
-    /* add your editor options here */
-  });
-
-  // set the active model from the vfs
-  editor.setModel(await vfs.openModel("app.js"));
 </script>
 ```
 
@@ -115,6 +90,31 @@ export default {
     `, { headers: { "Content-Type": "text/html" }});
   }
 }
+```
+
+### Manual Mode
+
+```html
+<div id="editor"></div>
+
+<script type="module">
+  import { init, VFS } from "https://esm.sh/esm-monaco";
+
+  // create a virtual file system
+  const vfs = new VFS({ scope: "APP_ID" });
+  vfs.write("app.js", `console.log("Hello, world!")`);
+
+  // load the monaco-editor-core
+  const monacoNS = await init({ vfs });
+
+  // create a monaco editor instance
+  const editor = monaco.editor.create(document.getElementById("editor"), {
+    /* add your editor options here */
+  });
+
+  // set the active model from the vfs
+  vfs.openModel("app.js", editor)
+</script>
 ```
 
 ## Editor Theme & Language Grammars
