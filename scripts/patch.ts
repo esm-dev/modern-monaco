@@ -1,11 +1,11 @@
 // replace the default command history storage (which is in-memory) of Monaco Editor with a browser localStorage-based one
 const commandHistoryStorage = `{
-  get: (key, _scope) => localStorage.getItem('monaco:' + key),
-  getNumber: (key, _scope, def) => Number(localStorage.getItem('monaco:' + key)) || def,
+  get: (key, _scope, defaultValue) => localStorage.getItem('monaco:' + key) ?? defaultValue,
+  getNumber: (key, _scope, defaultValue) => Number(localStorage.getItem('monaco:' + key) ?? defaultValue) || defaultValue,
   store: (key, value) => localStorage.setItem('monaco:' + key, String(value)),
-  onWillSaveState: (cb) => {
-    window.addEventListener("beforeunload", () => {
-      cb({ reason: WillSaveStateReason.SHUTDOWN });
+  onWillSaveState: (callback) => {
+    window.addEventListener('beforeunload', () => {
+      callback({ reason: WillSaveStateReason.SHUTDOWN });
     });
   },
 };
