@@ -318,7 +318,6 @@ export function lazy(options?: InitOption, hydrate?: boolean) {
         containerEl.style.height = "100%";
         this.appendChild(containerEl);
 
-        // create a highlighter instance for the renderer/editor
         const langs = options?.langs ?? [];
         let filename = renderOptions.filename ?? this.getAttribute("file");
         if (!filename && vfs) {
@@ -337,17 +336,19 @@ export function lazy(options?: InitOption, hydrate?: boolean) {
         if (renderOptions.theme) {
           options.theme = renderOptions.theme;
         }
+
+        // create a highlighter instance for the renderer/editor
         const highlighter = await initShiki({ ...options, langs });
 
         // check the pre-rendered content, if not exists, render one
-        let mockEl = hydrate ? this.querySelector<HTMLElement>(".monaco-editor-prerender") : undefined;
-        if (!mockEl && filename && vfs) {
+        let prerenderEl = hydrate ? this.querySelector<HTMLElement>(".monaco-editor-prerender") : undefined;
+        if (!prerenderEl && filename && vfs) {
           try {
             const code = await vfs.readTextFile(filename);
             const language = getLanguageIdFromPath(filename);
-            mockEl = containerEl.cloneNode(true) as HTMLElement;
-            mockEl.className = "monaco-editor-prerender";
-            mockEl.innerHTML = render(highlighter, {
+            prerenderEl = containerEl.cloneNode(true) as HTMLElement;
+            prerenderEl.className = "monaco-editor-prerender";
+            prerenderEl.innerHTML = render(highlighter, {
               ...renderOptions,
               code,
               language,
@@ -360,11 +361,18 @@ export function lazy(options?: InitOption, hydrate?: boolean) {
             }
           }
         }
-        if (mockEl) {
-          mockEl.style.position = "absolute";
-          mockEl.style.top = "0";
-          mockEl.style.left = "0";
-          this.appendChild(mockEl);
+
+        if (prerenderEl) {
+          prerenderEl.style.position = "absolute";
+          prerenderEl.style.top = "0";
+          prerenderEl.style.left = "0";
+          this.appendChild(prerenderEl);
+          if (filename) {
+            const scrollTop = vfs.viewState[new URL(filename, "file:///").href]?.viewState?.scrollTop ?? 0;
+            if (scrollTop > 0) {
+              prerenderEl.querySelector(".mock-monaco-editor").scrollTop = scrollTop;
+            }
+          }
         }
 
         // load monaco editor
@@ -372,12 +380,31 @@ export function lazy(options?: InitOption, hydrate?: boolean) {
           const monaco = await loadMonacoCore(highlighter);
           const editor = monaco.editor.create(containerEl, renderOptions);
           if (vfs) {
-            vfs.history.onChange((name) => {
-              vfs.openModel(name, editor);
-            });
-            editor.onWillChangeModel((e) => {
-              if (e.oldModelUrl.scheme === "file") {
-                vfs.viewState[e.oldModelUrl.toString()] = Object.freeze(editor.saveViewState());
+            const saveViewState = () => {
+              const currentModel = editor.getModel();
+              if (currentModel?.uri.scheme === "file") {
+                const vs = editor.saveViewState();
+                vs.viewState.scrollTop ??= editor.getScrollTop();
+                vfs.viewState[currentModel.uri.toString()] = Object.freeze(vs);
+              }
+            };
+            const debunce = (fn: () => void, delay = 500) => {
+              let timer: number | null = null;
+              return () => {
+                if (timer !== null) {
+                  clearTimeout(timer);
+                }
+                timer = setTimeout(() => {
+                  timer = null;
+                  fn();
+                }, delay);
+              };
+            };
+            editor.onDidChangeCursorSelection(debunce(saveViewState));
+            editor.onDidScrollChange(debunce(saveViewState));
+            vfs.history.onChange((uri) => {
+              if (editor.getModel()?.uri.toString() !== uri) {
+                vfs.openModel(uri, editor);
               }
             });
           }
@@ -419,15 +446,15 @@ export function lazy(options?: InitOption, hydrate?: boolean) {
             editor.setModel(monaco.editor.createModel(""));
           }
           // hide the prerender element if exists
-          if (mockEl && editorWorkerPromise) {
+          if (prerenderEl && editorWorkerPromise) {
             editorWorkerPromise.then(() => {
               setTimeout(() => {
-                const animate = mockEl.animate?.([{ opacity: 1 }, { opacity: 0 }], { duration: 150 });
+                const animate = prerenderEl.animate?.([{ opacity: 1 }, { opacity: 0 }], { duration: 150 });
                 if (animate) {
-                  animate.finished.then(() => mockEl.remove());
+                  animate.finished.then(() => prerenderEl.remove());
                 } else {
                   // don't support animation api
-                  setTimeout(() => mockEl.remove(), 150);
+                  setTimeout(() => prerenderEl.remove(), 150);
                 }
               }, 100);
             });
