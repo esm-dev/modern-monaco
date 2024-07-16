@@ -68,12 +68,12 @@ if (isMacintosh) {
 {
   const path = "node_modules/monaco-editor-core/esm/vs/editor/editor.api.d.ts";
   const dts = await Deno.readTextFile(path);
-  const appendTS = "\nexport * from './monaco.ui';";
+  const appendTS = "\nexport * from './vscode';\n";
   if (!dts.includes(appendTS)) {
     await Deno.writeTextFile(path, dts + appendTS);
   }
-  const pathOrgi = "types/monaco.ui.d.ts";
-  const pathDest = "node_modules/monaco-editor-core/esm/vs/editor/monaco.ui.d.ts";
+  const pathOrgi = "types/vscode.d.ts";
+  const pathDest = "node_modules/monaco-editor-core/esm/vs/editor/vscode.d.ts";
   const dts2 = await Deno.readTextFile(pathOrgi);
   await Deno.writeTextFile(pathDest, dts2.replace("./monaco.d.ts", "./editor.api.d.ts"));
   console.log("Patched", pathDest.slice("node_modules/".length));
