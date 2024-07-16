@@ -1,6 +1,11 @@
+import type { InputBoxOptions, QuickPickOptions } from "monaco-editor-core";
+import languageConfigurations from "vscode-language-configurations";
 import { editor, languages, Uri } from "monaco-editor-core";
+import { StandaloneServices } from "monaco-editor-core/esm/vs/editor/standalone/browser/standaloneServices.js";
+import { IQuickInputService } from "monaco-editor-core/esm/vs/platform/quickinput/common/quickInput.js";
 
-export const defaultEditorOptions: editor.IStandaloneEditorConstructionOptions = {
+const quickInputService = StandaloneServices.get(IQuickInputService);
+const defaultEditorOptions: editor.IStandaloneEditorConstructionOptions = {
   automaticLayout: true,
   minimap: { enabled: false },
   stickyScroll: { enabled: false },
@@ -9,17 +14,14 @@ export const defaultEditorOptions: editor.IStandaloneEditorConstructionOptions =
   theme: "vitesse-dark",
 };
 
-const _create = editor.create;
-const _createModel = editor.createModel;
-const _getModel = editor.getModel;
-
-// override some monaco editor inner methods
+// override monoaco editor APIs.
+const { create, createModel, getModel } = editor;
 Object.assign(editor, {
   create: (
     container: HTMLElement,
     options?: editor.IStandaloneEditorConstructionOptions,
   ): editor.IStandaloneCodeEditor => {
-    return _create(
+    return create(
       container,
       {
         ...defaultEditorOptions,
@@ -37,25 +39,82 @@ Object.assign(editor, {
       // @ts-expect-error `getLanguageIdFromUri` is added by esm-monaco
       language = MonacoEnvironment.getLanguageIdFromUri?.(uri);
     }
-    return _createModel(value, language, uri);
+    return createModel(value, language, uri);
   },
   getModel: (uri: string | URL | Uri) => {
-    return _getModel(normalizeUri(uri));
+    return getModel(normalizeUri(uri));
   },
 });
 
-function normalizeUri(uri?: string | URL | Uri) {
-  if (typeof uri === "string" || uri instanceof URL) {
-    const url = new URL(uri, "file:///");
-    uri = Uri.from({
-      scheme: url.protocol.slice(0, -1),
-      authority: url.host,
-      path: url.pathname,
-      query: url.search.slice(1),
-      fragment: url.hash.slice(1),
+export function showInputBox(options: InputBoxOptions = {}) {
+  const { placeHolder, title, value, password, ignoreFocusOut, validateInput } = options;
+  const box = quickInputService.createInputBox();
+  const validateValue = validateInput
+    ? (value: string) => {
+      const p = validateInput(value);
+      if (p instanceof Promise) {
+        box.busy = true;
+        return p.then((v) => {
+          box.busy = false;
+          return v;
+        });
+      }
+      return p;
+    }
+    : undefined;
+  if (title) {
+    box.title = title;
+  }
+  if (value) {
+    box.value = value;
+  }
+  if (placeHolder) {
+    box.placeholder = placeHolder;
+  }
+  if (password) {
+    box.password = password;
+  }
+  if (ignoreFocusOut) {
+    box.ignoreFocusOut = ignoreFocusOut;
+  }
+  if (validateInput) {
+    box.onDidChangeValue(async (value: string) => {
+      const validation = value ? await validateValue(value) : "";
+      if (validation) {
+        if (typeof validation === "string") {
+          box.validationMessage = validation;
+          box.severity = 3;
+        } else {
+          box.validationMessage = validation.message;
+          box.severity = validation.severity;
+        }
+      } else {
+        box.validationMessage = "";
+        box.severity = 0;
+      }
     });
   }
-  return uri;
+  box.show();
+  return new Promise<string>((resolve) => {
+    box.onDidAccept(async () => {
+      if (!validateInput || !(await validateValue(box.value))) {
+        resolve(box.value);
+        box.dispose();
+      }
+    });
+  });
+}
+
+export function showQuickPick(items: any[], options?: QuickPickOptions) {
+  const pick = quickInputService.createQuickPick();
+  console.log(pick);
+  pick.show();
+  return new Promise<any>((resolve) => {
+    pick.onDidAccept(() => {
+      resolve(pick.selectedItems[0]);
+      pick.hide();
+    });
+  });
 }
 
 export function getWorkerUrl() {
@@ -113,5 +172,19 @@ function fixRegexp(obj: any, ...keys: string[]) {
   }
 }
 
+function normalizeUri(uri?: string | URL | Uri) {
+  if (typeof uri === "string" || uri instanceof URL) {
+    const url = new URL(uri, "file:///");
+    uri = Uri.from({
+      scheme: url.protocol.slice(0, -1),
+      authority: url.host,
+      path: url.pathname,
+      query: url.search.slice(1),
+      fragment: url.hash.slice(1),
+    });
+  }
+  return uri;
+}
+
 export * from "monaco-editor-core";
-export { default as languageConfigurations } from "vscode-language-configurations";
+export { languageConfigurations };

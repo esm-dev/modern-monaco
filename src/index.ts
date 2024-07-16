@@ -436,8 +436,6 @@ export function lazy(options?: InitOption, hydrate?: boolean) {
             const model = monaco.editor.createModel(
               renderOptions.code,
               renderOptions.language,
-              // @ts-expect-error the overwrited `createModel` method supports
-              // path(string) as the third argument(URI)
               renderOptions.filename,
             );
             editor.setModel(model);

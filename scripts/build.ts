@@ -56,29 +56,15 @@ const bundleTypescriptLibs = async () => {
   );
 };
 const modifyEditorCore = async () => {
-  const js = (await Deno.readTextFile("dist/editor-core.js"))
-    // [patch] try to get the `fontMaxDigitWidth` value from the `extraEditorClassName` option
-    // the option `fontMaxDigitWidth` uaually is set with SSR mode to keep the line numbers
-    // layout consistent with the client side.
-    .replace(
-      /maxDigitWidth:\s*(\w+)\.fontInfo\.maxDigitWidth/,
-      (_, env) => {
-        return `maxDigitWidth:globalThis.__monaco_maxDigitWidth||${env}.fontInfo.maxDigitWidth`;
-      },
-    );
+  const js = await Deno.readTextFile("dist/editor-core.js");
   const ret = await esbuild({
     entryPoints: ["dist/editor-core.css"],
     minify: true,
     write: false,
   });
-  // [patch] replace "font-size: 140%" to 100% to fix the size of folding icons
-  const css = ret.outputFiles[0].text.replace("font-size:140%", "font-size:100%");
-  // [patch] fix the outline color of the input box
+  const css = ret.outputFiles[0].text;
   const addonCss = `.monaco-inputbox input{outline: 1px solid var(--vscode-focusBorder,rgba(127, 127, 127, 0.5))}`;
-  await Deno.writeTextFile(
-    "dist/editor-core.js",
-    js + "\nexport const _CSS = " + JSON.stringify(css + addonCss),
-  );
+  await Deno.writeTextFile("dist/editor-core.js", js + "\nexport const _CSS = " + JSON.stringify(css + addonCss));
 };
 const copyDts = (...files: [src: string, dest: string][]) => {
   return Promise.all(files.map(([src, dest]) => Deno.copyFile("node_modules/" + src, "types/" + dest)));

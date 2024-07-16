@@ -36,7 +36,7 @@ export function setup(
       },
     },
   };
-  const codeLensProvider: monacoNS.languages.CodeLensProvider = {
+  const importMapCodeLensProvider: monacoNS.languages.CodeLensProvider = {
     provideCodeLenses: function(model, token) {
       const isImportMap = ["importmap.json", "import_map.json", "import-map.json", "importMap.json"].some((name) =>
         model.uri.path === "/" + name
@@ -92,15 +92,24 @@ export function setup(
   // set monacoNS and register language features
   lfs.setup(monaco);
   lfs.registerDefault(languageId, workerProxy, [" ", ":", "\""]);
-  languages.registerCodeLensProvider(languageId, codeLensProvider);
-  editor.registerCommand("search-npm-modules", (_, uri: string) => {
-    // @ts-expect-error method `getModel` is polluted by esm-monaco for supporting string uri
-    return searchModulesFromNpm(editor.getModel(uri));
+
+  // register code lens provider for import maps
+  languages.registerCodeLensProvider(languageId, importMapCodeLensProvider);
+
+  // register command to search npm modules
+  editor.registerCommand("search-npm-modules", async (_, uri: string) => {
+    const keyword = await monaco.showInputBox({
+      placeHolder: "Enter module name, e.g. lodash",
+      validateInput: (value) => {
+        return /^\w+$/.test(value) ? null : "Invalid module name, only word characters are allowed";
+      },
+    });
+    searchModulesFromNpm(keyword);
   });
 }
 
-async function searchModulesFromNpm(currentModel: monacoNS.editor.ITextModel) {
-  console.log("search-npm-modules", { currentModel: currentModel.uri.toString() });
+async function searchModulesFromNpm(keyword: string) {
+  console.log("search-npm-modules", keyword);
 }
 
 export function getWorkerUrl() {
