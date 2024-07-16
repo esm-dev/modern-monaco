@@ -71,7 +71,8 @@ export function setup(
               id: "search-npm-modules",
               command: {
                 id: "search-npm-modules",
-                title: "✦ Search modules on NPM",
+                title: "$(sparkle-filled) Search modules on NPM",
+                tooltip: "Search modules on NPM",
                 arguments: [model.uri.toString()],
               },
             },
