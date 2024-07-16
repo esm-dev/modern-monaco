@@ -225,9 +225,8 @@ export class VFS extends BasicVFS {
     const { content, version } = await this.open(url);
     const model = monaco.editor.getModel(uri) ?? monaco.editor.createModel(decode(content), undefined, uri);
     if (!Reflect.has(model, "__VFS__")) {
-      const disposable = model.onDidChangeContent(() => {
-        createPersistTask(() => this.writeFile(href, model.getValue(), version + model.getVersionId(), true));
-      });
+      const persist = createPersistTask(() => this.writeFile(href, model.getValue(), version + model.getVersionId(), true));
+      const disposable = model.onDidChangeContent(persist);
       const unwatch = this.watch(href, async (evt) => {
         if (evt.kind === "modify" && !evt.isModelContentChange) {
           const { content } = await this.open(url);
