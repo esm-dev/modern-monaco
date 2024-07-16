@@ -70,13 +70,7 @@ const files = {
   ),
 };
 
-async function serveDist(url: URL, req: Request, notFound: (url: URL, req: Request) => Promise<Response>) {
-  if (url.pathname === "/") {
-    return notFound(url, req);
-  }
-  if (url.pathname.endsWith("/")) {
-    return new Response("Directory listing not supported", { status: 400 });
-  }
+async function serveDist(url: URL, req: Request) {
   try {
     const fileUrl = new URL("../dist" + url.pathname, import.meta.url);
     let body = (await Deno.open(fileUrl)).readable;
@@ -104,20 +98,24 @@ async function serveDist(url: URL, req: Request, notFound: (url: URL, req: Reque
     }
     const headers = new Headers({
       "transfer-encoding": "chunked",
-      "cache-control": "public, max-age=0, revalidate",
+      "cache-control": "no-cache, no-store, must-revalidate",
       "content-type": getContentType(fileUrl.pathname),
     });
     return new Response(body, { headers });
   } catch (e) {
     if (e instanceof Deno.errors.NotFound) {
-      return notFound(url, req);
+      return new Response("Not found", { status: 404 });
     }
     return new Response(e.message, { status: 500 });
   }
 }
 
 async function servePages(url: URL, req: Request) {
-  const filename = url.pathname.slice(1) || "index.html";
+  const { pathname } = url;
+  let filename = "index.html";
+  if (pathname === "/ssr" || pathname === "/lazy" || pathname === "/manual") {
+    filename = pathname.slice(1) + ".html";
+  }
   try {
     const fileUrl = new URL("../examples/" + filename, import.meta.url);
     let body = (await Deno.open(fileUrl)).readable;
@@ -169,13 +167,13 @@ async function servePages(url: URL, req: Request) {
 
 function getContentType(pathname: string) {
   if (pathname.endsWith(".css")) {
-    return "text/css; utf-8";
+    return "text/css; charset=utf-8";
   }
   if (pathname.endsWith(".js")) {
-    return "application/javascript; utf-8";
+    return "application/javascript; charset=utf-8";
   }
   if (pathname.endsWith(".html")) {
-    return "text/html; utf-8";
+    return "text/html; charset=utf-8";
   }
   return "application/octet-stream";
 }
@@ -188,18 +186,23 @@ cmd.spawn();
 
 Deno.serve((req) => {
   let url = new URL(req.url);
-  if (url.pathname.startsWith("/dist/")) {
-    url = new URL(url.pathname.slice(5), url);
-  }
-  if (url.pathname === "/init.js") {
-    const headers = new Headers({
-      "cache-control": "public, max-age=0, revalidate",
-      "content-type": getContentType(url.pathname),
-    });
+  let pathname = url.pathname;
+  if (pathname === "/assets/vfs.js") {
     return new Response(
-      `import { VFS } from "/vfs.js";export const vfs = new VFS({ scope: "test", initial: ${JSON.stringify(files, null, 2)} });`,
-      { headers },
+      `import { VFS } from "/esm-monaco/vfs.js";export const vfs = new VFS({ scope: "test", initial: ${
+        JSON.stringify(files, null, 2)
+      }, history: { storage: "browserHistory" } });`,
+      {
+        headers: {
+          "content-type": "application/javascript; charset=utf-8",
+          "cache-control": "no-cache, no-store, must-revalidate",
+        },
+      },
     );
   }
-  return serveDist(url, req, servePages);
+  if (pathname === "/esm-monaco" || pathname.startsWith("/esm-monaco/")) {
+    url = new URL(pathname.slice("/esm-monaco".length) || "/index.js", url);
+    return serveDist(url, req);
+  }
+  return servePages(url, req);
 });

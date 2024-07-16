@@ -1,11 +1,5 @@
 import type { editor, IPosition, IRange } from "./monaco.d.ts";
 
-declare global {
-  interface VFSState {
-    activeFile?: string;
-  }
-}
-
 export interface VFile {
   url: string;
   version: number;
@@ -20,29 +14,41 @@ export interface VFSEvent {
   isModelChange?: boolean;
 }
 
-export interface VFSOptions {
+interface VFSOptions {
   scope?: string;
   initial?: Record<string, string[] | string | Uint8Array>;
+  history?: {
+    storage?: "localStorage" | "browserHistory";
+    basePath?: string;
+    maxHistory?: number;
+  };
 }
 
-export class VFS {
-  constructor(options?: VFSOptions);
+interface VFSHistory {
+  current: string;
+  back(): void;
+  forward(): void;
+  push(name: string | URL): void;
+  replace(name: string | URL): void;
+  onChange(handler: (name: string) => void): () => void;
+}
+
+export class BasicVFS {
   readonly ErrorNotFound: typeof ErrorNotFound;
+  constructor(options?: VFSOptions);
   exists(name: string | URL): Promise<boolean>;
   ls(): Promise<string[]>;
   open(name: string | URL): Promise<VFile>;
-  openModel(
-    name: string | URL,
-    attachTo?: editor.ICodeEditor | number | string | boolean,
-    selectionOrPosition?: IRange | IPosition,
-  ): Promise<editor.ITextModel>;
   readFile(name: string | URL): Promise<Uint8Array>;
   readTextFile(name: string | URL): Promise<string>;
   writeFile(name: string | URL, content: string | Uint8Array, version?: number): Promise<void>;
   remove(name: string | URL): Promise<void>;
-  watch(name: string | URL, handler: (evt: VFSEvent) => void): () => void;
-  useList(effect: (list: string[]) => void): () => void;
-  useState(effect: (state: VFSState) => void): () => void;
+  watch(name: "*" | string | URL, handler: (evt: VFSEvent) => void): () => void;
+}
+
+export class VFS extends BasicVFS {
+  readonly history: VFSHistory;
+  openModel(name: string | URL, attachTo?: editor.ICodeEditor, selectionOrPosition?: IRange | IPosition): Promise<editor.ITextModel>;
 }
 
 export class ErrorNotFound extends Error {}

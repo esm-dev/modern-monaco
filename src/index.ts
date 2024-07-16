@@ -320,17 +320,18 @@ export function lazy(options?: InitOption, hydrate?: boolean) {
 
         // create a highlighter instance for the renderer/editor
         const langs = options?.langs ?? [];
-        let file = renderOptions.filename ?? this.getAttribute("file");
-        if (!file && vfs) {
-          if (vfs.state.activeFile) {
-            file = vfs.state.activeFile;
+        let filename = renderOptions.filename ?? this.getAttribute("file");
+        if (!filename && vfs) {
+          if (vfs.history.current) {
+            filename = vfs.history.current;
           } else {
             const list = await vfs.ls();
-            vfs.state.activeFile = file = list[0];
+            filename = list[0];
+            vfs.history.replace(filename);
           }
         }
-        if (renderOptions.language || file) {
-          langs.push(renderOptions.language ?? getLanguageIdFromPath(file));
+        if (renderOptions.language || filename) {
+          langs.push(renderOptions.language ?? getLanguageIdFromPath(filename));
         }
         langs.push(...(syntaxes as any[]));
         if (renderOptions.theme) {
@@ -340,10 +341,10 @@ export function lazy(options?: InitOption, hydrate?: boolean) {
 
         // check the pre-rendered content, if not exists, render one
         let mockEl = hydrate ? this.querySelector<HTMLElement>(".monaco-editor-prerender") : undefined;
-        if (!mockEl && file && vfs) {
+        if (!mockEl && filename && vfs) {
           try {
-            const code = await vfs.readTextFile(file);
-            const language = getLanguageIdFromPath(file);
+            const code = await vfs.readTextFile(filename);
+            const language = getLanguageIdFromPath(filename);
             mockEl = containerEl.cloneNode(true) as HTMLElement;
             mockEl.className = "monaco-editor-prerender";
             mockEl.innerHTML = render(highlighter, {
@@ -371,18 +372,21 @@ export function lazy(options?: InitOption, hydrate?: boolean) {
           const monaco = await loadMonacoCore(highlighter);
           const editor = monaco.editor.create(containerEl, renderOptions);
           if (vfs) {
+            vfs.history.onChange((name) => {
+              vfs.openModel(name, editor);
+            });
             editor.onWillChangeModel((e) => {
               if (e.oldModelUrl.scheme === "file") {
                 vfs.viewState[e.oldModelUrl.toString()] = Object.freeze(editor.saveViewState());
               }
             });
           }
-          if (vfs && file) {
+          if (vfs && filename) {
             try {
-              const model = await vfs.openModel(file, editor);
-              // update the model value with the code from SSR if exists
+              const model = await vfs.openModel(filename, editor);
+              // update the model value with the SSR `code` if exists
               if (
-                renderOptions.filename === file
+                renderOptions.filename === filename
                 && renderOptions.code
                 && renderOptions.code !== model.getValue()
               ) {
@@ -392,7 +396,7 @@ export function lazy(options?: InitOption, hydrate?: boolean) {
               if (error instanceof vfs.ErrorNotFound) {
                 if ((renderOptions.code && renderOptions.filename)) {
                   await vfs.writeFile(renderOptions.filename, renderOptions.code);
-                  vfs.openModel(renderOptions.filename);
+                  vfs.openModel(renderOptions.filename, editor);
                 } else {
                   // open an empty model
                   editor.setModel(monaco.editor.createModel(""));

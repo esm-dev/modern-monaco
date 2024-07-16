@@ -16,25 +16,31 @@ interface VFile {
 interface VFSEvent {
   kind: "create" | "modify" | "remove";
   path: string;
-  isModelChange?: boolean;
-}
-
-interface VFSState {
-  activeFile?: string;
+  isModelContentChange?: boolean;
 }
 
 interface VFSOptions {
   scope?: string;
   initial?: Record<string, string[] | string | Uint8Array>;
+  history?: {
+    storage?: "localStorage" | "browserHistory";
+    basePath?: string;
+    maxHistory?: number;
+  };
 }
 
-/** A virtual file system for esm-monaco editor. */
-export class VFS {
-  private _monaco: typeof monacoNS;
+interface VFSHistory {
+  readonly current: string;
+  back(): void;
+  forward(): void;
+  push(name: string | URL): void;
+  replace(name: string | URL): void;
+  onChange(handler: (name: string) => void): () => void;
+}
+
+/** A virtual file system using IndexedDB. */
+export class BasicVFS {
   private _db: Promise<IDBDatabase> | IDBDatabase;
-  private _viewState: Record<string, monacoNS.editor.ICodeEditorViewState> = {};
-  private _state: VFSState = {};
-  private _stateChangeHandlers = new Set<() => void>();
   private _watchHandlers = new Map<string, Set<(evt: VFSEvent) => void>>();
 
   static dbStoreName = "files";
@@ -56,23 +62,10 @@ export class VFS {
 
   constructor(options: VFSOptions) {
     this._db = this._openDB(options);
-    if (globalThis.localStorage) {
-      const { scope = "default" } = options;
-      this._state = createPersistStateStorage("monaco:vfs.state." + scope, () => this._stateChangeHandlers.forEach((handler) => handler()));
-      this._viewState = createPersistStateStorage("monaco:vfs.viewState." + scope, undefined, true);
-    }
   }
 
   get ErrorNotFound() {
     return ErrorNotFound;
-  }
-
-  get state() {
-    return this._state;
-  }
-
-  get viewState() {
-    return this._viewState;
   }
 
   private _openDB(options: VFSOptions): Promise<IDBDatabase> {
@@ -102,85 +95,6 @@ export class VFS {
   private async _tx(readonly = false): Promise<IDBObjectStore> {
     const db = await this._db;
     return db.transaction(VFS.dbStoreName, readonly ? "readonly" : "readwrite").objectStore(VFS.dbStoreName);
-  }
-
-  async openModel(
-    name: string | URL,
-    attachTo?: monacoNS.editor.ICodeEditor | number | string | boolean,
-    selectionOrPosition?: monacoNS.IRange | monacoNS.IPosition,
-  ): Promise<monacoNS.editor.ITextModel> {
-    const monaco = this._monaco;
-    if (!monaco) {
-      throw new Error("monaco is undefined");
-    }
-    const url = toUrl(name);
-    const href = url.href;
-    const uri = monaco.Uri.parse(href);
-    const { content, version } = await this.open(url);
-    const model = monaco.editor.getModel(uri) ?? monaco.editor.createModel(decode(content), undefined, uri);
-    if (!Reflect.has(model, "__VFS__")) {
-      const onDidChange = createPersistTask(() => this.writeFile(uri.toString(), model.getValue(), version + model.getVersionId(), true));
-      const disposable = model.onDidChangeContent(onDidChange);
-      const unwatch = this.watch(href, async (evt) => {
-        if (evt.kind === "modify" && !evt.isModelChange) {
-          const { content } = await this.open(url);
-          if (model.getValue() !== decode(content)) {
-            model.setValue(decode(content));
-            model.pushStackElement();
-          }
-        }
-      });
-      model.onWillDispose(() => {
-        Reflect.deleteProperty(model, "__VFS__");
-        disposable.dispose();
-        unwatch();
-      });
-      Reflect.set(model, "__VFS__", true);
-    }
-    if (attachTo) {
-      let editor: monacoNS.editor.ICodeEditor;
-      if (attachTo === true) {
-        editor = monaco.editor.getEditors()[0];
-      } else if (typeof attachTo === "number") {
-        editor = monaco.editor.getEditors()[attachTo];
-      } else if (typeof attachTo === "string") {
-        for (const e of monaco.editor.getEditors()) {
-          const container = e.getContainerDomNode();
-          if (
-            container.id === attachTo.slice(1) || (
-              container.parentElement?.tagName === "MONACO-EDITOR"
-              && container.parentElement.id === attachTo.slice(1)
-            )
-          ) {
-            editor = e;
-            break;
-          }
-        }
-      } else if (typeof attachTo === "object" && attachTo !== null && typeof attachTo.setModel === "function") {
-        editor = attachTo;
-      }
-      if (editor) {
-        editor.setModel(model);
-        editor.updateOptions({ readOnly: false });
-        if (selectionOrPosition) {
-          if ("startLineNumber" in selectionOrPosition) {
-            editor.setSelection(selectionOrPosition);
-          } else {
-            editor.setPosition(selectionOrPosition);
-          }
-          const pos = editor.getPosition();
-          editor.setScrollTop(
-            editor.getScrolledVisiblePosition(new monaco.Position(pos.lineNumber - 7, pos.column)).top,
-          );
-        } else {
-          this._viewState[href] && editor.restoreViewState(this._viewState[href]);
-        }
-        if (this._state.activeFile !== href) {
-          this._state.activeFile = href;
-        }
-      }
-    }
-    return model;
   }
 
   async exists(name: string | URL): Promise<boolean> {
@@ -214,7 +128,8 @@ export class VFS {
     return decode(content);
   }
 
-  private async _writeFile(url: string, content: string | Uint8Array, version?: number): Promise<"create" | "modify"> {
+  async writeFile(name: string | URL, content: string | Uint8Array, version?: number, isModelContentChange?: boolean): Promise<void> {
+    const { pathname, href: url } = toUrl(name);
     const store = await this._tx();
     const old = await promisifyIDBRequest<VFile | undefined>(store.get(url));
     const now = Date.now();
@@ -226,18 +141,13 @@ export class VFS {
       mtime: now,
     };
     await promisifyIDBRequest(store.put(file));
-    return old ? "modify" : "create";
-  }
-
-  async writeFile(name: string | URL, content: string | Uint8Array, version?: number, isModelChange?: boolean): Promise<void> {
-    const url = toUrl(name);
-    const kind = await this._writeFile(url.href, content, version);
     setTimeout(() => {
-      for (const key of [url.href, "*"]) {
+      const kind = old ? "modify" : "create";
+      for (const key of [url, "*"]) {
         const handlers = this._watchHandlers.get(key);
         if (handlers) {
           for (const handler of handlers) {
-            handler({ kind, path: url.href, isModelChange });
+            handler({ kind, path: pathname, isModelContentChange });
           }
         }
       }
@@ -245,11 +155,11 @@ export class VFS {
   }
 
   async remove(name: string | URL): Promise<void> {
-    const { pathname, href } = toUrl(name);
+    const { pathname, href: url } = toUrl(name);
     const store = await this._tx();
-    await promisifyIDBRequest(store.delete(href));
+    await promisifyIDBRequest(store.delete(url));
     setTimeout(() => {
-      for (const key of [href, "*"]) {
+      for (const key of [url, "*"]) {
         const handlers = this._watchHandlers.get(key);
         if (handlers) {
           for (const handler of handlers) {
@@ -272,29 +182,92 @@ export class VFS {
       handlers!.delete(handler);
     };
   }
+}
 
-  useList(effect: (list: string[]) => void): () => void {
-    const dispose = this.watch("*", (evt) => {
-      if (evt.kind === "create" || evt.kind === "remove") {
-        this.ls().then(effect);
-      }
-    });
-    this.ls().then(effect);
-    return () => dispose();
+/** A virtual file system for esm-monaco editor. */
+export class VFS extends BasicVFS {
+  private _monaco: typeof monacoNS;
+  private _history: VFSHistory;
+  private _viewState: Record<string, monacoNS.editor.ICodeEditorViewState> = {};
+
+  constructor(options: VFSOptions) {
+    super(options);
+    if (globalThis.localStorage) {
+      this._viewState = createPersistStateStorage("monaco:vfs.viewState." + options.scope);
+    }
+    if (options.history?.storage === "browserHistory" && globalThis.history) {
+      this._history = new VFSBrowserHistory(options.history?.basePath);
+    } else if (globalThis.localStorage) {
+      this._history = new VFSLocalStorageHistory(options.scope, options.history?.maxHistory);
+    }
   }
 
-  useState(effect: (state: VFSState) => void): () => void {
-    const handler = () => effect(this._state);
-    this._stateChangeHandlers.add(handler);
-    handler();
-    return () => {
-      this._stateChangeHandlers.delete(handler);
-    };
+  get history() {
+    return this._history;
+  }
+
+  get viewState() {
+    return this._viewState;
+  }
+
+  async openModel(
+    name: string | URL,
+    editor?: monacoNS.editor.ICodeEditor,
+    selectionOrPosition?: monacoNS.IRange | monacoNS.IPosition,
+  ): Promise<monacoNS.editor.ITextModel> {
+    const monaco = this._monaco;
+    if (!monaco) {
+      throw new Error("monaco is undefined");
+    }
+    const url = toUrl(name);
+    const href = url.href;
+    const uri = monaco.Uri.parse(href);
+    const { content, version } = await this.open(url);
+    const model = monaco.editor.getModel(uri) ?? monaco.editor.createModel(decode(content), undefined, uri);
+    if (!Reflect.has(model, "__VFS__")) {
+      const disposable = model.onDidChangeContent(() => {
+        createPersistTask(() => this.writeFile(href, model.getValue(), version + model.getVersionId(), true));
+      });
+      const unwatch = this.watch(href, async (evt) => {
+        if (evt.kind === "modify" && !evt.isModelContentChange) {
+          const { content } = await this.open(url);
+          if (model.getValue() !== decode(content)) {
+            model.setValue(decode(content));
+            model.pushStackElement();
+          }
+        }
+      });
+      model.onWillDispose(() => {
+        Reflect.deleteProperty(model, "__VFS__");
+        disposable.dispose();
+        unwatch();
+      });
+      Reflect.set(model, "__VFS__", true);
+    }
+    if (editor) {
+      editor.setModel(model);
+      editor.updateOptions({ readOnly: false });
+      if (selectionOrPosition) {
+        if ("startLineNumber" in selectionOrPosition) {
+          editor.setSelection(selectionOrPosition);
+        } else {
+          editor.setPosition(selectionOrPosition);
+        }
+        const pos = editor.getPosition();
+        editor.setScrollTop(
+          editor.getScrolledVisiblePosition(new monaco.Position(pos.lineNumber - 7, pos.column)).top,
+        );
+      } else {
+        this._viewState[href] && editor.restoreViewState(this._viewState[href]);
+      }
+      if (this._history.current !== href) {
+        this._history.push(href);
+      }
+    }
+    return model;
   }
 
   bindMonaco(monaco: typeof monacoNS) {
-    this._monaco = monaco;
-
     monaco.editor.addCommand({
       id: "vfs.importmap.add_module",
       run: async (_: unknown, importMapSrc: string, specifier: string, uri: string) => {
@@ -317,28 +290,165 @@ export class VFS {
         }
       },
     });
+    this._monaco = monaco;
+  }
+}
+
+class VFSBrowserHistory implements VFSHistory {
+  private _basePath = "";
+  private _current = "";
+  private _handlers = new Set<(name: string) => void>();
+
+  constructor(basePath = "") {
+    this._basePath = "/" + basePath.split("/").filter(Boolean).join("/");
+    this._current = this._trimBasePath(location.pathname);
+    window.addEventListener("popstate", () => {
+      this._current = this._trimBasePath(location.pathname);
+      this._onPopState();
+    });
+  }
+
+  private _trimBasePath(path: string) {
+    if (path.startsWith(this._basePath)) {
+      return new URL(path.slice(this._basePath.length), "file:///").href;
+    }
+    return "";
+  }
+
+  private _joinBasePath(url: URL) {
+    const basePath = this._basePath === "/" ? "" : this._basePath;
+    if (url.protocol === "file:") {
+      return basePath + url.pathname;
+    }
+    return basePath + "/" + url.href;
+  }
+
+  private _onPopState() {
+    for (const handler of this._handlers) {
+      handler(this._current);
+    }
+  }
+
+  get current(): string {
+    return this._current;
+  }
+
+  back(): void {
+    history.back();
+  }
+
+  forward(): void {
+    history.forward();
+  }
+
+  push(name: string | URL): void {
+    const url = toUrl(name);
+    history.pushState(null, "", this._joinBasePath(url));
+    this._current = url.href;
+    this._onPopState();
+  }
+
+  replace(name: string | URL): void {
+    const url = toUrl(name);
+    history.replaceState(null, "", this._joinBasePath(url));
+    this._current = url.href;
+    this._onPopState();
+  }
+
+  onChange(handler: (path: string) => void): () => void {
+    this._handlers.add(handler);
+    return () => {
+      this._handlers.delete(handler);
+    };
+  }
+}
+
+class VFSLocalStorageHistory implements VFSHistory {
+  private _state: { current: number; history: string[] };
+  private _maxHistory: number;
+  private _handlers = new Set<(name: string) => void>();
+
+  constructor(scope: string, maxHistory = 100) {
+    this._state = createPersistStateStorage("monaco:vfs.history." + scope, {
+      current: -1,
+      history: [],
+    });
+    this._maxHistory = maxHistory;
+  }
+
+  private _onPopState() {
+    for (const handler of this._handlers) {
+      handler(this.current);
+    }
+  }
+
+  get current(): string {
+    return this._state.history[this._state.current] ?? "";
+  }
+
+  back(): void {
+    this._state.current--;
+    if (this._state.current < 0) {
+      this._state.current = 0;
+    }
+    this._onPopState();
+  }
+
+  forward(): void {
+    this._state.current++;
+    if (this._state.current >= this._state.history.length) {
+      this._state.current = this._state.history.length - 1;
+    }
+    this._onPopState();
+  }
+
+  push(name: string | URL): void {
+    const url = toUrl(name);
+    const history = this._state.history.slice(0, this._state.current + 1);
+    history.push(url.href);
+    if (history.length > this._maxHistory) {
+      history.shift();
+    }
+    this._state.history = history;
+    this._state.current = history.length - 1;
+    this._onPopState();
+  }
+
+  replace(name: string | URL): void {
+    const url = toUrl(name);
+    const history = [...this._state.history]; // copy the array
+    if (this._state.current === -1) {
+      this._state.current = 0;
+    }
+    history[this._state.current] = url.href;
+    this._state.history = history;
+    this._onPopState();
+  }
+
+  onChange(handler: (path: string) => void): () => void {
+    this._handlers.add(handler);
+    return () => {
+      this._handlers.delete(handler);
+    };
   }
 }
 
 /** Create a proxy object that triggers persist in localStorage when the object is modified. */
-function createPersistStateStorage<T extends object>(storeKey: string, onDidChange?: () => void, freeze = false): T {
+function createPersistStateStorage<T extends object>(storeKey: string, defaultValue?: T): T {
   let state: T;
-  const init = {} as T;
+  const init = defaultValue ?? {} as T;
   const storeValue = localStorage.getItem(storeKey);
   if (storeValue) {
     try {
       for (const [key, value] of Object.entries(JSON.parse(storeValue))) {
-        init[key] = freeze ? Object.freeze(value) : value;
+        init[key] = Object.freeze(value);
       }
     } catch (e) {
       console.error(e);
     }
   }
   const persist = createSyncPersistTask(() => localStorage.setItem(storeKey, JSON.stringify(state)), 1000);
-  return state = createProxy(init, () => {
-    onDidChange?.();
-    persist();
-  });
+  return state = createProxy(init, persist);
 }
 
 /** Error for file not found. */

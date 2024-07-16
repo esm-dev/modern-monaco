@@ -5,10 +5,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ESM&gt;Monaco</title>
-  <link rel="modulepreload" href="/init.js">
-  <link rel="modulepreload" href="/index.js">
-  <link rel="modulepreload" href="/vfs.js">
-  <link rel="modulepreload" href="/editor-core.js">
+  <link rel="modulepreload" href="/esm-monaco/index.js">
+  <link rel="modulepreload" href="/esm-monaco/vfs.js">
+  <link rel="modulepreload" href="/assets/vfs.js">
   <style>
     html,
     body {
@@ -195,6 +194,7 @@
     multiCursorModifier="ctrlCmd"></monaco-editor>
   <button class="folder"></button>
   <ul class="selector"></ul>
+
   <template class="icons">
     <svg class="folder-icon" xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 256 256">
       <g fill="currentColor">
@@ -229,10 +229,10 @@
         d="M10 18a1 1 0 0 0 1-1v-6a1 1 0 0 0-2 0v6a1 1 0 0 0 1 1M20 6h-4V5a3 3 0 0 0-3-3h-2a3 3 0 0 0-3 3v1H4a1 1 0 0 0 0 2h1v11a3 3 0 0 0 3 3h8a3 3 0 0 0 3-3V8h1a1 1 0 0 0 0-2M10 5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1h-4Zm7 14a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V8h10Zm-3-1a1 1 0 0 0 1-1v-6a1 1 0 0 0-2 0v6a1 1 0 0 0 1 1" />
     </svg>
   </template>
+
   <script type="module">
-    import { lazy } from '/index.js';
-    import { vfs } from '/init.js';
-    lazy({ vfs });
+    import { lazy } from '/esm-monaco/index.js';
+    import { vfs } from '/assets/vfs.js';
 
     const folderButton = document.querySelector('button.folder')
     const selector = document.querySelector('ul.selector')
@@ -255,13 +255,12 @@
     }
     const renderList = (list) => {
       selector.replaceChildren()
-      list.forEach(file => {
+      list.forEach(filename => {
         const option = document.createElement('li')
         const span = document.createElement('span')
         const deleteIcon = icons.querySelector('.file-icon-trash').cloneNode(true)
-        const filename = file.slice('file:///'.length)
-        const isActive = file === vfs.state.activeFile
-        span.textContent = filename
+         const isActive = filename === vfs.history.current
+        span.textContent = filename.slice('file:///'.length)
         option.append(icons.querySelector('.file-icon').cloneNode(true))
         option.append(icons.querySelector('.file-icon-edit').cloneNode(true))
         option.append(span)
@@ -278,7 +277,7 @@
         }
         option.addEventListener('click', () => {
           toggleFolder()
-          vfs.openModel(file, true)
+          vfs.history.push(filename)
         })
         selector.appendChild(option)
       })
@@ -291,20 +290,32 @@
       input.addEventListener('keydown', async e => {
         if (e.key === 'Enter') {
           const name = input.value.trim()
-          if (name) {
+          toggleFolder()
+          if (name && !(await vfs.exists(name))) {
             vfs.writeFile(name, '').then(() => {
-              toggleFolder()
-              vfs.openModel(name, true)
+              vfs.history.push(name)
             })
           }
         }
       })
       selector.appendChild(add)
-      if (!list.includes(vfs.state.activeFile)) {
+      if (!list.includes(vfs.history.current)) {
         deleteTag.style.display = 'inline-block'
       } else {
         deleteTag.style.display = 'none'
       }
+    }
+    const renderButtonText = (currentFile) => {
+      const filename = currentFile.slice('file:///'.length)
+      deleteTag.style.display = 'none'
+      folderButton.childNodes[2].textContent = filename
+      selector.querySelectorAll('li:not(.add)').forEach(li => {
+        if (li.childNodes[2].textContent === filename) {
+          li.classList.add('selected')
+        } else {
+          li.classList.remove('selected')
+        }
+      })
     }
 
     deleteTag.className = 'delete-tag'
@@ -312,19 +323,20 @@
     folderButton.prepend(...icons.querySelectorAll('.folder-icon, .folder-icon-open'), '', deleteTag)
     folderButton.addEventListener('click', toggleFolder)
 
-    vfs.useState((state) => {
-      const activeFile = state.activeFile?.slice('file:///'.length)
-      deleteTag.style.display = 'none'
-      folderButton.childNodes[2].textContent = activeFile
-      selector.querySelectorAll('li:not(.add)').forEach(li => {
-        if (li.childNodes[2].textContent === activeFile) {
-          li.classList.add('selected')
-        } else {
-          li.classList.remove('selected')
-        }
-      })
-    })
-    vfs.useList(renderList)
+    // render button text
+    vfs.history.onChange(renderButtonText)
+    renderButtonText(vfs.history.current)
+
+    // render file list
+    vfs.watch("*", (evt) => {
+      if (evt.kind === "create" || evt.kind === "remove") {
+        vfs.ls().then(renderList);
+      }
+    });
+    vfs.ls().then(renderList);
+
+    // initialize the editor
+    lazy({ vfs });
   </script>
 </body>
 
