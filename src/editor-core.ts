@@ -1,8 +1,8 @@
-import type { InputBoxOptions, QuickPickOptions } from "monaco-editor-core";
-import languageConfigurations from "vscode-language-configurations";
+import type { InputBoxOptions, QuickPickItem, QuickPickOptions } from "monaco-editor-core";
 import { editor, languages, Uri } from "monaco-editor-core";
-import { StandaloneServices } from "monaco-editor-core/esm/vs/editor/standalone/browser/standaloneServices.js";
 import { IQuickInputService } from "monaco-editor-core/esm/vs/platform/quickinput/common/quickInput.js";
+import { StandaloneServices } from "monaco-editor-core/esm/vs/editor/standalone/browser/standaloneServices.js";
+import languageConfigurations from "vscode-language-configurations";
 
 const quickInputService = StandaloneServices.get(IQuickInputService);
 const defaultEditorOptions: editor.IStandaloneEditorConstructionOptions = {
@@ -46,6 +46,19 @@ Object.assign(editor, {
   },
 });
 
+export enum InputBoxValidationSeverity {
+  Info = 1,
+  Warning = 2,
+  Error = 3,
+}
+
+export enum QuickPickItemKind {
+  Separator = -1,
+  Default = 0,
+}
+
+// showInputBox has same signature as vscode.window.showInputBox
+// @see https://code.visualstudio.com/api/references/vscode-api#window.showInputBox
 export function showInputBox(options: InputBoxOptions = {}) {
   const { placeHolder, title, value, password, ignoreFocusOut, validateInput } = options;
   const box = quickInputService.createInputBox();
@@ -72,10 +85,10 @@ export function showInputBox(options: InputBoxOptions = {}) {
     box.placeholder = placeHolder;
   }
   if (password) {
-    box.password = password;
+    box.password = true;
   }
   if (ignoreFocusOut) {
-    box.ignoreFocusOut = ignoreFocusOut;
+    box.ignoreFocusOut = true;
   }
   if (validateInput) {
     box.onDidChangeValue(async (value: string) => {
@@ -105,14 +118,55 @@ export function showInputBox(options: InputBoxOptions = {}) {
   });
 }
 
-export function showQuickPick(items: any[], options?: QuickPickOptions) {
+// showQuickPick has same signature as vscode.window.showQuickPick
+// @see https://code.visualstudio.com/api/references/vscode-api#window.showQuickPick
+export function showQuickPick(items: any[], options: QuickPickOptions = {}) {
+  const { placeHolder, title, ignoreFocusOut, matchOnDescription, matchOnDetail, canPickMany, onDidSelectItem } = options;
   const pick = quickInputService.createQuickPick();
-  console.log(pick);
+  if (title) {
+    pick.title = title;
+  }
+  if (placeHolder) {
+    pick.placeholder = placeHolder;
+  }
+  if (ignoreFocusOut) {
+    pick.ignoreFocusOut = true;
+  }
+  if (matchOnDescription) {
+    pick.matchOnDescription = true;
+  }
+  if (matchOnDetail) {
+    pick.matchOnDetail = true;
+  }
+  if (canPickMany) {
+    pick.canSelectMany = true;
+  }
+  if (items instanceof Promise) {
+    pick.busy = true;
+    items.then((items) => {
+      pick.items = items.map(convertPickItem);
+      pick.busy = false;
+    });
+  } else if (Array.isArray(items)) {
+    pick.items = items.map(convertPickItem);
+  }
+  if (onDidSelectItem) {
+    pick.onDidChangeActive((v) => {
+      v.forEach((item) => {
+        onDidSelectItem(convertPickItem(item?._kind_string ? item.label : item));
+      });
+    });
+  }
   pick.show();
   return new Promise<any>((resolve) => {
     pick.onDidAccept(() => {
-      resolve(pick.selectedItems[0]);
-      pick.hide();
+      if (canPickMany) {
+        resolve(pick.selectedItems.map(item => item._kind_string ? item.label : item));
+      } else {
+        let selectedItem = pick.selectedItems[0];
+        resolve(selectedItem?._kind_string ? selectedItem.label : selectedItem);
+      }
+      pick.dispose();
     });
   });
 }
@@ -184,6 +238,16 @@ function normalizeUri(uri?: string | URL | Uri) {
     });
   }
   return uri;
+}
+
+function convertPickItem(item: string | QuickPickItem) {
+  if (typeof item === "string") {
+    return { type: "item", label: item, _kind_string: true };
+  }
+  if (item.kind === QuickPickItemKind.Separator) {
+    return { type: "separator", ...item };
+  }
+  return item;
 }
 
 export * from "monaco-editor-core";

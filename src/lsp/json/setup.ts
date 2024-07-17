@@ -99,17 +99,31 @@ export function setup(
   // register command to search npm modules
   editor.registerCommand("search-npm-modules", async (_, uri: string) => {
     const keyword = await monaco.showInputBox({
-      placeHolder: "Enter module name, e.g. lodash",
+      placeHolder: "Enter package name, e.g. lodash",
       validateInput: (value) => {
-        return /^\w+$/.test(value) ? null : "Invalid module name, only word characters are allowed";
+        return /^[\w\.@]+$/.test(value) ? null : "Invalid package name, only word characters are allowed";
       },
     });
-    searchModulesFromNpm(keyword);
+    console.log(
+      await monaco.showQuickPick(searchPackagesFromNpm(keyword, 32), {
+        placeHolder: "Select a package",
+        matchOnDetail: true,
+      }),
+    );
   });
 }
 
-async function searchModulesFromNpm(keyword: string) {
-  console.log("search-npm-modules", keyword);
+async function searchPackagesFromNpm(keyword: string, size = 20) {
+  const res = await fetch(`https://registry.npmjs.com/-/v1/search?text=${keyword}&size=${size}`);
+  if (!res.ok) {
+    throw new Error(`Failed to search npm packages: ${res.statusText}`);
+  }
+  const { objects } = await res.json();
+  return objects.map((o: { package: { name: string; version: string; description: string } }) => ({
+    label: o.package.name,
+    description: o.package.version,
+    detail: o.package.description,
+  }));
 }
 
 export function getWorkerUrl() {
