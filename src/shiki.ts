@@ -23,7 +23,7 @@ export interface ShikiInitOptions {
 
 export interface Highlighter extends HighlighterCore {
   loadThemeFromCDN(name: string): Promise<void>;
-  loadLanguageFromCDN(name: string): Promise<void>;
+  loadGrammarFromCDN(...ids: string[]): Promise<void>;
 }
 
 /** Initialize shiki with the given options. */
@@ -58,7 +58,7 @@ export async function initShiki({
   const highlighterCore = await createHighlighterCore({ langs, themes });
   Object.assign(highlighterCore, {
     loadThemeFromCDN: (themeName: string) => highlighterCore.loadTheme(loadTMTheme(themeName, downloadCDN)),
-    loadLanguageFromCDN: (lang: string) => highlighterCore.loadLanguage(loadTMGrammar(lang, downloadCDN)),
+    loadGrammarFromCDN: (...ids: string[]) => highlighterCore.loadLanguage(...ids.map(id => loadTMGrammar(id, downloadCDN))),
   });
   return highlighterCore as unknown as Highlighter;
 }
@@ -92,18 +92,18 @@ function loadTMGrammar(src: string | URL, cdn = "https://esm.sh") {
       }
     }
     const url = new URL(`/tm-grammars@${tmGrammarsVersion}/grammars/${g.name}.json`, cdn);
-    return cache.fetch(url).then((res) => res.json()).then((grammar) => ({
-      injectTo: g.injectTo,
-      ...grammar,
-    }));
+    return cache.fetch(url).then((res) => res.json());
   }
   return cache.fetch(src).then((res) => res.json());
 }
 
-/** Get grammar Info from file path. */
-export function getGarmmarInfoFromPath(
-  path: string,
-): { name: string; aliases?: string[]; embedded?: string[]; injectTo?: string[] } | undefined {
+/** Get grammar Info from the given path. */
+export function getGarmmarInfoFromPath(path: string): {
+  name: string;
+  aliases?: string[];
+  embedded?: string[];
+  injectTo?: string[];
+} | undefined {
   const idx = path.lastIndexOf(".");
   if (idx > 0) {
     const ext = path.slice(idx + 1);
@@ -111,7 +111,7 @@ export function getGarmmarInfoFromPath(
   }
 }
 
-/** Get language ID from file path. */
+/** Get language ID from the given path. */
 export function getLanguageIdFromPath(path: string): string | undefined {
   return getGarmmarInfoFromPath(path)?.name;
 }

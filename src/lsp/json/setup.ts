@@ -4,6 +4,7 @@ import type { CreateData, JSONWorker } from "./worker.ts";
 import { schemas } from "./schemas.ts";
 
 // ! external modules, don't remove the `.js` extension
+import { parseImportMapFromHtml, parseImportMapFromJson } from "../../import-map.js";
 import * as lfs from "../language-features.js";
 
 export function setup(
@@ -34,30 +35,6 @@ export function setup(
         trimFinalNewlines: true,
         ...formattingOptions,
       },
-    },
-  };
-  const importMapCodeLensProvider: monacoNS.languages.CodeLensProvider = {
-    provideCodeLenses: function(model, token) {
-      const isImportMap = ["importmap.json", "import_map.json", "import-map.json", "importMap.json"].some((name) =>
-        model.uri.path === "/" + name
-      );
-      if (isImportMap) {
-        const m2 = model.findNextMatch(`"imports":\\s*\\{`, { column: 1, lineNumber: 1 }, true, false, null, false);
-        return {
-          lenses: [
-            {
-              range: m2?.range ?? new monaco.Range(1, 1, 1, 1),
-              id: "search-npm-modules",
-              command: {
-                id: "search-npm-modules",
-                title: "✦ Search modules on NPM",
-                arguments: [model.uri.toString()],
-              },
-            },
-          ],
-          dispose: () => {},
-        };
-      }
     },
   };
   const worker = monaco.editor.createWebWorker<JSONWorker>({
@@ -94,22 +71,71 @@ export function setup(
   lfs.registerDefault(languageId, workerProxy, [" ", ":", "\""]);
 
   // register code lens provider for import maps
-  languages.registerCodeLensProvider(languageId, importMapCodeLensProvider);
+  languages.registerCodeLensProvider(languageId, {
+    provideCodeLenses: function(model, token) {
+      const isImportMap = model.uri.scheme == "file"
+        && ["importmap.json", "import_map.json", "import-map.json", "importMap.json"].some((name) => model.uri.path === "/" + name);
+      if (isImportMap) {
+        const m2 = model.findNextMatch(`"imports":\\s*\\{`, { column: 1, lineNumber: 1 }, true, false, null, false);
+        return {
+          lenses: [
+            {
+              range: m2?.range ?? new monaco.Range(1, 1, 1, 1),
+              id: "search-npm-packages",
+              command: {
+                id: "search-npm-packages",
+                title: "$(sparkle-filled) Search packages on NPM",
+                tooltip: "Search packages on NPM",
+                arguments: [model.uri.toString()],
+              },
+            },
+          ],
+          dispose: () => {},
+        };
+      }
+    },
+  });
 
   // register command to search npm modules
-  editor.registerCommand("search-npm-modules", async (_, uri: string) => {
+  editor.registerCommand("search-npm-packages", async () => {
     const keyword = await monaco.showInputBox({
       placeHolder: "Enter package name, e.g. lodash",
       validateInput: (value) => {
-        return /^[\w\.@]+$/.test(value) ? null : "Invalid package name, only word characters are allowed";
+        return /^[\w\-\.@]+$/.test(value) ? null : "Invalid package name, only word characters are allowed";
       },
     });
-    console.log(
-      await monaco.showQuickPick(searchPackagesFromNpm(keyword, 32), {
-        placeHolder: "Select a package",
-        matchOnDetail: true,
-      }),
-    );
+    const pkg = await monaco.showQuickPick(searchPackagesFromNpm(keyword, 32), {
+      placeHolder: "Select a package",
+      matchOnDetail: true,
+    });
+    const editor = monaco.editor.getEditors().filter(e => e.hasWidgetFocus())[0];
+    const model = editor?.getModel();
+    if (model) {
+      const modelPath = model.uri.path;
+      const { imports, scopes } = modelPath.endsWith(".json")
+        ? parseImportMapFromJson(model.getValue())
+        : parseImportMapFromHtml(model.getValue());
+      const specifier = "https://esm.sh/" + pkg.name + "@" + pkg.version;
+      if (imports[pkg.name] === specifier) {
+        return;
+      }
+      imports[pkg.name] = specifier;
+      const json = JSON.stringify({ imports, scopes: Object.keys(scopes).length > 0 ? scopes : undefined }, null, 2);
+      if (modelPath.endsWith(".json")) {
+        const viewState = editor.saveViewState();
+        model.setValue(model.normalizeIndentation(json));
+        editor.restoreViewState(viewState);
+      } else if (modelPath.endsWith(".html")) {
+        const html = model.getValue();
+        const newHtml = html.replace(
+          /<script[^>]*? type="importmap"[^>]*?>[^]*?<\/script>/,
+          ["<script type=\"importmap\">", ...json.split("\n").map((l) => "  " + l), "</script>"].join("\n  "),
+        );
+        const viewState = editor.saveViewState();
+        model.setValue(model.normalizeIndentation(newHtml));
+        editor.restoreViewState(viewState);
+      }
+    }
   });
 }
 
@@ -119,11 +145,25 @@ async function searchPackagesFromNpm(keyword: string, size = 20) {
     throw new Error(`Failed to search npm packages: ${res.statusText}`);
   }
   const { objects } = await res.json();
-  return objects.map((o: { package: { name: string; version: string; description: string } }) => ({
-    label: o.package.name,
-    description: o.package.version,
-    detail: o.package.description,
-  }));
+  if (!Array.isArray(objects)) {
+    return [];
+  }
+  const items: (monacoNS.QuickPickItem & { name: string; version: string })[] = new Array(objects.length);
+  let len = 0;
+  for (let i = 0; i < objects.length; i++) {
+    const { package: pkg } = objects[i];
+    if (!pkg.name.startsWith("@types/")) {
+      items[i] = {
+        label: (keyword === pkg.name ? "$(star-empty) " : "") + pkg.name,
+        description: pkg.version,
+        detail: pkg.description,
+        name: pkg.name,
+        version: pkg.version,
+      };
+      len++;
+    }
+  }
+  return items.slice(0, len);
 }
 
 export function getWorkerUrl() {

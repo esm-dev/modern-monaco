@@ -1,7 +1,6 @@
 import type monacoNS from "monaco-editor-core";
 
 // ! external modules, don't remove the `.js` extension
-import { loadImportMapFromVFS, parseImportMapFromJson } from "./import-map.js";
 import { createPersistTask, createSyncPersistTask } from "./util.js";
 import { createProxy, decode, encode, promisifyIDBRequest, toUrl } from "./util.js";
 
@@ -266,29 +265,7 @@ export class VFS extends BasicVFS {
     return model;
   }
 
-  bindMonaco(monaco: typeof monacoNS) {
-    monaco.editor.addCommand({
-      id: "vfs.importmap.add_module",
-      run: async (_: unknown, importMapSrc: string, specifier: string, uri: string) => {
-        const model = monaco.editor.getModel(monaco.Uri.parse(importMapSrc));
-        const { imports, scopes } = model && importMapSrc.endsWith(".json")
-          ? parseImportMapFromJson(model.getValue())
-          : await loadImportMapFromVFS(this);
-        imports[specifier] = uri;
-        imports[specifier + "/"] = uri + "/";
-        const json = JSON.stringify({ imports, scopes }, null, 2);
-        if (importMapSrc.endsWith(".json")) {
-          await this.writeFile(importMapSrc, model?.normalizeIndentation(json) ?? json);
-        } else if (importMapSrc.endsWith(".html")) {
-          const html = model?.getValue() ?? await this.readTextFile(importMapSrc);
-          const newHtml = html.replace(
-            /<script[^>]*?\s+type="importmap"\s*[^>]*>[^]*?<\/script>/,
-            ["<script type=\"importmap\">", ...json.split("\n").map((l) => "  " + l), "</script>"].join("\n  "),
-          );
-          await this.writeFile(importMapSrc, model?.normalizeIndentation(newHtml) ?? newHtml);
-        }
-      },
-    });
+  setup(monaco: typeof monacoNS) {
     this._monaco = monaco;
   }
 }

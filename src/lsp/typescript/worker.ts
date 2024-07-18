@@ -23,7 +23,7 @@ import ts from "typescript";
 // ! external modules, don't remove the `.js` extension
 import { cache } from "../../cache.js";
 import { initializeWorker } from "../../editor-worker.js";
-import { type ImportMap, isBlank, resolve } from "../../import-map.js";
+import { type ImportMap, isBlankImportMap, resolve } from "../../import-map.js";
 
 export interface Host {
   openModel(uri: string): Promise<boolean>;
@@ -86,12 +86,12 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     this._compilerOptions = createData.compilerOptions;
     this._importMap = createData.importMap;
     this._importMapVersion = 0;
-    this._isBlankImportMap = isBlank(createData.importMap);
+    this._isBlankImportMap = isBlankImportMap(createData.importMap);
     this._libs = createData.libs;
     this._types = createData.types;
     this._formatOptions = createData.formatOptions;
     this._hasVFS = createData.hasVFS;
-    this._fixJsxImportSource();
+    this._updateJsxImportSource();
   }
 
   // #region language service host
@@ -813,13 +813,13 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     const { compilerOptions, importMap, types } = options;
     if (compilerOptions) {
       this._compilerOptions = compilerOptions;
-      this._fixJsxImportSource();
+      this._updateJsxImportSource();
     }
     if (importMap) {
       this._importMap = importMap;
       this._importMapVersion++;
-      this._isBlankImportMap = isBlank(importMap);
-      this._fixJsxImportSource();
+      this._isBlankImportMap = isBlankImportMap(importMap);
+      this._updateJsxImportSource();
     }
     if (types) {
       for (const uri of Object.keys(this._types)) {
@@ -1036,31 +1036,24 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
           changes: [],
           commands: [{
             id: "cache-http-module",
-            title: "Try to cache the module from the network",
+            title: "Cache the module from internet",
             arguments: [specifier, fileName],
           }],
         });
-      } else if (/^@?\w[\w.-]*(\/|$)/.test(specifier) && importMapSrc) {
-        const url = `https://esm.sh/${specifier}`;
-        const res = await cache.fetch(url);
-        if (res.ok && res.url.startsWith(url + "@")) {
-          res.body?.cancel();
-          const segments = new URL(res.url).pathname.split("/");
-          const pkgNameWithVersion = segments[1].startsWith("@") ? segments.slice(1, 3).join("/") : segments[1];
-          const pkgName = pkgNameWithVersion.slice(0, pkgNameWithVersion.lastIndexOf("@"));
-          const fixName = `Add ${specifier}(https://esm.sh/${pkgNameWithVersion}) to import map`;
-          fixes.push({
-            fixName,
-            description: fixName,
-            changes: [],
-            commands: [{
-              id: "vfs.importmap.add_module",
-              title: "Add module to import map",
-              arguments: [importMapSrc, pkgName, `https://esm.sh/${pkgNameWithVersion}`],
-            }],
-          });
-        }
       }
+      // else if (/^@?\w[\w\.\-]*(\/|$)/.test(specifier) && importMapSrc) {
+      //   const fixName = `Lookup module '${specifier}' on https://esm.sh`;
+      //   fixes.push({
+      //     fixName,
+      //     description: fixName,
+      //     changes: [],
+      //     commands: [{
+      //       id: "lookup-module",
+      //       title: "Lookup module on https://esm.sh",
+      //       arguments: [importMapSrc, specifier],
+      //     }],
+      //   });
+      // }
     }
     try {
       const tsFixes = this._languageService.getCodeFixesAtPosition(
@@ -1199,7 +1192,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     return { ...this._formatOptions, ...formatOptions };
   }
 
-  private _fixJsxImportSource(): void {
+  private _updateJsxImportSource(): void {
     const compilerOptions = this._compilerOptions;
     if (!compilerOptions.jsxImportSource) {
       const jsxImportSource = this._importMap.imports["@jsxImportSource"];

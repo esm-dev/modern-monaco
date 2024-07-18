@@ -6,12 +6,10 @@ import { createWebWorker, margeProviders } from "./lsp/index.ts";
 import syntaxes from "./syntaxes/index.ts";
 
 // ! external modules, don't remove the `.js` extension
-import { getLanguageIdFromPath, getLanguageIdsInVFS, initShiki, setDefaultWasmLoader, tmGrammars } from "./shiki.js";
+import { getLanguageIdFromPath, initShiki, setDefaultWasmLoader, tmGrammars } from "./shiki.js";
 import { initShikiMonacoTokenizer, registerShikiMonacoTokenizer } from "./shiki.js";
 import { render } from "./shiki.js";
 import { getWasmInstance } from "./shiki-wasm.js";
-
-setDefaultWasmLoader(getWasmInstance);
 
 const editorProps = [
   "autoDetectHighContrast",
@@ -43,6 +41,12 @@ const editorProps = [
   "tabSize",
   "wordWrap",
 ];
+const preloadGrammars = [
+  "html",
+  "css",
+  "javascript",
+  "json",
+];
 
 export interface InitOption extends ShikiInitOptions {
   vfs?: VFS;
@@ -56,7 +60,7 @@ async function loadMonaco(highlighter: Highlighter, options?: InitOption, onEdit
   const lspProviders = margeProviders(options.lsp);
 
   if (vfs) {
-    vfs.bindMonaco(monaco);
+    vfs.setup(monaco);
   }
 
   // insert the monaco editor core css
@@ -155,20 +159,25 @@ async function loadMonaco(highlighter: Highlighter, options?: InitOption, onEdit
   }
 
   // use the shiki as the tokenizer for the monaco editor
-  const allLanguages = new Set([...tmGrammars.map(g => g.name), ...highlighter.getLoadedLanguages()]);
+  const allLanguages = new Set(tmGrammars.filter(g => !g.injectTo).map(g => g.name));
   allLanguages.forEach((id) => {
     monaco.languages.register({ id, aliases: tmGrammars.find(g => g.name === id)?.aliases });
-    monaco.languages.onLanguage(id, () => {
+    monaco.languages.onLanguage(id, async () => {
       const config = monaco.languageConfigurations[monaco.languageConfigurationAliases[id] ?? id];
       if (config) {
         monaco.languages.setLanguageConfiguration(id, monaco.convertVscodeLanguageConfiguration(config));
       }
-      if (!highlighter.getLoadedLanguages().includes(id)) {
-        highlighter.loadLanguageFromCDN(id).then(() => {
-          // register tokenizer for the language
-          registerShikiMonacoTokenizer(monaco, highlighter, id);
-        });
+
+      const loadedGrammars = new Set(highlighter.getLoadedLanguages());
+      const reqiredGrammars = [id]
+        .concat(tmGrammars.find(g => g.name === id)?.embedded ?? [])
+        .filter((id) => !loadedGrammars.has(id));
+      if (reqiredGrammars.length > 0) {
+        await highlighter.loadGrammarFromCDN(...reqiredGrammars);
       }
+
+      registerShikiMonacoTokenizer(monaco, highlighter, id);
+
       let label = id;
       let provider = lspProviders[label];
       if (!provider) {
@@ -181,40 +190,21 @@ async function loadMonaco(highlighter: Highlighter, options?: InitOption, onEdit
   });
 
   // using the shiki as the tokenizer for the monaco editor
-  initShikiMonacoTokenizer(monaco, highlighter, [...allLanguages]);
+  initShikiMonacoTokenizer(monaco, highlighter);
 
   return monaco;
 }
 
-let loading: Promise<typeof monacoNS> | undefined;
-let ssrHighlighter: Highlighter | Promise<Highlighter> | undefined;
-
 /* Initialize and return the monaco editor namespace. */
-export function init(options?: InitOption): Promise<typeof monacoNS> {
-  if (!loading) {
-    const load = async () => {
-      const langs = options?.langs ?? [];
-      const vfs = options?.vfs;
-      const lspProviders = margeProviders(options.lsp);
-      if (vfs) {
-        const ids = (await getLanguageIdsInVFS(vfs)).filter((name) => !langs.includes(name));
-        if (ids.length > 0) {
-          langs.push(...ids);
-        }
-      }
-      langs.push(...(syntaxes as any[]));
-      const hightlighter = await initShiki({ ...options, langs });
-      return loadMonaco(hightlighter, options);
-    };
-    loading = load();
-  }
-  return loading;
+export async function init(options?: InitOption): Promise<typeof monacoNS> {
+  const langs = (options?.langs ?? []).concat(preloadGrammars, syntaxes as any[]);
+  const hightlighter = await initShiki({ ...options, langs });
+  return loadMonaco(hightlighter, options);
 }
 
 /** Render a mock editor, then load the monaco editor in background. */
 export function lazy(options?: InitOption, hydrate?: boolean) {
   const vfs = options?.vfs;
-  const lspProviders = margeProviders(options.lsp);
 
   let monacoCore: typeof monacoNS | Promise<typeof monacoNS> | null = null;
   let editorWorkerPromise: Promise<void> | null = null;
@@ -318,7 +308,6 @@ export function lazy(options?: InitOption, hydrate?: boolean) {
         containerEl.style.height = "100%";
         this.appendChild(containerEl);
 
-        const langs = options?.langs ?? [];
         let filename = renderOptions.filename ?? this.getAttribute("file");
         if (!filename && vfs) {
           if (vfs.history.current) {
@@ -329,16 +318,14 @@ export function lazy(options?: InitOption, hydrate?: boolean) {
             vfs.history.replace(filename);
           }
         }
+
+        const langs = (options?.langs ?? []).concat(preloadGrammars, syntaxes as any[]);
         if (renderOptions.language || filename) {
           langs.push(renderOptions.language ?? getLanguageIdFromPath(filename));
         }
-        langs.push(...(syntaxes as any[]));
-        if (renderOptions.theme) {
-          options.theme = renderOptions.theme;
-        }
 
         // create a highlighter instance for the renderer/editor
-        const highlighter = await initShiki({ ...options, langs });
+        const highlighter = await initShiki({ theme: renderOptions.theme, ...options, langs });
 
         // check the pre-rendered content, if not exists, render one
         let prerenderEl = hydrate ? this.querySelector<HTMLElement>(".monaco-editor-prerender") : undefined;
@@ -375,8 +362,8 @@ export function lazy(options?: InitOption, hydrate?: boolean) {
           }
         }
 
-        // load monaco editor
-        (async () => {
+        // load and rander the monaco editor
+        async function createMonaco() {
           const monaco = await loadMonacoCore(highlighter);
           const editor = monaco.editor.create(containerEl, renderOptions);
           if (vfs) {
@@ -457,15 +444,8 @@ export function lazy(options?: InitOption, hydrate?: boolean) {
               }, 100);
             });
           }
-          // load required grammars in background
-          if (vfs) {
-            for (const id of await getLanguageIdsInVFS(vfs)) {
-              highlighter.loadLanguageFromCDN(id).then(() => {
-                registerShikiMonacoTokenizer(monaco, highlighter, id);
-              });
-            }
-          }
-        })();
+        }
+        await createMonaco();
       }
     },
   );
@@ -476,47 +456,5 @@ export function hydrate(options?: InitOption) {
   return lazy(options, true);
 }
 
-/** Initialize a highlighter instance for rendering. */
-async function initRenderHighlighter(options: RenderOptions): Promise<Highlighter> {
-  const highlighter = await (ssrHighlighter ?? (ssrHighlighter = initShiki(options.shiki)));
-  const { filename, language, theme } = options;
-  const promises: Promise<void>[] = [];
-  if (language || filename) {
-    const languageId = language ?? getLanguageIdFromPath(filename);
-    if (!highlighter.getLoadedLanguages().includes(languageId)) {
-      console.info(`[esm-monaco] Loading garmmar '${languageId}' from esm.sh ...`);
-      promises.push(highlighter.loadLanguageFromCDN(languageId));
-    }
-  }
-  if (theme) {
-    if (!highlighter.getLoadedThemes().includes(theme)) {
-      console.info(`[esm-monaco] Loading theme '${theme}' from esm.sh ...`);
-      promises.push(highlighter.loadThemeFromCDN(theme));
-    }
-  }
-  if (promises.length > 0) {
-    await Promise.all(promises);
-  }
-  return highlighter;
-}
-
-/** Render a read-only(mock) editor in HTML string. */
-export async function renderToString(options: RenderOptions): Promise<string> {
-  const highlighter = await initRenderHighlighter(options);
-  return render(highlighter, options);
-}
-
-/** Render a `<monaco-editor>` component in HTML string. */
-export async function renderToWebComponent(options: RenderOptions): Promise<string> {
-  const prerender = await renderToString(options);
-  return (
-    "<monaco-editor>"
-    + "<script type=\"application/json\" class=\"monaco-editor-options\">"
-    + JSON.stringify(options)
-    + "</script>"
-    + "<div class=\"monaco-editor-prerender\" style=\"width:100%;height:100%;\">"
-    + prerender
-    + "</div>"
-    + "</monaco-editor>"
-  );
-}
+// set shiki wasm loader
+setDefaultWasmLoader(getWasmInstance);

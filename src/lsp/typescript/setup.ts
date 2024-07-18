@@ -7,7 +7,7 @@ import type { CreateData, Host, TypeScriptWorker, VersionedContent } from "./wor
 
 // ! external modules, don't remove the `.js` extension
 import { cache } from "../../cache.js";
-import { isBlank, loadImportMapFromVFS, parseImportMapFromJson, toImportMap } from "../../import-map.js";
+import { createBlankImportMap, importMapFrom, isBlankImportMap, parseImportMapFromJson } from "../../import-map.js";
 import * as lfs from "../language-features.js";
 
 type TSWorker = monacoNS.editor.MonacoWebWorker<TypeScriptWorker>;
@@ -73,10 +73,10 @@ async function createWorker(
     noEmit: true,
     ...(languageSettings?.compilerOptions as ts.CompilerOptions),
   };
-  const defaultImportMap = toImportMap(languageSettings?.importMap);
+  const defaultImportMap = importMapFrom(languageSettings?.importMap);
   const types = new TypesStore();
   const remixImportMap = (im: ImportMap): ImportMap => {
-    if (isBlank(defaultImportMap)) {
+    if (isBlankImportMap(defaultImportMap)) {
       return im;
     }
     return {
@@ -95,10 +95,10 @@ async function createWorker(
 
   if (vfs) {
     promises.push(
-      readCompilerOptions(vfs).then((options) => {
+      loadCompilerOptions(vfs).then((options) => {
         compilerOptions = { ...defaultCompilerOptions, ...options };
       }),
-      loadImportMapFromVFS(vfs, remixImportMap).then((im) => {
+      loadImportMap(vfs, remixImportMap).then((im) => {
         importMap = im;
       }),
     );
@@ -116,7 +116,7 @@ async function createWorker(
     importMap,
     libs,
     types: types.all,
-    hasVFS: !!vfs,
+    hasVFS: Boolean(vfs),
     formatOptions: {
       tabSize,
       trimTrailingWhitespace,
@@ -200,7 +200,7 @@ async function createWorker(
 
     vfs.watch("tsconfig.json", async (e) => {
       disposes.forEach((dispose) => dispose());
-      readCompilerOptions(vfs).then((options) => {
+      loadCompilerOptions(vfs).then((options) => {
         const newOptions = { ...defaultCompilerOptions, ...options };
         if (JSON.stringify(newOptions) !== JSON.stringify(compilerOptions)) {
           compilerOptions = newOptions;
@@ -214,7 +214,7 @@ async function createWorker(
 
     vfs.watch("index.html", async (e) => {
       dispose?.();
-      loadImportMapFromVFS(vfs, remixImportMap).then((im) => {
+      loadImportMap(vfs, remixImportMap).then((im) => {
         if (JSON.stringify(im) !== JSON.stringify(importMap)) {
           importMap = im;
           updateCompilerOptions({ importMap });
@@ -337,7 +337,7 @@ class TypesStore {
 }
 
 /** Load compiler options from tsconfig.json in VFS if exists. */
-async function readCompilerOptions(vfs: VFS) {
+async function loadCompilerOptions(vfs: VFS) {
   const compilerOptions: ts.CompilerOptions = {};
   try {
     const tsconfigjson = await vfs.readTextFile("tsconfig.json");
@@ -352,6 +352,33 @@ async function readCompilerOptions(vfs: VFS) {
     }
   }
   return compilerOptions;
+}
+
+/** Load import maps from the root index.html or external json file in the VFS. */
+export async function loadImportMap(vfs: VFS, validate: (im: ImportMap) => ImportMap) {
+  let src: string;
+  try {
+    const indexHtml = await vfs.readTextFile("index.html");
+    const tplEl = document.createElement("template");
+    tplEl.innerHTML = indexHtml;
+    const scriptEl: HTMLScriptElement = tplEl.content.querySelector("script[type=\"importmap\"]");
+    if (scriptEl) {
+      src = "file:///index.html";
+      if (scriptEl.src) {
+        src = new URL(scriptEl.src, src).href;
+      }
+      const importMap = parseImportMapFromJson(
+        scriptEl.src ? await vfs.readTextFile(scriptEl.src) : scriptEl.textContent,
+      );
+      importMap.$src = src;
+      return validate(importMap);
+    }
+  } catch (error) {
+    // ignore error, fallback to a blank import map
+    console.error(`Failed to load import map from "${src}":`, error.message);
+  }
+  const importMap = createBlankImportMap();
+  return validate(importMap);
 }
 
 /**

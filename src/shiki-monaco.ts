@@ -43,7 +43,7 @@ const tokenizeTimeLimit = 500;
 const colorMap: string[] = [];
 const colorToScopeMap = new Map<string, string>();
 
-export function initShikiMonacoTokenizer(monaco: typeof monacoNs, highlighter: ShikiInternal<any, any>, languageIds: string[]) {
+export function initShikiMonacoTokenizer(monaco: typeof monacoNs, highlighter: ShikiInternal<any, any>) {
   // Convert themes to Monaco themes and register them
   const themeMap = new Map<string, MonacoTheme>();
   const themeIds = highlighter.getLoadedThemes();
@@ -76,10 +76,6 @@ export function initShikiMonacoTokenizer(monaco: typeof monacoNs, highlighter: S
 
   // Set the first theme as the default theme
   monaco.editor.setTheme(themeIds[0]);
-
-  for (const languageId of languageIds) {
-    registerShikiMonacoTokenizer(monaco, highlighter, languageId);
-  }
 }
 
 export function registerShikiMonacoTokenizer(monaco: typeof monacoNs, highlighter: ShikiInternal<any, any>, languageId: string) {

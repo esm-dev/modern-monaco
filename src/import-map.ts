@@ -1,24 +1,30 @@
 /** The import maps follow the spec at https://wicg.github.io/import-maps/. */
 export interface ImportMap {
+  $baseURL: string;
   $src?: string;
   $support?: boolean;
-  $baseURL: string;
   imports: Record<string, string>;
-  scopes: Record<string, ImportMap["imports"]>;
+  scopes: Record<string, Record<string, string>>;
 }
 
 /** Create a blank import map. */
-export function blankImportMap(): ImportMap {
+export function createBlankImportMap(baseURL?: string): ImportMap {
   return {
-    $baseURL: "file:///",
+    $baseURL: new URL(baseURL ?? ".", "file:///").href,
+    $support: globalThis.HTMLScriptElement?.supports?.("importmap"),
     imports: {},
     scopes: {},
   };
 }
 
+/** Check if the import map is blank. */
+export function isBlankImportMap(importMap: ImportMap) {
+  return Object.keys(importMap.imports).length + Object.keys(importMap.scopes).length === 0;
+}
+
 /** Validate the given import map. */
-export function toImportMap(v: any): ImportMap {
-  const im = blankImportMap();
+export function importMapFrom(v: any, baseURL?: string): ImportMap {
+  const im = createBlankImportMap(baseURL);
   if (isObject(v)) {
     const { imports, scopes } = v;
     if (isObject(imports)) {
@@ -33,9 +39,39 @@ export function toImportMap(v: any): ImportMap {
   return im;
 }
 
-/** Check if the import map is blank. */
-export function isBlank(importMap: ImportMap) {
-  return Object.keys(importMap.imports).length + Object.keys(importMap.scopes).length === 0;
+/** Parse the import map from JSON. */
+export function parseImportMapFromJson(json: string, baseURL?: string): ImportMap {
+  const importMap: ImportMap = {
+    $baseURL: new URL(baseURL ?? ".", "file:///").href,
+    $support: globalThis.HTMLScriptElement?.supports?.("importmap"),
+    imports: {},
+    scopes: {},
+  };
+  const v = JSON.parse(json);
+  if (isObject(v)) {
+    const { imports, scopes } = v;
+    if (isObject(imports)) {
+      validateImports(imports);
+      importMap.imports = imports as ImportMap["imports"];
+    }
+    if (isObject(scopes)) {
+      validateScopes(scopes);
+      importMap.scopes = scopes as ImportMap["scopes"];
+    }
+  }
+  return importMap;
+}
+
+/** Parse the import map from Html. */
+export function parseImportMapFromHtml(html: string, baseURL?: string): ImportMap {
+  const tplEl = document.createElement("template");
+  tplEl.innerHTML = html;
+  const scriptEl: HTMLScriptElement = tplEl.content.querySelector("script[type='importmap']");
+  if (scriptEl) {
+    return parseImportMapFromJson(scriptEl.textContent, baseURL);
+  }
+
+  return createBlankImportMap(baseURL);
 }
 
 /** Resolve the specifier with the import map. */
@@ -79,57 +115,6 @@ function matchImports(specifier: string, imports: ImportMap["imports"]) {
     }
   }
   return null;
-}
-
-/** Parse the import map from JSON. */
-export function parseImportMapFromJson(json: string, baseURL?: string): ImportMap {
-  const importMap: ImportMap = {
-    $support: globalThis.HTMLScriptElement?.supports?.("importmap"),
-    $baseURL: new URL(baseURL ?? ".", "file:///").href,
-    imports: {},
-    scopes: {},
-  };
-  const v = JSON.parse(json);
-  if (isObject(v)) {
-    const { imports, scopes } = v;
-    if (isObject(imports)) {
-      validateImports(imports);
-      importMap.imports = imports as ImportMap["imports"];
-    }
-    if (isObject(scopes)) {
-      validateScopes(scopes);
-      importMap.scopes = scopes as ImportMap["scopes"];
-    }
-  }
-  return importMap;
-}
-
-/** Load import maps from the root index.html or external json file in the VFS. */
-export async function loadImportMapFromVFS(vfs: import("./vfs").VFS, verify?: (im: ImportMap) => ImportMap) {
-  let src: string;
-  try {
-    const indexHtml = await vfs.readTextFile("index.html");
-    const tplEl = document.createElement("template");
-    tplEl.innerHTML = indexHtml;
-    const scriptEl: HTMLScriptElement = tplEl.content.querySelector("script[type=\"importmap\"]");
-    src = "file:///index.html";
-    if (scriptEl) {
-      if (scriptEl.src) {
-        src = new URL(scriptEl.src, src).href;
-      }
-      const importMap = parseImportMapFromJson(
-        scriptEl.src ? await vfs.readTextFile(scriptEl.src) : scriptEl.textContent,
-      );
-      importMap.$src = src;
-      return verify?.(importMap) ?? importMap;
-    }
-  } catch (error) {
-    // ignore error, fallback to a blank import map
-    console.error(`Failed to load import map from "${src}":`, error.message);
-  }
-  const importMap = blankImportMap();
-  importMap.$src = src;
-  return verify?.(importMap) ?? importMap;
 }
 
 function validateImports(imports: Record<string, unknown>) {
