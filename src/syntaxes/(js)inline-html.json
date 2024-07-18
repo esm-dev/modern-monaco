@@ -1,7 +1,7 @@
 {
 	"$license": "https://github.com/pushqrdx/vscode-inline-html/blob/master/LICENSE",
 	"name": "Inline HTML in JavaScript",
-	"scopeName": "text.inline.html",
+	"scopeName": "text.html.inline",
 	"injectTo": [
 		"source.js",
 		"source.jsx",

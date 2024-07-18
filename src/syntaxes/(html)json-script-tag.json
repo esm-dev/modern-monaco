@@ -2,9 +2,9 @@
   "name": "JSON Script Tag in HTML",
   "scopeName": "text.html.json-script-tag",
   "injectTo": [
-    "text.html"
+    "text.html.basic"
   ],
-  "injectionSelector": "L:text.html",
+  "injectionSelector": "L:text.html.basic -comment",
   "patterns": [
     {
       "begin": "(<)(script)\\b(?=[^>]*type=(importmap|'importmap'|\"importmap\"|json|'json'|\"json\"|'application/json'|\"application/json\"))(?![^/>]*/>\\s*$)",
