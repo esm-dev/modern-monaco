@@ -3,23 +3,22 @@
 
 # esm-monaco
 
-A Code Editor powered by monaco-editor-core with radical ESM support. Core features include:
+A Web Code Editor powered by [monaco-editor-core](https://www.npmjs.com/package/monaco-editor-core) with radical ESM support. Core features include:
 
 - ESM only, load dependencies on demand, no `MonacoEnvironment` required.
 - Using [Shiki](https://shiki.style) for syntax highlighting with tons of themes and grammars.
 - Pre-highlighting code with Shiki and load the editor.js in background.
 - Support **server-side rendering(SSR)** with hydration in client side.
 - Virtual File System(VFS) for multiple files editing.
-- Automatically loading `.d.ts` from [esm.sh](https://esm.sh) for type checking.
+- Automatically loading `.d.ts` from [esm.sh](https://esm.sh) CDN for type checking.
 - Using [import maps](https://github.com/WICG/import-maps) to resolving **bare specifier** import in JavaScript/TypeScript.
+- Partly support VSCode `window` APIs like `showInputBox`, `showQuickPick`, etc.
 - Embedded languages(importmap/CSS/JavaScript) with LSP support in HTML.
 - Inline `html` and `css` highlight in JavaScript/TypeScript.
 - Auto-closing HTML/JSX tags.
 
 Planned features:
 
-- [ ] add import maps codelens (search NPM packages, update package version, etc.)
-- [ ] add vscode `window` like API (showInputBox, showErrorMessage, etc.)
 - [ ] support Emmet
 - [ ] enable LSP for inline `html` and `css` in JavaScript/TypeScript
 
@@ -41,10 +40,10 @@ import * from "https://esm.sh/esm-monaco"
 
 ## Usage
 
-There are three working modes for esm-monaco:
+esm-monaco provides three modes to create a code editor:
 
-- **Lazy**: hightlight the code with Shiki and load `monaco-editor-core` in background.
-- **SSR**: render the editor in server side, and hydrate it in client side.
+- **Lazy**: hightlight the code with Shiki and load the editor in background.
+- **SSR**: render the editor(mocked) in server side, and hydrate it in client side.
 - **Manual**: create a monaco editor instance manually.
 
 ### Lazy Mode
@@ -57,7 +56,6 @@ There are three working modes for esm-monaco:
 
   // create a virtual file system
   const vfs = new VFS({ scope: "APP_ID" });
-  vfs.write("app.js", `console.log("Hello, world!")`);
 
   // initialize the editor lazily
   lazy({ vfs });
@@ -74,7 +72,7 @@ export default {
     const ssrOut = renderToWebComponent({
       code: `console.log("Hello, world!")`,
       filename: "app.js",
-      userAgent: req.headers.get("User-Agent"), // for font detection
+      userAgent: req.headers.get("user-agent"), // for system detection
     });
     return new Response(html`
       ${ssrOut}
@@ -98,22 +96,18 @@ export default {
 <div id="editor"></div>
 
 <script type="module">
-  import { init, VFS } from "https://esm.sh/esm-monaco";
+  import { init } from "https://esm.sh/esm-monaco";
 
-  // create a virtual file system
-  const vfs = new VFS({ scope: "APP_ID" });
-  vfs.write("app.js", `console.log("Hello, world!")`);
-
-  // load the monaco-editor-core
-  const monacoNS = await init({ vfs });
+  // load editor-core.js
+  const monaco = await init();
 
   // create a monaco editor instance
   const editor = monaco.editor.create(document.getElementById("editor"), {
     /* add your editor options here */
   });
 
-  // set the active model from the vfs
-  vfs.openModel("app.js", editor)
+  // create and attach a model to the editor
+  editor.setModel(monaco.editor.createModel("console.log('Hello, world!')", "javascript"));
 </script>
 ```
 
@@ -122,6 +116,10 @@ export default {
 [Todo]
 
 ## Virtual File System(VFS)
+
+[Todo]
+
+## VSCode `window` APIs compatibility
 
 [Todo]
 
