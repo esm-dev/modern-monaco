@@ -15,11 +15,11 @@ importers:
         specifier: 0.50.0
         version: 0.50.0
       tm-grammars:
-        specifier: 1.13.11
-        version: 1.13.11
+        specifier: 1.13.12
+        version: 1.13.12
       tm-themes:
-        specifier: 1.5.3
-        version: 1.5.3
+        specifier: 1.5.4
+        version: 1.5.4
       typescript:
         specifier: 5.5.3
         version: 5.5.3
@@ -59,11 +59,11 @@ packages:
   monaco-editor-core@0.50.0:
     resolution: {integrity: sha512-XKdublTat9qDKwJhMbm6nnTUKA75MU7jWVooZeXcZKP0/y2jscNWQ9FpCiRtWk33Teemihx155WQ7o7xgf89eA==}
 
-  tm-grammars@1.13.11:
-    resolution: {integrity: sha512-qZysArHMEbWF27pI914n8RpkFj8t1zNwXoEzJfzE6eknxOrPeRea+z6N9rZvhqIO0vrS7qBjoE/u8zibO+gYBA==}
+  tm-grammars@1.13.12:
+    resolution: {integrity: sha512-uLYuI23q3/igdPuMR3NDZ5NkD1UF0K6X2EGi6PTrn8qb2kf7y2SLvIXq/yDDrt/h2vPCqvo9bmA4/RMK1jCd8w==}
 
-  tm-themes@1.5.3:
-    resolution: {integrity: sha512-ZBKHHNcC/AukHLE5KKcM3567DXYmknEoTQhW75uBJUsWt9TshZre+GBOyk2saYf5mfJ0vFDs4DIY0wJoBICa6w==}
+  tm-themes@1.5.4:
+    resolution: {integrity: sha512-913h3c2jYyEoOttsHC+aazjCXYu4yL9MvdhZ9Vybs1S/qBV7IvviJB/V3td4+endNzkPBPNyseiEQ9ZlyxD1QQ==}
 
   typescript@5.5.3:
     resolution: {integrity: sha512-/hreyEujaB0w76zKo6717l3L0o/qEUtRgdvUBvlkhoWeOVMjMuHNHk0BRBzikzuGDqNmPQbg5ifMEqsHLiIUcQ==}
@@ -109,9 +109,9 @@ snapshots:
 
   monaco-editor-core@0.50.0: {}
 
-  tm-grammars@1.13.11: {}
+  tm-grammars@1.13.12: {}
 
-  tm-themes@1.5.3: {}
+  tm-themes@1.5.4: {}
 
   typescript@5.5.3: {}
 
