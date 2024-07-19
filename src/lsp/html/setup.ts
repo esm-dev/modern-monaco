@@ -15,7 +15,10 @@ export function setup(
   const { tabSize, insertSpaces, insertFinalNewline, trimFinalNewlines } = formattingOptions ?? {};
   const createData: CreateData = {
     settings: {
-      suggest: {},
+      suggest: {
+        hideAutoCompleteProposals: languageSettings?.hideAutoCompleteProposals as boolean | undefined,
+        attributeDefaultValue: languageSettings?.attributeDefaultValue as "empty" | "singlequotes" | "doublequotes" | undefined,
+      },
       format: {
         tabSize,
         insertSpaces,

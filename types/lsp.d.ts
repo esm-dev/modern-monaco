@@ -51,13 +51,13 @@ export interface IData {
   description?: string;
   references?: IReference[];
 }
-export interface ITagData extends IData {
-  attributes: IAttributeData[];
-  void?: boolean;
-}
 export interface IAttributeData extends IData {
   valueSet?: string;
   values?: IData[];
+}
+export interface ITagData extends IData {
+  attributes: IAttributeData[];
+  void?: boolean;
 }
 
 export interface LSP {
@@ -85,7 +85,9 @@ export interface LSPConfig extends LSPLanguageConfig {
 declare global {
   interface LSPLanguageConfig {
     html?: {
+      attributeDefaultValue?: "empty" | "singlequotes" | "doublequotes";
       customTags?: ITagData[];
+      hideAutoCompleteProposals?: boolean;
     };
     css?: {};
     json?: {
