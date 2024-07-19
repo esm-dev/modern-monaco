@@ -20,12 +20,11 @@ export function setup(
       settings: {
         validate: true,
         allowComments: false,
-        schemaRequest: "warning",
-        schemaValidation: "warning",
+        schemas: Array.isArray(languageSettings?.schemas) ? schemas.concat(languageSettings.schemas) : schemas,
         comments: "error",
         trailingCommas: "error",
-        ...languageSettings,
-        schemas: Array.isArray(languageSettings?.schemas) ? schemas.concat(languageSettings.schemas) : schemas,
+        schemaRequest: "warning",
+        schemaValidation: "warning",
       },
       format: {
         tabSize: 4,

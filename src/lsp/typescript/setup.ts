@@ -73,8 +73,8 @@ async function createWorker(
     noEmit: true,
     ...(languageSettings?.compilerOptions as ts.CompilerOptions),
   };
+  const typesStore = new TypesStore();
   const defaultImportMap = importMapFrom(languageSettings?.importMap);
-  const types = new TypesStore();
   const remixImportMap = (im: ImportMap): ImportMap => {
     if (isBlankImportMap(defaultImportMap)) {
       return im;
@@ -108,14 +108,14 @@ async function createWorker(
   const [libs] = await Promise.all(promises);
 
   // resolve types of the default compiler options
-  await types.resolve(compilerOptions, vfs);
+  await typesStore.load(compilerOptions, vfs);
 
   const { tabSize = 4, trimTrailingWhitespace = true, insertSpaces = true, semicolon = "insert" } = formattingOptions ?? {};
   const createData: CreateData = {
     compilerOptions,
     importMap,
     libs,
-    types: types.all,
+    types: typesStore.types,
     hasVFS: Boolean(vfs),
     formatOptions: {
       tabSize,
@@ -166,12 +166,12 @@ async function createWorker(
       (compilerOptions.$types as string[] ?? []).map((url) =>
         vfs.watch(url, async (e) => {
           if (e.kind === "remove") {
-            types.remove(url);
+            typesStore.remove(url);
           } else {
             const content = await vfs.readTextFile(url);
-            types.add(content, url);
+            typesStore.add(content, url);
           }
-          updateCompilerOptions({ types: types.all });
+          updateCompilerOptions({ types: typesStore.types });
         })
       );
     const watchImportMapJSON = () => {
@@ -204,8 +204,8 @@ async function createWorker(
         const newOptions = { ...defaultCompilerOptions, ...options };
         if (JSON.stringify(newOptions) !== JSON.stringify(compilerOptions)) {
           compilerOptions = newOptions;
-          types.resolve(compilerOptions, vfs).then(() => {
-            updateCompilerOptions({ compilerOptions, types: types.all });
+          typesStore.load(compilerOptions, vfs).then(() => {
+            updateCompilerOptions({ compilerOptions, types: typesStore.types });
           });
         }
         disposes = watchTypes();
@@ -247,7 +247,7 @@ class TypesStore {
   private _types: Record<string, VersionedContent> = {};
   private _removedtypes: Record<string, number> = {};
 
-  get all() {
+  get types() {
     return this._types;
   }
 
@@ -291,8 +291,8 @@ class TypesStore {
     return false;
   }
 
-  /** Resolve types of the compiler options. */
-  async resolve(compilerOptions: ts.CompilerOptions, vfs?: VFS) {
+  /** load types defined in tsconfig.json */
+  async load(compilerOptions: ts.CompilerOptions, vfs?: VFS) {
     const types = compilerOptions.types;
     if (Array.isArray(types)) {
       delete compilerOptions.types;

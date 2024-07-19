@@ -150,7 +150,7 @@ async function loadMonaco(highlighter: Highlighter, options?: InitOption, onEdit
     },
   });
 
-  // add keybinding `cmd+k` open command palette (only for macintosh)
+  // add keybinding `cmd+k` for opening the quick command palette on macOS
   if (globalThis.navigator?.userAgent?.includes("Macintosh")) {
     monaco.editor.addKeybindingRule({
       keybinding: monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK,
