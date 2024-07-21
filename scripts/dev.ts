@@ -128,7 +128,7 @@ const cmd = new Deno.Command(Deno.execPath(), {
 });
 cmd.spawn();
 
-const vfsJs = await Deno.readTextFile(new URL("../examples/assets/vfs.js", import.meta.url)).then((text) => {
+const vfsJs = await Deno.readTextFile(new URL("../examples/vfs.js", import.meta.url)).then((text) => {
   return text.replace("$APP_TSX", JSON.stringify(appTsx));
 });
 
