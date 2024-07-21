@@ -135,7 +135,7 @@ const vfsJs = await Deno.readTextFile(new URL("../examples/vfs.js", import.meta.
 Deno.serve(async (req) => {
   let url = new URL(req.url);
   let pathname = url.pathname;
-  if (pathname === "/assets/vfs.js") {
+  if (pathname === "/vfs.js") {
     return new Response(
       vfsJs,
       {
