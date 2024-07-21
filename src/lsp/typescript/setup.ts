@@ -225,18 +225,10 @@ async function createWorker(
   }
 
   monaco.editor.addCommand({
-    id: "cache-http-module",
+    id: "ts:fetch_http_module",
     run: async (_: unknown, url: string, containingFile: string) => {
       const proxy = await worker.getProxy();
-      await proxy.cacheHttpModule(url, containingFile);
-    },
-  });
-
-  monaco.editor.addCommand({
-    id: "remove-http-redirect",
-    run: async (_: unknown, index: number) => {
-      const proxy = await worker.getProxy();
-      await proxy.removeHttpRedirect(index);
+      await proxy.fetchHttpModule(url, containingFile);
     },
   });
 

@@ -68,11 +68,12 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   private _jsxImportUrl: string;
   private _formatOptions?: CreateData["formatOptions"];
   private _languageService = ts.createLanguageService(this);
+  private _httpRedirects = new Map<string, string>();
   private _httpLibs = new Map<string, string>();
   private _httpModules = new Map<string, string>();
   private _httpTsModules = new Map<string, string>();
-  private _httpRedirects: { node: ts.Node; url: string }[] = [];
   private _dtsMap = new Map<string, string>();
+  private _redirectModules: [modelUrl: string, node: ts.Node, url: string][] = [];
   private _unknownModules = new Set<string>();
   private _naModules = new Set<string>();
   private _hasVFS: boolean;
@@ -247,17 +248,19 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     _containingSourceFile: ts.SourceFile,
     _reusedNames: readonly ts.StringLiteralLike[] | undefined,
   ): readonly ts.ResolvedModuleWithFailedLookupLocations[] {
+    this._redirectModules = this._redirectModules.filter(([modelUrl]) => modelUrl !== containingFile);
     return moduleLiterals.map((literal): ts.ResolvedModuleWithFailedLookupLocations["resolvedModule"] => {
       let specifier = literal.text;
-      let inImportMap = false;
-      let isJsxImportSource = specifier === this._jsxImportUrl;
+      let importMapResovled = false;
       if (!this._isBlankImportMap) {
         const url = resolve(this._importMap, specifier, containingFile);
-        inImportMap = url !== specifier;
-        if (inImportMap) {
-          isJsxImportSource = url === this._jsxImportUrl;
+        importMapResovled = url !== specifier;
+        if (importMapResovled) {
           specifier = url;
         }
+      }
+      if (!importMapResovled && !isHttpUrl(specifier) && !isRelativePath(specifier)) {
+        return undefined;
       }
       let moduleUrl: URL;
       try {
@@ -303,51 +306,53 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
               }
             }).finally(() => {
               this._openPromises.delete(moduleName);
-              if (this._openPromises.size === 0) {
-                this._refreshDiagnostics();
-              }
+              this._refreshDiagnostics();
             }),
           );
         }
       } else {
-        const moduleName = moduleUrl.href;
-        if (this._naModules.has(moduleName) || this._unknownModules.has(moduleName)) {
+        const moduleHref = moduleUrl.href;
+        if (this._naModules.has(moduleHref) || this._unknownModules.has(moduleHref)) {
           return undefined;
         }
-        if (this._httpModules.has(moduleName)) {
+        if (this._httpRedirects.has(moduleHref)) {
+          const redirectUrl = this._httpRedirects.get(moduleHref);
+          this._redirectModules.push([containingFile, literal, redirectUrl]);
+        }
+        if (this._httpModules.has(moduleHref)) {
           return {
-            resolvedFileName: moduleName,
+            resolvedFileName: moduleHref,
             extension: getScriptExtension(moduleUrl.pathname, ".js"),
           };
         }
-        if (this._httpTsModules.has(moduleName)) {
+        if (this._httpTsModules.has(moduleHref)) {
           return {
-            resolvedFileName: moduleName,
+            resolvedFileName: moduleHref,
             extension: getScriptExtension(moduleUrl.pathname, ".ts"),
           };
         }
-        if (this._dtsMap.has(moduleName)) {
+        if (this._dtsMap.has(moduleHref)) {
           return {
-            resolvedFileName: this._dtsMap.get(moduleName),
+            resolvedFileName: this._dtsMap.get(moduleHref),
             extension: ".d.ts",
           };
         }
-        if (this._httpLibs.has(moduleName)) {
+        if (this._httpLibs.has(moduleHref)) {
           return {
-            resolvedFileName: moduleName,
+            resolvedFileName: moduleHref,
             extension: ".d.ts",
           };
         }
-        if (!this._fetchPromises.has(moduleName)) {
-          const download = isJsxImportSource || inImportMap || isHttpUrl(containingFile)
-            || /\w@[~v^]?\d+(\.\d+){0,2}([&?/]|$)/.test(moduleUrl.pathname);
-          const promise = download ? cache.fetch(moduleUrl) : cache.query(moduleUrl);
+        if (!this._fetchPromises.has(moduleHref)) {
+          const autoFetch = specifier === this._jsxImportUrl || importMapResovled || isHttpUrl(containingFile) || isEsmshModule(moduleUrl);
+          const promise = autoFetch ? cache.fetch(moduleUrl) : cache.query(moduleUrl);
           this._fetchPromises.set(
-            moduleName,
+            moduleHref,
             promise.then(async (res) => {
               if (!res) {
                 // did not find the module in the cache
-                this._unknownModules.add(moduleName);
+                this._unknownModules.add(moduleHref);
+                this._rollbackVersion(containingFile);
                 return;
               }
               if (res.ok) {
@@ -355,49 +360,48 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
                 const dts = res.headers.get("x-typescript-types");
                 const resUrl = new URL(res.url);
                 if (res.redirected) {
-                  this._httpRedirects.push({ node: literal, url: res.url });
+                  this._httpRedirects.set(moduleHref, resUrl.href);
                 }
                 if (dts) {
-                  const dtsRes = await cache.fetch(new URL(dts, res.url));
                   res.body?.cancel();
+                  const dtsRes = await cache.fetch(new URL(dts, res.url));
                   if (dtsRes.ok) {
                     this._httpLibs.set(dtsRes.url, await dtsRes.text());
-                    this._dtsMap.set(moduleName, dtsRes.url);
+                    this._dtsMap.set(moduleHref, dtsRes.url);
                   }
                 } else if (
                   /\.(c|m)?jsx?$/.test(resUrl.pathname)
                   || /^(application|text)\/(javascript|jsx)/.test(contentType)
                 ) {
-                  this._httpModules.set(moduleName, await res.text());
+                  this._httpModules.set(moduleHref, await res.text());
                 } else if (
                   /\.(c|m)?tsx?$/.test(resUrl.pathname)
                   || /^(application|text)\/(typescript|tsx)/.test(contentType)
                 ) {
                   if (/\.d\.(c|m)?ts$/.test(resUrl.pathname)) {
-                    this._httpLibs.set(moduleName, await res.text());
+                    this._httpLibs.set(moduleHref, await res.text());
                   } else {
-                    this._httpTsModules.set(moduleName, await res.text());
+                    this._httpTsModules.set(moduleHref, await res.text());
                   }
                 } else {
                   // not a javascript or typescript module
                   res.body?.cancel();
-                  this._naModules.add(moduleName);
+                  this._naModules.add(moduleHref);
                 }
               } else {
+                // bad response
                 res.body?.cancel();
-                this._naModules.add(moduleName);
+                this._naModules.add(moduleHref);
               }
               this._rollbackVersion(containingFile);
             }).finally(() => {
-              this._fetchPromises.delete(moduleName);
-              if (this._fetchPromises.size === 0) {
-                this._refreshDiagnostics();
-              }
+              this._fetchPromises.delete(moduleHref);
+              this._refreshDiagnostics();
             }),
           );
         }
       }
-      // hide diagnostics for unresolved modules
+      // resolving modules...
       return { resolvedFileName: specifier, extension: ".js" };
     }).map((resolvedModule) => {
       return { resolvedModule };
@@ -426,17 +430,18 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
         diagnostics.push(this._convertDiagnostic(document, diagnostic));
       }
     }
-
-    if (this._httpRedirects.length > 0) {
-      this._httpRedirects.forEach(({ node, url }) => {
-        diagnostics.push(this._convertDiagnostic(document, {
-          file: null,
-          start: node.getStart(),
-          length: node.getWidth(),
-          code: 7000,
-          category: ts.DiagnosticCategory.Message,
-          messageText: `The module was redirected to ${url}`,
-        }));
+    if (this._redirectModules.length > 0) {
+      this._redirectModules.forEach(([modelUrl, node, url]) => {
+        if (modelUrl === uri) {
+          diagnostics.push(this._convertDiagnostic(document, {
+            file: null,
+            start: node.getStart(),
+            length: node.getWidth(),
+            code: 7000,
+            category: ts.DiagnosticCategory.Message,
+            messageText: `The module was redirected to ${url}`,
+          }));
+        }
       });
     }
     return diagnostics;
@@ -787,7 +792,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
 
   // #region public methods used by the host
 
-  async cacheHttpModule(specifier: string, containingFile: string): Promise<void> {
+  async fetchHttpModule(specifier: string, containingFile: string): Promise<void> {
     if (this._unknownModules.has(specifier)) {
       const res = await cache.fetch(specifier);
       res.body?.cancel();
@@ -798,11 +803,6 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
       this._rollbackVersion(containingFile);
       this._refreshDiagnostics();
     }
-  }
-
-  async removeHttpRedirect(index: number): Promise<void> {
-    this._httpRedirects.splice(index, 1);
-    this._refreshDiagnostics();
   }
 
   async updateCompilerOptions(options: {
@@ -991,7 +991,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   ): Promise<ts.CodeFixAction[]> {
     let span = [start + 1, end - 1] as [number, number];
     // fix url/path span
-    if (start === end && (this._httpRedirects.length > 0 || errorCodes.includes(2307))) {
+    if (start === end && (this._redirectModules.length > 0 || errorCodes.includes(2307))) {
       const a = this._languageService.getReferencesAtPosition(fileName, start);
       if (a && a.length > 0) {
         const b = a[0];
@@ -999,12 +999,12 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
       }
     }
     const fixes: ts.CodeFixAction[] = [];
-    if (this._httpRedirects.length > 0) {
-      const i = this._httpRedirects.findIndex(({ node }) => {
-        return node.getStart() === span[0] - 1 && node.getEnd() === span[1] + 1;
+    if (this._redirectModules.length > 0) {
+      const i = this._redirectModules.findIndex(([modelUrl, node]) => {
+        return fileName === modelUrl && node.getStart() === span[0] - 1 && node.getEnd() === span[1] + 1;
       });
       if (i >= 0) {
-        const { url, node } = this._httpRedirects[i];
+        const [_, node, url] = this._redirectModules[i];
         const fixName = `Update module specifier to ${url}`;
         fixes.push({
           fixName,
@@ -1016,11 +1016,6 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
               newText: JSON.stringify(url),
             }],
           }],
-          commands: [{
-            id: "remove-http-redirect",
-            title: "Remove http redirect",
-            arguments: [i],
-          }],
         });
       }
     }
@@ -1029,14 +1024,14 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
       const specifier = model.getValue().slice(...span);
       const importMapSrc = this._importMap.$src;
       if (this._unknownModules.has(specifier)) {
-        const fixName = `Cache module from '${specifier}'`;
+        const fixName = `Fetch module from '${specifier}'`;
         fixes.push({
           fixName,
           description: fixName,
           changes: [],
           commands: [{
-            id: "cache-http-module",
-            title: "Cache the module from internet",
+            id: "ts:fetch_http_module",
+            title: "Fetch the module from internet",
             arguments: [specifier, fileName],
           }],
         });
@@ -1251,6 +1246,17 @@ function getScriptExtension(url: URL | string, defaultExt = ".js"): string | nul
 
 function isHttpUrl(url: string): boolean {
   return url.startsWith("http://") || url.startsWith("https://");
+}
+
+function isRelativePath(path: string): boolean {
+  return path.startsWith("./") || path.startsWith("../");
+}
+
+function isEsmshModule(url: URL): boolean {
+  const { hostname, pathname } = url;
+  const isEsmshHost = hostname === "esm.sh" || hostname.endsWith(".esm.sh");
+  return isEsmshHost
+    && /\/(jsr\/)?((@|gh\/)[\w\.\-]+\/)?[\w\.\-]+@(\d+(\.\d+){0,2}(\-[\w\.]+)?|next|canary|rc|beta|latest)$/.test(pathname);
 }
 
 function isDts(fileName: string): boolean {
