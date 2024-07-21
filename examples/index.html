@@ -256,7 +256,7 @@
         const option = document.createElement('li')
         const span = document.createElement('span')
         const deleteIcon = icons.querySelector('.file-icon-trash').cloneNode(true)
-         const isActive = filename === vfs.history.current
+        const isActive = filename === vfs.history.current
         span.textContent = filename.slice('file:///'.length)
         option.append(icons.querySelector('.file-icon').cloneNode(true))
         option.append(icons.querySelector('.file-icon-edit').cloneNode(true))

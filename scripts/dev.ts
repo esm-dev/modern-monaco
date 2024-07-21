@@ -1,74 +1,18 @@
-const importMap = {
-  imports: {
-    "@jsxImportSource": "https://esm.sh/react@18.2.0",
-    "react": "https://esm.sh/react@18.2.0",
-    "react-dom/": "https://esm.sh/react-dom@18.2.0/",
-  },
-};
-const files = {
-  "log.d.ts": [
-    "/** log a message. */",
-    "declare function log(message:string): void;",
-  ],
-  "greeting.ts": [
-    "export const message = \"Hello world!\" as const;",
-  ],
-  "index.html": [
-    "<!DOCTYPE html>",
-    "<html>",
-    "<head>",
-    "  <meta charset=\"utf-8\">",
-    "  <title>React App</title>",
-    "  <link rel=\"stylesheet\" href=\"./style.css\">",
-    "  \<script type=\"importmap\">",
-    JSON.stringify(importMap, null, 2).split("\n").map((line) => "  " + line).join("\n"),
-    "  <\/script>",
-    "</head>",
-    "<body>",
-    "  <div id=\"root\"></div>",
-    "  <script type=\"module\" src=\"./main.jsx\"><\/script>",
-    "</body>",
-    "</html>",
-  ],
-  "style.css": [
-    "h1 {",
-    "  font-style: italic;",
-    "}",
-  ],
-  "App.tsx": [
-    "import confetti from \"https://esm.sh/canvas-confetti@1.6.0\"",
-    "import { useEffect } from \"react\"",
-    "import { message } from \"./greeting.ts\"",
-    "",
-    "export default function App() {",
-    "  useEffect(() => {",
-    "    confetti()",
-    "    log(message)",
-    "  }, [])",
-    "  return <h1>{message}</h1>;",
-    "}",
-  ],
-  "main.jsx": [
-    "import { createRoot } from \"react-dom/client\"",
-    "import App from \"./App.tsx\"",
-    "",
-    "const root = createRoot(document.getElementById(\"root\"))",
-    "root.render(<App />)",
-  ],
-  "import_map.json": JSON.stringify(importMap, null, 2),
-  "tsconfig.json": JSON.stringify(
-    {
-      compilerOptions: {
-        types: [
-          "log.d.ts",
-          "https://raw.githubusercontent.com/vitejs/vite/main/packages/vite/types/importMeta.d.ts",
-        ],
-      },
-    },
-    null,
-    2,
-  ),
-};
+const appTsx = `
+import confetti from \"https://esm.sh/canvas-confetti@1.6.0\";
+import { useEffect } from \"react\";
+import { message } from \"./greeting.ts\";
+
+export default function App() {
+  useEffect(() => {
+    confetti();
+    log(message);
+  }, []);
+  return (
+    <h1>{message}</h1>
+  );
+}
+`.trim();
 
 async function serveDist(url: URL, req: Request) {
   try {
@@ -125,7 +69,7 @@ async function servePages(url: URL, req: Request) {
       const { renderToWebComponent } = await import(murl);
       const ssrOutput = await renderToWebComponent({
         filename: "App.tsx",
-        code: files["App.tsx"].join("\n"),
+        code: appTsx,
         padding: { top: 8, bottom: 8 },
         userAgent: req.headers.get("user-agent"),
       });
@@ -184,14 +128,16 @@ const cmd = new Deno.Command(Deno.execPath(), {
 });
 cmd.spawn();
 
-Deno.serve((req) => {
+const vfsJs = await Deno.readTextFile(new URL("../examples/vfs.js", import.meta.url)).then((text) => {
+  return text.replace("$APP_TSX", JSON.stringify(appTsx));
+});
+
+Deno.serve(async (req) => {
   let url = new URL(req.url);
   let pathname = url.pathname;
   if (pathname === "/assets/vfs.js") {
     return new Response(
-      `import { VFS } from "/esm-monaco/vfs.js";export const vfs = new VFS({ scope: "test", initial: ${
-        JSON.stringify(files, null, 2)
-      }, history: { storage: "browserHistory" } });`,
+      vfsJs,
       {
         headers: {
           "content-type": "application/javascript; charset=utf-8",

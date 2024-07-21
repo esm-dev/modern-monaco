@@ -312,6 +312,9 @@ export function lazy(options?: InitOption, hydrate?: boolean) {
         if (!filename && vfs) {
           if (vfs.history.current) {
             filename = vfs.history.current;
+          } else if (vfs.defaultFile) {
+            filename = vfs.defaultFile;
+            vfs.history.replace(filename);
           } else {
             const list = await vfs.ls();
             filename = list[0];

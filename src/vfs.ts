@@ -20,12 +20,9 @@ interface VFSEvent {
 
 interface VFSOptions {
   scope?: string;
-  initial?: Record<string, string[] | string | Uint8Array>;
-  history?: {
-    storage?: "localStorage" | "browserHistory";
-    basePath?: string;
-    maxHistory?: number;
-  };
+  initial?: Record<string, string | Uint8Array>;
+  defaultFile?: string;
+  history?: "localStorage" | "browserHistory" | VFSHistory;
 }
 
 interface VFSHistory {
@@ -186,19 +183,31 @@ export class BasicVFS {
 /** A virtual file system for esm-monaco editor. */
 export class VFS extends BasicVFS {
   private _monaco: typeof monacoNS;
+  private _defaultFile?: string;
   private _history: VFSHistory;
   private _viewState: Record<string, monacoNS.editor.ICodeEditorViewState> = {};
 
   constructor(options: VFSOptions) {
     super(options);
+    this._defaultFile = options.defaultFile;
+    if (options.history && typeof options.history === "object") {
+      if (typeof options.history.push === "function") {
+        this._history = options.history;
+      }
+    } else if (options.history === "browserHistory") {
+      if (globalThis.history) {
+        this._history = new VFSBrowserHistory("/");
+      }
+    } else if (globalThis.localStorage) {
+      this._history = new VFSLocalStorageHistory(options.scope);
+    }
     if (globalThis.localStorage) {
       this._viewState = createPersistStateStorage("monaco:vfs.viewState." + options.scope);
     }
-    if (options.history?.storage === "browserHistory" && globalThis.history) {
-      this._history = new VFSBrowserHistory(options.history?.basePath);
-    } else if (globalThis.localStorage) {
-      this._history = new VFSLocalStorageHistory(options.scope, options.history?.maxHistory);
-    }
+  }
+
+  get defaultFile() {
+    return this._defaultFile;
   }
 
   get history() {
@@ -270,7 +279,7 @@ export class VFS extends BasicVFS {
   }
 }
 
-class VFSBrowserHistory implements VFSHistory {
+export class VFSBrowserHistory implements VFSHistory {
   private _basePath = "";
   private _current = "";
   private _handlers = new Set<(name: string) => void>();
@@ -284,9 +293,9 @@ class VFSBrowserHistory implements VFSHistory {
     });
   }
 
-  private _trimBasePath(path: string) {
-    if (path.startsWith(this._basePath)) {
-      return new URL(path.slice(this._basePath.length), "file:///").href;
+  private _trimBasePath(pathname: string) {
+    if (pathname != "/" && pathname.startsWith(this._basePath)) {
+      return new URL(pathname.slice(this._basePath.length), "file:///").href;
     }
     return "";
   }
@@ -339,7 +348,7 @@ class VFSBrowserHistory implements VFSHistory {
   }
 }
 
-class VFSLocalStorageHistory implements VFSHistory {
+export class VFSLocalStorageHistory implements VFSHistory {
   private _state: { current: number; history: string[] };
   private _maxHistory: number;
   private _handlers = new Set<(name: string) => void>();

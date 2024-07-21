@@ -16,16 +16,13 @@ export interface VFSEvent {
 
 interface VFSOptions {
   scope?: string;
-  initial?: Record<string, string[] | string | Uint8Array>;
-  history?: {
-    storage?: "localStorage" | "browserHistory";
-    basePath?: string;
-    maxHistory?: number;
-  };
+  initial?: Record<string, string | Uint8Array>;
+  defaultFile?: string;
+  history?: "localStorage" | "browserHistory" | VFSHistory;
 }
 
 interface VFSHistory {
-  current: string;
+  readonly current: string;
   back(): void;
   forward(): void;
   push(name: string | URL): void;
@@ -47,8 +44,29 @@ export class BasicVFS {
 }
 
 export class VFS extends BasicVFS {
+  readonly defaultFile?: string;
   readonly history: VFSHistory;
   openModel(name: string | URL, attachTo?: editor.ICodeEditor, selectionOrPosition?: IRange | IPosition): Promise<editor.ITextModel>;
+}
+
+export class VFSBrowserHistory implements VFSHistory {
+  constructor(basePath?: string);
+  readonly current: string;
+  back(): void;
+  forward(): void;
+  push(name: string | URL): void;
+  replace(name: string | URL): void;
+  onChange(handler: (name: string) => void): () => void;
+}
+
+export class VFSLocalStorageHistory implements VFSHistory {
+  constructor(scope: string, maxHistory?: number);
+  readonly current: string;
+  back(): void;
+  forward(): void;
+  push(name: string | URL): void;
+  replace(name: string | URL): void;
+  onChange(handler: (name: string) => void): () => void;
 }
 
 export class ErrorNotFound extends Error {}
