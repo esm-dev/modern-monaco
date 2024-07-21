@@ -1,5 +1,3 @@
-// GET /assets/vfs.js
-
 import { VFS } from "/esm-monaco/vfs.js";
 
 const importMap = {
