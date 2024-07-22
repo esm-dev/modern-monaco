@@ -7,20 +7,23 @@ A Web Code Editor powered by [monaco-editor-core](https://www.npmjs.com/package/
 
 - ESM only, load dependencies on demand, no `MonacoEnvironment` required.
 - Using [Shiki](https://shiki.style) for syntax highlighting with tons of themes and grammars.
-- Pre-highlighting code with Shiki and load the editor.js in background.
-- Support **server-side rendering(SSR)** with hydration in client side.
-- Virtual File System(VFS) for multiple files editing.
+- Pre-highlighting code with Shiki and load `monaco-editor-core` in background.
+- Support **server-side rendering(SSR)**.
+- Builtin Virtual File System(VFS) for multiple files editing.
 - Automatically loading `.d.ts` from [esm.sh](https://esm.sh) CDN for type checking.
 - Using [import maps](https://github.com/WICG/import-maps) to resolving **bare specifier** import in JavaScript/TypeScript.
-- Partly support VSCode `window` APIs like `showInputBox`, `showQuickPick`, etc.
-- Embedded languages(importmap/CSS/JavaScript) with LSP support in HTML.
-- Inline `html` and `css` highlight in JavaScript/TypeScript.
+- VSCode `window` APIs like `showInputBox`, `showQuickPick`, etc.
+- Embedded languages(importmap/CSS/JavaScript) in HTML.
+- Inline `html` and `css` in JavaScript/TypeScript.
 - Auto-closing HTML/JSX tags.
 
 Planned features:
 
-- [ ] support Emmet
-- [ ] enable LSP for inline `html` and `css` in JavaScript/TypeScript
+- [ ] Quick open file command (only the VFS is provided)
+- [ ] Drag and drop file (only the VFS is provided)
+- [ ] VSCode `winodow.show<XXX>Message` APIs
+- [ ] Emmet
+- [ ] LSP for inline `html` and `css` in JavaScript/TypeScript
 
 ## Installation
 
@@ -36,13 +39,13 @@ or import it from [esm.sh](https://esm.sh/) in browser without build step:
 import * from "https://esm.sh/esm-monaco"
 ```
 
-> **Note**: The `typescript` package is required for JavaScript/TypeScript LSP support. We recommend `typescript@5.x.x` or later.
+> **Note**: The `typescript` package is required for JavaScript/TypeScript LSP support. We recommend `typescript@5.5.x` or later.
 
 ## Usage
 
 esm-monaco provides three modes to create a code editor:
 
-- **Lazy**: hightlight the code with Shiki and load the editor in background.
+- **Lazy**: hightlight the code with Shiki and load the `editor-core.js` in background.
 - **SSR**: render the editor(mocked) in server side, and hydrate it in client side.
 - **Manual**: create a monaco editor instance manually.
 
