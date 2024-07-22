@@ -5,7 +5,7 @@ import { schemas } from "./schemas.ts";
 
 // ! external modules, don't remove the `.js` extension
 import { parseImportMapFromHtml, parseImportMapFromJson } from "../../import-map.js";
-import * as lfs from "../language-features.js";
+import * as ls from "../language-service.js";
 
 export function setup(
   monaco: typeof monacoNS,
@@ -41,7 +41,7 @@ export function setup(
     label: languageId,
     createData,
   });
-  const workerProxy: lfs.WorkerProxy<JSONWorker> = (
+  const workerProxy: ls.WorkerProxy<JSONWorker> = (
     ...uris: monacoNS.Uri[]
   ): Promise<JSONWorker> => {
     return worker.withSyncedResources(uris);
@@ -66,8 +66,8 @@ export function setup(
   MonacoEnvironment.onWorker(languageId, workerProxy);
 
   // set monacoNS and register language features
-  lfs.setup(monaco);
-  lfs.registerDefault(languageId, workerProxy, [" ", ":", "\""]);
+  ls.setup(monaco);
+  ls.enableDefaultFeatures(languageId, workerProxy, [" ", ":", "\""]);
 
   // register code lens provider for import maps
   languages.registerCodeLensProvider(languageId, {

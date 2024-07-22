@@ -3,7 +3,7 @@ import type { FormattingOptions } from "vscode-languageserver-types";
 import type { CreateData, CSSWorker } from "./worker.ts";
 
 // ! external modules, don't remove the `.js` extension
-import * as lfs from "../language-features.js";
+import * as ls from "../language-service.js";
 
 export function setup(
   monaco: typeof monacoNS,
@@ -35,7 +35,7 @@ export function setup(
     label: languageId,
     createData,
   });
-  const workerProxy: lfs.WorkerProxy<CSSWorker> = (
+  const workerProxy: ls.WorkerProxy<CSSWorker> = (
     ...uris: monacoNS.Uri[]
   ): Promise<CSSWorker> => {
     return worker.withSyncedResources(uris);
@@ -45,10 +45,10 @@ export function setup(
   MonacoEnvironment.onWorker(languageId, workerProxy);
 
   // set monacoNS and register language features
-  lfs.setup(monaco);
-  lfs.registerDefault(languageId, workerProxy, ["/", "-", ":"]);
-  languages.registerCodeActionProvider(languageId, new lfs.CodeActionAdaptor(workerProxy));
-  languages.registerColorProvider(languageId, new lfs.DocumentColorAdapter(workerProxy));
+  ls.setup(monaco);
+  ls.enableDefaultFeatures(languageId, workerProxy, ["/", "-", ":"]);
+  ls.enableCodeAction(languageId, workerProxy);
+  ls.enableColorPresentation(languageId, workerProxy);
 }
 
 export function getWorkerUrl() {

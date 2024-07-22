@@ -22,7 +22,7 @@ const build = (entryPoints: string[], define?: Record<string, string>) => {
       "*/editor-core.js",
       "*/editor-worker.js",
       "*/import-map.js",
-      "*/language-features.js",
+      "*/language-service.js",
       "*/libs.js",
       "*/setup.js",
       "*/shiki.js",
@@ -113,7 +113,7 @@ const buildDist = async () => {
     "src/lsp/html/worker.ts",
     "src/lsp/json/setup.ts",
     "src/lsp/json/worker.ts",
-    "src/lsp/language-features.ts",
+    "src/lsp/language-service.ts",
     "src/lsp/typescript/setup.ts",
     "src/lsp/typescript/worker.ts",
   ]);

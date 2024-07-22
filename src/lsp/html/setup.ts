@@ -3,7 +3,7 @@ import type { FormattingOptions } from "vscode-languageserver-types";
 import type { CreateData, HTMLWorker } from "./worker.ts";
 
 // ! external modules, don't remove the `.js` extension
-import * as lfs from "../language-features.js";
+import * as ls from "../language-service.js";
 
 export function setup(
   monaco: typeof monacoNS,
@@ -48,19 +48,20 @@ export function setup(
     label: languageId,
     createData,
   });
-  const htmlWorkerProxy: lfs.WorkerProxy<HTMLWorker> = (...uris) => htmlWorker.withSyncedResources(uris);
-  const workerProxy = lfs.proxyWorkerWithEmbeddedLanguages(embeddedLanguages, htmlWorkerProxy);
+  const htmlWorkerProxy: ls.WorkerProxy<HTMLWorker> = (...uris) => htmlWorker.withSyncedResources(uris);
+  const workerProxy = ls.proxyWorkerWithEmbeddedLanguages(embeddedLanguages, htmlWorkerProxy);
 
   // @ts-expect-error `onWorker` is added by esm-monaco
   MonacoEnvironment.onWorker(languageId, htmlWorkerProxy);
 
   // set monacoNS and register language features
-  lfs.setup(monaco);
-  lfs.attachEmbeddedLanguages(languageId, embeddedLanguages, htmlWorkerProxy);
-  lfs.enableAutoInsert(languageId, workerProxy, [">", "/", "="]);
-  lfs.registerDefault(languageId, workerProxy, [".", ":", "<", "\"", "=", "/"]);
-  languages.registerLinkProvider(languageId, new lfs.DocumentLinkAdapter(workerProxy));
-  languages.registerColorProvider(languageId, new lfs.DocumentColorAdapter(workerProxy));
+  ls.setup(monaco);
+  ls.attachEmbeddedLanguages(languageId, htmlWorkerProxy, embeddedLanguages);
+  ls.enableDefaultFeatures(languageId, workerProxy, [".", ":", "<", "\"", "=", "/"]);
+  ls.enableAutoInsert(languageId, workerProxy, [">", "/", "="]);
+  ls.enableColorPresentation(languageId, workerProxy); // css color presentation
+
+  // languages.registerLinkProvider(languageId, new ls.DocumentLinkAdapter(workerProxy));
 
   // register code lens provider for import maps
   languages.registerCodeLensProvider(languageId, {

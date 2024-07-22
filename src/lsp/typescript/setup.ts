@@ -8,7 +8,7 @@ import type { CreateData, Host, TypeScriptWorker, VersionedContent } from "./wor
 // ! external modules, don't remove the `.js` extension
 import { cache } from "../../cache.js";
 import { createBlankImportMap, importMapFrom, isBlankImportMap, parseImportMapFromJson } from "../../import-map.js";
-import * as lfs from "../language-features.js";
+import * as ls from "../language-service.js";
 
 type TSWorker = monacoNS.editor.MonacoWebWorker<TypeScriptWorker>;
 
@@ -38,11 +38,11 @@ export async function setup(
   MonacoEnvironment.onWorker(languageId, workerProxy);
 
   // set monacoNS and register language features
-  lfs.setup(monaco);
-  lfs.enableAutoInsert(languageId, workerProxy, [">", "/"]);
-  lfs.registerDefault(languageId, workerProxy, [".", "<", "/", "\"", "'"]);
-  languages.registerCodeActionProvider(languageId, new lfs.CodeActionAdaptor(workerProxy));
-  languages.registerSignatureHelpProvider(languageId, new lfs.SignatureHelpAdapter(workerProxy, ["(", ","]));
+  ls.setup(monaco);
+  ls.enableDefaultFeatures(languageId, workerProxy, [".", "<", "/", "\"", "'"]);
+  ls.enableAutoInsert(languageId, workerProxy, [">", "/"]);
+  ls.enableSignatureHelp(languageId, workerProxy, ["(", ","]);
+  ls.enableCodeAction(languageId, workerProxy);
 
   // unimplemented features
   // languages.registerOnTypeFormattingEditProvider(languageId, new lfs.FormatOnTypeAdapter(workerProxy));
@@ -130,6 +130,7 @@ async function createWorker(
       insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: insertSpaces,
     },
   };
+  const refreshDiagnostics = async () => ls.refreshDiagnostics("javascript", "typescript", "jsx", "tsx");
   const worker = monaco.editor.createWebWorker<TypeScriptWorker>({
     moduleId: "lsp/typescript/worker",
     label: "typescript",
@@ -150,9 +151,7 @@ async function createWorker(
         }
         return true; // model is opened or error is not NotFound
       },
-      refreshDiagnostics: async () => {
-        lfs.refreshDiagnostics("javascript", "typescript", "jsx", "tsx");
-      },
+      refreshDiagnostics,
     } satisfies Host,
   });
 
@@ -160,7 +159,7 @@ async function createWorker(
     const updateCompilerOptions: TypeScriptWorker["updateCompilerOptions"] = async (options) => {
       const proxy = await worker.getProxy();
       await proxy.updateCompilerOptions(options);
-      lfs.refreshDiagnostics("javascript", "typescript", "jsx", "tsx");
+      refreshDiagnostics();
     };
     const watchTypes = () =>
       (compilerOptions.$types as string[] ?? []).map((url) =>

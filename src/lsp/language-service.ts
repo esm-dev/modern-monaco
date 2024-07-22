@@ -24,7 +24,7 @@ export function setup(monaco: typeof monacoNS) {
 
 const refreshEmitters: Map<string, monacoNS.Emitter<void>> = new Map();
 
-export function registerDefault<
+export function enableDefaultFeatures<
   T extends
     & ILanguageWorkerWithValidation
     & ILanguageWorkerWithCompletions
@@ -43,7 +43,7 @@ export function registerDefault<
   workerProxy: WorkerProxy<T>,
   completionTriggerCharacters: string[],
 ) {
-  const { editor, languages, Emitter } = Monaco;
+  const { editor, languages } = Monaco;
 
   // remove document cache from worker when the model is disposed
   const onDispose = (model: monacoNS.editor.ITextModel) => workerProxy().then((worker) => worker.onDocumentRemoved(model.uri.toString()));
@@ -91,8 +91,8 @@ export interface ILanguageWorkerWithEmbeddedSupport {
 
 export function attachEmbeddedLanguages<T extends ILanguageWorkerWithEmbeddedSupport>(
   languageId: string,
+  rawWorker: WorkerProxy<T>,
   embeddedLanguages: Record<string, string>,
-  workerProxy: WorkerProxy<T>,
 ) {
   const { editor, Uri } = Monaco;
   const embeddedLanguageIds = Object.keys(embeddedLanguages);
@@ -105,7 +105,7 @@ export function attachEmbeddedLanguages<T extends ILanguageWorkerWithEmbeddedSup
       return;
     }
     const modelUri = model.uri.toString();
-    const getEmbeddedDocument = (rsl: string) => workerProxy(model.uri).then((worker) => worker.getEmbeddedDocument(modelUri, rsl));
+    const getEmbeddedDocument = (rsl: string) => rawWorker(model.uri).then((worker) => worker.getEmbeddedDocument(modelUri, rsl));
     const attachEmbeddedLanguage = async (rsl: string) => {
       const uri = toEmbeddedUri(model.uri, rsl);
       const doc = await getEmbeddedDocument(rsl);
@@ -159,8 +159,7 @@ export function proxyWorkerWithEmbeddedLanguages<T extends ILanguageWorkerWithEm
   rawWorkerProxy: WorkerProxy<T>,
 ): WorkerProxy<T> {
   const redirectLSPRequest = async (rsl: string, method: string, uri: string, ...args: any[]) => {
-    // @ts-expect-error `workerProxies` is added by esm-monaco
-    const { workerProxies } = MonacoEnvironment;
+    const workerProxies = Reflect.get(MonacoEnvironment, "workerProxies");
     const langaugeId = rsl === "importmap" ? "json" : rsl;
     const workerProxy = workerProxies[langaugeId];
     if (typeof workerProxy === "function") {
@@ -627,6 +626,17 @@ interface ILanguageWorkerWithSignatureHelp {
   ): Promise<lst.SignatureHelp | null>;
 }
 
+export function enableSignatureHelp<T extends ILanguageWorkerWithSignatureHelp>(
+  languageId: string,
+  workerProxy: WorkerProxy<T>,
+  triggerCharacters: string[],
+) {
+  Monaco.languages.registerSignatureHelpProvider(
+    languageId,
+    new SignatureHelpAdapter(workerProxy, triggerCharacters),
+  );
+}
+
 export class SignatureHelpAdapter<T extends ILanguageWorkerWithSignatureHelp> implements monacoNS.languages.SignatureHelpProvider {
   constructor(
     private readonly _worker: WorkerProxy<T>,
@@ -673,6 +683,13 @@ export interface ILanguageWorkerWithCodeAction {
     context: lst.CodeActionContext,
     formatOptions: lst.FormattingOptions,
   ): Promise<lst.CodeAction[] | null>;
+}
+
+export function enableCodeAction<T extends ILanguageWorkerWithCodeAction>(
+  languageId: string,
+  workerProxy: WorkerProxy<T>,
+) {
+  Monaco.languages.registerCodeActionProvider(languageId, new CodeActionAdaptor(workerProxy));
 }
 
 export class CodeActionAdaptor<T extends ILanguageWorkerWithCodeAction> implements monacoNS.languages.CodeActionProvider {
@@ -1121,6 +1138,10 @@ export class DocumentLinkAdapter<T extends ILanguageWorkerWithDocumentLinks> imp
 export interface ILanguageWorkerWithDocumentColors {
   findDocumentColors(uri: string): Promise<lst.ColorInformation[] | null>;
   getColorPresentations(uri: string, color: lst.Color, range: lst.Range): Promise<lst.ColorPresentation[] | null>;
+}
+
+export function enableColorPresentation<T extends ILanguageWorkerWithDocumentColors>(langaugeId: string, worker: WorkerProxy<T>) {
+  Monaco.languages.registerColorProvider(langaugeId, new DocumentColorAdapter(worker));
 }
 
 export class DocumentColorAdapter<T extends ILanguageWorkerWithDocumentColors> implements monacoNS.languages.DocumentColorProvider {
