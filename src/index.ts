@@ -81,7 +81,13 @@ async function loadMonaco(highlighter: Highlighter, options?: InitOption, onEdit
         provider = Object.values(lspProviders).find((p) => p.aliases?.includes(label));
       }
       const url = provider ? (await provider.import()).getWorkerUrl() : monaco.getWorkerUrl();
-      const worker = createWebWorker(url);
+      if (label === "typescript") {
+        const tsVersion = options?.lsp?.typescript?.tsVersion;
+        if (tsVersion && (url.hostname === "esm.sh" || url.hostname.endsWith(".esm.sh"))) {
+          url.searchParams.set("deps", `typescript@${tsVersion}`);
+        }
+      }
+      const worker = createWebWorker(url, undefined);
       if (!provider) {
         const onMessage = (e: MessageEvent) => {
           onEditorWorkerReady?.();

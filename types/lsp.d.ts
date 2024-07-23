@@ -100,7 +100,7 @@ declare global {
       extraLibs?: Record<string, string>;
       /** The global import maps. */
       importMap?: import("./import-map").ImportMap;
-      /** The version of the typescript from CDN. Default: ">= 5.0.0" */
+      /** The version of the typescript from CDN. Default: ">= 5.5.0" */
       tsVersion?: string;
     };
   }

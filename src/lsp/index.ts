@@ -21,6 +21,7 @@ export interface LSPProvider {
 export interface LSPConfig {
   format?: FormattingOptions;
   providers?: Record<string, LSPProvider>;
+  typescript?: { tsVersion?: string };
 }
 
 export const builtinProviders: Record<string, LSPProvider> = {
