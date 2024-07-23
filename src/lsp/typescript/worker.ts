@@ -101,6 +101,11 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     return "/";
   }
 
+  // getDirectories(directoryName: string): string[] {
+  //   console.log("getDirectories", directoryName);
+  //   return [];
+  // }
+
   readFile(filename: string): string | undefined {
     return this._getScriptText(filename);
   }
@@ -175,80 +180,70 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
 
   getScriptSnapshot(fileName: string): ts.IScriptSnapshot | undefined {
     const text = this._getScriptText(fileName);
-    if (text === undefined) {
-      return;
+    if (text) {
+      return {
+        getText: (start, end) => text.substring(start, end),
+        getLength: () => text.length,
+        // todo: support incremental parsing
+        getChangeRange: (_old: ts.IScriptSnapshot) => undefined,
+      };
     }
-    return {
-      getText: (start, end) => text.substring(start, end),
-      getLength: () => text.length,
-      getChangeRange: () => undefined,
-    };
   }
 
   getDefaultLibFileName(options: ts.CompilerOptions): string {
     switch (options.target) {
-      case 99 /* ESNext */: {
-        const esnext = "lib.esnext.full.d.ts";
-        if (esnext in this._libs || esnext in this._types) {
-          return esnext;
-        }
-      }
-      case 7 /* ES2020 */:
-      case 6 /* ES2019 */:
-      case 5 /* ES2018 */:
-      case 4 /* ES2017 */:
-      case 3 /* ES2016 */:
-      case 2 /* ES2015 */:
-      default: {
-        // Support a dynamic lookup for the ES20XX version based on the target
-        // which is safe unless TC39 changes their numbering system
-        const eslib = `lib.es${2013 + (options.target || 99)}.full.d.ts`;
-        // Note: This also looks in _types, If you want
-        // to add support for additional target options, you will need to
-        // add the extra dts files to _types via the API.
-        if (eslib in this._libs || eslib in this._types) {
-          return eslib;
-        }
-
-        return "lib.es6.d.ts"; // We don't use lib.es2015.full.d.ts due to breaking change.
-      }
-      case 1:
-      case 0:
+      case 0 /* ES3 */:
+      case 1 /* ES5 */:
         return "lib.d.ts";
+      case 2 /* ES2015 */:
+        return "lib.es6.d.ts";
+      case 3 /* ES2016 */:
+      case 4 /* ES2017 */:
+      case 5 /* ES2018 */:
+      case 6 /* ES2019 */:
+      case 7 /* ES2020 */:
+      case 8 /* ES2021 */:
+      case 9 /* ES2022 */:
+      case 10 /* ES2023 */:
+        return `lib.es${2013 + options.target}.full.d.ts`;
+      case 99 /* ESNext */:
+        return "lib.esnext.full.d.ts";
+      default:
+        return "lib.es6.d.ts";
     }
   }
 
-  getScriptKind(fileName: string): ts.ScriptKind {
-    if (fileName in this._libs || fileName in this._types || this._httpLibs.has(fileName)) {
-      return ts.ScriptKind.TS;
-    }
-    if (this._httpModules.has(fileName)) {
-      return ts.ScriptKind.JS;
-    }
-    const { pathname } = new URL(fileName, "file:///");
-    const basename = pathname.substring(pathname.lastIndexOf("/") + 1);
-    const dotIndex = basename.lastIndexOf(".");
-    if (dotIndex === -1) {
-      return ts.ScriptKind.JS;
-    }
-    const ext = basename.substring(dotIndex + 1);
-    switch (ext) {
-      case "mts":
-      case "ts":
-        return ts.ScriptKind.TS;
-      case "tsx":
-        return ts.ScriptKind.TSX;
-      case "mjs":
-      case "js":
-        return ts.ScriptKind.JS;
-      case "jsx":
-        return ts.ScriptKind.JSX;
-      case "json":
-        return ts.ScriptKind.JSON;
-      default:
-        return ts.ScriptKind.JS;
-    }
-  }
+  // getScriptKind(fileName: string): ts.ScriptKind {
+  //   if (fileName in this._libs || fileName in this._types || this._httpLibs.has(fileName)) {
+  //     return ts.ScriptKind.TS;
+  //   }
+  //   if (this._httpModules.has(fileName)) {
+  //     return ts.ScriptKind.JS;
+  //   }
+  //   const { pathname } = new URL(fileName, "file:///");
+  //   const basename = pathname.substring(pathname.lastIndexOf("/") + 1);
+  //   const dotIndex = basename.lastIndexOf(".");
+  //   if (dotIndex === -1) {
+  //     return ts.ScriptKind.JS;
+  //   }
+  //   const ext = basename.substring(dotIndex + 1);
+  //   switch (ext) {
+  //     case "mts":
+  //     case "ts":
+  //       return ts.ScriptKind.TS;
+  //     case "tsx":
+  //       return ts.ScriptKind.TSX;
+  //     case "mjs":
+  //     case "js":
+  //       return ts.ScriptKind.JS;
+  //     case "jsx":
+  //       return ts.ScriptKind.JSX;
+  //     case "json":
+  //       return ts.ScriptKind.JSON;
+  //     default:
+  //       return ts.ScriptKind.JS;
+  //   }
+  // }
 
   resolveModuleNameLiterals(
     moduleLiterals: readonly ts.StringLiteralLike[],
@@ -294,11 +289,14 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
         };
       }
       if (moduleUrl.protocol === "file:") {
-        const moduleName = moduleUrl.href;
+        const moduleHref = moduleUrl.href;
+        if (this._naModules.has(moduleHref)) {
+          return undefined;
+        }
         for (const model of this._ctx.getMirrorModels()) {
-          if (moduleName === model.uri.toString()) {
+          if (moduleHref === model.uri.toString()) {
             return {
-              resolvedFileName: moduleName,
+              resolvedFileName: moduleHref,
               extension: getScriptExtension(moduleUrl.pathname),
             };
           }
@@ -306,16 +304,16 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
         if (!this._hasVFS) {
           return undefined;
         }
-        if (!this._openPromises.has(moduleName)) {
+        if (!this._openPromises.has(moduleHref)) {
           this._openPromises.set(
-            moduleName,
-            this._ctx.host.openModel(moduleName).then((ok) => {
+            moduleHref,
+            this._ctx.host.openModel(moduleHref).then((ok) => {
               if (!ok) {
-                this._naModules.add(moduleName);
+                this._naModules.add(moduleHref);
                 this._rollbackVersion(containingFile);
               }
             }).finally(() => {
-              this._openPromises.delete(moduleName);
+              this._openPromises.delete(moduleHref);
               this._refreshDiagnostics();
             }),
           );
