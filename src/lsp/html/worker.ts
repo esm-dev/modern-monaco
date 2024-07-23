@@ -106,6 +106,21 @@ export class HTMLWorker {
     return diagnostic;
   }
 
+  async doAutoComplete(uri: string, position: htmlService.Position, ch: string): Promise<string | null> {
+    const document = this._getTextDocument(uri);
+    if (!document) {
+      return null;
+    }
+    const htmlDocument = this._getHTMLDocument(document);
+    if (ch === ">" || ch === "/") {
+      return this._languageService.doTagComplete(document, position, htmlDocument);
+    } else if (ch === "=") {
+      return this._languageService.doQuoteComplete(document, position, htmlDocument, this._suggestSettings)
+        ?.replaceAll("$1", "$0");
+    }
+    return null;
+  }
+
   async doComplete(uri: string, position: htmlService.Position): Promise<htmlService.CompletionList | null> {
     const document = this._getTextDocument(uri);
     if (!document) {
@@ -176,21 +191,6 @@ export class HTMLWorker {
     // todo: format embedded import-map
 
     return edits;
-  }
-
-  async doAutoInsert(uri: string, position: htmlService.Position, ch: string): Promise<string | null> {
-    const document = this._getTextDocument(uri);
-    if (!document) {
-      return null;
-    }
-    const htmlDocument = this._getHTMLDocument(document);
-    if (ch === ">" || ch === "/") {
-      return this._languageService.doTagComplete(document, position, htmlDocument);
-    } else if (ch === "=") {
-      return this._languageService.doQuoteComplete(document, position, htmlDocument, this._suggestSettings)
-        ?.replaceAll("$1", "$0");
-    }
-    return null;
   }
 
   async doRename(uri: string, position: htmlService.Position, newName: string): Promise<htmlService.WorkspaceEdit | null> {

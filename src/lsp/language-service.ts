@@ -872,13 +872,13 @@ export class DocumentRangeFormattingEditProvider<T extends ILanguageWorkerWithFo
 
 // #endregion
 
-// #region AutoInsert
+// #region AutoComplete
 
-export interface ILanguageWorkerWithAutoInsert {
-  doAutoInsert(uri: string, position: lst.Position, ch: string): Promise<string | null>;
+export interface ILanguageWorkerWithAutoComplete {
+  doAutoComplete(uri: string, position: lst.Position, ch: string): Promise<string | null>;
 }
 
-export function enableAutoInsert<T extends ILanguageWorkerWithAutoInsert>(
+export function enableAutoComplete<T extends ILanguageWorkerWithAutoComplete>(
   langaugeId: string,
   worker: Monaco.editor.MonacoWebWorker<T>,
   triggerCharacters: string[],
@@ -899,15 +899,15 @@ export function enableAutoInsert<T extends ILanguageWorkerWithAutoInsert>(
           const lastRange = lastChange.range;
           const position = new monaco.Position(lastRange.endLineNumber, lastRange.endColumn + lastChange.text.length);
           const workerProxy = await worker.withSyncedResources([model.uri]);
-          const snippet = await workerProxy.doAutoInsert(modelUri, fromPosition(position), lastCharacter);
+          const snippet = await workerProxy.doAutoComplete(modelUri, fromPosition(position), lastCharacter);
           if (snippet) {
             const cursor = snippet.indexOf("$0");
             const insertText = cursor >= 0 ? snippet.replace("$0", "") : snippet;
             const range = new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column);
             model.pushEditOperations([], [{ range, text: insertText }], () => []);
             if (cursor >= 0) {
-              const activeEditor = editor.getEditors().find((e) => e.getModel() === model);
-              activeEditor.setPosition(position.delta(0, cursor));
+              const focusEditor = editor.getEditors().find((e) => e.hasTextFocus());
+              focusEditor.setPosition(position.delta(0, cursor));
             }
           }
         }

@@ -87,7 +87,7 @@ export function setup(
   ls.setup(monaco);
   ls.attachEmbeddedLanguages(languageId, workerWithEmbeddedLanguages, ["css", "javascript", "importmap"]);
   ls.enableBasicFeatures(languageId, workerWithEmbeddedLanguages, ["<", "/", "=", "\""]);
-  ls.enableAutoInsert(languageId, workerWithEmbeddedLanguages, [">", "/", "="]);
+  ls.enableAutoComplete(languageId, workerWithEmbeddedLanguages, [">", "/", "="]);
   ls.enableColorPresentation(languageId, workerWithEmbeddedLanguages); // css color presentation
   ls.enableDocumentLinks(languageId, workerWithEmbeddedLanguages);
 

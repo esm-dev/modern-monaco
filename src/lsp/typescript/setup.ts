@@ -32,7 +32,7 @@ export async function setup(
   // set monacoNS and register language features
   ls.setup(monaco);
   ls.enableBasicFeatures(languageId, worker, [".", "/", "\"", "'", "<"]);
-  ls.enableAutoInsert(languageId, worker, [">", "/"]);
+  ls.enableAutoComplete(languageId, worker, [">", "/"]);
   ls.enableSignatureHelp(languageId, worker, ["(", ","]);
   ls.enableCodeAction(languageId, worker);
 
