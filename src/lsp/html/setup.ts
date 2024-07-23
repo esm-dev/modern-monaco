@@ -55,8 +55,7 @@ export function setup(
   ls.enableBasicFeatures(languageId, workerWithEmbeddedLanguages, [".", ":", "<", "\"", "=", "/"]);
   ls.enableAutoInsert(languageId, workerWithEmbeddedLanguages, [">", "/", "="]);
   ls.enableColorPresentation(languageId, workerWithEmbeddedLanguages); // css color presentation
-
-  // languages.registerLinkProvider(languageId, new ls.DocumentLinkAdapter(workerProxy));
+  ls.enableDocumentLinks(languageId, workerWithEmbeddedLanguages);
 
   // register code lens provider for import maps
   languages.registerCodeLensProvider(languageId, {

@@ -1144,6 +1144,13 @@ export interface ILanguageWorkerWithDocumentLinks {
   findDocumentLinks(uri: string): Promise<lst.DocumentLink[] | null>;
 }
 
+export function enableDocumentLinks<T extends ILanguageWorkerWithDocumentLinks>(
+  langaugeId: string,
+  worker: Monaco.editor.MonacoWebWorker<T>,
+) {
+  monaco.languages.registerLinkProvider(langaugeId, new DocumentLinkAdapter(worker));
+}
+
 export class DocumentLinkAdapter<T extends ILanguageWorkerWithDocumentLinks> implements Monaco.languages.LinkProvider {
   constructor(
     private readonly _worker: Monaco.editor.MonacoWebWorker<T>,
