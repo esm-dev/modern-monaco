@@ -31,7 +31,7 @@ export async function setup(
 
   // set monacoNS and register language features
   ls.setup(monaco);
-  ls.enableBasicFeatures(languageId, worker, [".", "<", "/", "\"", "'"]);
+  ls.enableBasicFeatures(languageId, worker, [".", "/", "\"", "'", "<"]);
   ls.enableAutoInsert(languageId, worker, [">", "/"]);
   ls.enableSignatureHelp(languageId, worker, ["(", ","]);
   ls.enableCodeAction(languageId, worker);
@@ -108,7 +108,7 @@ async function createWorker(
     importMap,
     libs,
     types: typesStore.types,
-    hasVFS: Boolean(vfs),
+    vfs: await vfs?.ls(),
     formatOptions: {
       tabSize,
       trimTrailingWhitespace,
@@ -186,11 +186,11 @@ async function createWorker(
         });
       }
     };
-    let disposes = watchTypes();
-    let dispose = watchImportMapJSON();
+    let unwatchTypes = watchTypes();
+    let unwatchImportMap = watchImportMapJSON();
 
     vfs.watch("tsconfig.json", async (e) => {
-      disposes.forEach((dispose) => dispose());
+      unwatchTypes.forEach((dispose) => dispose());
       loadCompilerOptions(vfs).then((options) => {
         const newOptions = { ...defaultCompilerOptions, ...options };
         if (JSON.stringify(newOptions) !== JSON.stringify(compilerOptions)) {
@@ -199,19 +199,26 @@ async function createWorker(
             updateCompilerOptions({ compilerOptions, types: typesStore.types });
           });
         }
-        disposes = watchTypes();
+        unwatchTypes = watchTypes();
       });
     });
 
     vfs.watch("index.html", async (e) => {
-      dispose?.();
+      unwatchImportMap?.();
       loadImportMap(vfs, remixImportMap).then((im) => {
         if (JSON.stringify(im) !== JSON.stringify(importMap)) {
           importMap = im;
           updateCompilerOptions({ importMap });
         }
-        dispose = watchImportMapJSON();
+        unwatchImportMap = watchImportMapJSON();
       });
+    });
+
+    vfs.watch("*", async (e) => {
+      if (e.kind === "remove" || e.kind === "create") {
+        const proxy = await worker.getProxy();
+        await proxy.updateVFS({ kind: e.kind, path: e.path });
+      }
     });
   }
 

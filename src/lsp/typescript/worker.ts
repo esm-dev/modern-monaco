@@ -40,7 +40,7 @@ export interface CreateData {
   importMap: ImportMap;
   libs: Record<string, string>;
   types: Record<string, VersionedContent>;
-  hasVFS: boolean;
+  vfs?: string[];
   formatOptions?: ts.FormatCodeSettings & Pick<ts.UserPreferences, "quotePreference">;
 }
 
@@ -76,11 +76,11 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   private _redirectModules: [modelUrl: string, node: ts.Node, url: string][] = [];
   private _unknownModules = new Set<string>();
   private _naModules = new Set<string>();
-  private _hasVFS: boolean;
+  private _vfs: string[] = [];
   private _openPromises = new Map<string, Promise<void>>();
   private _fetchPromises = new Map<string, Promise<void>>();
   private _refreshDiagnosticsTimer: number | null = null;
-  private _documentCache = new Map<string, [string, lst.TextDocument]>();
+  private _documentCache = new Map<string, [string, TextDocument]>();
 
   constructor(ctx: monacoNS.worker.IWorkerContext<Host>, createData: CreateData) {
     this._ctx = ctx;
@@ -91,7 +91,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     this._libs = createData.libs;
     this._types = createData.types;
     this._formatOptions = createData.formatOptions;
-    this._hasVFS = createData.hasVFS;
+    this._vfs = createData.vfs;
     this._updateJsxImportSource();
   }
 
@@ -105,6 +105,20 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   //   console.log("getDirectories", directoryName);
   //   return [];
   // }
+
+  readDirectory(
+    path: string,
+    extensions?: readonly string[],
+    exclude?: readonly string[],
+    include?: readonly string[],
+    depth?: number,
+  ): string[] {
+    if (path === "file:///node_modules/") {
+      return Object.keys(this._importMap.imports).filter((key) => key !== "@jsxImportSource");
+    }
+    const entries = this._vfs.filter((file) => file.startsWith(path) && (!extensions || extensions.some((ext) => file.endsWith(ext))));
+    return entries;
+  }
 
   readFile(filename: string): string | undefined {
     return this._getScriptText(filename);
@@ -301,7 +315,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
             };
           }
         }
-        if (!this._hasVFS) {
+        if (!this._vfs) {
           return undefined;
         }
         if (!this._openPromises.has(moduleHref)) {
@@ -465,27 +479,40 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     if (!completions) {
       return { isIncomplete: false, items: [] };
     }
-    // const replaceRange = convertRange(document, getWordAtText(document.getText(), offset, JS_WORD_REGEX));
+    const items: lst.CompletionItem[] = [];
+    for (const entry of completions.entries) {
+      // drop import completions that are in the import map for '.' and '..' imports
+      if (entry.kind === "script" && entry.name in this._importMap.imports || entry.name + "/" in this._importMap.imports) {
+        const { replacementSpan } = entry;
+        if (replacementSpan?.length > 0) {
+          const replacementText = document.getText({
+            start: document.positionAt(replacementSpan.start),
+            end: document.positionAt(replacementSpan.start + replacementSpan.length),
+          });
+          if (replacementText.startsWith(".")) {
+            continue;
+          }
+        }
+      }
+      // data used for resolving item details (see 'doResolveCompletionItem')
+      const data = { entryData: entry.data, context: { uri, offset, languageId: document.languageId } };
+      const tags: lst.CompletionItemTag[] = [];
+      if (entry.kindModifiers?.includes("deprecated")) {
+        tags.push(CompletionItemTag.Deprecated);
+      }
+      items.push({
+        label: entry.name,
+        insertText: entry.name,
+        filterText: entry.filterText,
+        sortText: entry.sortText,
+        kind: toCompletionItemKind(entry.kind),
+        tags,
+        data,
+      });
+    }
     return {
       isIncomplete: completions.isIncomplete,
-      items: completions.entries.map(entry => {
-        const context = { uri, offset, languageId: document.languageId };
-        // data used for resolving item details (see 'doResolveCompletionItem')
-        const data = { entryData: entry.data, context };
-        const tags: lst.CompletionItemTag[] = [];
-        if (entry.kindModifiers?.includes("deprecated")) {
-          tags.push(CompletionItemTag.Deprecated);
-        }
-        return {
-          label: entry.name,
-          insertText: entry.name,
-          filterText: entry.filterText,
-          sortText: entry.sortText,
-          kind: toCompletionItemKind(entry.kind),
-          tags,
-          data,
-        } satisfies lst.CompletionItem;
-      }),
+      items: items,
     };
   }
 
@@ -841,6 +868,19 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     this._documentCache.delete(uri);
   }
 
+  async updateVFS(evt: { kind: "create" | "remove"; path: string }): Promise<void> {
+    const { kind, path } = evt;
+    const url = new URL(path, "file:///").href;
+    if (kind === "create") {
+      this._vfs.push(url);
+    } else {
+      const index = this._vfs.indexOf(url);
+      if (index !== -1) {
+        this._vfs.splice(index, 1);
+      }
+    }
+  }
+
   // #endregion
 
   // #region private methods
@@ -1103,7 +1143,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
       ?? this._getModel(fileName)?.getValue();
   }
 
-  private _getScriptDocument(uri: string): lst.TextDocument | null {
+  private _getScriptDocument(uri: string): TextDocument | null {
     const version = this.getScriptVersion(uri);
     const cached = this._documentCache.get(uri);
     if (cached && cached[0] === version) {
@@ -1144,7 +1184,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     }
   }
 
-  private _convertDiagnostic(document: lst.TextDocument, diagnostic: ts.Diagnostic): lst.Diagnostic {
+  private _convertDiagnostic(document: TextDocument, diagnostic: ts.Diagnostic): lst.Diagnostic {
     const tags: lst.DiagnosticTag[] = [];
     if (diagnostic.reportsUnnecessary) {
       tags.push(DiagnosticTag.Unnecessary);
@@ -1164,7 +1204,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   }
 
   private _convertRelatedInformation(
-    document: lst.TextDocument,
+    document: TextDocument,
     relatedInformation?: ts.DiagnosticRelatedInformation[],
   ): lst.DiagnosticRelatedInformation[] {
     if (!relatedInformation) {
@@ -1271,7 +1311,7 @@ function isDts(fileName: string): boolean {
   return fileName.endsWith(".d.ts") || fileName.endsWith(".d.mts") || fileName.endsWith(".d.cts");
 }
 
-function convertRange(document: lst.TextDocument, span: { start?: number; length?: number }): lst.Range {
+function convertRange(document: TextDocument, span: { start?: number; length?: number }): lst.Range {
   if (typeof span.start === "undefined") {
     const pos = document.positionAt(0);
     return Range.create(pos, pos);
