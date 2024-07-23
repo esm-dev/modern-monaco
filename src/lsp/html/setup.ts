@@ -1,5 +1,6 @@
 import type monacoNS from "monaco-editor-core";
 import type { FormattingOptions } from "vscode-languageserver-types";
+import type { VFS } from "~/vfs.ts";
 import type { CreateData, HTMLWorker } from "./worker.ts";
 
 // ! external modules, don't remove the `.js` extension
@@ -10,30 +11,29 @@ export function setup(
   languageId: string,
   languageSettings?: Record<string, unknown>,
   formattingOptions?: FormattingOptions,
+  vfs?: VFS,
 ) {
   const { editor, languages } = monaco;
   const { tabSize, insertSpaces, insertFinalNewline, trimFinalNewlines } = formattingOptions ?? {};
   const createData: CreateData = {
-    settings: {
-      suggest: {
-        hideAutoCompleteProposals: languageSettings?.hideAutoCompleteProposals as boolean | undefined,
-        attributeDefaultValue: languageSettings?.attributeDefaultValue as "empty" | "singlequotes" | "doublequotes" | undefined,
-      },
-      format: {
-        tabSize,
-        insertSpaces,
-        endWithNewline: insertFinalNewline,
-        preserveNewLines: !trimFinalNewlines,
-        maxPreserveNewLines: 1,
-        indentInnerHtml: false,
-        indentHandlebars: false,
-        unformatted:
-          "default\": \"a, abbr, acronym, b, bdo, big, br, button, cite, code, dfn, em, i, img, input, kbd, label, map, object, q, samp, select, small, span, strong, sub, sup, textarea, tt, var",
-        contentUnformatted: "pre",
-        // extraLiners: "head, body, /html",
-        extraLiners: "",
-        wrapAttributes: "auto",
-      },
+    suggest: {
+      hideAutoCompleteProposals: languageSettings?.hideAutoCompleteProposals as boolean | undefined,
+      attributeDefaultValue: languageSettings?.attributeDefaultValue as "empty" | "singlequotes" | "doublequotes" | undefined,
+    },
+    format: {
+      tabSize,
+      insertSpaces,
+      endWithNewline: insertFinalNewline,
+      preserveNewLines: !trimFinalNewlines,
+      maxPreserveNewLines: 1,
+      indentInnerHtml: false,
+      indentHandlebars: false,
+      unformatted:
+        "default\": \"a, abbr, acronym, b, bdo, big, br, button, cite, code, dfn, em, i, img, input, kbd, label, map, object, q, samp, select, small, span, strong, sub, sup, textarea, tt, var",
+      contentUnformatted: "pre",
+      // extraLiners: "head, body, /html",
+      extraLiners: "",
+      wrapAttributes: "auto",
     },
     data: {
       useDefaultDataProvider: true,
@@ -41,18 +41,43 @@ export function setup(
         ? { custom: { version: 1.1, tags: languageSettings.customTags as any } }
         : undefined,
     },
+    hasVFS: !!vfs,
   };
   const htmlWorker = editor.createWebWorker<HTMLWorker>({
     moduleId: "lsp/html/worker",
     label: languageId,
     createData,
+    host: {
+      readDirectory: async (uri: string) => {
+        const entries = [];
+        const list = await vfs.ls();
+        for (const path of list) {
+          if (path.startsWith(uri)) {
+            entries.push([path.slice(uri.length), 1]);
+          }
+        }
+        return entries;
+      },
+      stat: async (uri: string) => {
+        const file = await vfs.open(uri);
+        return {
+          type: 1,
+          ctime: file.ctime,
+          mtime: file.mtime,
+          size: file.content.length,
+        };
+      },
+      getContent: async (uri: string, encoding?: string): Promise<string> => {
+        return vfs.readTextFile(uri);
+      },
+    },
   });
   const workerWithEmbeddedLanguages = ls.createWorkerWithEmbeddedLanguages(htmlWorker);
 
   // set monacoNS and register language features
   ls.setup(monaco);
   ls.attachEmbeddedLanguages(languageId, workerWithEmbeddedLanguages, ["css", "javascript", "importmap"]);
-  ls.enableBasicFeatures(languageId, workerWithEmbeddedLanguages, [".", ":", "<", "\"", "=", "/"]);
+  ls.enableBasicFeatures(languageId, workerWithEmbeddedLanguages, ["<", "/", "=", "\""]);
   ls.enableAutoInsert(languageId, workerWithEmbeddedLanguages, [">", "/", "="]);
   ls.enableColorPresentation(languageId, workerWithEmbeddedLanguages); // css color presentation
   ls.enableDocumentLinks(languageId, workerWithEmbeddedLanguages);

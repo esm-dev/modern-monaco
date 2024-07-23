@@ -22,7 +22,7 @@ export interface HTMLDataConfiguration {
   dataProviders?: { [providerId: string]: htmlService.HTMLDataV1 };
 }
 
-export interface Settings {
+export interface CreateData {
   /**
    * Settings for the HTML formatter.
    */
@@ -31,21 +31,20 @@ export interface Settings {
    * Code completion settings.
    */
   readonly suggest?: htmlService.CompletionConfiguration;
-}
-
-export interface CreateData {
-  settings: Settings;
-  data?: HTMLDataConfiguration;
+  readonly data?: HTMLDataConfiguration;
+  readonly hasVFS?: boolean;
 }
 
 export class HTMLWorker {
-  private _ctx: monacoNS.worker.IWorkerContext;
+  private _ctx: monacoNS.worker.IWorkerContext<htmlService.FileSystemProvider>;
+  private _formatSettings: htmlService.HTMLFormatConfiguration;
+  private _suggestSettings: htmlService.CompletionConfiguration;
   private _languageService: htmlService.LanguageService;
-  private _languageSettings: Settings;
   private _documentCache = new Map<string, [number, htmlService.TextDocument, htmlService.HTMLDocument | undefined]>();
 
   constructor(ctx: monacoNS.worker.IWorkerContext, createData: CreateData) {
     const data = createData.data;
+    const fileSystemProvider = createData.hasVFS ? ctx.host : undefined;
     const useDefaultDataProvider = data?.useDefaultDataProvider;
     const customDataProviders: htmlService.IHTMLDataProvider[] = [];
     if (data?.dataProviders) {
@@ -56,8 +55,9 @@ export class HTMLWorker {
       }
     }
     this._ctx = ctx;
-    this._languageSettings = createData.settings;
-    this._languageService = htmlService.getLanguageService({ useDefaultDataProvider, customDataProviders });
+    this._formatSettings = createData.format ?? {};
+    this._suggestSettings = createData.suggest ?? {};
+    this._languageService = htmlService.getLanguageService({ useDefaultDataProvider, customDataProviders, fileSystemProvider });
   }
 
   async doValidation(uri: string): Promise<htmlService.Diagnostic[] | null> {
@@ -117,11 +117,12 @@ export class HTMLWorker {
       return { $embedded: rsl } as any;
     }
     const htmlDocument = this._getHTMLDocument(document);
-    return this._languageService.doComplete(
+    return this._languageService.doComplete2(
       document,
       position,
       htmlDocument,
-      this._languageSettings && this._languageSettings.suggest,
+      this,
+      this._suggestSettings,
     );
   }
 
@@ -149,9 +150,9 @@ export class HTMLWorker {
       return null;
     }
 
-    const contentUnformatted = this._languageSettings.format?.contentUnformatted ?? "";
+    const contentUnformatted = this._formatSettings.contentUnformatted ?? "";
     const formattingOptions = {
-      ...this._languageSettings.format,
+      ...this._formatSettings,
       ...options,
       // remove last newline to allow embedded css to be formatted with newline
       endWithNewline: false,
@@ -161,7 +162,7 @@ export class HTMLWorker {
     const edits = this._languageService.format(document, formatRange, formattingOptions);
 
     // add last newline if needed
-    if (this._languageSettings.format?.endWithNewline) {
+    if (this._formatSettings.endWithNewline) {
       const text = document.getText();
       edits.push({
         range: {
@@ -172,23 +173,7 @@ export class HTMLWorker {
       });
     }
 
-    // const rs = getDocumentRegions(this._languageService, document);
-    // const mark: Record<string, string> = {};
-    // for (const { attributeValue, languageId, start, end } of rs.regions) {
-    //   if (!attributeValue && (languageId === "importmap" || languageId === "javascript")) {
-    //     mark[languageId] = document.getText().substring(start, end);
-    //   }
-    // }
-    // const rsls = Object.keys(mark);
-    // if (rsls.length > 0) {
-    //   return {
-    //     $embedded: {
-    //       languageIds: rsls,
-    //       data: Object.values(mark),
-    //       origin: edits,
-    //     },
-    //   } as any;
-    // }
+    // todo: format embedded import-map
 
     return edits;
   }
@@ -202,7 +187,7 @@ export class HTMLWorker {
     if (ch === ">" || ch === "/") {
       return this._languageService.doTagComplete(document, position, htmlDocument);
     } else if (ch === "=") {
-      return this._languageService.doQuoteComplete(document, position, htmlDocument, this._languageSettings.suggest)
+      return this._languageService.doQuoteComplete(document, position, htmlDocument, this._suggestSettings)
         ?.replaceAll("$1", "$0");
     }
     return null;
@@ -256,16 +241,16 @@ export class HTMLWorker {
     if (!document) {
       return null;
     }
-    return this._languageService.findDocumentLinks(document, null!);
+    return this._languageService.findDocumentLinks(document, this);
   }
 
-  async findDocumentSymbols(uri: string): Promise<htmlService.SymbolInformation[] | null> {
+  async findDocumentSymbols(uri: string): Promise<htmlService.DocumentSymbol[] | null> {
     const document = this._getTextDocument(uri);
     if (!document) {
       return null;
     }
     const htmlDocument = this._getHTMLDocument(document);
-    return this._languageService.findDocumentSymbols(
+    return this._languageService.findDocumentSymbols2(
       document,
       htmlDocument,
     );
@@ -359,6 +344,13 @@ export class HTMLWorker {
 
   async onDocumentRemoved(uri: string): Promise<void> {
     this._documentCache.delete(uri);
+  }
+
+  // resolveReference implementes the `cssService.FileSystemProvider` interface
+  resolveReference(ref: string, baseUrl: string): string | undefined {
+    const url = new URL(ref, baseUrl);
+    // todo: check if the file exists
+    return url.href;
   }
 
   private _getTextDocument(uri: string): htmlService.TextDocument | null {
