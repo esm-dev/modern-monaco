@@ -44,7 +44,7 @@ export function getDocumentRegions(languageService: LanguageService, document: T
 
     let lastTagName: string = "";
     let lastAttributeName: string | null = null;
-    let languageIdFromType: string | undefined = undefined;
+    let lastLauguageId: string | undefined = undefined;
     let token = scanner.scan();
 
     while (token !== TokenType.EOS) {
@@ -52,7 +52,7 @@ export function getDocumentRegions(languageService: LanguageService, document: T
         case TokenType.StartTag:
           lastTagName = scanner.getTokenText();
           lastAttributeName = null;
-          languageIdFromType = "javascript";
+          lastLauguageId = "javascript";
           break;
         case TokenType.Styles:
           regions.push({
@@ -63,7 +63,7 @@ export function getDocumentRegions(languageService: LanguageService, document: T
           break;
         case TokenType.Script:
           regions.push({
-            languageId: languageIdFromType,
+            languageId: lastLauguageId,
             start: scanner.getTokenOffset(),
             end: scanner.getTokenEnd(),
           });
@@ -85,11 +85,11 @@ export function getDocumentRegions(languageService: LanguageService, document: T
           } else if (lastAttributeName === "type" && lastTagName.toLowerCase() === "script") {
             const tokenText = scanner.getTokenText();
             if (/["'](module|(text|application)\/(java|ecma)script|text\/babel)["']/.test(tokenText)) {
-              languageIdFromType = "javascript";
+              lastLauguageId = "javascript";
             } else if (/["']importmap["']/.test(tokenText)) {
-              languageIdFromType = "importmap";
+              lastLauguageId = "importmap";
             } else {
-              languageIdFromType = undefined;
+              lastLauguageId = undefined;
             }
           } else {
             const attributeLanguageId = getAttributeLanguage(lastAttributeName!);

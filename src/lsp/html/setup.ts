@@ -42,24 +42,19 @@ export function setup(
         : undefined,
     },
   };
-  const embeddedLanguages = { javascript: "js", css: "css", importmap: "importmap" };
   const htmlWorker = editor.createWebWorker<HTMLWorker>({
     moduleId: "lsp/html/worker",
     label: languageId,
     createData,
   });
-  const htmlWorkerProxy: ls.WorkerProxy<HTMLWorker> = (...uris) => htmlWorker.withSyncedResources(uris);
-  const workerProxy = ls.proxyWorkerWithEmbeddedLanguages(embeddedLanguages, htmlWorkerProxy);
-
-  // @ts-expect-error `onWorker` is added by esm-monaco
-  MonacoEnvironment.onWorker(languageId, htmlWorkerProxy);
+  const workerWithEmbeddedLanguages = ls.createWorkerWithEmbeddedLanguages(htmlWorker);
 
   // set monacoNS and register language features
   ls.setup(monaco);
-  ls.attachEmbeddedLanguages(languageId, htmlWorkerProxy, embeddedLanguages);
-  ls.enableDefaultFeatures(languageId, workerProxy, [".", ":", "<", "\"", "=", "/"]);
-  ls.enableAutoInsert(languageId, workerProxy, [">", "/", "="]);
-  ls.enableColorPresentation(languageId, workerProxy); // css color presentation
+  ls.attachEmbeddedLanguages(languageId, workerWithEmbeddedLanguages, ["css", "javascript", "importmap"]);
+  ls.enableBasicFeatures(languageId, workerWithEmbeddedLanguages, [".", ":", "<", "\"", "=", "/"]);
+  ls.enableAutoInsert(languageId, workerWithEmbeddedLanguages, [">", "/", "="]);
+  ls.enableColorPresentation(languageId, workerWithEmbeddedLanguages); // css color presentation
 
   // languages.registerLinkProvider(languageId, new ls.DocumentLinkAdapter(workerProxy));
 

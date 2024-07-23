@@ -11,7 +11,6 @@ export function setup(
   languageSettings?: Record<string, unknown>,
   formattingOptions?: FormattingOptions,
 ) {
-  const languages = monaco.languages;
   const { tabSize, insertSpaces, insertFinalNewline, trimFinalNewlines } = formattingOptions ?? {};
   const createData: CreateData = {
     options: {
@@ -35,20 +34,12 @@ export function setup(
     label: languageId,
     createData,
   });
-  const workerProxy: ls.WorkerProxy<CSSWorker> = (
-    ...uris: monacoNS.Uri[]
-  ): Promise<CSSWorker> => {
-    return worker.withSyncedResources(uris);
-  };
-
-  // @ts-expect-error `onWorker` is added by esm-monaco
-  MonacoEnvironment.onWorker(languageId, workerProxy);
 
   // set monacoNS and register language features
   ls.setup(monaco);
-  ls.enableDefaultFeatures(languageId, workerProxy, ["/", "-", ":"]);
-  ls.enableCodeAction(languageId, workerProxy);
-  ls.enableColorPresentation(languageId, workerProxy);
+  ls.enableBasicFeatures(languageId, worker, ["/", "-", ":"]);
+  ls.enableCodeAction(languageId, worker);
+  ls.enableColorPresentation(languageId, worker);
 }
 
 export function getWorkerUrl() {

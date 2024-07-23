@@ -29,25 +29,17 @@ export async function setup(
     worker = await worker;
   }
 
-  const languages = monaco.languages;
-  const workerProxy = (...uris: monacoNS.Uri[]): Promise<TypeScriptWorker> => {
-    return (worker as TSWorker).withSyncedResources(uris);
-  };
-
-  // @ts-expect-error `onWorker` is added by esm-monaco
-  MonacoEnvironment.onWorker(languageId, workerProxy);
-
   // set monacoNS and register language features
   ls.setup(monaco);
-  ls.enableDefaultFeatures(languageId, workerProxy, [".", "<", "/", "\"", "'"]);
-  ls.enableAutoInsert(languageId, workerProxy, [">", "/"]);
-  ls.enableSignatureHelp(languageId, workerProxy, ["(", ","]);
-  ls.enableCodeAction(languageId, workerProxy);
+  ls.enableBasicFeatures(languageId, worker, [".", "<", "/", "\"", "'"]);
+  ls.enableAutoInsert(languageId, worker, [">", "/"]);
+  ls.enableSignatureHelp(languageId, worker, ["(", ","]);
+  ls.enableCodeAction(languageId, worker);
 
   // unimplemented features
-  // languages.registerOnTypeFormattingEditProvider(languageId, new lfs.FormatOnTypeAdapter(workerProxy));
-  // languages.registerInlayHintsProvider(languageId, new lfs.InlayHintsAdapter(workerProxy));
-  // languages.registerLinkedEditingRangeProvider(languageId, new lfs.LinkedEditingRangeAdapter(workerProxy));
+  // languages.registerOnTypeFormattingEditProvider(languageId, new lfs.FormatOnTypeAdapter(worker));
+  // languages.registerInlayHintsProvider(languageId, new lfs.InlayHintsAdapter(worker));
+  // languages.registerLinkedEditingRangeProvider(languageId, new lfs.LinkedEditingRangeAdapter(worker));
 }
 
 export function getWorkerUrl() {

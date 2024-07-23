@@ -36,16 +36,11 @@ export function setup(
       },
     },
   };
-  const worker = monaco.editor.createWebWorker<JSONWorker>({
+  const worker = editor.createWebWorker<JSONWorker>({
     moduleId: "lsp/json/worker",
     label: languageId,
     createData,
   });
-  const workerProxy: ls.WorkerProxy<JSONWorker> = (
-    ...uris: monacoNS.Uri[]
-  ): Promise<JSONWorker> => {
-    return worker.withSyncedResources(uris);
-  };
 
   // reset schema on model change
   const resetSchema = async (uri: monacoNS.Uri) => {
@@ -62,12 +57,9 @@ export function setup(
     }
   });
 
-  // @ts-expect-error method `onWorker` is added by esm-monaco
-  MonacoEnvironment.onWorker(languageId, workerProxy);
-
   // set monacoNS and register language features
   ls.setup(monaco);
-  ls.enableDefaultFeatures(languageId, workerProxy, [" ", ":", "\""]);
+  ls.enableBasicFeatures(languageId, worker, [" ", ":", "\""]);
 
   // register code lens provider for import maps
   languages.registerCodeLensProvider(languageId, {

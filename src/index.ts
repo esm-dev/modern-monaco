@@ -75,15 +75,6 @@ async function loadMonaco(highlighter: Highlighter, options?: InitOption, onEdit
 
   // set the global `MonacoEnvironment` object
   Reflect.set(globalThis, "MonacoEnvironment", {
-    workerProxies: {},
-    onWorker: (languageId: string, workerProxy: () => any) => {
-      const workerProxies = Reflect.get(MonacoEnvironment, "workerProxies");
-      const promise = workerProxies[languageId];
-      if (typeof promise === "object" && promise !== null && "resolve" in promise) {
-        promise.resolve();
-      }
-      workerProxies[languageId] = workerProxy;
-    },
     getWorker: async (_workerId: string, label: string) => {
       let provider = lspProviders[label];
       if (!provider) {
