@@ -50,10 +50,19 @@ export function setup(
     host: {
       readDirectory: async (uri: string) => {
         const entries = [];
-        const list = await vfs.ls();
-        for (const path of list) {
+        const dirs = new Set<string>();
+        for (const path of await vfs.ls()) {
           if (path.startsWith(uri)) {
-            entries.push([path.slice(uri.length), 1]);
+            const name = path.slice(uri.length);
+            if (name.includes("/")) {
+              const [dirName] = name.split("/");
+              if (!dirs.has(dirName)) {
+                dirs.add(dirName);
+                entries.push([dirName, 2]);
+              }
+            } else {
+              entries.push([name, 1]);
+            }
           }
         }
         return entries;
