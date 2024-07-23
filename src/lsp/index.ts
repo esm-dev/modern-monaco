@@ -29,6 +29,7 @@ export const builtinProviders: Record<string, LSPProvider> = {
     import: () => import("./lsp/html/setup.js"),
   },
   css: {
+    aliases: ["less", "sass"],
     // @ts-expect-error 'setup.js' is generated at build time
     import: () => import("./lsp/css/setup.js"),
   },
