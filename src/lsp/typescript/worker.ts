@@ -155,12 +155,22 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     if (fileName in this._types) {
       return String(this._types[fileName].version);
     }
+    if (
+      fileName in this._libs
+      || fileName in this._types
+      || this._httpLibs.has(fileName)
+      || this._httpModules.has(fileName)
+      || this._httpTsModules.has(fileName)
+    ) {
+      return "1"; // static/remote modules/types
+    }
     const model = this._getModel(fileName);
     if (model) {
       // change on import map will affect all models
       return this._importMapVersion + "." + model.version;
     }
-    return "1"; // static/remote modules/types
+    // unknown file
+    return "0";
   }
 
   getScriptSnapshot(fileName: string): ts.IScriptSnapshot | undefined {
@@ -1214,19 +1224,19 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
 
 function getScriptExtension(url: URL | string, defaultExt = ".js"): string | null {
   const pathname = typeof url === "string" ? new URL(url, "file:///").pathname : url.pathname;
-  const fileName = pathname.substring(pathname.lastIndexOf("/") + 1);
-  const dotIndex = fileName.lastIndexOf(".");
+  const basename = pathname.substring(pathname.lastIndexOf("/") + 1);
+  const dotIndex = basename.lastIndexOf(".");
   if (dotIndex === -1) {
     return defaultExt ?? null;
   }
-  const ext = fileName.substring(dotIndex + 1);
+  const ext = basename.substring(dotIndex + 1);
   switch (ext) {
     case "ts":
-      return fileName.endsWith(".d.ts") ? ".d.ts" : ".ts";
+      return basename.endsWith(".d.ts") ? ".d.ts" : ".ts";
     case "mts":
-      return fileName.endsWith(".d.mts") ? ".d.mts" : ".mts";
+      return basename.endsWith(".d.mts") ? ".d.mts" : ".mts";
     case "cts":
-      return fileName.endsWith(".d.cts") ? ".d.cts" : ".cts";
+      return basename.endsWith(".d.cts") ? ".d.cts" : ".cts";
     case "tsx":
       return ".tsx";
     case "js":
