@@ -9,20 +9,20 @@ importers:
   .:
     devDependencies:
       '@shikijs/core':
-        specifier: 1.10.3
-        version: 1.10.3
+        specifier: 1.11.0
+        version: 1.11.0
       monaco-editor-core:
         specifier: 0.50.0
         version: 0.50.0
       tm-grammars:
-        specifier: 1.13.14
-        version: 1.13.14
+        specifier: 1.14.0
+        version: 1.14.0
       tm-themes:
-        specifier: 1.5.5
-        version: 1.5.5
+        specifier: 1.5.6
+        version: 1.5.6
       typescript:
-        specifier: 5.5.3
-        version: 5.5.3
+        specifier: 5.5.4
+        version: 5.5.4
       vscode-css-languageservice:
         specifier: 6.3.0
         version: 6.3.0
@@ -41,8 +41,8 @@ importers:
 
 packages:
 
-  '@shikijs/core@1.10.3':
-    resolution: {integrity: sha512-D45PMaBaeDHxww+EkcDQtDAtzv00Gcsp72ukBtaLSmqRvh0WgGMq3Al0rl1QQBZfuneO75NXMIzEZGFitThWbg==}
+  '@shikijs/core@1.11.0':
+    resolution: {integrity: sha512-VbEhDAhT/2ozO0TPr5/ZQBO/NWLqtk4ZiBf6NplYpF38mKjNfMMied5fNEfIfYfN+cdKvhDB4VMcKvG/g9c3zg==}
 
   '@types/hast@3.0.4':
     resolution: {integrity: sha512-WPs+bbQw5aCj+x6laNGWLH3wviHtoCv/P3+otBhbOhJgG8qtpdAMlTCxLtsTWA7LH1Oh/bFCHsBn0TPS5m30EQ==}
@@ -59,14 +59,14 @@ packages:
   monaco-editor-core@0.50.0:
     resolution: {integrity: sha512-XKdublTat9qDKwJhMbm6nnTUKA75MU7jWVooZeXcZKP0/y2jscNWQ9FpCiRtWk33Teemihx155WQ7o7xgf89eA==}
 
-  tm-grammars@1.13.14:
-    resolution: {integrity: sha512-TuMrTDEHB+PSY+GwCTO4aObzi6jdsU9elz3rsa7jHca0kwrKN5c6Y/zqIFZh4tAiyb5LRj2rEVaEU5fVZtRv5w==}
+  tm-grammars@1.14.0:
+    resolution: {integrity: sha512-U4VxAX/XEYbFrzxLu0btW82iFMf1XImNsWHNljcj/XuFs5JrlV3l0WoW95oPpdyc0LL0YxfsEdyICWyox0Vk7Q==}
 
-  tm-themes@1.5.5:
-    resolution: {integrity: sha512-sp1fqXGUVd0oRwReGnW7ay/Hk2K+hdUc/AOXmqWqSXNlpmp6a+axITNXUAmhVC+OJVgPkC9cs5Esrmk/rmTRjQ==}
+  tm-themes@1.5.6:
+    resolution: {integrity: sha512-VkFe5yQyqJCl/f+4Ws1MWHt1jsjEHRwCtqkOc6PWquEfS/4YZThRQpemCzmGMeSSssStR8H5iDIBflVONnCxgA==}
 
-  typescript@5.5.3:
-    resolution: {integrity: sha512-/hreyEujaB0w76zKo6717l3L0o/qEUtRgdvUBvlkhoWeOVMjMuHNHk0BRBzikzuGDqNmPQbg5ifMEqsHLiIUcQ==}
+  typescript@5.5.4:
+    resolution: {integrity: sha512-Mtq29sKDAEYP7aljRgtPOpTvOfbwRWlS6dPRzwjdE+C0R4brX/GUyhHSecbHMFLNBLcJIPt9nl9yG5TZ1weH+Q==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -93,7 +93,7 @@ packages:
 
 snapshots:
 
-  '@shikijs/core@1.10.3':
+  '@shikijs/core@1.11.0':
     dependencies:
       '@types/hast': 3.0.4
 
@@ -109,11 +109,11 @@ snapshots:
 
   monaco-editor-core@0.50.0: {}
 
-  tm-grammars@1.13.14: {}
+  tm-grammars@1.14.0: {}
 
-  tm-themes@1.5.5: {}
+  tm-themes@1.5.6: {}
 
-  typescript@5.5.3: {}
+  typescript@5.5.4: {}
 
   vscode-css-languageservice@6.3.0:
     dependencies:
