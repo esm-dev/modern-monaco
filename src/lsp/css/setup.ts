@@ -1,6 +1,7 @@
 import type monacoNS from "monaco-editor-core";
 import type { FormattingOptions } from "vscode-languageserver-types";
 import type { CreateData, CSSWorker } from "./worker.ts";
+import type { VFS } from "~/vfs.ts";
 
 // ! external modules, don't remove the `.js` extension
 import * as ls from "../language-service.js";
@@ -10,6 +11,7 @@ export function setup(
   languageId: string,
   languageSettings?: Record<string, unknown>,
   formattingOptions?: FormattingOptions,
+  vfs?: VFS,
 ) {
   const { tabSize, insertSpaces, insertFinalNewline, trimFinalNewlines } = formattingOptions ?? {};
   const createData: CreateData = {
@@ -27,19 +29,45 @@ export function setup(
         spaceAroundSelectorSeparator: false,
         braceStyle: "collapse",
       },
+      hasVFS: !!vfs,
     },
   };
   const worker = monaco.editor.createWebWorker<CSSWorker>({
     moduleId: "lsp/css/worker",
     label: languageId,
     createData,
+    host: {
+      readDirectory: async (uri: string) => {
+        const entries = [];
+        const list = await vfs.ls();
+        for (const path of list) {
+          if (path.startsWith(uri) && path.endsWith("." + languageId)) {
+            entries.push([path.slice(uri.length), 1]);
+          }
+        }
+        return entries;
+      },
+      stat: async (uri: string) => {
+        const file = await vfs.open(uri);
+        return {
+          type: 1,
+          ctime: file.ctime,
+          mtime: file.mtime,
+          size: file.content.length,
+        };
+      },
+      getContent: async (uri: string, encoding?: string): Promise<string> => {
+        return vfs.readTextFile(uri);
+      },
+    },
   });
 
   // set monacoNS and register language features
   ls.setup(monaco);
-  ls.enableBasicFeatures(languageId, worker, ["/", "-", ":"]);
+  ls.enableBasicFeatures(languageId, worker, ["/", "-", ":", "("]);
   ls.enableCodeAction(languageId, worker);
   ls.enableColorPresentation(languageId, worker);
+  ls.enableDocumentLinks(languageId, worker);
 }
 
 export function getWorkerUrl() {

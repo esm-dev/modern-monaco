@@ -30,6 +30,10 @@ export interface Options {
    * Settings for the CSS formatter.
    */
   readonly format?: cssService.CSSFormatConfiguration;
+  /**
+   * Configures whether the language service has access to a virtual file system.
+   */
+  readonly hasVFS?: boolean;
 }
 
 export interface CreateData {
@@ -37,26 +41,27 @@ export interface CreateData {
 }
 
 export class CSSWorker {
-  private _ctx: monacoNS.worker.IWorkerContext;
-  private _languageSettings: Options;
+  private _ctx: monacoNS.worker.IWorkerContext<cssService.FileSystemProvider>;
+  private _formatSettings: cssService.CSSFormatConfiguration;
   private _languageService: cssService.LanguageService;
   private _documentCache = new Map<string, [number, cssService.TextDocument, cssService.Stylesheet | undefined]>();
 
   constructor(ctx: monacoNS.worker.IWorkerContext, createData: CreateData) {
     const data = createData.options.data;
+    const fileSystemProvider = createData.options.hasVFS ? ctx.host : undefined;
     const customDataProviders: cssService.ICSSDataProvider[] = [];
     if (data?.dataProviders) {
       for (const id in data.dataProviders) {
         customDataProviders.push(cssService.newCSSDataProvider(data.dataProviders[id]));
       }
     }
-    const lsOptions: cssService.LanguageServiceOptions = {
+    this._ctx = ctx;
+    this._formatSettings = createData.options.format ?? {};
+    this._languageService = cssService.getCSSLanguageService({
       useDefaultDataProvider: data?.useDefaultDataProvider,
       customDataProviders,
-    };
-    this._ctx = ctx;
-    this._languageSettings = createData.options;
-    this._languageService = cssService.getCSSLanguageService(lsOptions);
+      fileSystemProvider,
+    });
   }
 
   async doValidation(uri: string): Promise<cssService.Diagnostic[] | null> {
@@ -74,7 +79,7 @@ export class CSSWorker {
       return null;
     }
     const stylesheet = this._getStylesheet(document);
-    return this._languageService.doComplete(document, position, stylesheet);
+    return this._languageService.doComplete2(document, position, stylesheet, this);
   }
 
   async doHover(uri: string, position: cssService.Position): Promise<cssService.Hover | null> {
@@ -117,17 +122,17 @@ export class CSSWorker {
     if (!document) {
       return null;
     }
-    const settings = { ...this._languageSettings.format, ...options };
+    const settings = { ...this._formatSettings, ...options };
     return this._languageService.format(document, range!, settings);
   }
 
-  async findDocumentSymbols(uri: string): Promise<cssService.SymbolInformation[] | null> {
+  async findDocumentSymbols(uri: string): Promise<cssService.DocumentSymbol[] | null> {
     const document = this._getTextDocument(uri);
     if (!document) {
       return null;
     }
     const stylesheet = this._getStylesheet(document);
-    return this._languageService.findDocumentSymbols(document, stylesheet);
+    return this._languageService.findDocumentSymbols2(document, stylesheet);
   }
 
   async findDefinition(uri: string, position: cssService.Position): Promise<cssService.Location[] | null> {
@@ -150,6 +155,15 @@ export class CSSWorker {
     }
     const stylesheet = this._getStylesheet(document);
     return this._languageService.findReferences(document, position, stylesheet);
+  }
+
+  async findDocumentLinks(uri: string): Promise<cssService.DocumentLink[] | null> {
+    const document = this._getTextDocument(uri);
+    if (!document) {
+      return null;
+    }
+    const stylesheet = this._getStylesheet(document);
+    return this._languageService.findDocumentLinks2(document, stylesheet, this);
   }
 
   async findDocumentHighlights(
@@ -205,6 +219,13 @@ export class CSSWorker {
 
   async onDocumentRemoved(uri: string): Promise<void> {
     this._documentCache.delete(uri);
+  }
+
+  // resolveReference implementes the `cssService.FileSystemProvider` interface
+  resolveReference(ref: string, baseUrl: string): string | undefined {
+    const url = new URL(ref, baseUrl);
+    // todo: check if the file exists
+    return url.href;
   }
 
   private _getTextDocument(uri: string): cssService.TextDocument | null {
