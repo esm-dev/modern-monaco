@@ -21,7 +21,11 @@ export interface CSSDataConfiguration {
   dataProviders?: { [providerId: string]: cssService.CSSDataV1 };
 }
 
-export interface Options {
+export interface CreateData {
+  /**
+   * The language ID.
+   */
+  readonly language?: "css" | "less" | "scss";
   /**
    * Configures the CSS data types known by the langauge service.
    */
@@ -36,10 +40,6 @@ export interface Options {
   readonly hasVFS?: boolean;
 }
 
-export interface CreateData {
-  options: Options;
-}
-
 export class CSSWorker {
   private _ctx: monacoNS.worker.IWorkerContext<cssService.FileSystemProvider>;
   private _formatSettings: cssService.CSSFormatConfiguration;
@@ -47,21 +47,27 @@ export class CSSWorker {
   private _documentCache = new Map<string, [number, cssService.TextDocument, cssService.Stylesheet | undefined]>();
 
   constructor(ctx: monacoNS.worker.IWorkerContext, createData: CreateData) {
-    const data = createData.options.data;
-    const fileSystemProvider = createData.options.hasVFS ? ctx.host : undefined;
+    const data = createData.data;
+    const fileSystemProvider = createData.hasVFS ? ctx.host : undefined;
     const customDataProviders: cssService.ICSSDataProvider[] = [];
     if (data?.dataProviders) {
       for (const id in data.dataProviders) {
         customDataProviders.push(cssService.newCSSDataProvider(data.dataProviders[id]));
       }
     }
-    this._ctx = ctx;
-    this._formatSettings = createData.options.format ?? {};
-    this._languageService = cssService.getCSSLanguageService({
+    const langauge = createData.language ?? "css";
+    const languageServiceOptions = {
       useDefaultDataProvider: data?.useDefaultDataProvider,
       customDataProviders,
       fileSystemProvider,
-    });
+    };
+    this._ctx = ctx;
+    this._formatSettings = createData.format ?? {};
+    this._languageService = langauge === "less"
+      ? cssService.getLESSLanguageService(languageServiceOptions)
+      : langauge === "scss"
+      ? cssService.getSCSSLanguageService(languageServiceOptions)
+      : cssService.getCSSLanguageService(languageServiceOptions);
   }
 
   async doValidation(uri: string): Promise<cssService.Diagnostic[] | null> {

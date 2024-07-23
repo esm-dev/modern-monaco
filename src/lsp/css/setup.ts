@@ -1,7 +1,7 @@
 import type monacoNS from "monaco-editor-core";
 import type { FormattingOptions } from "vscode-languageserver-types";
-import type { CreateData, CSSWorker } from "./worker.ts";
 import type { VFS } from "~/vfs.ts";
+import type { CreateData, CSSWorker } from "./worker.ts";
 
 // ! external modules, don't remove the `.js` extension
 import * as ls from "../language-service.js";
@@ -15,22 +15,22 @@ export function setup(
 ) {
   const { tabSize, insertSpaces, insertFinalNewline, trimFinalNewlines } = formattingOptions ?? {};
   const createData: CreateData = {
-    options: {
-      data: {
-        useDefaultDataProvider: true,
-      },
-      format: {
-        tabSize,
-        insertFinalNewline,
-        insertSpaces,
-        preserveNewLines: !trimFinalNewlines,
-        newlineBetweenSelectors: true,
-        newlineBetweenRules: true,
-        spaceAroundSelectorSeparator: false,
-        braceStyle: "collapse",
-      },
-      hasVFS: !!vfs,
+    language: languageId as "css" | "less" | "scss",
+    data: {
+      useDefaultDataProvider: true,
+      // todo: custom data provider
     },
+    format: {
+      tabSize,
+      insertFinalNewline,
+      insertSpaces,
+      preserveNewLines: !trimFinalNewlines,
+      newlineBetweenSelectors: true,
+      newlineBetweenRules: true,
+      spaceAroundSelectorSeparator: false,
+      braceStyle: "collapse",
+    },
+    hasVFS: !!vfs,
   };
   const worker = monaco.editor.createWebWorker<CSSWorker>({
     moduleId: "lsp/css/worker",
