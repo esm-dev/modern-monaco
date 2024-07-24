@@ -636,17 +636,28 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     }
 
     const documentPosition = document.offsetAt(position);
-    const locations = this._languageService.findRenameLocations(uri, documentPosition, false, false, {});
-    const edits: lst.TextEdit[] = [];
-    locations?.map(loc => {
-      if (loc.fileName === uri) {
+    const renameInfo = this._languageService.getRenameInfo(uri, documentPosition, { allowRenameOfImportPath: true });
+    if (!renameInfo.canRename) {
+      return null;
+    }
+    const locations = this._languageService.findRenameLocations(uri, documentPosition, false, false, {
+      providePrefixAndSuffixTextForRename: false,
+    });
+    if (!locations) {
+      return null;
+    }
+    const changes: Record<string, lst.TextEdit[]> = {};
+    locations.map(loc => {
+      const edits = changes[loc.fileName] || (changes[loc.fileName] = []);
+      const locDocument = this.getTextDocument(loc.fileName);
+      if (locDocument) {
         edits.push({
-          range: convertRange(document, loc.textSpan),
+          range: convertRange(locDocument, loc.textSpan),
           newText: newName,
         });
       }
     });
-    return { changes: { [uri]: edits } };
+    return { changes };
   }
 
   async doFormat(

@@ -858,14 +858,14 @@ function convertWorkspaceEdit(edit: lst.WorkspaceEdit): Monaco.languages.Workspa
   }
   let resourceEdits: Monaco.languages.IWorkspaceTextEdit[] = [];
   for (let uri in edit.changes) {
-    const _uri = monaco.Uri.parse(uri);
-    for (let e of edit.changes[uri]) {
+    const resource = monaco.Uri.parse(uri);
+    for (let change of edit.changes[uri]) {
       resourceEdits.push({
-        resource: _uri,
+        resource,
         versionId: undefined,
         textEdit: {
-          range: convertRange(e.range),
-          text: e.newText,
+          range: convertRange(change.range),
+          text: change.newText,
         },
       });
     }
