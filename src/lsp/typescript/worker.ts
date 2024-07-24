@@ -490,7 +490,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
         insertText: entry.name,
         filterText: entry.filterText,
         sortText: entry.sortText,
-        kind: toCompletionItemKind(entry.kind),
+        kind: convertTsCompletionItemKind(entry.kind),
         tags,
         data,
       });
@@ -522,7 +522,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
         action.changes.forEach((change) =>
           change.textChanges.forEach(({ span, newText }) => {
             additionalTextEdits.push({
-              range: convertRange(document, span),
+              range: createRangeFromDocumentSpan(document, span),
               newText,
             });
           })
@@ -542,9 +542,9 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     if (info) {
       const contents = ts.displayPartsToString(info.displayParts);
       const documentation = ts.displayPartsToString(info.documentation);
-      const tags = info.tags?.map((tag) => tagToString(tag)).join("  \n\n") ?? null;
+      const tags = info.tags?.map((tag) => tagStringify(tag)).join("  \n\n") ?? null;
       return {
-        range: convertRange(document, info.textSpan),
+        range: createRangeFromDocumentSpan(document, info.textSpan),
         contents: [
           { language: "typescript", value: contents },
           documentation + (tags ? "\n\n" + tags : ""),
@@ -559,7 +559,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     position: number,
     context: monacoNS.languages.SignatureHelpContext,
   ): Promise<lst.SignatureHelp | null> {
-    const triggerReason = toSignatureHelpTriggerReason(context);
+    const triggerReason = toTsSignatureHelpTriggerReason(context);
     const items = this._languageService.getSignatureHelpItems(uri, position, { triggerReason });
     if (!items) {
       return null;
@@ -612,7 +612,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
         const edits: lst.TextEdit[] = [];
         for (const change of codeFix.changes) {
           for (const { span, newText } of change.textChanges) {
-            edits.push({ range: convertRange(document, span), newText });
+            edits.push({ range: createRangeFromDocumentSpan(document, span), newText });
           }
         }
         action.edit = { changes: { [uri]: edits } };
@@ -652,7 +652,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
       const locDocument = this.getTextDocument(loc.fileName);
       if (locDocument) {
         edits.push({
-          range: convertRange(locDocument, loc.textSpan),
+          range: createRangeFromDocumentSpan(locDocument, loc.textSpan),
           newText: newName,
         });
       }
@@ -680,7 +680,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
       edits = this._languageService.getFormattingEditsForDocument(uri, formattingOptions);
     }
     return edits.map(({ span, newText }) => ({
-      range: convertRange(document, span),
+      range: createRangeFromDocumentSpan(document, span),
       newText,
     }));
   }
@@ -693,9 +693,9 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     const toSymbol = (item: ts.NavigationTree, containerLabel?: string): lst.DocumentSymbol => {
       const result: lst.DocumentSymbol = {
         name: item.text,
-        kind: toSymbolKind(item.kind),
-        range: convertRange(document, item.spans[0]),
-        selectionRange: convertRange(document, item.spans[0]),
+        kind: convertTsSymbolKind(item.kind),
+        range: createRangeFromDocumentSpan(document, item.spans[0]),
+        selectionRange: createRangeFromDocumentSpan(document, item.spans[0]),
         children: item.childItems?.map((child) => toSymbol(child, item.text)),
       };
       if (containerLabel) {
@@ -723,8 +723,8 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
         if (doc) {
           return {
             uri: d.fileName,
-            range: convertRange(doc, d.textSpan),
-            originSelectionRange: convertRange(document, textSpan),
+            range: createRangeFromDocumentSpan(doc, d.textSpan),
+            originSelectionRange: createRangeFromDocumentSpan(document, textSpan),
           };
         }
       }).filter(Boolean);
@@ -744,7 +744,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
       if (entryDocument) {
         result.push({
           uri: entryDocument.uri,
-          range: convertRange(entryDocument, entry.textSpan),
+          range: createRangeFromDocumentSpan(entryDocument, entry.textSpan),
         });
       }
     }
@@ -761,7 +761,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     for (const entry of highlights || []) {
       for (const highlight of entry.highlightSpans) {
         out.push({
-          range: convertRange(document, highlight.textSpan),
+          range: createRangeFromDocumentSpan(document, highlight.textSpan),
           kind: highlight.kind === "writtenReference" ? DocumentHighlightKind.Write : DocumentHighlightKind.Text,
         });
       }
@@ -777,7 +777,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     const spans = this._languageService.getOutliningSpans(uri);
     const ranges: lst.FoldingRange[] = [];
     for (const span of spans) {
-      const curr = convertRange(document, span.textSpan);
+      const curr = createRangeFromDocumentSpan(document, span.textSpan);
       const startLine = curr.start.line;
       const endLine = curr.end.line;
       if (startLine < endLine) {
@@ -799,7 +799,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     }
     function convertSelectionRange(selectionRange: ts.SelectionRange): lst.SelectionRange {
       const parent = selectionRange.parent ? convertSelectionRange(selectionRange.parent) : undefined;
-      return SelectionRange.create(convertRange(document, selectionRange.textSpan), parent);
+      return SelectionRange.create(createRangeFromDocumentSpan(document, selectionRange.textSpan), parent);
     }
     return positions.map(position => {
       const range = this._languageService.getSmartSelectionRange(uri, document.offsetAt(position));
@@ -1132,9 +1132,9 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
       tags.push(DiagnosticTag.Deprecated);
     }
     return {
-      range: convertRange(document, diagnostic),
+      range: createRangeFromDocumentSpan(document, diagnostic),
       code: diagnostic.code,
-      severity: tsDiagnosticCategoryToMarkerSeverity(diagnostic.category),
+      severity: convertTsDiagnosticCategory(diagnostic.category),
       message: ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n"),
       source: diagnostic.source,
       tags,
@@ -1257,7 +1257,7 @@ function toUrl(path: string): URL {
   return new URL(path, "file:///");
 }
 
-function convertRange(document: TextDocument, span: { start?: number; length?: number }): lst.Range {
+function createRangeFromDocumentSpan(document: TextDocument, span: { start?: number; length?: number }): lst.Range {
   if (typeof span.start === "undefined") {
     const pos = document.positionAt(0);
     return Range.create(pos, pos);
@@ -1267,119 +1267,93 @@ function convertRange(document: TextDocument, span: { start?: number; length?: n
   return Range.create(start, end);
 }
 
-function toCompletionItemKind(kind: ts.ScriptElementKind): lst.CompletionItemKind {
-  const Kind = ts.ScriptElementKind;
-
+function convertTsCompletionItemKind(kind: ts.ScriptElementKind): lst.CompletionItemKind {
+  const ScriptElementKind = ts.ScriptElementKind;
   switch (kind) {
-    case Kind.primitiveType:
-    case Kind.keyword:
+    case ScriptElementKind.primitiveType:
+    case ScriptElementKind.keyword:
       return CompletionItemKind.Keyword;
-
-    case Kind.constElement:
-    case Kind.letElement:
-    case Kind.variableElement:
-    case Kind.localVariableElement:
-    case Kind.alias:
-    case Kind.parameterElement:
+    case ScriptElementKind.constElement:
+    case ScriptElementKind.letElement:
+    case ScriptElementKind.variableElement:
+    case ScriptElementKind.localVariableElement:
+    case ScriptElementKind.alias:
+    case ScriptElementKind.parameterElement:
       return CompletionItemKind.Variable;
-
-    case Kind.memberVariableElement:
-    case Kind.memberGetAccessorElement:
-    case Kind.memberSetAccessorElement:
+    case ScriptElementKind.memberVariableElement:
+    case ScriptElementKind.memberGetAccessorElement:
+    case ScriptElementKind.memberSetAccessorElement:
       return CompletionItemKind.Field;
-
-    case Kind.functionElement:
-    case Kind.localFunctionElement:
+    case ScriptElementKind.functionElement:
+    case ScriptElementKind.localFunctionElement:
       return CompletionItemKind.Function;
-
-    case Kind.memberFunctionElement:
-    case Kind.constructSignatureElement:
-    case Kind.callSignatureElement:
-    case Kind.indexSignatureElement:
+    case ScriptElementKind.memberFunctionElement:
+    case ScriptElementKind.constructSignatureElement:
+    case ScriptElementKind.callSignatureElement:
+    case ScriptElementKind.indexSignatureElement:
       return CompletionItemKind.Method;
-
-    case Kind.enumElement:
+    case ScriptElementKind.enumElement:
       return CompletionItemKind.Enum;
-
-    case Kind.enumMemberElement:
+    case ScriptElementKind.enumMemberElement:
       return CompletionItemKind.EnumMember;
-
-    case Kind.moduleElement:
-    case Kind.externalModuleName:
+    case ScriptElementKind.moduleElement:
+    case ScriptElementKind.externalModuleName:
       return CompletionItemKind.Module;
-
-    case Kind.classElement:
-    case Kind.typeElement:
+    case ScriptElementKind.classElement:
+    case ScriptElementKind.typeElement:
       return CompletionItemKind.Class;
-
-    case Kind.interfaceElement:
+    case ScriptElementKind.interfaceElement:
       return CompletionItemKind.Interface;
-
-    case Kind.warning:
+    case ScriptElementKind.warning:
       return CompletionItemKind.Text;
-
-    case Kind.scriptElement:
+    case ScriptElementKind.scriptElement:
       return CompletionItemKind.File;
-
-    case Kind.directory:
+    case ScriptElementKind.directory:
       return CompletionItemKind.Folder;
-
-    case Kind.string:
+    case ScriptElementKind.string:
       return CompletionItemKind.Constant;
-
     default:
       return CompletionItemKind.Property;
   }
 }
 
-function toSymbolKind(kind: ts.ScriptElementKind): lst.SymbolKind {
+function convertTsSymbolKind(kind: ts.ScriptElementKind): lst.SymbolKind {
   const Kind = ts.ScriptElementKind;
-
   switch (kind) {
     case Kind.memberVariableElement:
     case Kind.memberGetAccessorElement:
     case Kind.memberSetAccessorElement:
       return SymbolKind.Field;
-
     case Kind.functionElement:
     case Kind.localFunctionElement:
       return SymbolKind.Function;
-
     case Kind.memberFunctionElement:
     case Kind.constructSignatureElement:
     case Kind.callSignatureElement:
     case Kind.indexSignatureElement:
       return SymbolKind.Method;
-
     case Kind.enumElement:
       return SymbolKind.Enum;
-
     case Kind.enumMemberElement:
       return SymbolKind.EnumMember;
-
     case Kind.moduleElement:
     case Kind.externalModuleName:
       return SymbolKind.Module;
-
     case Kind.classElement:
     case Kind.typeElement:
       return SymbolKind.Class;
-
     case Kind.interfaceElement:
       return SymbolKind.Interface;
-
     case Kind.scriptElement:
       return SymbolKind.File;
-
     case Kind.string:
       return SymbolKind.Constant;
-
     default:
       return SymbolKind.Variable;
   }
 }
 
-function tsDiagnosticCategoryToMarkerSeverity(category: ts.DiagnosticCategory): lst.DiagnosticSeverity {
+function convertTsDiagnosticCategory(category: ts.DiagnosticCategory): lst.DiagnosticSeverity {
   switch (category) {
     case ts.DiagnosticCategory.Error:
       return DiagnosticSeverity.Error;
@@ -1393,7 +1367,7 @@ function tsDiagnosticCategoryToMarkerSeverity(category: ts.DiagnosticCategory): 
   return DiagnosticSeverity.Information;
 }
 
-function tagToString(tag: ts.JSDocTagInfo): string {
+function tagStringify(tag: ts.JSDocTagInfo): string {
   let tagLabel = `*@${tag.name}*`;
   if (tag.name === "param" && tag.text) {
     const [paramName, ...rest] = tag.text;
@@ -1407,10 +1381,11 @@ function tagToString(tag: ts.JSDocTagInfo): string {
   return tagLabel;
 }
 
-function toSignatureHelpTriggerReason(context: monacoNS.languages.SignatureHelpContext): ts.SignatureHelpTriggerReason {
+function toTsSignatureHelpTriggerReason(context: monacoNS.languages.SignatureHelpContext): ts.SignatureHelpTriggerReason {
   switch (context.triggerKind) {
-    // SignatureHelpTriggerKind.TriggerCharacter
-    case 2:
+    case 3 /* ContentChange */:
+      return context.isRetrigger ? { kind: "retrigger" } : { kind: "invoked" };
+    case 2 /* TriggerCharacter */:
       if (context.triggerCharacter) {
         if (context.isRetrigger) {
           return {
@@ -1426,13 +1401,7 @@ function toSignatureHelpTriggerReason(context: monacoNS.languages.SignatureHelpC
       } else {
         return { kind: "invoked" };
       }
-
-      // SignatureHelpTriggerKind.ContentChange
-    case 3:
-      return context.isRetrigger ? { kind: "retrigger" } : { kind: "invoked" };
-
-    // SignatureHelpTriggerKind.Invoke
-    case 1:
+    case 1 /* Invoke */:
     default:
       return { kind: "invoked" };
   }
