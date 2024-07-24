@@ -63,7 +63,8 @@ const modifyEditorCore = async () => {
     write: false,
   });
   const css = ret.outputFiles[0].text;
-  const addonCss = `.monaco-inputbox input{outline: 1px solid var(--vscode-focusBorder,rgba(127, 127, 127, 0.5))}`;
+  const addonCss =
+    `.monaco-inputbox input{outline:1px solid var(--vscode-focusBorder)} .rename-box input{color:inherit;font-family:inherit;font-size:100%;}.monaco-editor .rename-box .rename-input-with-button{width:auto}`;
   await Deno.writeTextFile("dist/editor-core.js", js + "\nexport const _CSS = " + JSON.stringify(css + addonCss));
 };
 const copyDts = (...files: [src: string, dest: string][]) => {
