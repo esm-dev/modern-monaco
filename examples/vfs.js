@@ -11,13 +11,6 @@ const importMap = {
 export const files = {
   "src/greeting.ts": "export const message = \"Hello world!\" as const;",
   "src/App.tsx": $APP_TSX,
-  "src/main.jsx": [
-    "import { createRoot } from \"react-dom/client\"",
-    "import App from \"./App.tsx\"",
-    "",
-    "const root = createRoot(document.getElementById(\"root\"))",
-    "root.render(<App />)",
-  ].join("\n"),
   "style/style.css": [
     "h1 {",
     "  font-style: italic;",
@@ -45,7 +38,13 @@ export const files = {
     "</head>",
     "<body>",
     "  <div id=\"root\"></div>",
-    "  <script type=\"module\" src=\"./src/main.jsx\"></script>",
+    "  <script type=\"module\">",
+    "    import { createElement } from \"react\"",
+    "    import { createRoot } from \"react-dom/client\"",
+    "    import App from \"./App.tsx\"",
+    "    const root = createRoot(document.getElementById(\"root\"))",
+    "    root.render(createElement(App))",
+    "  </script>",
     "</body>",
     "</html>",
   ].join("\n"),
