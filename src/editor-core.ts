@@ -4,7 +4,6 @@ import { IQuickInputService } from "monaco-editor-core/esm/vs/platform/quickinpu
 import { StandaloneServices } from "monaco-editor-core/esm/vs/editor/standalone/browser/standaloneServices.js";
 import languageConfigurations from "vscode-language-configurations";
 
-const quickInputService = StandaloneServices.get(IQuickInputService);
 const defaultEditorOptions: editor.IStandaloneEditorConstructionOptions = {
   automaticLayout: true,
   minimap: { enabled: false },
@@ -61,6 +60,7 @@ export enum QuickPickItemKind {
 // @see https://code.visualstudio.com/api/references/vscode-api#window.showInputBox
 export function showInputBox(options: InputBoxOptions = {}) {
   const { placeHolder, title, value, password, ignoreFocusOut, validateInput } = options;
+  const quickInputService = StandaloneServices.get(IQuickInputService);
   const box = quickInputService.createInputBox();
   const validateValue = validateInput
     ? (value: string) => {
@@ -122,6 +122,7 @@ export function showInputBox(options: InputBoxOptions = {}) {
 // @see https://code.visualstudio.com/api/references/vscode-api#window.showQuickPick
 export function showQuickPick(items: any[], options: QuickPickOptions = {}) {
   const { placeHolder, title, ignoreFocusOut, matchOnDescription, matchOnDetail, canPickMany, onDidSelectItem } = options;
+  const quickInputService = StandaloneServices.get(IQuickInputService);
   const pick = quickInputService.createQuickPick();
   if (title) {
     pick.title = title;

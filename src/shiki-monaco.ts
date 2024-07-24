@@ -29,7 +29,7 @@ export function textmateThemeToMonacoTheme(theme: ThemeRegistrationResolved): Mo
   }
 
   return {
-    base: theme.type === "light" ? "vs" : "vs-dark",
+    base: theme.type === "dark" ? "vs-dark" : "vs",
     colors: Object.fromEntries(Object.entries(theme.colors ?? {}).map(([key, value]) => [key, `#${normalizeColor(value)}`])),
     inherit: false,
     rules,
@@ -56,7 +56,7 @@ export function initShikiMonacoTokenizer(monaco: typeof monacoNs, highlighter: S
 
   // Because Monaco does not have the API of reading the current theme,
   // We hijack it here to keep track of the current theme.
-  const _setTheme = monaco.editor.setTheme.bind(monaco.editor);
+  const setTheme = monaco.editor.setTheme.bind(monaco.editor);
   monaco.editor.setTheme = (themeName: string) => {
     const ret = highlighter.setTheme(themeName);
     const theme = themeMap.get(themeName);
@@ -71,7 +71,7 @@ export function initShikiMonacoTokenizer(monaco: typeof monacoNs, highlighter: S
         colorToScopeMap.set(c, rule.token);
       }
     });
-    _setTheme(themeName);
+    setTheme(themeName);
   };
 
   // Set the first theme as the default theme
@@ -144,8 +144,7 @@ class TokenizerState implements monacoNs.languages.IState {
 
 function normalizeColor(color: undefined): undefined;
 function normalizeColor(color: string): string;
-function normalizeColor(color: string | undefined): string | undefined;
-function normalizeColor(color: string | undefined) {
+function normalizeColor(color: string | undefined): string | undefined {
   if (!color) {
     return color;
   }

@@ -233,38 +233,6 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     }
   }
 
-  // getScriptKind(fileName: string): ts.ScriptKind {
-  //   if (fileName in this._libs || fileName in this._types || this._httpLibs.has(fileName)) {
-  //     return ts.ScriptKind.TS;
-  //   }
-  //   if (this._httpModules.has(fileName)) {
-  //     return ts.ScriptKind.JS;
-  //   }
-  //   const { pathname } = new URL(fileName, "file:///");
-  //   const basename = pathname.substring(pathname.lastIndexOf("/") + 1);
-  //   const dotIndex = basename.lastIndexOf(".");
-  //   if (dotIndex === -1) {
-  //     return ts.ScriptKind.JS;
-  //   }
-  //   const ext = basename.substring(dotIndex + 1);
-  //   switch (ext) {
-  //     case "mts":
-  //     case "ts":
-  //       return ts.ScriptKind.TS;
-  //     case "tsx":
-  //       return ts.ScriptKind.TSX;
-  //     case "mjs":
-  //     case "js":
-  //       return ts.ScriptKind.JS;
-  //     case "jsx":
-  //       return ts.ScriptKind.JSX;
-  //     case "json":
-  //       return ts.ScriptKind.JSON;
-  //     default:
-  //       return ts.ScriptKind.JS;
-  //   }
-  // }
-
   resolveModuleNameLiterals(
     moduleLiterals: readonly ts.StringLiteralLike[],
     containingFile: string,
@@ -343,7 +311,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
         if (this._naModules.has(moduleHref) || this._unknownModules.has(moduleHref)) {
           return undefined;
         }
-        if (this._httpRedirects.has(moduleHref)) {
+        if (!importMapResovled && this._httpRedirects.has(moduleHref)) {
           const redirectUrl = this._httpRedirects.get(moduleHref);
           this._redirectModules.push([containingFile, literal, redirectUrl]);
         }
@@ -1222,7 +1190,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
 }
 
 function getScriptExtension(url: URL | string, defaultExt = ".js"): string | null {
-  const pathname = typeof url === "string" ? new URL(url, "file:///").pathname : url.pathname;
+  const pathname = typeof url === "string" ? toUrl(url).pathname : url.pathname;
   const basename = pathname.substring(pathname.lastIndexOf("/") + 1);
   const dotIndex = basename.lastIndexOf(".");
   if (dotIndex === -1) {
@@ -1273,6 +1241,10 @@ function isEsmshModule(url: URL): boolean {
 
 function isDts(fileName: string): boolean {
   return fileName.endsWith(".d.ts") || fileName.endsWith(".d.mts") || fileName.endsWith(".d.cts");
+}
+
+function toUrl(path: string): URL {
+  return new URL(path, "file:///");
 }
 
 function convertRange(document: TextDocument, span: { start?: number; length?: number }): lst.Range {
