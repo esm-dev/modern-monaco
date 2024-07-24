@@ -6,7 +6,7 @@
 A Web Code Editor powered by [monaco-editor-core](https://www.npmjs.com/package/monaco-editor-core) with radical ESM support. Core features include:
 
 - ESM only, load dependencies on demand, no `MonacoEnvironment` required.
-- Using [Shiki](https://shiki.style) for syntax highlighting with tons of themes and grammars.
+- Using [Shiki](https://shiki.style) for syntax highlighting with tons of grammars and themes.
 - Pre-highlighting code with Shiki and load `monaco-editor-core` in background.
 - Support **server-side rendering(SSR)**.
 - Builtin Virtual File System(VFS) for multiple files editing.
@@ -19,11 +19,12 @@ A Web Code Editor powered by [monaco-editor-core](https://www.npmjs.com/package/
 
 Planned features:
 
-- [ ] Quick open file command (only the VFS is provided)
+- [ ] Quick open file in VFS
 - [ ] Drag and drop file (only the VFS is provided)
 - [ ] VSCode `winodow.show<XXX>Message` APIs
 - [ ] Emmet
 - [ ] LSP for inline `html` and `css` in JavaScript/TypeScript
+- [ ] [Volar](https://github.com/volarjs/volar.js) integration
 
 ## Installation
 
