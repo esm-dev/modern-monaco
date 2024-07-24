@@ -56,6 +56,23 @@ export function createWorkerVFS(vfs?: VFS): Promise<WorkerVFS | undefined> {
   return undefined;
 }
 
+/** make a request to the language worker, cancelable by the token */
+function lspRequest<Result>(req: () => Promise<Result>, token: Monaco.CancellationToken): Promise<Result | undefined> {
+  if (!token) {
+    return req();
+  }
+  return new Promise((resolve, reject) => {
+    if (token.isCancellationRequested) {
+      resolve(undefined);
+      return;
+    }
+    token.onCancellationRequested(() => {
+      resolve(undefined);
+    });
+    req().then(resolve, reject);
+  });
+}
+
 // #region register basic language features
 
 export function enableBasicFeatures<
@@ -219,9 +236,6 @@ export function createWorkerWithEmbeddedLanguages<T extends ILanguageWorkerWithE
     }
     return null;
   };
-  setTimeout(() => {
-    refreshDiagnostics("html");
-  }, 1000);
   return {
     withSyncedResources: async (resources: Monaco.Uri[]) => {
       const workerProxy = await mainWorker.withSyncedResources(resources);
@@ -423,14 +437,14 @@ export class CompletionAdapter<T extends ILanguageWorkerWithCompletions> impleme
   async provideCompletionItems(
     model: Monaco.editor.IReadOnlyModel,
     position: Monaco.Position,
-    context: Monaco.languages.CompletionContext, // todo: use context
+    context: Monaco.languages.CompletionContext,
+    token: Monaco.CancellationToken,
   ): Promise<Monaco.languages.CompletionList | undefined> {
-    const worker = await this._worker.withSyncedResources([model.uri]);
-    const info = await worker.doComplete(model.uri.toString(), fromPosition(position));
+    const worker = await lspRequest(() => this._worker.withSyncedResources([model.uri]), token);
+    const info = await lspRequest(() => worker?.doComplete(model.uri.toString(), fromPosition(position)), token);
     if (!info) {
       return;
     }
-
     const wordInfo = model.getWordUntilPosition(position);
     const wordRange = new monaco.Range(
       position.lineNumber,
@@ -480,13 +494,14 @@ export class CompletionAdapter<T extends ILanguageWorkerWithCompletions> impleme
 
   async resolveCompletionItem(
     item: Monaco.languages.CompletionItem & { data?: any },
-  ): Promise<Monaco.languages.CompletionItem> {
+    token: Monaco.CancellationToken,
+  ): Promise<Monaco.languages.CompletionItem | undefined> {
     if (item.data?.context) {
       const { languageId } = item.data.context;
       const worker = registry.get(languageId);
       if (worker) {
-        const workerProxy: ILanguageWorkerWithCompletions = await worker.withSyncedResources([]);
-        const details = await workerProxy.doResolveCompletionItem?.(item as unknown as lst.CompletionItem);
+        const workerProxy = await lspRequest<ILanguageWorkerWithCompletions>(() => worker.withSyncedResources([]), token);
+        const details = await lspRequest(() => workerProxy?.doResolveCompletionItem?.(item as unknown as lst.CompletionItem), token);
         if (details) {
           item.detail = details.detail;
           item.documentation = details.documentation;
@@ -494,8 +509,8 @@ export class CompletionAdapter<T extends ILanguageWorkerWithCompletions> impleme
         }
       }
     } else {
-      const worker = await this._worker.withSyncedResources([]);
-      const details = await worker.doResolveCompletionItem?.(item as unknown as lst.CompletionItem);
+      const worker = await lspRequest(() => this._worker.withSyncedResources([]), token);
+      const details = await lspRequest(() => worker?.doResolveCompletionItem?.(item as unknown as lst.CompletionItem), token);
       if (details) {
         item.detail = details.detail;
         item.documentation = details.documentation;
@@ -644,9 +659,10 @@ export class HoverAdapter<T extends ILanguageWorkerWithHover> implements Monaco.
   async provideHover(
     model: Monaco.editor.IReadOnlyModel,
     position: Monaco.Position,
+    token: Monaco.CancellationToken,
   ): Promise<Monaco.languages.Hover | undefined> {
-    const worker = await this._worker.withSyncedResources([model.uri]);
-    const info = await worker.doHover(model.uri.toString(), fromPosition(position));
+    const worker = await lspRequest(() => this._worker.withSyncedResources([model.uri]), token);
+    const info = await lspRequest(() => worker?.doHover(model.uri.toString(), fromPosition(position)), token);
     if (info) {
       return {
         range: convertRange(info.range),
@@ -721,12 +737,11 @@ export class SignatureHelpAdapter<T extends ILanguageWorkerWithSignatureHelp> im
   async provideSignatureHelp(
     model: Monaco.editor.ITextModel,
     position: Monaco.Position,
-    _token: Monaco.CancellationToken,
+    token: Monaco.CancellationToken,
     context: Monaco.languages.SignatureHelpContext,
   ): Promise<Monaco.languages.SignatureHelpResult | undefined> {
-    const offset = model.getOffsetAt(position);
-    const worker = await this._worker.withSyncedResources([model.uri]);
-    const helpInfo = await worker.doSignatureHelp(model.uri.toString(), offset, context);
+    const worker = await lspRequest(() => this._worker.withSyncedResources([model.uri]), token);
+    const helpInfo = await lspRequest(() => worker?.doSignatureHelp(model.uri.toString(), model.getOffsetAt(position), context), token);
     if (!helpInfo || model.isDisposed()) {
       return undefined;
     }
@@ -771,14 +786,21 @@ export class CodeActionAdaptor<T extends ILanguageWorkerWithCodeAction> implemen
     model: Monaco.editor.ITextModel,
     range: Monaco.Range,
     context: Monaco.languages.CodeActionContext,
+    token: Monaco.CancellationToken,
   ): Promise<Monaco.languages.CodeActionList | undefined> {
-    const modelOptions = model.getOptions();
-    const formatOptions: lst.FormattingOptions = {
-      tabSize: modelOptions.tabSize,
-      insertSpaces: modelOptions.insertSpaces,
-    };
-    const worker = await this._worker.withSyncedResources([model.uri]);
-    const codeActions = await worker.doCodeAction(model.uri.toString(), fromRange(range), fromCodeActionContext(context), formatOptions);
+    const worker = await lspRequest(() => this._worker.withSyncedResources([model.uri]), token);
+    const codeActions = await lspRequest(
+      () => {
+        const modelOptions = model.getOptions();
+        const formatOptions: lst.FormattingOptions = {
+          tabSize: modelOptions.tabSize,
+          insertSpaces: modelOptions.insertSpaces,
+          trimTrailingWhitespace: modelOptions.trimAutoWhitespace,
+        };
+        return worker.doCodeAction(model.uri.toString(), fromRange(range), fromCodeActionContext(context), formatOptions);
+      },
+      token,
+    );
     if (codeActions) {
       return {
         actions: codeActions.map(action => ({
@@ -843,9 +865,10 @@ export class RenameAdapter<T extends ILanguageWorkerWithRename> implements Monac
     model: Monaco.editor.IReadOnlyModel,
     position: Monaco.Position,
     newName: string,
+    token: Monaco.CancellationToken,
   ): Promise<Monaco.languages.WorkspaceEdit | undefined> {
-    const worker = await this._worker.withSyncedResources([model.uri]);
-    const edit = await worker.doRename(model.uri.toString(), fromPosition(position), newName);
+    const worker = await lspRequest(() => this._worker.withSyncedResources([model.uri]), token);
+    const edit = await lspRequest(() => worker?.doRename(model.uri.toString(), fromPosition(position), newName), token);
     if (edit) {
       return convertWorkspaceEdit(edit);
     }
@@ -896,9 +919,10 @@ export class DocumentFormattingEditProvider<T extends ILanguageWorkerWithFormat>
   async provideDocumentFormattingEdits(
     model: Monaco.editor.IReadOnlyModel,
     options: Monaco.languages.FormattingOptions,
+    token: Monaco.CancellationToken,
   ): Promise<Monaco.languages.TextEdit[] | undefined> {
-    const worker = await this._worker.withSyncedResources([model.uri]);
-    const edits = await worker.doFormat(model.uri.toString(), null, options as lst.FormattingOptions);
+    const worker = await lspRequest(() => this._worker.withSyncedResources([model.uri]), token);
+    const edits = await lspRequest(() => worker?.doFormat(model.uri.toString(), null, options as lst.FormattingOptions), token);
     if (edits) {
       return edits.map<Monaco.languages.TextEdit>(convertTextEdit);
     }
@@ -916,9 +940,10 @@ export class DocumentRangeFormattingEditProvider<T extends ILanguageWorkerWithFo
     model: Monaco.editor.IReadOnlyModel,
     range: Monaco.Range,
     options: Monaco.languages.FormattingOptions,
+    token: Monaco.CancellationToken,
   ): Promise<Monaco.languages.TextEdit[] | undefined> {
-    const worker = await this._worker.withSyncedResources([model.uri]);
-    const edits = await worker.doFormat(model.uri.toString(), fromRange(range), options as lst.FormattingOptions);
+    const worker = await lspRequest(() => this._worker.withSyncedResources([model.uri]), token);
+    const edits = await lspRequest(() => worker?.doFormat(model.uri.toString(), fromRange(range), options as lst.FormattingOptions), token);
     if (edits) {
       return edits.map<Monaco.languages.TextEdit>(convertTextEdit);
     }
@@ -1003,9 +1028,10 @@ export class DocumentSymbolAdapter<T extends ILanguageWorkerWithDocumentSymbols>
 
   async provideDocumentSymbols(
     model: Monaco.editor.IReadOnlyModel,
+    token: Monaco.CancellationToken,
   ): Promise<Monaco.languages.DocumentSymbol[] | undefined> {
-    const worker = await this._worker.withSyncedResources([model.uri]);
-    const items = await worker.findDocumentSymbols(model.uri.toString());
+    const worker = await lspRequest(() => this._worker.withSyncedResources([model.uri]), token);
+    const items = await lspRequest(() => worker?.findDocumentSymbols(model.uri.toString()), token);
     if (items) {
       return items.map((item) => {
         if (isDocumentSymbol(item)) {
@@ -1104,9 +1130,10 @@ export class DefinitionAdapter<T extends ILanguageWorkerWithDefinitions> impleme
   async provideDefinition(
     model: Monaco.editor.IReadOnlyModel,
     position: Monaco.Position,
+    token: Monaco.CancellationToken,
   ): Promise<Monaco.languages.Definition | undefined> {
-    const worker = await this._worker.withSyncedResources([model.uri]);
-    const definition = await worker.findDefinition(model.uri.toString(), fromPosition(position));
+    const worker = await lspRequest(() => this._worker.withSyncedResources([model.uri]), token);
+    const definition = await lspRequest(() => worker?.findDefinition(model.uri.toString(), fromPosition(position)), token);
     if (definition) {
       const links = (Array.isArray(definition) ? definition : [definition]).map(convertLocationLink);
       await ensureHttpModels(links);
@@ -1179,10 +1206,11 @@ export class ReferenceAdapter<T extends ILanguageWorkerWithReferences> implement
   async provideReferences(
     model: Monaco.editor.IReadOnlyModel,
     position: Monaco.Position,
-    context: Monaco.languages.ReferenceContext, // todo: use context.includeDeclaration
+    context: Monaco.languages.ReferenceContext,
+    token: Monaco.CancellationToken,
   ): Promise<Monaco.languages.Location[] | undefined> {
-    const worker = await this._worker.withSyncedResources([model.uri]);
-    const references = await worker.findReferences(model.uri.toString(), fromPosition(position));
+    const worker = await lspRequest(() => this._worker.withSyncedResources([model.uri]), token);
+    const references = await lspRequest(() => worker?.findReferences(model.uri.toString(), fromPosition(position)), token);
     if (references) {
       const links = references.map(convertLocationLink);
       await ensureHttpModels(links);
@@ -1213,9 +1241,10 @@ export class DocumentLinkAdapter<T extends ILanguageWorkerWithDocumentLinks> imp
 
   async provideLinks(
     model: Monaco.editor.IReadOnlyModel,
+    token: Monaco.CancellationToken,
   ): Promise<Monaco.languages.ILinksList | undefined> {
-    const worker = await this._worker.withSyncedResources([model.uri]);
-    const items = await worker.findDocumentLinks(model.uri.toString());
+    const worker = await lspRequest(() => this._worker.withSyncedResources([model.uri]), token);
+    const items = await lspRequest(() => worker?.findDocumentLinks(model.uri.toString()), token);
     if (items) {
       const links = items.map((item) => ({
         range: convertRange(item.range),
@@ -1249,9 +1278,10 @@ export class DocumentColorAdapter<T extends ILanguageWorkerWithDocumentColors> i
 
   async provideDocumentColors(
     model: Monaco.editor.IReadOnlyModel,
+    token: Monaco.CancellationToken,
   ): Promise<Monaco.languages.IColorInformation[] | undefined> {
-    const worker = await this._worker.withSyncedResources([model.uri]);
-    const colors = await worker.findDocumentColors(model.uri.toString());
+    const worker = await lspRequest(() => this._worker.withSyncedResources([model.uri]), token);
+    const colors = await lspRequest(() => worker?.findDocumentColors(model.uri.toString()), token);
     if (colors) {
       return colors.map((item) => ({
         color: item.color,
@@ -1263,9 +1293,13 @@ export class DocumentColorAdapter<T extends ILanguageWorkerWithDocumentColors> i
   async provideColorPresentations(
     model: Monaco.editor.IReadOnlyModel,
     info: Monaco.languages.IColorInformation,
+    token: Monaco.CancellationToken,
   ): Promise<Monaco.languages.IColorPresentation[] | undefined> {
-    const worker = await this._worker.withSyncedResources([model.uri]);
-    const presentations = await worker.getColorPresentations(model.uri.toString(), info.color, fromRange(info.range));
+    const worker = await lspRequest(() => this._worker.withSyncedResources([model.uri]), token);
+    const presentations = await lspRequest(
+      () => worker.getColorPresentations(model.uri.toString(), info.color, fromRange(info.range)),
+      token,
+    );
     if (presentations) {
       return presentations.map((presentation) => ({
         label: presentation.label,
@@ -1294,9 +1328,10 @@ export class DocumentHighlightAdapter<
   async provideDocumentHighlights(
     model: Monaco.editor.IReadOnlyModel,
     position: Monaco.Position,
+    token: Monaco.CancellationToken,
   ): Promise<Monaco.languages.DocumentHighlight[] | undefined> {
-    const worker = await this._worker.withSyncedResources([model.uri]);
-    const entries = await worker.findDocumentHighlights(model.uri.toString(), fromPosition(position));
+    const worker = await lspRequest(() => this._worker.withSyncedResources([model.uri]), token);
+    const entries = await lspRequest(() => worker?.findDocumentHighlights(model.uri.toString(), fromPosition(position)), token);
     if (entries) {
       return entries.map((entry) => {
         return <Monaco.languages.DocumentHighlight> {
@@ -1336,9 +1371,10 @@ export class FoldingRangeAdapter<T extends ILanguageWorkerWithFoldingRanges> imp
   async provideFoldingRanges(
     model: Monaco.editor.IReadOnlyModel,
     context: Monaco.languages.FoldingContext,
+    token: Monaco.CancellationToken,
   ): Promise<Monaco.languages.FoldingRange[] | undefined> {
-    const worker = await this._worker.withSyncedResources([model.uri]);
-    const ranges = await worker.getFoldingRanges(model.uri.toString(), context);
+    const worker = await lspRequest(() => this._worker.withSyncedResources([model.uri]), token);
+    const ranges = await lspRequest(() => worker?.getFoldingRanges(model.uri.toString(), context), token);
     if (ranges) {
       return ranges.map((range) => {
         const result: Monaco.languages.FoldingRange = {
@@ -1382,9 +1418,10 @@ export class SelectionRangeAdapter<T extends ILanguageWorkerWithSelectionRanges>
   async provideSelectionRanges(
     model: Monaco.editor.IReadOnlyModel,
     positions: Monaco.Position[],
+    token: Monaco.CancellationToken,
   ): Promise<Monaco.languages.SelectionRange[][] | undefined> {
-    const worker = await this._worker.withSyncedResources([model.uri]);
-    const selectionRanges = await worker.getSelectionRanges(model.uri.toString(), positions.map(fromPosition));
+    const worker = await lspRequest(() => this._worker.withSyncedResources([model.uri]), token);
+    const selectionRanges = await lspRequest(() => worker?.getSelectionRanges(model.uri.toString(), positions.map(fromPosition)), token);
     if (selectionRanges) {
       return selectionRanges.map(
         (selectionRange: lst.SelectionRange | undefined) => {
@@ -1421,14 +1458,15 @@ export class LinkedEditingRangeAdapter<T extends ILanguageWorkerWithLinkedEditin
   async provideLinkedEditingRanges(
     model: Monaco.editor.ITextModel,
     position: Monaco.Position,
+    token: Monaco.CancellationToken,
   ): Promise<Monaco.languages.LinkedEditingRanges | undefined> {
-    const worker = await this._worker.withSyncedResources([model.uri]);
-    const linkedEditingRange = await worker.getLinkedEditingRangeAtPosition(
-      model.uri.toString(),
-      fromPosition(position),
+    const worker = await lspRequest(() => this._worker.withSyncedResources([model.uri]), token);
+    const editingRange = await lspRequest(
+      () => worker.getLinkedEditingRangeAtPosition(model.uri.toString(), fromPosition(position)),
+      token,
     );
-    if (linkedEditingRange) {
-      const { wordPattern, ranges } = linkedEditingRange;
+    if (editingRange) {
+      const { wordPattern, ranges } = editingRange;
       return {
         ranges: ranges.map((range) => convertRange(range)),
         wordPattern: wordPattern ? new RegExp(wordPattern) : undefined,
@@ -1453,16 +1491,11 @@ export class InlayHintsAdapter<T extends ILanguageWorkerWithInlayHints> implemen
   public async provideInlayHints(
     model: Monaco.editor.ITextModel,
     range: Monaco.Range,
+    token: Monaco.CancellationToken,
   ): Promise<Monaco.languages.InlayHintList> {
-    const worker = await this._worker.withSyncedResources([model.uri]);
-    const ret = await worker.provideInlayHints(model.uri.toString(), fromRange(range));
-    const hints: Monaco.languages.InlayHint[] = [];
-    if (ret) {
-      for (const hint of ret) {
-        hints.push(convertInlayHint(hint));
-      }
-    }
-    return { hints, dispose: () => {} };
+    const worker = await lspRequest(() => this._worker.withSyncedResources([model.uri]), token);
+    const hints = await lspRequest(() => worker?.provideInlayHints(model.uri.toString(), fromRange(range)), token);
+    return { hints: hints?.map(convertInlayHint) ?? [], dispose: () => {} };
   }
 }
 
