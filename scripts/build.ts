@@ -132,6 +132,18 @@ const buildTypes = async () => {
     ].join("\n"),
   );
 };
+const debounce = (fn: () => void, ms: number) => {
+  let timer: number | null = null;
+  return () => {
+    if (timer) {
+      clearTimeout(timer);
+    }
+    timer = setTimeout(() => {
+      timer = null;
+      fn();
+    }, ms);
+  };
+};
 
 if (import.meta.main) {
   // clean previous build
@@ -144,18 +156,21 @@ if (import.meta.main) {
   await Deno.writeFile("dist/onig.wasm", wasmBinary);
 
   if (Deno.args.includes("--watch")) {
+    const buildDistTask = debounce(() => {
+      buildDist().catch(err => console.error(err));
+    }, 500);
+    const buildEditorCoreTask = debounce(() => {
+      buildEditorCore().catch(err => console.error(err));
+    }, 500);
     const watcher = Deno.watchFs("src", { recursive: true });
     console.log("Watching for file changes...");
-    let timer: number | null = null;
-    for await (const _event of watcher) {
-      timer = timer ?? setTimeout(async () => {
-        timer = null;
-        try {
-          await buildDist();
-        } catch (error) {
-          console.error(error);
-        }
-      }, 100);
+    for await (const event of watcher) {
+      const filename = event.paths[0].slice(new URL("src", "file://" + Deno.cwd() + "/").pathname.length + 1);
+      if (filename === "editor-core.ts" || filename === "editor-worker.ts") {
+        buildEditorCoreTask();
+      } else {
+        buildDistTask();
+      }
     }
   } else {
     Deno.exit(0);
