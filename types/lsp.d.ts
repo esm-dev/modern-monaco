@@ -96,8 +96,6 @@ declare global {
     typescript?: {
       /** The compiler options. */
       compilerOptions?: ts.CompilerOptions;
-      /** The extra libraries to be loaded. */
-      extraLibs?: Record<string, string>;
       /** The global import maps. */
       importMap?: import("./import-map").ImportMap;
       /** The version of the typescript from CDN. Default: ">= 5.5.0" */

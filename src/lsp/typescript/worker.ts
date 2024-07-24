@@ -21,6 +21,8 @@ import {
 import { FileType, TextDocument, WorkerBase, type WorkerVFS } from "../worker-base.ts";
 
 // ! external modules, don't remove the `.js` extension
+// @ts-expect-error 'libs.js' is generated at build time
+import libs from "./libs.js";
 import { cache } from "../../cache.js";
 import { initializeWorker } from "../../editor-worker.js";
 import { type ImportMap, isBlankImportMap, resolve } from "../../import-map.js";
@@ -39,7 +41,6 @@ export interface CreateData {
   compilerOptions: ts.CompilerOptions;
   formatOptions?: ts.FormatCodeSettings & Pick<ts.UserPreferences, "quotePreference">;
   importMap: ImportMap;
-  libs: Record<string, string>;
   types: Record<string, VersionedContent>;
   vfs?: WorkerVFS;
 }
@@ -62,7 +63,6 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
   private _importMap: ImportMap;
   private _importMapVersion: number;
   private _isBlankImportMap: boolean;
-  private _libs: Record<string, string>;
   private _types: Record<string, VersionedContent>;
   private _jsxImportUrl: string;
   private _formatOptions?: CreateData["formatOptions"];
@@ -85,7 +85,6 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     this._importMap = createData.importMap;
     this._importMapVersion = 0;
     this._isBlankImportMap = isBlankImportMap(createData.importMap);
-    this._libs = createData.libs;
     this._types = createData.types;
     this._formatOptions = createData.formatOptions;
     this._updateJsxImportSource();
@@ -129,8 +128,8 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
   fileExists(filename: string): boolean {
     if (filename.startsWith("/node_modules/")) return false;
     return (
-      filename in this._libs
-      || `lib.${filename}.d.ts` in this._libs
+      filename in libs
+      || `lib.${filename}.d.ts` in libs
       || filename in this._types
       || this._httpLibs.has(filename)
       || this._httpModules.has(filename)
@@ -150,9 +149,9 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
   getScriptFileNames(): string[] {
     const models = this.getMirrorModels();
     const types = Object.keys(this._types);
-    const libs = Object.keys(this._libs);
+    const libNames = Object.keys(libs);
     const filenames = new Array<string>(
-      models.length + types.length + libs.length + this._httpLibs.size + this._httpModules.size + this._httpTsModules.size,
+      models.length + types.length + libNames.length + this._httpLibs.size + this._httpModules.size + this._httpTsModules.size,
     );
     let i = 0;
     for (const model of models) {
@@ -161,7 +160,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     for (const filename of types) {
       filenames[i++] = filename;
     }
-    for (const filename of libs) {
+    for (const filename of libNames) {
       filenames[i++] = filename;
     }
     for (const [filename] of this._httpLibs) {
@@ -181,7 +180,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
       return String(this._types[fileName].version);
     }
     if (
-      fileName in this._libs
+      fileName in libs
       || fileName in this._types
       || this._httpLibs.has(fileName)
       || this._httpModules.has(fileName)
@@ -413,7 +412,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     if (!document) {
       return null;
     }
-    const languageId = document.languageId;
+    const ext = getScriptExtension(uri);
     const diagnostics: lst.Diagnostic[] = [];
     for (const diagnostic of this._languageService.getSyntacticDiagnostics(uri)) {
       diagnostics.push(this._convertDiagnostic(document, diagnostic));
@@ -421,7 +420,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     for (const diagnostic of this._languageService.getSuggestionDiagnostics(uri)) {
       diagnostics.push(this._convertDiagnostic(document, diagnostic));
     }
-    if (languageId === "typescript" || languageId === "tsx") {
+    if (ext === ".tsx" || ext.endsWith("ts")) {
       for (const diagnostic of this._languageService.getSemanticDiagnostics(uri)) {
         diagnostics.push(this._convertDiagnostic(document, diagnostic));
       }
@@ -481,7 +480,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
         }
       }
       // data used for resolving item details (see 'doResolveCompletionItem')
-      const data = { entryData: entry.data, context: { uri, offset, languageId: document.languageId } };
+      const data = { entryData: entry.data, context: { uri, offset } };
       const tags: lst.CompletionItemTag[] = [];
       if (entry.kindModifiers?.includes("deprecated")) {
         tags.push(CompletionItemTag.Deprecated);
@@ -1089,8 +1088,8 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
   }
 
   private _getScriptText(fileName: string): string | undefined {
-    return this._libs[fileName]
-      ?? this._libs[`lib.${fileName}.d.ts`]
+    return libs[fileName]
+      ?? libs[`lib.${fileName}.d.ts`]
       ?? this._types[fileName]?.content
       ?? this._httpLibs.get(fileName)
       ?? this._httpModules.get(fileName)

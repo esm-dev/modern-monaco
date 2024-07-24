@@ -77,27 +77,20 @@ async function createWorker(
       scopes: Object.assign({}, defaultImportMap.scopes, im.scopes),
     };
   };
-  const promises = [
-    // @ts-expect-error 'libs.js' is generated at build time
-    import("./libs.js").then((m) => Object.assign(m.default, languageSettings?.extraLibs)),
-  ];
 
   let compilerOptions: ts.CompilerOptions = { ...defaultCompilerOptions };
   let importMap = { ...defaultImportMap };
 
   if (vfs) {
-    promises.push(
+    await Promise.all([
       loadCompilerOptions(vfs).then((options) => {
         compilerOptions = { ...defaultCompilerOptions, ...options };
       }),
       loadImportMap(vfs, remixImportMap).then((im) => {
         importMap = im;
       }),
-    );
+    ]);
   }
-
-  // wait for all promises to resolve
-  const [libs] = await Promise.all(promises);
 
   // resolve types of the default compiler options
   await typesStore.load(compilerOptions, vfs);
@@ -106,7 +99,6 @@ async function createWorker(
   const createData: CreateData = {
     compilerOptions,
     importMap,
-    libs,
     types: typesStore.types,
     vfs: vfs ? { files: await vfs.ls() } : undefined,
     formatOptions: {
