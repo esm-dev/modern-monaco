@@ -21,6 +21,7 @@ Planned features:
 
 - [ ] Quick open file in VFS
 - [ ] Drag and drop file (only the VFS is provided)
+- [ ] Display Non-Code files in VFS, like images, videos, etc.
 - [ ] VSCode `winodow.show<XXX>Message` APIs
 - [ ] Emmet
 - [ ] LSP for inline `html` and `css` in JavaScript/TypeScript
