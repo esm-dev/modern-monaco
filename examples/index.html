@@ -34,7 +34,7 @@
       border: 1px rgba(255, 255, 255, 0.1) solid;
       font-size: 14px;
       font-weight: 500;
-      font-family: Inter, sans-serif;;
+      font-family: Inter, sans-serif;
       line-height: 1;
       cursor: pointer;
       transition: all 0.3s ease-in-out;
@@ -131,14 +131,15 @@
       user-select: none;
     }
 
-    ul.selector li:hover,
-    ul.selector li.selected {
-      color: rgba(255, 255, 255, 1);
-    }
-
     ul.selector li span {
       flex-grow: 1;
       width: 100%;
+    }
+
+    ul.selector li span em {
+      font-style: normal;
+      color: #666;
+      transition: color 0.3s ease-in-out;
     }
 
     ul.selector li svg {
@@ -155,6 +156,20 @@
     ul.selector li svg.file-icon-trash {
       color: rgba(255, 255, 255, 0);
       transition: color 0.3s ease-in-out;
+    }
+
+    ul.selector li:hover,
+    ul.selector li.selected {
+      color: rgba(255, 255, 255, 0.9);
+    }
+
+    ul.selector li.selected {
+      font-weight: 500;
+    }
+
+    ul.selector li:hover span em,
+    ul.selector li.selected span em {
+      color: #999;
     }
 
     ul.selector li:hover svg.file-icon-trash {
@@ -250,21 +265,39 @@
         }, 300);
       }
     }
+    const sortFn = (a, b) => {
+      a = a.slice('file:///'.length)
+      b = b.slice('file:///'.length)
+      const aLen = a.split('/').length
+      const bLen = b.split('/').length
+      if (aLen !== bLen) {
+        return bLen - aLen
+      }
+      return a.localeCompare(b)
+    }
     const renderList = (list) => {
       selector.replaceChildren()
-      list.forEach(filename => {
+      list.sort(sortFn).forEach(uri => {
         const option = document.createElement('li')
+        const em = document.createElement('em')
         const span = document.createElement('span')
         const deleteIcon = icons.querySelector('.file-icon-trash').cloneNode(true)
-        const isActive = filename === vfs.history.current
-        span.textContent = filename.slice('file:///'.length)
+        const isActive = uri === vfs.history.current
+        const filename = uri.slice('file:///'.length)
+        const dirname = filename.split('/').slice(0, -1).join('/')
+        const basename = filename.split('/').pop()
+        span.textContent = basename
+        if (dirname) {
+          em.textContent = dirname + "/"
+          span.prepend(em)
+        }
         option.append(icons.querySelector('.file-icon').cloneNode(true))
         option.append(icons.querySelector('.file-icon-edit').cloneNode(true))
         option.append(span)
         option.append(deleteIcon)
         deleteIcon.addEventListener('click', async (e) => {
           e.stopPropagation()
-          vfs.remove(filename)
+          vfs.remove(uri)
           if (isActive) {
             toggleFolder()
           }
@@ -274,7 +307,7 @@
         }
         option.addEventListener('click', () => {
           toggleFolder()
-          vfs.history.push(filename)
+          vfs.history.push(uri)
         })
         selector.appendChild(option)
       })
@@ -325,8 +358,8 @@
     renderButtonText(vfs.history.current)
 
     // render file list
-    vfs.watch("*", (evt) => {
-      if (evt.kind === "create" || evt.kind === "remove") {
+    vfs.watch('*', (evt) => {
+      if (evt.kind === 'create' || evt.kind === 'remove') {
         vfs.ls().then(renderList);
       }
     });
