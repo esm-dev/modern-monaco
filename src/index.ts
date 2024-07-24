@@ -39,6 +39,7 @@ const editorProps = [
   "scrollbar",
   "stickyScroll",
   "tabSize",
+  "theme",
   "wordWrap",
 ];
 const preloadGrammars = [
@@ -322,6 +323,9 @@ export function lazy(options?: InitOption, hydrate?: boolean) {
         const langs = (options?.langs ?? []).concat(preloadGrammars, syntaxes as any[]);
         if (renderOptions.language || filename) {
           langs.push(renderOptions.language ?? getLanguageIdFromPath(filename));
+        }
+        if (renderOptions.theme) {
+          renderOptions.theme = renderOptions.theme.toLowerCase().replace(/ +/g, "-");
         }
 
         // create a highlighter instance for the renderer/editor
