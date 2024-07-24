@@ -1,14 +1,14 @@
 import type monacoNS from "monaco-editor-core";
 import { initialize } from "monaco-editor-core/esm/vs/editor/editor.worker";
 
-export interface MonacoLanguageWorker<D extends object> {
-  new(ctx: monacoNS.worker.IWorkerContext, createData: D);
+export interface MonacoLanguageWorker<Data extends object, Host = undefined> {
+  new(ctx: monacoNS.worker.IWorkerContext<Host>, createData: Data);
 }
 
-export function initializeWorker<W extends MonacoLanguageWorker<D>, D extends object>(Worker: W): void {
+export function initializeWorker<Data extends object, Host = undefined>(Worker: MonacoLanguageWorker<Data, Host>): void {
   globalThis.onmessage = () => {
     // Ignore first message in this case and initialize if not yet initialized
-    initialize((ctx: monacoNS.worker.IWorkerContext, createData: D) => new Worker(ctx, createData));
+    initialize((ctx: monacoNS.worker.IWorkerContext<Host>, createData: Data) => new Worker(ctx, createData));
   };
 }
 

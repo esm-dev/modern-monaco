@@ -65,7 +65,7 @@ export class BasicVFS {
   }
 
   private _openDB(options: VFSOptions): Promise<IDBDatabase> {
-    const dbName = ["monaco-vfs", options.scope].filter(Boolean).join("/");
+    const dbName = "monaco-vfs/" + (options.scope ?? "defualt");
     return VFS.openIDB(dbName, 1, (store) => {
       for (const [name, data] of Object.entries(options.initial ?? {})) {
         const url = toUrl(name);
@@ -199,10 +199,10 @@ export class VFS extends BasicVFS {
         this._history = new VFSBrowserHistory("/");
       }
     } else if (globalThis.localStorage) {
-      this._history = new VFSLocalStorageHistory(options.scope);
+      this._history = new VFSLocalStorageHistory(options.scope ?? "default");
     }
     if (globalThis.localStorage) {
-      this._viewState = createPersistStateStorage("monaco:vfs.viewState." + options.scope);
+      this._viewState = createPersistStateStorage("monaco:vfs.viewState." + (options.scope ?? "default"));
     }
   }
 
@@ -261,9 +261,12 @@ export class VFS extends BasicVFS {
           editor.setPosition(selectionOrPosition);
         }
         const pos = editor.getPosition();
-        editor.setScrollTop(
-          editor.getScrolledVisiblePosition(new monaco.Position(pos.lineNumber - 7, pos.column)).top,
-        );
+        if (pos) {
+          const svp = editor.getScrolledVisiblePosition(new monaco.Position(pos.lineNumber - 7, pos.column));
+          if (svp) {
+            editor.setScrollTop(svp.top);
+          }
+        }
       } else {
         this._viewState[href] && editor.restoreViewState(this._viewState[href]);
       }

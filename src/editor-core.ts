@@ -41,7 +41,7 @@ Object.assign(editor, {
     return createModel(value, language, uri);
   },
   getModel: (uri: string | URL | Uri) => {
-    return getModel(normalizeUri(uri));
+    return getModel(normalizeUri(uri)!);
   },
 });
 
@@ -92,7 +92,7 @@ export function showInputBox(options: InputBoxOptions = {}) {
   }
   if (validateInput) {
     box.onDidChangeValue(async (value: string) => {
-      const validation = value ? await validateValue(value) : "";
+      const validation = value ? await validateValue!(value) : "";
       if (validation) {
         if (typeof validation === "string") {
           box.validationMessage = validation;
@@ -110,7 +110,7 @@ export function showInputBox(options: InputBoxOptions = {}) {
   box.show();
   return new Promise<string>((resolve) => {
     box.onDidAccept(async () => {
-      if (!validateInput || !(await validateValue(box.value))) {
+      if (!validateInput || !(await validateValue!(box.value))) {
         resolve(box.value);
         box.dispose();
       }

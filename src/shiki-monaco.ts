@@ -144,6 +144,7 @@ class TokenizerState implements monacoNs.languages.IState {
 
 function normalizeColor(color: undefined): undefined;
 function normalizeColor(color: string): string;
+function normalizeColor(color: string | undefined): string | undefined;
 function normalizeColor(color: string | undefined): string | undefined {
   if (!color) {
     return color;

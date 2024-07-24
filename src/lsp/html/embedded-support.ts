@@ -9,7 +9,7 @@ import { LanguageService, Position, TextDocument, TokenType } from "vscode-html-
 export interface HTMLDocumentRegions {
   readonly regions: readonly EmbeddedRegion[];
   readonly importedScripts: readonly ImportedScript[];
-  getEmbeddedDocument(languageId: string, ignoreAttributeValues?: boolean): string | null;
+  getEmbeddedDocument(languageId: string, ignoreAttributeValues: boolean): string | null;
   getEmbeddedLanguages(ignoreAttributeValues?: boolean): string[];
   getEmbeddedLanguageAtPosition(position: Position): string | undefined;
   hasEmbeddedLanguage(languageId: string, ignoreAttributeValues?: boolean): boolean;
@@ -131,7 +131,7 @@ export function getDocumentRegions(languageService: LanguageService, document: T
 }
 
 function getEmbeddedLanguages(regions: EmbeddedRegion[], ignoreAttributeValues?: boolean): string[] {
-  const result = [];
+  const result: string[] = [];
   for (const { languageId, attributeValue } of regions) {
     if (languageId && (!ignoreAttributeValues || !attributeValue) && result.indexOf(languageId) === -1) {
       result.push(languageId);

@@ -115,8 +115,11 @@ export class HTMLWorker extends WorkerBase<undefined, htmlService.HTMLDocument> 
     if (ch === ">" || ch === "/") {
       return this._languageService.doTagComplete(document, position, htmlDocument);
     } else if (ch === "=") {
-      return this._languageService.doQuoteComplete(document, position, htmlDocument, this._suggestSettings)
-        ?.replaceAll("$1", "$0");
+      const insertText = this._languageService.doQuoteComplete(document, position, htmlDocument, this._suggestSettings);
+      if (!insertText) {
+        return null;
+      }
+      return insertText.replaceAll("$1", "$0");
     }
     return null;
   }
@@ -335,7 +338,7 @@ export class HTMLWorker extends WorkerBase<undefined, htmlService.HTMLDocument> 
       return null;
     }
     const rs = getDocumentRegions(this._languageService, document);
-    const content = rs.getEmbeddedDocument(languageId);
+    const content = rs.getEmbeddedDocument(languageId, false);
     if (content) {
       return { content };
     }

@@ -97,10 +97,16 @@ export async function setup(
         return /^[\w\-\.@]+$/.test(value) ? null : "Invalid package name, only word characters are allowed";
       },
     });
+    if (!keyword) {
+      return;
+    }
     const pkg = await monaco.showQuickPick(searchPackagesFromNpm(keyword, 32), {
       placeHolder: "Select a package",
       matchOnDetail: true,
     });
+    if (!pkg) {
+      return;
+    }
     const editor = monaco.editor.getEditors().filter(e => e.hasWidgetFocus())[0];
     const model = editor?.getModel();
     if (model) {

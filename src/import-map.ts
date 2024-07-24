@@ -72,9 +72,9 @@ export function parseImportMapFromJson(json: string, baseURL?: string): ImportMa
 export function parseImportMapFromHtml(html: string, baseURL?: string): ImportMap {
   const tplEl = document.createElement("template");
   tplEl.innerHTML = html;
-  const scriptEl: HTMLScriptElement = tplEl.content.querySelector("script[type='importmap']");
+  const scriptEl: HTMLScriptElement | null = tplEl.content.querySelector("script[type='importmap']");
   if (scriptEl) {
-    return parseImportMapFromJson(scriptEl.textContent, baseURL);
+    return parseImportMapFromJson(scriptEl.textContent!, baseURL);
   }
 
   return createBlankImportMap(baseURL);
@@ -142,5 +142,5 @@ function validateScopes(imports: Record<string, unknown>) {
 }
 
 function isObject(v: unknown): v is Record<string, unknown> {
-  return v && typeof v === "object" && !Array.isArray(v);
+  return typeof v === "object" && v !== null && !Array.isArray(v);
 }

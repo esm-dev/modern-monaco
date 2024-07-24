@@ -1,7 +1,7 @@
 import type monacoNS from "monaco-editor-core";
 import type { Highlighter, RenderOptions, ShikiInitOptions } from "./shiki.ts";
 import type { VFS } from "./vfs.ts";
-import type { LSPConfig } from "./lsp/index.ts";
+import type { LSPConfig, LSPProvider } from "./lsp/index.ts";
 import { createWebWorker, margeProviders } from "./lsp/index.ts";
 import syntaxes from "./syntaxes/index.ts";
 
@@ -58,7 +58,7 @@ export interface InitOption extends ShikiInitOptions {
 async function loadMonaco(highlighter: Highlighter, options?: InitOption, onEditorWorkerReady?: () => void) {
   const monaco = await import("./editor-core.js");
   const vfs = options?.vfs;
-  const lspProviders = margeProviders(options.lsp);
+  const lspProviders = margeProviders(options?.lsp);
 
   if (vfs) {
     vfs.setup(monaco);
@@ -77,7 +77,7 @@ async function loadMonaco(highlighter: Highlighter, options?: InitOption, onEdit
   // set the global `MonacoEnvironment` object
   Reflect.set(globalThis, "MonacoEnvironment", {
     getWorker: async (_workerId: string, label: string) => {
-      let provider = lspProviders[label];
+      let provider: LSPProvider | undefined = lspProviders[label];
       if (!provider) {
         provider = Object.values(lspProviders).find((p) => p.aliases?.includes(label));
       }
@@ -107,6 +107,7 @@ async function loadMonaco(highlighter: Highlighter, options?: InitOption, onEdit
       if ((link.scheme === "https" || link.scheme === "http") && monaco.editor.getModel(link)) {
         return true;
       }
+      return false;
     },
   });
 
@@ -135,9 +136,12 @@ async function loadMonaco(highlighter: Highlighter, options?: InitOption, onEdit
               editor.setPosition(selectionOrPosition);
             }
             const pos = editor.getPosition();
-            editor.setScrollTop(
-              editor.getScrolledVisiblePosition(new monaco.Position(pos.lineNumber - 7, pos.column)).top,
-            );
+            if (pos) {
+              const svp = editor.getScrolledVisiblePosition(new monaco.Position(pos.lineNumber - 7, pos.column));
+              if (svp) {
+                editor.setScrollTop(svp.top);
+              }
+            }
           }
           const isHttpUrl = resource.scheme === "https" || resource.scheme === "http";
           editor.updateOptions({ readOnly: isHttpUrl });
@@ -179,7 +183,10 @@ async function loadMonaco(highlighter: Highlighter, options?: InitOption, onEdit
       let label = id;
       let provider = lspProviders[label];
       if (!provider) {
-        [label, provider] = Object.entries(lspProviders).find(([, lsp]) => lsp.aliases?.includes(id)) ?? [];
+        const alias = Object.entries(lspProviders).find(([, lsp]) => lsp.aliases?.includes(id));
+        if (alias) {
+          [label, provider] = alias;
+        }
       }
       if (provider) {
         provider.import().then(({ setup }) => setup(monaco, id, options?.[label], options?.lsp?.format, vfs));
@@ -279,7 +286,7 @@ export function lazy(options?: InitOption, hydrate?: boolean) {
         if (hydrate) {
           const optionsScript = this.children[0] as HTMLScriptElement | null;
           if (optionsScript && optionsScript.tagName === "SCRIPT" && optionsScript.className === "monaco-editor-options") {
-            const opts = JSON.parse(optionsScript.textContent);
+            const opts = JSON.parse(optionsScript.textContent!);
             // we save the `fontDigitWidth` as a global variable, this is used for keeping the line numbers
             // layout consistent between the SSR render and the client pre-render.
             if (opts.fontDigitWidth) {
@@ -322,7 +329,7 @@ export function lazy(options?: InitOption, hydrate?: boolean) {
 
         const langs = (options?.langs ?? []).concat(preloadGrammars, syntaxes as any[]);
         if (renderOptions.language || filename) {
-          langs.push(renderOptions.language ?? getLanguageIdFromPath(filename));
+          langs.push(renderOptions.language ?? getLanguageIdFromPath(filename!) ?? "plaintext");
         }
         if (renderOptions.theme) {
           renderOptions.theme = renderOptions.theme.toLowerCase().replace(/ +/g, "-");
@@ -359,9 +366,12 @@ export function lazy(options?: InitOption, hydrate?: boolean) {
           prerenderEl.style.left = "0";
           this.appendChild(prerenderEl);
           if (filename) {
-            const scrollTop = vfs.viewState[new URL(filename, "file:///").href]?.viewState?.scrollTop ?? 0;
-            if (scrollTop > 0) {
-              prerenderEl.querySelector(".mock-monaco-editor").scrollTop = scrollTop;
+            const scrollTop = vfs?.viewState[new URL(filename, "file:///").href]?.viewState?.scrollTop ?? 0;
+            if (scrollTop) {
+              const mockEl = prerenderEl.querySelector(".mock-monaco-editor");
+              if (mockEl) {
+                mockEl.scrollTop = scrollTop;
+              }
             }
           }
         }
@@ -374,9 +384,11 @@ export function lazy(options?: InitOption, hydrate?: boolean) {
             const saveViewState = () => {
               const currentModel = editor.getModel();
               if (currentModel?.uri.scheme === "file") {
-                const vs = editor.saveViewState();
-                vs.viewState.scrollTop ??= editor.getScrollTop();
-                vfs.viewState[currentModel.uri.toString()] = Object.freeze(vs);
+                const state = editor.saveViewState();
+                if (state) {
+                  state.viewState.scrollTop ??= editor.getScrollTop();
+                  vfs!.viewState[currentModel.uri.toString()] = Object.freeze(state);
+                }
               }
             };
             const debunce = (fn: () => void, delay = 500) => {

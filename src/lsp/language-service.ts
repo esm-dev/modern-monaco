@@ -53,11 +53,14 @@ export function createWorkerVFS(vfs?: VFS): Promise<WorkerVFS | undefined> {
   if (vfs) {
     return vfs.ls().then(files => ({ files }));
   }
-  return undefined;
+  return Promise.resolve(undefined);
 }
 
 /** make a request to the language worker, cancelable by the token */
-function lspRequest<Result>(req: () => Promise<Result>, token: Monaco.CancellationToken): Promise<Result | undefined> {
+function lspRequest<Result>(
+  req: () => Promise<Result> | undefined,
+  token: Monaco.CancellationToken,
+): Promise<Result | undefined> | undefined {
   if (!token) {
     return req();
   }
@@ -69,7 +72,12 @@ function lspRequest<Result>(req: () => Promise<Result>, token: Monaco.Cancellati
     token.onCancellationRequested(() => {
       resolve(undefined);
     });
-    req().then(resolve, reject);
+    const ret = req();
+    if (ret) {
+      ret.then(resolve, reject);
+    } else {
+      resolve(undefined);
+    }
   });
 }
 
@@ -135,7 +143,7 @@ export function enableBasicFeatures<
   // add the worker to the registry
   registry.set(languageId, worker);
   if (registryListeners.has(languageId)) {
-    registryListeners.get(languageId)();
+    registryListeners.get(languageId)!();
     registryListeners.delete(languageId);
   }
 
@@ -196,7 +204,7 @@ export function attachEmbeddedLanguages<T extends ILanguageWorkerWithEmbeddedSup
   const cleanUp = (model: Monaco.editor.IModel) => {
     const uri = model.uri.toString();
     if (listeners.has(uri)) {
-      listeners.get(uri).dispose();
+      listeners.get(uri)!.dispose();
       listeners.delete(uri);
     }
     embeddedLanguages.forEach((languageId) => {
@@ -338,7 +346,7 @@ function enableDiagnostics<T extends ILanguageWorkerWithValidation>(
   const dispose = (model: Monaco.editor.IModel): void => {
     const uri = model.uri.toString();
     if (listeners.has(uri)) {
-      listeners.get(uri).dispose();
+      listeners.get(uri)!.dispose();
       listeners.delete(uri);
     }
   };
@@ -521,21 +529,11 @@ export class CompletionAdapter<T extends ILanguageWorkerWithCompletions> impleme
   }
 }
 
-export function fromPosition(position: Monaco.Position): lst.Position;
-export function fromPosition(position: undefined): undefined;
-export function fromPosition(position: Monaco.Position | undefined): lst.Position | undefined {
-  if (!position) {
-    return undefined;
-  }
+export function fromPosition(position: Monaco.Position): lst.Position {
   return { character: position.column - 1, line: position.lineNumber - 1 };
 }
 
-export function fromRange(range: Monaco.IRange): lst.Range;
-export function fromRange(range: undefined): undefined;
-export function fromRange(range: Monaco.IRange | undefined): lst.Range | undefined {
-  if (!range) {
-    return undefined;
-  }
+export function fromRange(range: Monaco.IRange): lst.Range {
   return {
     start: {
       line: range.startLineNumber - 1,
@@ -545,12 +543,7 @@ export function fromRange(range: Monaco.IRange | undefined): lst.Range | undefin
   };
 }
 
-export function convertRange(range: lst.Range): Monaco.Range;
-export function convertRange(range: undefined): undefined;
-export function convertRange(range: lst.Range | undefined): Monaco.Range | undefined {
-  if (!range) {
-    return undefined;
-  }
+export function convertRange(range: lst.Range): Monaco.Range {
   return new monaco.Range(
     range.start.line + 1,
     range.start.character + 1,
@@ -623,16 +616,11 @@ function convertCompletionItemKind(
     case lst.CompletionItemKind.TypeParameter:
       return CompletionItemKind.TypeParameter;
     default:
-      return undefined;
+      return CompletionItemKind.Property;
   }
 }
 
-export function convertTextEdit(textEdit: lst.TextEdit): Monaco.languages.TextEdit;
-export function convertTextEdit(textEdit: undefined): undefined;
-export function convertTextEdit(textEdit: lst.TextEdit | undefined): Monaco.languages.TextEdit | undefined {
-  if (!textEdit) {
-    return undefined;
-  }
+export function convertTextEdit(textEdit: lst.TextEdit): Monaco.languages.TextEdit {
   return {
     range: convertRange(textEdit.range),
     text: textEdit.newText,
@@ -665,7 +653,7 @@ export class HoverAdapter<T extends ILanguageWorkerWithHover> implements Monaco.
     const info = await lspRequest(() => worker?.doHover(model.uri.toString(), fromPosition(position)), token);
     if (info) {
       return {
-        range: convertRange(info.range),
+        range: info.range ? convertRange(info.range) : undefined,
         contents: convertMarkedStringArray(info.contents),
       };
     }
@@ -691,10 +679,7 @@ function convertMarkdownString(entry: lst.MarkupContent | lst.MarkedString): Mon
 
 function convertMarkedStringArray(
   contents: lst.MarkupContent | lst.MarkupContent[] | lst.MarkedString | lst.MarkedString[],
-): Monaco.IMarkdownString[] | undefined {
-  if (!contents) {
-    return undefined;
-  }
+): Monaco.IMarkdownString[] {
   if (Array.isArray(contents)) {
     return contents.map(convertMarkdownString);
   }
@@ -797,7 +782,7 @@ export class CodeActionAdaptor<T extends ILanguageWorkerWithCodeAction> implemen
           insertSpaces: modelOptions.insertSpaces,
           trimTrailingWhitespace: modelOptions.trimAutoWhitespace,
         };
-        return worker.doCodeAction(model.uri.toString(), fromRange(range), fromCodeActionContext(context), formatOptions);
+        return worker?.doCodeAction(model.uri.toString(), fromRange(range), fromCodeActionContext(context), formatOptions);
       },
       token,
     );
@@ -819,7 +804,7 @@ export class CodeActionAdaptor<T extends ILanguageWorkerWithCodeAction> implemen
 function fromCodeActionContext(context: Monaco.languages.CodeActionContext): lst.CodeActionContext {
   return {
     diagnostics: context.markers.map(fromMarkerToDiagnostic),
-    only: [context.only],
+    only: context.only ? [context.only] : undefined,
     triggerKind: context.trigger,
   };
 }
@@ -987,7 +972,7 @@ export function enableAutoComplete<T extends ILanguageWorkerWithAutoComplete>(
             model.pushEditOperations([], [{ range, text: insertText }], () => []);
             if (cursor >= 0) {
               const focusEditor = editor.getEditors().find((e) => e.hasTextFocus());
-              focusEditor.setPosition(position.delta(0, cursor));
+              focusEditor?.setPosition(position.delta(0, cursor));
             }
           }
         }
@@ -998,7 +983,7 @@ export function enableAutoComplete<T extends ILanguageWorkerWithAutoComplete>(
   editor.onDidChangeModelLanguage(({ model, oldLanguage }) => {
     const modelUri = model.uri.toString();
     if (oldLanguage === langaugeId && listeners.has(modelUri)) {
-      listeners.get(modelUri).dispose();
+      listeners.get(modelUri)?.dispose();
       listeners.delete(modelUri);
     }
     validateModel(model);
@@ -1006,7 +991,7 @@ export function enableAutoComplete<T extends ILanguageWorkerWithAutoComplete>(
   editor.onWillDisposeModel((model) => {
     const modelUri = model.uri.toString();
     if (model.getLanguageId() === langaugeId && listeners.has(modelUri)) {
-      listeners.get(modelUri).dispose();
+      listeners.get(modelUri)?.dispose();
       listeners.delete(modelUri);
     }
   });
@@ -1297,13 +1282,13 @@ export class DocumentColorAdapter<T extends ILanguageWorkerWithDocumentColors> i
   ): Promise<Monaco.languages.IColorPresentation[] | undefined> {
     const worker = await lspRequest(() => this._worker.withSyncedResources([model.uri]), token);
     const presentations = await lspRequest(
-      () => worker.getColorPresentations(model.uri.toString(), info.color, fromRange(info.range)),
+      () => worker?.getColorPresentations(model.uri.toString(), info.color, fromRange(info.range)),
       token,
     );
     if (presentations) {
       return presentations.map((presentation) => ({
         label: presentation.label,
-        textEdit: convertTextEdit(presentation.textEdit),
+        textEdit: presentation.textEdit ? convertTextEdit(presentation.textEdit) : undefined,
         additionalTextEdits: presentation.additionalTextEdits?.map(convertTextEdit),
       }));
     }
@@ -1462,7 +1447,7 @@ export class LinkedEditingRangeAdapter<T extends ILanguageWorkerWithLinkedEditin
   ): Promise<Monaco.languages.LinkedEditingRanges | undefined> {
     const worker = await lspRequest(() => this._worker.withSyncedResources([model.uri]), token);
     const editingRange = await lspRequest(
-      () => worker.getLinkedEditingRangeAtPosition(model.uri.toString(), fromPosition(position)),
+      () => worker?.getLinkedEditingRangeAtPosition(model.uri.toString(), fromPosition(position)),
       token,
     );
     if (editingRange) {
@@ -1503,7 +1488,7 @@ function convertInlayHint(hint: lst.InlayHint): Monaco.languages.InlayHint {
   return {
     label: convertLabelText(hint.label),
     tooltip: hint.tooltip,
-    textEdits: hint.textEdits?.map(convertTextEdit),
+    textEdits: hint.textEdits?.map(convertTextEdit) as Monaco.languages.TextEdit[] | undefined,
     position: convertPosition(hint.position),
     kind: hint.kind,
     paddingLeft: hint.paddingLeft,
@@ -1523,7 +1508,7 @@ function convertInlayHintLabelPart(part: lst.InlayHintLabelPart): Monaco.languag
     label: part.value,
     tooltip: part.tooltip,
     command: convertCommand(part.command),
-    location: convertLocationLink(part.location),
+    location: part.location ? convertLocationLink(part.location) : undefined,
   };
 }
 

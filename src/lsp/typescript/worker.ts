@@ -260,8 +260,8 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
       } catch (error) {
         return undefined;
       }
-      if (getScriptExtension(moduleUrl.pathname, null) === null) {
-        const ext = getScriptExtension(containingFile, null);
+      if (getScriptExtension(moduleUrl.pathname) === null) {
+        const ext = getScriptExtension(containingFile);
         if (ext === ".d.ts" || ext === ".d.mts" || ext === ".d.cts") {
           // use the extension of the containing file which is a dts file
           // when the module name has no extension.
@@ -284,7 +284,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
           if (moduleHref === model.uri.toString()) {
             return {
               resolvedFileName: moduleHref,
-              extension: getScriptExtension(moduleUrl.pathname),
+              extension: getScriptExtension(moduleUrl.pathname) ?? ".js",
             };
           }
         }
@@ -311,24 +311,24 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
           return undefined;
         }
         if (!importMapResovled && this._httpRedirects.has(moduleHref)) {
-          const redirectUrl = this._httpRedirects.get(moduleHref);
+          const redirectUrl = this._httpRedirects.get(moduleHref)!;
           this._redirectModules.push([containingFile, literal, redirectUrl]);
         }
         if (this._httpModules.has(moduleHref)) {
           return {
             resolvedFileName: moduleHref,
-            extension: getScriptExtension(moduleUrl.pathname, ".js"),
+            extension: getScriptExtension(moduleUrl.pathname) ?? ".js",
           };
         }
         if (this._httpTsModules.has(moduleHref)) {
           return {
             resolvedFileName: moduleHref,
-            extension: getScriptExtension(moduleUrl.pathname, ".ts"),
+            extension: getScriptExtension(moduleUrl.pathname) ?? ".ts",
           };
         }
         if (this._dtsMap.has(moduleHref)) {
           return {
-            resolvedFileName: this._dtsMap.get(moduleHref),
+            resolvedFileName: this._dtsMap.get(moduleHref)!,
             extension: ".d.ts",
           };
         }
@@ -366,12 +366,12 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
                   }
                 } else if (
                   /\.(c|m)?jsx?$/.test(resUrl.pathname)
-                  || /^(application|text)\/(javascript|jsx)/.test(contentType)
+                  || (contentType && /^(application|text)\/(javascript|jsx)/.test(contentType))
                 ) {
                   this._httpModules.set(moduleHref, await res.text());
                 } else if (
                   /\.(c|m)?tsx?$/.test(resUrl.pathname)
-                  || /^(application|text)\/(typescript|tsx)/.test(contentType)
+                  || (contentType && /^(application|text)\/(typescript|tsx)/.test(contentType))
                 ) {
                   if (/\.d\.(c|m)?ts$/.test(resUrl.pathname)) {
                     this._httpLibs.set(moduleHref, await res.text());
@@ -420,7 +420,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     for (const diagnostic of this._languageService.getSuggestionDiagnostics(uri)) {
       diagnostics.push(this._convertDiagnostic(document, diagnostic));
     }
-    if (ext === ".tsx" || ext.endsWith("ts")) {
+    if (ext === ".tsx" || ext?.endsWith("ts")) {
       for (const diagnostic of this._languageService.getSemanticDiagnostics(uri)) {
         diagnostics.push(this._convertDiagnostic(document, diagnostic));
       }
@@ -429,7 +429,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
       this._redirectModules.forEach(([modelUrl, node, url]) => {
         if (modelUrl === uri) {
           diagnostics.push(this._convertDiagnostic(document, {
-            file: null,
+            file: undefined,
             start: node.getStart(),
             length: node.getWidth(),
             code: 7000,
@@ -469,7 +469,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
       // drop import completions that are in the import map for '.' and '..' imports
       if (entry.kind === "script" && entry.name in this._importMap.imports || entry.name + "/" in this._importMap.imports) {
         const { replacementSpan } = entry;
-        if (replacementSpan?.length > 0) {
+        if (replacementSpan?.length) {
           const replacementText = document.getText({
             start: document.positionAt(replacementSpan.start),
             end: document.positionAt(replacementSpan.start + replacementSpan.length),
@@ -496,7 +496,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
       });
     }
     return {
-      isIncomplete: completions.isIncomplete,
+      isIncomplete: !!completions.isIncomplete,
       items: items,
     };
   }
@@ -578,7 +578,11 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
           documentation: ts.displayPartsToString(p.documentation),
         };
         signature.label += label;
-        signature.parameters.push(parameter);
+        if (signature.parameters) {
+          signature.parameters.push(parameter);
+        } else {
+          signature.parameters = [parameter];
+        }
         if (i < a.length - 1) {
           signature.label += ts.displayPartsToString(item.separatorDisplayParts);
         }
@@ -617,7 +621,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
         }
         action.edit = { changes: { [uri]: edits } };
       }
-      if (codeFix.commands?.length > 0) {
+      if (codeFix.commands?.length) {
         const command: any = codeFix.commands[0];
         action.command = {
           title: command.title,
@@ -718,16 +722,19 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     const res = this._languageService.getDefinitionAndBoundSpan(uri, document.offsetAt(position));
     if (res) {
       const { definitions, textSpan } = res;
-      return definitions.map(d => {
-        const doc = d.fileName === uri ? document : this.getTextDocument(d.fileName);
-        if (doc) {
-          return {
-            uri: d.fileName,
-            range: createRangeFromDocumentSpan(doc, d.textSpan),
-            originSelectionRange: createRangeFromDocumentSpan(document, textSpan),
-          };
-        }
-      }).filter(Boolean);
+      if (definitions) {
+        return definitions.map(d => {
+          const doc = d.fileName === uri ? document : this.getTextDocument(d.fileName);
+          if (doc) {
+            return {
+              uri: d.fileName,
+              range: createRangeFromDocumentSpan(doc, d.textSpan),
+              originSelectionRange: createRangeFromDocumentSpan(document, textSpan),
+            };
+          }
+          return undefined;
+        }).filter(d => d !== undefined);
+      }
     }
     return null;
   }
@@ -739,13 +746,15 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     }
     const references = this._languageService.getReferencesAtPosition(uri, document.offsetAt(position));
     const result: lst.Location[] = [];
-    for (let entry of references) {
-      const entryDocument = this.getTextDocument(entry.fileName);
-      if (entryDocument) {
-        result.push({
-          uri: entryDocument.uri,
-          range: createRangeFromDocumentSpan(entryDocument, entry.textSpan),
-        });
+    if (references) {
+      for (let entry of references) {
+        const entryDocument = this.getTextDocument(entry.fileName);
+        if (entryDocument) {
+          result.push({
+            uri: entryDocument.uri,
+            range: createRangeFromDocumentSpan(entryDocument, entry.textSpan),
+          });
+        }
       }
     }
     return result;
@@ -799,7 +808,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     }
     function convertSelectionRange(selectionRange: ts.SelectionRange): lst.SelectionRange {
       const parent = selectionRange.parent ? convertSelectionRange(selectionRange.parent) : undefined;
-      return SelectionRange.create(createRangeFromDocumentSpan(document, selectionRange.textSpan), parent);
+      return SelectionRange.create(createRangeFromDocumentSpan(document!, selectionRange.textSpan), parent);
     }
     return positions.map(position => {
       const range = this._languageService.getSmartSelectionRange(uri, document.offsetAt(position));
@@ -872,16 +881,17 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
       const autoImports = new Set<string>();
       completions.entries = completions.entries.filter((entry) => {
         const { data } = entry;
-        if (!data || !isDts(data.fileName)) {
+        if (!data || !data.fileName || !isDts(data.fileName)) {
           return true;
         }
-        if (data.moduleSpecifier in this._importMap.imports || this._dtsMap.has(data.moduleSpecifier)) {
-          autoImports.add(data.exportName + " " + data.moduleSpecifier);
+        const { moduleSpecifier, exportName } = data;
+        if (moduleSpecifier && (moduleSpecifier in this._importMap.imports || this._dtsMap.has(moduleSpecifier))) {
+          autoImports.add(exportName + " " + moduleSpecifier);
           return true;
         }
         const specifier = this._getSpecifierFromDts(data.fileName);
-        if (specifier && !autoImports.has(data.exportName + " " + specifier)) {
-          autoImports.add(data.exportName + " " + specifier);
+        if (specifier && !autoImports.has(exportName + " " + specifier)) {
+          autoImports.add(exportName + " " + specifier);
           return true;
         }
         return false;
@@ -948,12 +958,18 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
       const moduleName = displayParts[2].text;
       // show pathname for `file:` specifiers
       if (moduleName.startsWith("\"file:") && fileName.startsWith("file:")) {
-        const literalText = this.getModel(fileName).getValue().substring(
+        const literalText = this.getModel(fileName)?.getValue().substring(
           textSpan.start,
           textSpan.start + textSpan.length,
         );
-        const specifier = JSON.parse(literalText);
-        info.displayParts[2].text = "\"" + new URL(specifier, fileName).pathname + "\"";
+        if (literalText) {
+          try {
+            const specifier = JSON.parse(literalText);
+            displayParts[2].text = "\"" + new URL(specifier, fileName).pathname + "\"";
+          } catch (error) {
+            // ignore
+          }
+        }
       } else if (
         // show module url for `http:` specifiers instead of the types url
         kindModifiers === "declare" && moduleName.startsWith("\"http")
@@ -961,7 +977,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
         const specifier = JSON.parse(moduleName);
         for (const [url, dts] of this._dtsMap) {
           if (specifier + ".d.ts" === dts) {
-            info.displayParts[2].text = "\"" + url + "\"";
+            displayParts[2].text = "\"" + url + "\"";
             info.tags = [{
               name: "types",
               text: [{ kind: "text", text: dts }],
@@ -1034,20 +1050,21 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
       }
     }
     if (errorCodes.includes(2307)) {
-      const specifier = this.getModel(fileName).getValue().slice(...span);
-      const importMapSrc = this._importMap.$src;
-      if (this._unknownModules.has(specifier)) {
-        const fixName = `Fetch module from '${specifier}'`;
-        fixes.push({
-          fixName,
-          description: fixName,
-          changes: [],
-          commands: [{
-            id: "ts:fetch_http_module",
-            title: "Fetch the module from internet",
-            arguments: [specifier, fileName],
-          }],
-        });
+      const specifier = this.getModel(fileName)?.getValue().slice(...span);
+      if (specifier) {
+        if (this._unknownModules.has(specifier)) {
+          const fixName = `Fetch module from '${specifier}'`;
+          fixes.push({
+            fixName,
+            description: fixName,
+            changes: [],
+            commands: [{
+              id: "ts:fetch_http_module",
+              title: "Fetch the module from internet",
+              arguments: [specifier, fileName],
+            }],
+          });
+        }
       }
       // else if (/^@?\w[\w\.\-]*(\/|$)/.test(specifier) && importMapSrc) {
       //   const fixName = `Lookup module '${specifier}' on https://esm.sh`;
@@ -1161,7 +1178,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
       const end = doc.positionAt((info.start ?? 0) + (info.length ?? 1));
       result.push({
         location: {
-          uri: info.file.fileName,
+          uri: document.uri,
           range: Range.create(start, end),
         },
         message: ts.flattenDiagnosticMessageText(info.messageText, "\n"),
@@ -1199,12 +1216,12 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
   // #endregion
 }
 
-function getScriptExtension(url: URL | string, defaultExt = ".js"): string | null {
+function getScriptExtension(url: URL | string): string | null {
   const pathname = typeof url === "string" ? toUrl(url).pathname : url.pathname;
   const basename = pathname.substring(pathname.lastIndexOf("/") + 1);
   const dotIndex = basename.lastIndexOf(".");
   if (dotIndex === -1) {
-    return defaultExt ?? null;
+    return null;
   }
   const ext = basename.substring(dotIndex + 1);
   switch (ext) {

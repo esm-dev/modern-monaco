@@ -13,7 +13,9 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
-    "noEmit": true
+    "noEmit": true,
+    "alwaysStrict": true,
+    "strictNullChecks": true
   },
   "include": [
     "src/**/*.ts"

@@ -31,12 +31,11 @@ class Cache {
       const file: CacheFile = {
         url: url.href,
         content: null,
-        headers: [],
         ctime: Date.now(),
       };
       if (res.redirected) {
         const tx = db.transaction("files", "readwrite").objectStore("files");
-        file.headers.push(["location", res.url]);
+        file.headers = [["location", res.url]];
         await promisifyIDBRequest<CacheFile>(tx.put(file));
       }
       const content = await res.arrayBuffer();
@@ -66,7 +65,7 @@ class Cache {
     if (ret && ret.headers) {
       const headers = new Headers(ret.headers);
       if (headers.has("location")) {
-        const redirectedUrl = headers.get("location");
+        const redirectedUrl = headers.get("location")!;
         const res = await this.fetch(redirectedUrl);
         defineProperty(res, "redirected", true);
         return res;

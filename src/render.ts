@@ -84,7 +84,7 @@ export function render(highlighter: HighlighterCore, options: RenderOptions): st
     const lines = countLines(code);
     const lineNumbersElements = Array.from({ length: lines }, (_, i) => `<code>${i + 1}</code>`);
     const maxDigitWidth = Math.max(
-      fontDigitWidth ?? getDigitWidth([fontWeight, fontSize + "px", fontFamily].join(" ")),
+      fontDigitWidth ?? getDigitWidth([fontWeight, fontSize + "px", fontFamily].join(" ")) ?? fontSize * 0.6,
       MINIMUM_MAX_DIGIT_WIDTH,
     );
     lineNumbersWidth = Math.round(Math.max(lineNumbersMinChars, String(lines).length) * maxDigitWidth);
@@ -108,7 +108,7 @@ export function render(highlighter: HighlighterCore, options: RenderOptions): st
 
   const decorationsWidth = Number(lineDecorationsWidth) + 16;
   const html = highlighter.codeToHtml(code, {
-    lang: language ?? (filename ? getLanguageIdFromPath(filename) : undefined),
+    lang: language ?? (filename ? getLanguageIdFromPath(filename) : undefined) ?? "plaintext",
     theme: theme ?? highlighter.getLoadedThemes()[0],
     tokenizeMaxLineLength: maxTokenizationLineLength,
   });
@@ -190,8 +190,10 @@ function countLines(text: string) {
 function getDigitWidth(font: string) {
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d");
-  context.font = font;
-  return context.measureText("0").width;
+  if (context) {
+    context.font = font;
+    return context.measureText("0").width;
+  }
 }
 
 /** Hash code for strings */

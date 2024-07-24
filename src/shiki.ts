@@ -35,7 +35,7 @@ export async function initShiki({
   const langs: LanguageInput[] = [];
   const themes: ThemeInput[] = [];
 
-  if (languages?.length > 0) {
+  if (languages?.length) {
     languages.forEach((input) => {
       if (typeof input === "string" || input instanceof URL) {
         const g = tmGrammars.find((g) => g.name === input);

@@ -276,7 +276,7 @@ class TypesStore {
           const res = await cache.fetch(type);
           const dtsUrl = res.headers.get("x-typescript-types");
           if (dtsUrl) {
-            res.body.cancel?.();
+            res.body?.cancel?.();
             const res2 = await cache.fetch(dtsUrl);
             if (res2.ok) {
               return [dtsUrl, await res2.text()];
@@ -301,11 +301,12 @@ class TypesStore {
           }
         }
         return null;
-      })).then((entries) => {
+      })).then((e) => {
+        const entries = e.filter(Boolean) as [string, string][];
         if (vfs) {
           compilerOptions.$types = entries.map(([url]) => url).filter((url) => url.startsWith("file://"));
         }
-        this.setTypes(Object.fromEntries(entries.filter(Boolean)));
+        this.setTypes(Object.fromEntries(entries));
       });
     }
   }
@@ -331,19 +332,19 @@ async function loadCompilerOptions(vfs: VFS) {
 
 /** Load import maps from the root index.html or external json file in the VFS. */
 export async function loadImportMap(vfs: VFS, validate: (im: ImportMap) => ImportMap) {
-  let src: string;
+  let src: string | undefined;
   try {
     const indexHtml = await vfs.readTextFile("index.html");
     const tplEl = document.createElement("template");
     tplEl.innerHTML = indexHtml;
-    const scriptEl: HTMLScriptElement = tplEl.content.querySelector("script[type=\"importmap\"]");
+    const scriptEl: HTMLScriptElement | null = tplEl.content.querySelector("script[type=\"importmap\"]");
     if (scriptEl) {
       src = "file:///index.html";
       if (scriptEl.src) {
         src = new URL(scriptEl.src, src).href;
       }
       const importMap = parseImportMapFromJson(
-        scriptEl.src ? await vfs.readTextFile(scriptEl.src) : scriptEl.textContent,
+        scriptEl.src ? await vfs.readTextFile(scriptEl.src) : scriptEl.textContent!,
       );
       importMap.$src = src;
       return validate(importMap);
