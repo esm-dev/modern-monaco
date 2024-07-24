@@ -98,8 +98,13 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
   }
 
   getDirectories(path: string): string[] {
-    if (path === "file:///node_modules/") {
-      return [];
+    if (path.startsWith("file:///node_modules/")) {
+      const dirname = path.slice("file:///node_modules/".length);
+      return Object.keys(this._importMap.imports)
+        .filter(key => key !== "@jsxImportSource" && (dirname.length === 0 || key.startsWith(dirname)))
+        .map(key => dirname.length > 0 ? key.slice(dirname.length) : key)
+        .filter((key) => key.includes("/"))
+        .map(key => key.split("/")[0]);
     }
     return this.readDir(path).filter(([_, type]) => type === FileType.Directory).map(([name, _]) => name);
   }
@@ -111,8 +116,12 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     include?: readonly string[],
     depth?: number,
   ): string[] {
-    if (path === "file:///node_modules/") {
-      return Object.keys(this._importMap.imports).filter((key) => key !== "@jsxImportSource");
+    if (path.startsWith("file:///node_modules/")) {
+      const dirname = path.slice("file:///node_modules/".length);
+      return Object.keys(this._importMap.imports)
+        .filter(key => key !== "@jsxImportSource" && (dirname.length === 0 || key.startsWith(dirname)))
+        .map(key => dirname.length > 0 ? key.slice(dirname.length) : key)
+        .filter((key) => !key.includes("/"));
     }
     return this.readDir(path, extensions).filter(([_, type]) => type === FileType.File).map(([name, _]) => name);
   }
