@@ -19,7 +19,13 @@ export function createBlankImportMap(baseURL?: string): ImportMap {
 
 /** Check if the import map is blank. */
 export function isBlankImportMap(importMap: ImportMap) {
-  return Object.keys(importMap.imports).length + Object.keys(importMap.scopes).length === 0;
+  if (!importMap) {
+    return true;
+  }
+  if (!isObject(importMap.imports) && !isObject(importMap.scopes)) {
+    return true;
+  }
+  return Object.keys(importMap.imports ?? {}).length + Object.keys(importMap.scopes ?? {}).length === 0;
 }
 
 /** Validate the given import map. */
