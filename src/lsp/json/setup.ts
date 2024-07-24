@@ -1,5 +1,6 @@
 import type monacoNS from "monaco-editor-core";
 import type { FormattingOptions } from "vscode-languageserver-types";
+import type { VFS } from "~/vfs.ts";
 import type { CreateData, JSONWorker } from "./worker.ts";
 import { schemas } from "./schemas.ts";
 
@@ -7,39 +8,39 @@ import { schemas } from "./schemas.ts";
 import { parseImportMapFromHtml, parseImportMapFromJson } from "../../import-map.js";
 import * as ls from "../language-service.js";
 
-export function setup(
+export async function setup(
   monaco: typeof monacoNS,
   languageId: string,
   languageSettings?: Record<string, unknown>,
   formattingOptions?: FormattingOptions,
+  vfs?: VFS,
 ) {
   const { editor, languages } = monaco;
   const createData: CreateData = {
-    languageId,
-    options: {
-      settings: {
-        validate: true,
-        allowComments: false,
-        schemas: Array.isArray(languageSettings?.schemas) ? schemas.concat(languageSettings.schemas) : schemas,
-        comments: "error",
-        trailingCommas: "error",
-        schemaRequest: "warning",
-        schemaValidation: "warning",
-      },
-      format: {
-        tabSize: 4,
-        insertSpaces: false,
-        trimTrailingWhitespace: true,
-        insertFinalNewline: true,
-        trimFinalNewlines: true,
-        ...formattingOptions,
-      },
+    settings: {
+      validate: true,
+      allowComments: false,
+      schemas: Array.isArray(languageSettings?.schemas) ? schemas.concat(languageSettings.schemas) : schemas,
+      comments: "error",
+      trailingCommas: "error",
+      schemaRequest: "warning",
+      schemaValidation: "warning",
     },
+    format: {
+      tabSize: 4,
+      insertSpaces: false,
+      trimTrailingWhitespace: true,
+      insertFinalNewline: true,
+      trimFinalNewlines: true,
+      ...formattingOptions,
+    },
+    vfs: await ls.createWorkerVFS(vfs),
   };
   const worker = editor.createWebWorker<JSONWorker>({
     moduleId: "lsp/json/worker",
     label: languageId,
     createData,
+    host: ls.createVfsHost(vfs),
   });
 
   // reset schema on model change
@@ -60,6 +61,7 @@ export function setup(
   // set monacoNS and register language features
   ls.setup(monaco);
   ls.enableBasicFeatures(languageId, worker, [" ", ":", "\""]);
+  ls.enableColorPresentation(languageId, worker);
 
   // register code lens provider for import maps
   languages.registerCodeLensProvider(languageId, {

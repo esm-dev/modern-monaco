@@ -41,26 +41,13 @@ export async function setup(
         ? { custom: { version: 1.1, tags: languageSettings.customTags as any } }
         : undefined,
     },
-    vfs: vfs ? { files: await vfs.ls() } : undefined,
+    vfs: await ls.createWorkerVFS(vfs),
   };
   const htmlWorker = editor.createWebWorker<HTMLWorker>({
     moduleId: "lsp/html/worker",
     label: languageId,
     createData,
-    host: {
-      vfs_stat: async (uri: string) => {
-        const file = await vfs!.open(uri);
-        return {
-          type: 1,
-          ctime: file.ctime,
-          mtime: file.mtime,
-          size: file.content.length,
-        };
-      },
-      vfs_readTextFile: async (uri: string, encoding?: string): Promise<string> => {
-        return vfs!.readTextFile(uri);
-      },
-    },
+    host: ls.createVfsHost(vfs),
   });
   const workerWithEmbeddedLanguages = ls.createWorkerWithEmbeddedLanguages(htmlWorker);
 

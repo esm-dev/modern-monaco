@@ -30,26 +30,13 @@ export async function setup(
       spaceAroundSelectorSeparator: false,
       braceStyle: "collapse",
     },
-    vfs: vfs ? { files: await vfs.ls() } : undefined,
+    vfs: await ls.createWorkerVFS(vfs),
   };
   const worker = monaco.editor.createWebWorker<CSSWorker>({
     moduleId: "lsp/css/worker",
     label: languageId,
     createData,
-    host: {
-      vfs_stat: async (uri: string) => {
-        const file = await vfs!.open(uri);
-        return {
-          type: 1,
-          ctime: file.ctime,
-          mtime: file.mtime,
-          size: file.content.length,
-        };
-      },
-      vfs_readTextFile: async (uri: string, encoding?: string): Promise<string> => {
-        return vfs!.readTextFile(uri);
-      },
-    },
+    host: ls.createVfsHost(vfs),
   });
 
   // set monacoNS and register language features

@@ -98,9 +98,6 @@ async function createWorker(
   const { tabSize = 4, trimTrailingWhitespace = true, insertSpaces = true, semicolon = "insert" } = formattingOptions ?? {};
   const createData: CreateData = {
     compilerOptions,
-    importMap,
-    types: typesStore.types,
-    vfs: vfs ? { files: await vfs.ls() } : undefined,
     formatOptions: {
       tabSize,
       trimTrailingWhitespace,
@@ -113,6 +110,9 @@ async function createWorker(
       insertSpaceAfterKeywordsInControlFlowStatements: insertSpaces,
       insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: insertSpaces,
     },
+    importMap,
+    types: typesStore.types,
+    vfs: await ls.createWorkerVFS(vfs),
   };
   const refreshDiagnostics = async () => ls.refreshDiagnostics("javascript", "typescript", "jsx", "tsx");
   const worker = monaco.editor.createWebWorker<TypeScriptWorker>({

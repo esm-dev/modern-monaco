@@ -6,42 +6,51 @@
 
 import type monacoNS from "monaco-editor-core";
 import * as jsonService from "vscode-json-languageservice";
-import { WorkerBase } from "../worker-base.ts";
+import { WorkerBase, WorkerVFS } from "../worker-base.ts";
 
 // ! external modules, don't remove the `.js` extension
 import { cache } from "../../cache.js";
 import { initializeWorker } from "../../editor-worker.js";
 
-/** Options for json language service. */
-export interface Options {
+/** The create data for a new json worker. */
+export interface CreateData {
   /** Configures the CSS data types known by the langauge service. */
   readonly settings?: jsonService.LanguageSettings & jsonService.DocumentLanguageSettings;
   /** Settings for the CSS formatter. */
   readonly format?: jsonService.FormattingOptions;
-}
-
-/** The create data for a new json worker. */
-export interface CreateData {
-  languageId: string;
-  options: Options;
+  /** The virtual file system for the worker. */
+  vfs?: WorkerVFS;
 }
 
 export class JSONWorker extends WorkerBase<undefined, jsonService.JSONDocument> {
+  private _formatSettings?: jsonService.FormattingOptions;
   private _languageService: jsonService.LanguageService;
 
   constructor(ctx: monacoNS.worker.IWorkerContext, createData: CreateData) {
-    super(ctx);
+    super(ctx, createData.vfs);
+    this._formatSettings = createData.format;
     this._languageService = jsonService.getLanguageService({
       workspaceContext: {
         resolveRelativePath: (relativePath: string, resource: string) => {
-          const url = new URL(relativePath, resource);
-          return url.href;
+          return new URL(relativePath, resource).href;
         },
       },
-      schemaRequestService: (url) => cache.fetch(url).then((res) => res.text()),
+      schemaRequestService: (uri) => {
+        const url = new URL(uri);
+        if (url.protocol === "http:") {
+          return cache.fetch(url).then((res) => res.text());
+        } else if (url.protocol === "file:" && this.hasVFS) {
+          const fs = this.getFileSystemProvider();
+          return fs.getContent(uri);
+        }
+        return Promise.reject(new Error("Schema not found"));
+      },
+      promiseConstructor: Promise,
       clientCapabilities: jsonService.ClientCapabilities.LATEST,
     });
-    this._languageService.configure(createData.options.settings ?? {});
+    if (createData.settings) {
+      this._languageService.configure(createData.settings);
+    }
     this.createLanguageDocument = (document) => this._languageService.parseJSONDocument(document);
   }
 
@@ -90,7 +99,8 @@ export class JSONWorker extends WorkerBase<undefined, jsonService.JSONDocument> 
     if (!document) {
       return null;
     }
-    return this._languageService.format(document, range!, options);
+    const settings = { ...this._formatSettings, ...options };
+    return this._languageService.format(document, range!, settings);
   }
 
   async findDocumentSymbols(uri: string): Promise<jsonService.DocumentSymbol[] | null> {
@@ -119,10 +129,7 @@ export class JSONWorker extends WorkerBase<undefined, jsonService.JSONDocument> 
     return null;
   }
 
-  async findDocumentHighlights(
-    uri: string,
-    position: jsonService.Position,
-  ): Promise<jsonService.DocumentHighlight[] | null> {
+  async findDocumentHighlights(uri: string, position: jsonService.Position): Promise<jsonService.DocumentHighlight[] | null> {
     return null;
   }
 
@@ -161,10 +168,7 @@ export class JSONWorker extends WorkerBase<undefined, jsonService.JSONDocument> 
     return this._languageService.getFoldingRanges(document, context);
   }
 
-  async getSelectionRanges(
-    uri: string,
-    positions: jsonService.Position[],
-  ): Promise<jsonService.SelectionRange[] | null> {
+  async getSelectionRanges(uri: string, positions: jsonService.Position[]): Promise<jsonService.SelectionRange[] | null> {
     const document = this.getTextDocument(uri);
     if (!document) {
       return null;

@@ -39,7 +39,7 @@ export interface VersionedContent {
 
 export interface CreateData {
   compilerOptions: ts.CompilerOptions;
-  formatOptions?: ts.FormatCodeSettings & Pick<ts.UserPreferences, "quotePreference">;
+  formatOptions: ts.FormatCodeSettings & Pick<ts.UserPreferences, "quotePreference">;
   importMap: ImportMap;
   types: Record<string, VersionedContent>;
   vfs?: WorkerVFS;

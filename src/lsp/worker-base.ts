@@ -157,7 +157,7 @@ export class WorkerBase<Host = undefined, LanguageDocument = undefined> {
 
   getFileSystemProvider() {
     if (!this._vfs) {
-      return undefined;
+      throw new Error("VFS not initialized");
     }
     return {
       readDirectory: (uri: string) => {

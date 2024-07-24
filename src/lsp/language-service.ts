@@ -6,20 +6,55 @@
 
 import type Monaco from "monaco-editor-core";
 import type { VFS } from "~/vfs.ts";
+import type { WorkerVFS } from "./worker-base.ts";
 import * as lst from "vscode-languageserver-types";
 
 // ! external modules, don't remove the `.js` extension
 import { cache } from "../cache.js";
 
 let monaco: typeof Monaco;
-
-export function setup(_monaco: typeof Monaco): void {
-  monaco ??= _monaco;
+export function setup(monacoNS: typeof Monaco): void {
+  monaco ??= monacoNS;
 }
 
 const registry: Map<string, Monaco.editor.MonacoWebWorker<any>> = new Map();
 const registryListeners: Map<string, () => void> = new Map();
 const refreshEmitters: Map<string, Monaco.Emitter<void>> = new Map();
+
+/** refresh diagnostics for the specified language */
+export function refreshDiagnostics(...langaugeIds: string[]) {
+  langaugeIds.forEach((langaugeId) => {
+    refreshEmitters.get(langaugeId)?.fire();
+  });
+}
+
+/** create a worker host that reads content from the given VFS */
+export function createVfsHost(vfs?: VFS) {
+  return vfs
+    ? {
+      vfs_stat: async (uri: string) => {
+        const file = await vfs.open(uri);
+        return {
+          type: 1,
+          ctime: file.ctime,
+          mtime: file.mtime,
+          size: file.content.length,
+        };
+      },
+      vfs_readTextFile: async (uri: string, encoding?: string): Promise<string> => {
+        return vfs.readTextFile(uri);
+      },
+    }
+    : undefined;
+}
+
+/** create a worker VFS from the given VFS */
+export function createWorkerVFS(vfs?: VFS): Promise<WorkerVFS | undefined> {
+  if (vfs) {
+    return vfs.ls().then(files => ({ files }));
+  }
+  return undefined;
+}
 
 // #region register basic language features
 
@@ -92,20 +127,6 @@ export function enableBasicFeatures<
       const proxy = await worker.getProxy();
       await proxy.updateVFS({ kind: e.kind, path: e.path });
     }
-  });
-}
-
-export function onWorker(languageId: string, cb: () => void) {
-  if (registry.has(languageId)) {
-    cb();
-  } else {
-    registryListeners.set(languageId, cb);
-  }
-}
-
-export function refreshDiagnostics(...langaugeIds: string[]) {
-  langaugeIds.forEach((langaugeId) => {
-    refreshEmitters.get(langaugeId)?.fire();
   });
 }
 
@@ -238,6 +259,14 @@ export function createWorkerWithEmbeddedLanguages<T extends ILanguageWorkerWithE
       throw new Error("Method not implemented.");
     },
   };
+}
+
+function onWorker(languageId: string, cb: () => void) {
+  if (registry.has(languageId)) {
+    cb();
+  } else {
+    registryListeners.set(languageId, cb);
+  }
 }
 
 function normalizeLanguageId(languageId: string): string {
