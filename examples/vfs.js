@@ -2,9 +2,9 @@ import { VFS } from "/esm-monaco/vfs.js";
 
 const importMap = {
   imports: {
-    "@jsxImportSource": "https://esm.sh/react@18.2.0",
-    "react": "https://esm.sh/react@18.2.0",
-    "react-dom/": "https://esm.sh/react-dom@18.2.0/",
+    "@jsxImportSource": "https://esm.sh/react@18.3.1",
+    "react": "https://esm.sh/react@18.3.1",
+    "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
   },
 };
 
@@ -34,13 +34,18 @@ export const files = {
     "  <meta charset=\"utf-8\">",
     "  <title>React App</title>",
     "  <link rel=\"stylesheet\" href=\"./style/style.css\">",
-    "  \<script type=\"importmap\">",
+    "  <script type=\"importmap\">",
     JSON.stringify(importMap, null, 2).split("\n").map((line) => "  " + line).join("\n"),
-    "  <\/script>",
+    "  </script>",
+    "  <style>",
+    "    h1 {",
+    "      color: #232323;",
+    "    }",
+    "  </style>",
     "</head>",
     "<body>",
     "  <div id=\"root\"></div>",
-    "  <script type=\"module\" src=\"./src/main.jsx\"><\/script>",
+    "  <script type=\"module\" src=\"./src/main.jsx\"></script>",
     "</body>",
     "</html>",
   ].join("\n"),
