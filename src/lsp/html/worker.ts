@@ -7,6 +7,7 @@
 import type monacoNS from "monaco-editor-core";
 import * as htmlService from "vscode-html-languageservice";
 import { getDocumentRegions } from "./embedded-support.ts";
+import { WorkerBase, type WorkerVFS } from "../worker-base.ts";
 
 // ! external modules, don't remove the `.js` extension
 import { initializeWorker } from "../../editor-worker.js";
@@ -32,20 +33,19 @@ export interface CreateData {
    */
   readonly suggest?: htmlService.CompletionConfiguration;
   readonly data?: HTMLDataConfiguration;
-  readonly hasVFS?: boolean;
+  readonly vfs?: WorkerVFS;
 }
 
-export class HTMLWorker {
-  private _ctx: monacoNS.worker.IWorkerContext<htmlService.FileSystemProvider>;
+export class HTMLWorker extends WorkerBase<undefined, htmlService.HTMLDocument> {
   private _formatSettings: htmlService.HTMLFormatConfiguration;
   private _suggestSettings: htmlService.CompletionConfiguration;
   private _languageService: htmlService.LanguageService;
-  private _documentCache = new Map<string, [number, htmlService.TextDocument, htmlService.HTMLDocument | undefined]>();
 
   constructor(ctx: monacoNS.worker.IWorkerContext, createData: CreateData) {
+    super(ctx, createData.vfs);
     const data = createData.data;
-    const fileSystemProvider = createData.hasVFS ? ctx.host : undefined;
     const useDefaultDataProvider = data?.useDefaultDataProvider;
+    const fileSystemProvider = this.getFileSystemProvider();
     const customDataProviders: htmlService.IHTMLDataProvider[] = [];
     if (data?.dataProviders) {
       for (const id in data.dataProviders) {
@@ -54,14 +54,14 @@ export class HTMLWorker {
         );
       }
     }
-    this._ctx = ctx;
     this._formatSettings = createData.format ?? {};
     this._suggestSettings = createData.suggest ?? {};
-    this._languageService = htmlService.getLanguageService({ useDefaultDataProvider, customDataProviders, fileSystemProvider });
+    this._languageService = htmlService.getLanguageService({ customDataProviders, useDefaultDataProvider, fileSystemProvider });
+    this.createLanguageDocument = (document) => this._languageService.parseHTMLDocument(document);
   }
 
   async doValidation(uri: string): Promise<htmlService.Diagnostic[] | null> {
-    const document = this._getTextDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
@@ -107,11 +107,11 @@ export class HTMLWorker {
   }
 
   async doAutoComplete(uri: string, position: htmlService.Position, ch: string): Promise<string | null> {
-    const document = this._getTextDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
-    const htmlDocument = this._getHTMLDocument(document);
+    const htmlDocument = this.getLanguageDocument(document);
     if (ch === ">" || ch === "/") {
       return this._languageService.doTagComplete(document, position, htmlDocument);
     } else if (ch === "=") {
@@ -122,7 +122,7 @@ export class HTMLWorker {
   }
 
   async doComplete(uri: string, position: htmlService.Position): Promise<htmlService.CompletionList | null> {
-    const document = this._getTextDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
@@ -131,7 +131,7 @@ export class HTMLWorker {
     if (rsl) {
       return { $embedded: rsl } as any;
     }
-    const htmlDocument = this._getHTMLDocument(document);
+    const htmlDocument = this.getLanguageDocument(document);
     return this._languageService.doComplete2(
       document,
       position,
@@ -142,7 +142,7 @@ export class HTMLWorker {
   }
 
   async doHover(uri: string, position: htmlService.Position): Promise<htmlService.Hover | null> {
-    const document = this._getTextDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
@@ -151,7 +151,7 @@ export class HTMLWorker {
     if (rsl) {
       return { $embedded: rsl } as any;
     }
-    const htmlDocument = this._getHTMLDocument(document);
+    const htmlDocument = this.getLanguageDocument(document);
     return this._languageService.doHover(document, position, htmlDocument);
   }
 
@@ -160,7 +160,7 @@ export class HTMLWorker {
     formatRange: htmlService.Range,
     options: htmlService.FormattingOptions,
   ): Promise<htmlService.TextEdit[] | null> {
-    const document = this._getTextDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
@@ -194,7 +194,7 @@ export class HTMLWorker {
   }
 
   async doRename(uri: string, position: htmlService.Position, newName: string): Promise<htmlService.WorkspaceEdit | null> {
-    const document = this._getTextDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
@@ -203,7 +203,7 @@ export class HTMLWorker {
     if (rsl) {
       return { $embedded: rsl } as any;
     }
-    const htmlDocument = this._getHTMLDocument(document);
+    const htmlDocument = this.getLanguageDocument(document);
     return this._languageService.doRename(document, position, newName, htmlDocument);
   }
 
@@ -211,7 +211,7 @@ export class HTMLWorker {
     uri: string,
     position: htmlService.Position,
   ): Promise<(htmlService.Location & { originSelectionRange?: htmlService.Range })[] | null> {
-    const document = this._getTextDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
@@ -224,7 +224,7 @@ export class HTMLWorker {
   }
 
   async findReferences(uri: string, position: htmlService.Position): Promise<htmlService.Location[] | null> {
-    const document = this._getTextDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
@@ -237,7 +237,7 @@ export class HTMLWorker {
   }
 
   async findDocumentLinks(uri: string): Promise<htmlService.DocumentLink[] | null> {
-    const document = this._getTextDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
@@ -245,11 +245,11 @@ export class HTMLWorker {
   }
 
   async findDocumentSymbols(uri: string): Promise<htmlService.DocumentSymbol[] | null> {
-    const document = this._getTextDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
-    const htmlDocument = this._getHTMLDocument(document);
+    const htmlDocument = this.getLanguageDocument(document);
     return this._languageService.findDocumentSymbols2(
       document,
       htmlDocument,
@@ -257,7 +257,7 @@ export class HTMLWorker {
   }
 
   async findDocumentHighlights(uri: string, position: htmlService.Position): Promise<htmlService.DocumentHighlight[]> {
-    const document = this._getTextDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return [];
     }
@@ -266,7 +266,7 @@ export class HTMLWorker {
     if (rsl) {
       return { $embedded: rsl } as any;
     }
-    const htmlDocument = this._getHTMLDocument(document);
+    const htmlDocument = this.getLanguageDocument(document);
     return this._languageService.findDocumentHighlights(
       document,
       position,
@@ -275,7 +275,7 @@ export class HTMLWorker {
   }
 
   async getFoldingRanges(uri: string, context?: { rangeLimit?: number }): Promise<htmlService.FoldingRange[] | null> {
-    const document = this._getTextDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
@@ -294,7 +294,7 @@ export class HTMLWorker {
   }
 
   async getSelectionRanges(uri: string, positions: htmlService.Position[]): Promise<htmlService.SelectionRange[]> {
-    const document = this._getTextDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return [];
     }
@@ -302,7 +302,7 @@ export class HTMLWorker {
   }
 
   async findDocumentColors(uri: string): Promise<htmlService.ColorInformation[] | null> {
-    const document = this._getTextDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
@@ -318,7 +318,7 @@ export class HTMLWorker {
     color: htmlService.Color,
     range: htmlService.Range,
   ): Promise<htmlService.ColorPresentation[] | null> {
-    const document = this._getTextDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
@@ -330,7 +330,7 @@ export class HTMLWorker {
   }
 
   async getEmbeddedDocument(uri: string, languageId: string): Promise<{ content: string } | null> {
-    const document = this._getTextDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
@@ -340,43 +340,6 @@ export class HTMLWorker {
       return { content };
     }
     return null;
-  }
-
-  async onDocumentRemoved(uri: string): Promise<void> {
-    this._documentCache.delete(uri);
-  }
-
-  // resolveReference implementes the `cssService.FileSystemProvider` interface
-  resolveReference(ref: string, baseUrl: string): string | undefined {
-    const url = new URL(ref, baseUrl);
-    // todo: check if the file exists
-    return url.href;
-  }
-
-  private _getTextDocument(uri: string): htmlService.TextDocument | null {
-    for (const model of this._ctx.getMirrorModels()) {
-      if (model.uri.toString() === uri) {
-        const cached = this._documentCache.get(uri);
-        if (cached && cached[0] === model.version) {
-          return cached[1];
-        }
-        const document = htmlService.TextDocument.create(uri, "html", model.version, model.getValue());
-        this._documentCache.set(uri, [model.version, document, undefined]);
-        return document;
-      }
-    }
-    return null;
-  }
-
-  private _getHTMLDocument(document: htmlService.TextDocument): htmlService.HTMLDocument | null {
-    const { uri, version } = document;
-    const cached = this._documentCache.get(uri);
-    if (cached && cached[0] === version && cached[2]) {
-      return cached[2];
-    }
-    const htmlDocument = this._languageService.parseHTMLDocument(document);
-    this._documentCache.set(uri, [version, document, htmlDocument]);
-    return htmlDocument;
   }
 }
 

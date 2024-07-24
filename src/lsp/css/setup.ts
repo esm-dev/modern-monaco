@@ -6,7 +6,7 @@ import type { CreateData, CSSWorker } from "./worker.ts";
 // ! external modules, don't remove the `.js` extension
 import * as ls from "../language-service.js";
 
-export function setup(
+export async function setup(
   monaco: typeof monacoNS,
   languageId: string,
   languageSettings?: Record<string, unknown>,
@@ -30,34 +30,15 @@ export function setup(
       spaceAroundSelectorSeparator: false,
       braceStyle: "collapse",
     },
-    hasVFS: !!vfs,
+    vfs: vfs ? { files: await vfs.ls() } : undefined,
   };
   const worker = monaco.editor.createWebWorker<CSSWorker>({
     moduleId: "lsp/css/worker",
     label: languageId,
     createData,
     host: {
-      readDirectory: async (uri: string) => {
-        const entries = [];
-        const dirs = new Set<string>();
-        for (const path of await vfs.ls()) {
-          if (path.startsWith(uri) && (path.endsWith("." + languageId) || path.endsWith(".css"))) {
-            const name = path.slice(uri.length);
-            if (name.includes("/")) {
-              const [dirName] = name.split("/");
-              if (!dirs.has(dirName)) {
-                dirs.add(dirName);
-                entries.push([dirName, 2]);
-              }
-            } else {
-              entries.push([name, 1]);
-            }
-          }
-        }
-        return entries;
-      },
-      stat: async (uri: string) => {
-        const file = await vfs.open(uri);
+      vfs_stat: async (uri: string) => {
+        const file = await vfs!.open(uri);
         return {
           type: 1,
           ctime: file.ctime,
@@ -65,15 +46,15 @@ export function setup(
           size: file.content.length,
         };
       },
-      getContent: async (uri: string, encoding?: string): Promise<string> => {
-        return vfs.readTextFile(uri);
+      vfs_readTextFile: async (uri: string, encoding?: string): Promise<string> => {
+        return vfs!.readTextFile(uri);
       },
     },
   });
 
   // set monacoNS and register language features
   ls.setup(monaco);
-  ls.enableBasicFeatures(languageId, worker, ["/", "-", ":", "("]);
+  ls.enableBasicFeatures(languageId, worker, ["/", "-", ":", "("], vfs);
   ls.enableCodeAction(languageId, worker);
   ls.enableColorPresentation(languageId, worker);
   ls.enableDocumentLinks(languageId, worker);

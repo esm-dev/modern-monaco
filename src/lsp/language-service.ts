@@ -5,6 +5,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type Monaco from "monaco-editor-core";
+import type { VFS } from "~/vfs.ts";
 import * as lst from "vscode-languageserver-types";
 
 // ! external modules, don't remove the `.js` extension
@@ -35,18 +36,22 @@ export function enableBasicFeatures<
     & ILanguageWorkerWithDocumentHighlights
     & ILanguageWorkerWithFoldingRanges
     & ILanguageWorkerWithSelectionRanges
-    & { onDocumentRemoved(uri: string): void },
+    & {
+      removeDocumentCache(uri: string): Promise<void>;
+      updateVFS(evt: { kind: "create" | "remove"; path: string }): Promise<void>;
+    },
 >(
   languageId: string,
   worker: Monaco.editor.MonacoWebWorker<T>,
   completionTriggerCharacters: string[],
+  vfs?: VFS,
 ) {
   const { editor, languages } = monaco;
 
   // remove document cache from worker when the model is disposed
   const onDispose = async (model: Monaco.editor.ITextModel) => {
     const workerProxy = await worker.withSyncedResources([]);
-    workerProxy.onDocumentRemoved(model.uri.toString());
+    workerProxy.removeDocumentCache(model.uri.toString());
   };
   editor.onDidChangeModelLanguage(({ model, oldLanguage }) => {
     if (oldLanguage === languageId) {
@@ -81,6 +86,13 @@ export function enableBasicFeatures<
     registryListeners.get(languageId)();
     registryListeners.delete(languageId);
   }
+
+  vfs?.watch("*", async (e) => {
+    if (e.kind === "remove" || e.kind === "create") {
+      const proxy = await worker.getProxy();
+      await proxy.updateVFS({ kind: e.kind, path: e.path });
+    }
+  });
 }
 
 export function onWorker(languageId: string, cb: () => void) {
@@ -512,49 +524,63 @@ function isInsertReplaceEdit(
 }
 
 function convertCompletionItemKind(
-  kind: number | undefined,
+  kind: lst.CompletionItemKind | undefined,
 ): Monaco.languages.CompletionItemKind {
-  const mItemKind = monaco.languages.CompletionItemKind;
-
+  const CompletionItemKind = monaco.languages.CompletionItemKind;
   switch (kind) {
     case lst.CompletionItemKind.Text:
-      return mItemKind.Text;
+      return CompletionItemKind.Text;
     case lst.CompletionItemKind.Method:
-      return mItemKind.Method;
+      return CompletionItemKind.Method;
     case lst.CompletionItemKind.Function:
-      return mItemKind.Function;
+      return CompletionItemKind.Function;
     case lst.CompletionItemKind.Constructor:
-      return mItemKind.Constructor;
+      return CompletionItemKind.Constructor;
     case lst.CompletionItemKind.Field:
-      return mItemKind.Field;
+      return CompletionItemKind.Field;
     case lst.CompletionItemKind.Variable:
-      return mItemKind.Variable;
+      return CompletionItemKind.Variable;
     case lst.CompletionItemKind.Class:
-      return mItemKind.Class;
+      return CompletionItemKind.Class;
     case lst.CompletionItemKind.Interface:
-      return mItemKind.Interface;
+      return CompletionItemKind.Interface;
     case lst.CompletionItemKind.Module:
-      return mItemKind.Module;
+      return CompletionItemKind.Module;
     case lst.CompletionItemKind.Property:
-      return mItemKind.Property;
+      return CompletionItemKind.Property;
     case lst.CompletionItemKind.Unit:
-      return mItemKind.Unit;
+      return CompletionItemKind.Unit;
     case lst.CompletionItemKind.Value:
-      return mItemKind.Value;
+      return CompletionItemKind.Value;
     case lst.CompletionItemKind.Enum:
-      return mItemKind.Enum;
+      return CompletionItemKind.Enum;
     case lst.CompletionItemKind.Keyword:
-      return mItemKind.Keyword;
+      return CompletionItemKind.Keyword;
     case lst.CompletionItemKind.Snippet:
-      return mItemKind.Snippet;
+      return CompletionItemKind.Snippet;
     case lst.CompletionItemKind.Color:
-      return mItemKind.Color;
+      return CompletionItemKind.Color;
     case lst.CompletionItemKind.File:
-      return mItemKind.File;
+      return CompletionItemKind.File;
     case lst.CompletionItemKind.Reference:
-      return mItemKind.Reference;
+      return CompletionItemKind.Reference;
+    case lst.CompletionItemKind.Folder:
+      return CompletionItemKind.Folder;
+    case lst.CompletionItemKind.EnumMember:
+      return CompletionItemKind.EnumMember;
+    case lst.CompletionItemKind.Constant:
+      return CompletionItemKind.Constant;
+    case lst.CompletionItemKind.Struct:
+      return CompletionItemKind.Struct;
+    case lst.CompletionItemKind.Event:
+      return CompletionItemKind.Event;
+    case lst.CompletionItemKind.Operator:
+      return CompletionItemKind.Operator;
+    case lst.CompletionItemKind.TypeParameter:
+      return CompletionItemKind.TypeParameter;
+    default:
+      return undefined;
   }
-  return mItemKind.Property;
 }
 
 export function convertTextEdit(textEdit: lst.TextEdit): Monaco.languages.TextEdit;

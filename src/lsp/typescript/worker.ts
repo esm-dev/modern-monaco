@@ -6,6 +6,7 @@
 
 import type monacoNS from "monaco-editor-core";
 import type * as lst from "vscode-languageserver-types";
+import ts from "typescript";
 import {
   CompletionItemKind,
   CompletionItemTag,
@@ -16,9 +17,8 @@ import {
   Range,
   SelectionRange,
   SymbolKind,
-  TextDocument,
 } from "vscode-languageserver-types";
-import ts from "typescript";
+import { FileType, TextDocument, WorkerBase, type WorkerVFS } from "../worker-base.ts";
 
 // ! external modules, don't remove the `.js` extension
 import { cache } from "../../cache.js";
@@ -37,11 +37,11 @@ export interface VersionedContent {
 
 export interface CreateData {
   compilerOptions: ts.CompilerOptions;
+  formatOptions?: ts.FormatCodeSettings & Pick<ts.UserPreferences, "quotePreference">;
   importMap: ImportMap;
   libs: Record<string, string>;
   types: Record<string, VersionedContent>;
-  vfs?: string[];
-  formatOptions?: ts.FormatCodeSettings & Pick<ts.UserPreferences, "quotePreference">;
+  vfs?: WorkerVFS;
 }
 
 /** TypeScriptWorker removes all but the `fileName` property to avoid serializing circular JSON structures. */
@@ -57,8 +57,7 @@ export interface Diagnostic extends DiagnosticRelatedInformation {
   relatedInformation?: DiagnosticRelatedInformation[];
 }
 
-export class TypeScriptWorker implements ts.LanguageServiceHost {
-  private _ctx: monacoNS.worker.IWorkerContext<Host>;
+export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageServiceHost {
   private _compilerOptions: ts.CompilerOptions;
   private _importMap: ImportMap;
   private _importMapVersion: number;
@@ -76,14 +75,12 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   private _redirectModules: [modelUrl: string, node: ts.Node, url: string][] = [];
   private _unknownModules = new Set<string>();
   private _naModules = new Set<string>();
-  private _vfs: string[] = [];
   private _openPromises = new Map<string, Promise<void>>();
   private _fetchPromises = new Map<string, Promise<void>>();
   private _refreshDiagnosticsTimer: number | null = null;
-  private _documentCache = new Map<string, [string, TextDocument]>();
 
   constructor(ctx: monacoNS.worker.IWorkerContext<Host>, createData: CreateData) {
-    this._ctx = ctx;
+    super(ctx, createData.vfs);
     this._compilerOptions = createData.compilerOptions;
     this._importMap = createData.importMap;
     this._importMapVersion = 0;
@@ -91,7 +88,6 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     this._libs = createData.libs;
     this._types = createData.types;
     this._formatOptions = createData.formatOptions;
-    this._vfs = createData.vfs;
     this._updateJsxImportSource();
   }
 
@@ -101,10 +97,12 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     return "/";
   }
 
-  // getDirectories(directoryName: string): string[] {
-  //   console.log("getDirectories", directoryName);
-  //   return [];
-  // }
+  getDirectories(path: string): string[] {
+    if (path === "file:///node_modules/") {
+      return [];
+    }
+    return this.readDir(path).filter(([_, type]) => type === FileType.Directory).map(([name, _]) => name);
+  }
 
   readDirectory(
     path: string,
@@ -116,12 +114,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     if (path === "file:///node_modules/") {
       return Object.keys(this._importMap.imports).filter((key) => key !== "@jsxImportSource");
     }
-    const entries = this._vfs.filter((file) => file.startsWith(path) && (!extensions || extensions.some((ext) => file.endsWith(ext))));
-    return entries;
-  }
-
-  readFile(filename: string): string | undefined {
-    return this._getScriptText(filename);
+    return this.readDir(path, extensions).filter(([_, type]) => type === FileType.File).map(([name, _]) => name);
   }
 
   fileExists(filename: string): boolean {
@@ -133,8 +126,12 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
       || this._httpLibs.has(filename)
       || this._httpModules.has(filename)
       || this._httpTsModules.has(filename)
-      || !!this._getModel(filename)
+      || this.hasModel(filename)
     );
+  }
+
+  readFile(filename: string): string | undefined {
+    return this._getScriptText(filename);
   }
 
   getCompilationSettings(): ts.CompilerOptions {
@@ -142,7 +139,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   }
 
   getScriptFileNames(): string[] {
-    const models = this._ctx.getMirrorModels();
+    const models = this.getMirrorModels();
     const types = Object.keys(this._types);
     const libs = Object.keys(this._libs);
     const filenames = new Array<string>(
@@ -183,7 +180,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     ) {
       return "1"; // static/remote modules/types
     }
-    const model = this._getModel(fileName);
+    const model = this.getModel(fileName);
     if (model) {
       // change on import map will affect all models
       return this._importMapVersion + "." + model.version;
@@ -307,7 +304,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
         if (this._naModules.has(moduleHref)) {
           return undefined;
         }
-        for (const model of this._ctx.getMirrorModels()) {
+        for (const model of this.getMirrorModels()) {
           if (moduleHref === model.uri.toString()) {
             return {
               resolvedFileName: moduleHref,
@@ -315,13 +312,13 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
             };
           }
         }
-        if (!this._vfs) {
+        if (!this.hasVFS) {
           return undefined;
         }
         if (!this._openPromises.has(moduleHref)) {
           this._openPromises.set(
             moduleHref,
-            this._ctx.host.openModel(moduleHref).then((ok) => {
+            this.host.openModel(moduleHref).then((ok) => {
               if (!ok) {
                 this._naModules.add(moduleHref);
                 this._rollbackVersion(containingFile);
@@ -435,7 +432,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   // #region language features
 
   async doValidation(uri: string): Promise<lst.Diagnostic[] | null> {
-    const document = this._getScriptDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
@@ -470,7 +467,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   }
 
   async doAutoComplete(uri: string, position: lst.Position, ch: string): Promise<string | null> {
-    const document = this._getScriptDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
@@ -482,7 +479,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   }
 
   async doComplete(uri: string, position: lst.Position): Promise<lst.CompletionList | null> {
-    const document = this._getScriptDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
@@ -533,7 +530,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
       return null;
     }
     const { uri, offset } = item.data.context;
-    const document = this._getScriptDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
@@ -560,7 +557,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   }
 
   async doHover(uri: string, position: lst.Position): Promise<lst.Hover | null> {
-    const document = this._getScriptDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
@@ -622,7 +619,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     context: lst.CodeActionContext,
     formatOptions: lst.FormattingOptions,
   ): Promise<lst.CodeAction[] | null> {
-    const document = this._getScriptDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
@@ -657,7 +654,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   }
 
   async doRename(uri: string, position: lst.Position, newName: string): Promise<lst.WorkspaceEdit | null> {
-    const document = this._getScriptDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
@@ -682,7 +679,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     formatOptions: lst.FormattingOptions,
     docText?: string,
   ): Promise<lst.TextEdit[] | null> {
-    const document = docText ? TextDocument.create(uri, "typescript", 0, docText) : this._getScriptDocument(uri);
+    const document = docText ? TextDocument.create(uri, "typescript", 0, docText) : this.getTextDocument(uri);
     if (!document) {
       return null;
     }
@@ -702,7 +699,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   }
 
   async findDocumentSymbols(uri: string): Promise<lst.DocumentSymbol[] | null> {
-    const document = this._getScriptDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
@@ -727,7 +724,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     uri: string,
     position: lst.Position,
   ): Promise<(lst.Location & { originSelectionRange: lst.Range })[] | null> {
-    const document = this._getScriptDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
@@ -735,7 +732,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     if (res) {
       const { definitions, textSpan } = res;
       return definitions.map(d => {
-        const doc = d.fileName === uri ? document : this._getScriptDocument(d.fileName);
+        const doc = d.fileName === uri ? document : this.getTextDocument(d.fileName);
         if (doc) {
           return {
             uri: d.fileName,
@@ -749,14 +746,14 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   }
 
   async findReferences(uri: string, position: lst.Position): Promise<lst.Location[] | null> {
-    const document = this._getScriptDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
     const references = this._languageService.getReferencesAtPosition(uri, document.offsetAt(position));
     const result: lst.Location[] = [];
     for (let entry of references) {
-      const entryDocument = this._getScriptDocument(entry.fileName);
+      const entryDocument = this.getTextDocument(entry.fileName);
       if (entryDocument) {
         result.push({
           uri: entryDocument.uri,
@@ -768,7 +765,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   }
 
   async findDocumentHighlights(uri: string, position: lst.Position): Promise<lst.DocumentHighlight[] | null> {
-    const document = this._getScriptDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
@@ -786,7 +783,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   }
 
   async getFoldingRanges(uri: string): Promise<lst.FoldingRange[] | null> {
-    const document = this._getScriptDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
@@ -809,7 +806,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
   }
 
   async getSelectionRanges(uri: string, positions: lst.Position[]): Promise<lst.SelectionRange[] | null> {
-    const document = this._getScriptDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
@@ -858,26 +855,9 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     }
     if (types) {
       for (const uri of Object.keys(this._types)) {
-        this._documentCache.delete(uri);
+        this.removeDocumentCache(uri);
       }
       this._types = types;
-    }
-  }
-
-  async onDocumentRemoved(uri: string): Promise<void> {
-    this._documentCache.delete(uri);
-  }
-
-  async updateVFS(evt: { kind: "create" | "remove"; path: string }): Promise<void> {
-    const { kind, path } = evt;
-    const url = new URL(path, "file:///").href;
-    if (kind === "create") {
-      this._vfs.push(url);
-    } else {
-      const index = this._vfs.indexOf(url);
-      if (index !== -1) {
-        this._vfs.splice(index, 1);
-      }
     }
   }
 
@@ -981,8 +961,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
       const moduleName = displayParts[2].text;
       // show pathname for `file:` specifiers
       if (moduleName.startsWith("\"file:") && fileName.startsWith("file:")) {
-        const model = this._getModel(fileName);
-        const literalText = model.getValue().substring(
+        const literalText = this.getModel(fileName).getValue().substring(
           textSpan.start,
           textSpan.start + textSpan.length,
         );
@@ -1000,10 +979,10 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
               name: "types",
               text: [{ kind: "text", text: dts }],
             }];
-            if (/^https:\/\/esm\.sh\//.test(url)) {
-              const { pathname } = new URL(url);
+            const { pathname, hostname } = new URL(url);
+            if (isEsmshHost(hostname)) {
               const pathSegments = pathname.split("/").slice(1);
-              if (/^v\d$/.test(pathSegments[0])) {
+              if (/^v\d+$/.test(pathSegments[0])) {
                 pathSegments.shift();
               }
               let scope = "";
@@ -1068,8 +1047,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
       }
     }
     if (errorCodes.includes(2307)) {
-      const model = this._getModel(fileName);
-      const specifier = model.getValue().slice(...span);
+      const specifier = this.getModel(fileName).getValue().slice(...span);
       const importMapSrc = this._importMap.$src;
       if (this._unknownModules.has(specifier)) {
         const fixName = `Fetch module from '${specifier}'`;
@@ -1120,13 +1098,13 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
     }
     this._refreshDiagnosticsTimer = setTimeout(() => {
       this._refreshDiagnosticsTimer = null;
-      this._ctx.host.refreshDiagnostics();
+      this.host.refreshDiagnostics();
     }, 150);
   }
 
   /** rollback the version to force reinvoke `resolveModuleNameLiterals` method. */
   private _rollbackVersion(fileName: string) {
-    const model = this._getModel(fileName);
+    const model = this.getModel(fileName);
     if (model) {
       // @ts-expect-error private field
       model._versionId--;
@@ -1140,33 +1118,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
       ?? this._httpLibs.get(fileName)
       ?? this._httpModules.get(fileName)
       ?? this._httpTsModules.get(fileName)
-      ?? this._getModel(fileName)?.getValue();
-  }
-
-  private _getScriptDocument(uri: string): TextDocument | null {
-    const version = this.getScriptVersion(uri);
-    const cached = this._documentCache.get(uri);
-    if (cached && cached[0] === version) {
-      return cached[1];
-    }
-    const scriptText = this._getScriptText(uri);
-    if (scriptText) {
-      const document = TextDocument.create(uri, "typescript", 0, scriptText);
-      this._documentCache.set(uri, [version, document]);
-      return document;
-    }
-    return null;
-  }
-
-  private _getModel(fileName: string): monacoNS.worker.IMirrorModel | null {
-    const models = this._ctx.getMirrorModels();
-    for (let i = 0; i < models.length; i++) {
-      const uri = models[i].uri;
-      if (uri.toString() === fileName || uri.toString(true) === fileName) {
-        return models[i];
-      }
-    }
-    return null;
+      ?? this.getModel(fileName)?.getValue();
   }
 
   private _getSpecifierFromDts(filename: string): string | void {
@@ -1213,7 +1165,7 @@ export class TypeScriptWorker implements ts.LanguageServiceHost {
 
     const result: lst.DiagnosticRelatedInformation[] = [];
     relatedInformation.forEach((info) => {
-      const doc = info.file ? this._getScriptDocument(info.file.fileName) : document;
+      const doc = info.file ? this.getTextDocument(info.file.fileName) : document;
       if (!doc) {
         return;
       }
@@ -1300,11 +1252,14 @@ function isRelativePath(path: string): boolean {
   return path.startsWith("./") || path.startsWith("../");
 }
 
+function isEsmshHost(hostname: string): boolean {
+  return hostname === "esm.sh" || hostname.endsWith(".esm.sh");
+}
+
 function isEsmshModule(url: URL): boolean {
   const { hostname, pathname } = url;
-  const isEsmshHost = hostname === "esm.sh" || hostname.endsWith(".esm.sh");
-  return isEsmshHost
-    && /\/(jsr\/)?((@|gh\/)[\w\.\-]+\/)?[\w\.\-]+@(\d+(\.\d+){0,2}(\-[\w\.]+)?|next|canary|rc|beta|latest)$/.test(pathname);
+  const regexpWellKnownModule = /\/(jsr\/)?((@|gh\/)[\w\.\-]+\/)?[\w\.\-]+@(\d+(\.\d+){0,2}(\-[\w\.]+)?|next|canary|rc|beta|latest)$/;
+  return isEsmshHost(hostname) && regexpWellKnownModule.test(pathname);
 }
 
 function isDts(fileName: string): boolean {

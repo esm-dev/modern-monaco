@@ -31,7 +31,7 @@ export async function setup(
 
   // set monacoNS and register language features
   ls.setup(monaco);
-  ls.enableBasicFeatures(languageId, worker, [".", "/", "\"", "'", "<"]);
+  ls.enableBasicFeatures(languageId, worker, [".", "/", "\"", "'", "<"], vfs);
   ls.enableAutoComplete(languageId, worker, [">", "/"]);
   ls.enableSignatureHelp(languageId, worker, ["(", ","]);
   ls.enableCodeAction(languageId, worker);
@@ -108,7 +108,7 @@ async function createWorker(
     importMap,
     libs,
     types: typesStore.types,
-    vfs: await vfs?.ls(),
+    vfs: vfs ? { files: await vfs.ls() } : undefined,
     formatOptions: {
       tabSize,
       trimTrailingWhitespace,
@@ -212,13 +212,6 @@ async function createWorker(
         }
         unwatchImportMap = watchImportMapJSON();
       });
-    });
-
-    vfs.watch("*", async (e) => {
-      if (e.kind === "remove" || e.kind === "create") {
-        const proxy = await worker.getProxy();
-        await proxy.updateVFS({ kind: e.kind, path: e.path });
-      }
     });
   }
 

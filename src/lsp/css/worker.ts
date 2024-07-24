@@ -6,6 +6,7 @@
 
 import type monacoNS from "monaco-editor-core";
 import * as cssService from "vscode-css-languageservice";
+import { WorkerBase, type WorkerVFS } from "../worker-base.ts";
 
 // ! external modules, don't remove the `.js` extension
 import { initializeWorker } from "../../editor-worker.js";
@@ -35,20 +36,18 @@ export interface CreateData {
    */
   readonly format?: cssService.CSSFormatConfiguration;
   /**
-   * Configures whether the language service has access to a virtual file system.
+   * The VFS for the worker.
    */
-  readonly hasVFS?: boolean;
+  readonly vfs?: WorkerVFS;
 }
 
-export class CSSWorker {
-  private _ctx: monacoNS.worker.IWorkerContext<cssService.FileSystemProvider>;
+export class CSSWorker extends WorkerBase<undefined, cssService.Stylesheet> {
   private _formatSettings: cssService.CSSFormatConfiguration;
   private _languageService: cssService.LanguageService;
-  private _documentCache = new Map<string, [number, cssService.TextDocument, cssService.Stylesheet | undefined]>();
 
   constructor(ctx: monacoNS.worker.IWorkerContext, createData: CreateData) {
+    super(ctx, createData.vfs);
     const data = createData.data;
-    const fileSystemProvider = createData.hasVFS ? ctx.host : undefined;
     const customDataProviders: cssService.ICSSDataProvider[] = [];
     if (data?.dataProviders) {
       for (const id in data.dataProviders) {
@@ -56,44 +55,44 @@ export class CSSWorker {
       }
     }
     const langauge = createData.language ?? "css";
-    const languageServiceOptions = {
-      useDefaultDataProvider: data?.useDefaultDataProvider,
+    const languageServiceOptions: cssService.LanguageServiceOptions = {
       customDataProviders,
-      fileSystemProvider,
+      useDefaultDataProvider: data?.useDefaultDataProvider,
+      fileSystemProvider: this.getFileSystemProvider(),
     };
-    this._ctx = ctx;
     this._formatSettings = createData.format ?? {};
     this._languageService = langauge === "less"
       ? cssService.getLESSLanguageService(languageServiceOptions)
       : langauge === "scss"
       ? cssService.getSCSSLanguageService(languageServiceOptions)
       : cssService.getCSSLanguageService(languageServiceOptions);
+    this.createLanguageDocument = (document) => this._languageService.parseStylesheet(document);
   }
 
   async doValidation(uri: string): Promise<cssService.Diagnostic[] | null> {
-    const document = this._getTextDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
-    const stylesheet = this._getStylesheet(document);
+    const stylesheet = this.getLanguageDocument(document);
     return this._languageService.doValidation(document, stylesheet);
   }
 
   async doComplete(uri: string, position: cssService.Position): Promise<cssService.CompletionList | null> {
-    const document = this._getTextDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
-    const stylesheet = this._getStylesheet(document);
+    const stylesheet = this.getLanguageDocument(document);
     return this._languageService.doComplete2(document, position, stylesheet, this);
   }
 
   async doHover(uri: string, position: cssService.Position): Promise<cssService.Hover | null> {
-    const document = this._getTextDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
-    const stylesheet = this._getStylesheet(document);
+    const stylesheet = this.getLanguageDocument(document);
     return this._languageService.doHover(document, position, stylesheet);
   }
 
@@ -102,20 +101,20 @@ export class CSSWorker {
     range: cssService.Range,
     context: cssService.CodeActionContext,
   ): Promise<cssService.CodeAction[] | null> {
-    const document = this._getTextDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
-    const stylesheet = this._getStylesheet(document);
+    const stylesheet = this.getLanguageDocument(document);
     return this._languageService.doCodeActions2(document, range, context, stylesheet);
   }
 
   async doRename(uri: string, position: cssService.Position, newName: string): Promise<cssService.WorkspaceEdit | null> {
-    const document = this._getTextDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
-    const stylesheet = this._getStylesheet(document);
+    const stylesheet = this.getLanguageDocument(document);
     return this._languageService.doRename(document, position, newName, stylesheet);
   }
 
@@ -124,7 +123,7 @@ export class CSSWorker {
     range: cssService.Range | null,
     options: cssService.CSSFormatConfiguration,
   ): Promise<cssService.TextEdit[] | null> {
-    const document = this._getTextDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
@@ -133,20 +132,20 @@ export class CSSWorker {
   }
 
   async findDocumentSymbols(uri: string): Promise<cssService.DocumentSymbol[] | null> {
-    const document = this._getTextDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
-    const stylesheet = this._getStylesheet(document);
+    const stylesheet = this.getLanguageDocument(document);
     return this._languageService.findDocumentSymbols2(document, stylesheet);
   }
 
   async findDefinition(uri: string, position: cssService.Position): Promise<cssService.Location[] | null> {
-    const document = this._getTextDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
-    const stylesheet = this._getStylesheet(document);
+    const stylesheet = this.getLanguageDocument(document);
     const definition = this._languageService.findDefinition(document, position, stylesheet);
     if (definition) {
       return [definition];
@@ -155,20 +154,20 @@ export class CSSWorker {
   }
 
   async findReferences(uri: string, position: cssService.Position): Promise<cssService.Location[] | null> {
-    const document = this._getTextDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
-    const stylesheet = this._getStylesheet(document);
+    const stylesheet = this.getLanguageDocument(document);
     return this._languageService.findReferences(document, position, stylesheet);
   }
 
   async findDocumentLinks(uri: string): Promise<cssService.DocumentLink[] | null> {
-    const document = this._getTextDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
-    const stylesheet = this._getStylesheet(document);
+    const stylesheet = this.getLanguageDocument(document);
     return this._languageService.findDocumentLinks2(document, stylesheet, this);
   }
 
@@ -176,20 +175,20 @@ export class CSSWorker {
     uri: string,
     position: cssService.Position,
   ): Promise<cssService.DocumentHighlight[] | null> {
-    const document = this._getTextDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
-    const stylesheet = this._getStylesheet(document);
+    const stylesheet = this.getLanguageDocument(document);
     return this._languageService.findDocumentHighlights(document, position, stylesheet);
   }
 
   async findDocumentColors(uri: string): Promise<cssService.ColorInformation[] | null> {
-    const document = this._getTextDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
-    const stylesheet = this._getStylesheet(document);
+    const stylesheet = this.getLanguageDocument(document);
     return this._languageService.findDocumentColors(document, stylesheet);
   }
 
@@ -198,16 +197,16 @@ export class CSSWorker {
     color: cssService.Color,
     range: cssService.Range,
   ): Promise<cssService.ColorPresentation[] | null> {
-    const document = this._getTextDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
-    const stylesheet = this._getStylesheet(document);
+    const stylesheet = this.getLanguageDocument(document);
     return this._languageService.getColorPresentations(document, stylesheet, color, range);
   }
 
   async getFoldingRanges(uri: string, context?: { rangeLimit?: number }): Promise<cssService.FoldingRange[] | null> {
-    const document = this._getTextDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
@@ -215,49 +214,12 @@ export class CSSWorker {
   }
 
   async getSelectionRanges(uri: string, positions: cssService.Position[]): Promise<cssService.SelectionRange[] | null> {
-    const document = this._getTextDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
-    const stylesheet = this._getStylesheet(document);
+    const stylesheet = this.getLanguageDocument(document);
     return this._languageService.getSelectionRanges(document, positions, stylesheet);
-  }
-
-  async onDocumentRemoved(uri: string): Promise<void> {
-    this._documentCache.delete(uri);
-  }
-
-  // resolveReference implementes the `cssService.FileSystemProvider` interface
-  resolveReference(ref: string, baseUrl: string): string | undefined {
-    const url = new URL(ref, baseUrl);
-    // todo: check if the file exists
-    return url.href;
-  }
-
-  private _getTextDocument(uri: string): cssService.TextDocument | null {
-    for (const model of this._ctx.getMirrorModels()) {
-      if (model.uri.toString() === uri) {
-        const cached = this._documentCache.get(uri);
-        if (cached && cached[0] === model.version) {
-          return cached[1];
-        }
-        const document = cssService.TextDocument.create(uri, "css", model.version, model.getValue());
-        this._documentCache.set(uri, [model.version, document, undefined]);
-        return document;
-      }
-    }
-    return null;
-  }
-
-  private _getStylesheet(document: cssService.TextDocument): cssService.Stylesheet | null {
-    const { uri, version } = document;
-    const cached = this._documentCache.get(uri);
-    if (cached && cached[0] === version && cached[2]) {
-      return cached[2];
-    }
-    const stylesheet = this._languageService.parseStylesheet(document);
-    this._documentCache.set(uri, [version, document, stylesheet]);
-    return stylesheet;
   }
 }
 

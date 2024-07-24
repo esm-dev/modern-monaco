@@ -6,7 +6,7 @@ import type { CreateData, HTMLWorker } from "./worker.ts";
 // ! external modules, don't remove the `.js` extension
 import * as ls from "../language-service.js";
 
-export function setup(
+export async function setup(
   monaco: typeof monacoNS,
   languageId: string,
   languageSettings?: Record<string, unknown>,
@@ -41,34 +41,15 @@ export function setup(
         ? { custom: { version: 1.1, tags: languageSettings.customTags as any } }
         : undefined,
     },
-    hasVFS: !!vfs,
+    vfs: vfs ? { files: await vfs.ls() } : undefined,
   };
   const htmlWorker = editor.createWebWorker<HTMLWorker>({
     moduleId: "lsp/html/worker",
     label: languageId,
     createData,
     host: {
-      readDirectory: async (uri: string) => {
-        const entries = [];
-        const dirs = new Set<string>();
-        for (const path of await vfs.ls()) {
-          if (path.startsWith(uri)) {
-            const name = path.slice(uri.length);
-            if (name.includes("/")) {
-              const [dirName] = name.split("/");
-              if (!dirs.has(dirName)) {
-                dirs.add(dirName);
-                entries.push([dirName, 2]);
-              }
-            } else {
-              entries.push([name, 1]);
-            }
-          }
-        }
-        return entries;
-      },
-      stat: async (uri: string) => {
-        const file = await vfs.open(uri);
+      vfs_stat: async (uri: string) => {
+        const file = await vfs!.open(uri);
         return {
           type: 1,
           ctime: file.ctime,
@@ -76,8 +57,8 @@ export function setup(
           size: file.content.length,
         };
       },
-      getContent: async (uri: string, encoding?: string): Promise<string> => {
-        return vfs.readTextFile(uri);
+      vfs_readTextFile: async (uri: string, encoding?: string): Promise<string> => {
+        return vfs!.readTextFile(uri);
       },
     },
   });
@@ -86,7 +67,7 @@ export function setup(
   // set monacoNS and register language features
   ls.setup(monaco);
   ls.attachEmbeddedLanguages(languageId, workerWithEmbeddedLanguages, ["css", "javascript", "importmap"]);
-  ls.enableBasicFeatures(languageId, workerWithEmbeddedLanguages, ["<", "/", "=", "\""]);
+  ls.enableBasicFeatures(languageId, workerWithEmbeddedLanguages, ["<", "/", "=", "\""], vfs);
   ls.enableAutoComplete(languageId, workerWithEmbeddedLanguages, [">", "/", "="]);
   ls.enableColorPresentation(languageId, workerWithEmbeddedLanguages); // css color presentation
   ls.enableDocumentLinks(languageId, workerWithEmbeddedLanguages);

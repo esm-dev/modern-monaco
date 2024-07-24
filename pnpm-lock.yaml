@@ -35,6 +35,9 @@ importers:
       vscode-language-configurations:
         specifier: 1.90.2
         version: 1.90.2
+      vscode-languageserver-textdocument:
+        specifier: 1.0.11
+        version: 1.0.11
       vscode-languageserver-types:
         specifier: 3.17.5
         version: 3.17.5

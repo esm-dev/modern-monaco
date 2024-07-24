@@ -6,6 +6,7 @@
 
 import type monacoNS from "monaco-editor-core";
 import * as jsonService from "vscode-json-languageservice";
+import { WorkerBase } from "../worker-base.ts";
 
 // ! external modules, don't remove the `.js` extension
 import { cache } from "../../cache.js";
@@ -25,13 +26,11 @@ export interface CreateData {
   options: Options;
 }
 
-export class JSONWorker {
-  private _ctx: monacoNS.worker.IWorkerContext;
+export class JSONWorker extends WorkerBase<undefined, jsonService.JSONDocument> {
   private _languageService: jsonService.LanguageService;
-  private _documentCache = new Map<string, [number, jsonService.TextDocument, jsonService.JSONDocument | undefined]>();
 
   constructor(ctx: monacoNS.worker.IWorkerContext, createData: CreateData) {
-    this._ctx = ctx;
+    super(ctx);
     this._languageService = jsonService.getLanguageService({
       workspaceContext: {
         resolveRelativePath: (relativePath: string, resource: string) => {
@@ -43,23 +42,24 @@ export class JSONWorker {
       clientCapabilities: jsonService.ClientCapabilities.LATEST,
     });
     this._languageService.configure(createData.options.settings ?? {});
+    this.createLanguageDocument = (document) => this._languageService.parseJSONDocument(document);
   }
 
   async doValidation(uri: string): Promise<jsonService.Diagnostic[] | null> {
-    const document = this._getTextDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
-    const jsonDocument = this._getJSONDocument(document);
+    const jsonDocument = this.getLanguageDocument(document);
     return this._languageService.doValidation(document, jsonDocument);
   }
 
   async doComplete(uri: string, position: jsonService.Position): Promise<jsonService.CompletionList | null> {
-    const document = this._getTextDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
-    const jsonDocument = this._getJSONDocument(document);
+    const jsonDocument = this.getLanguageDocument(document);
     return this._languageService.doComplete(document, position, jsonDocument);
   }
 
@@ -68,11 +68,11 @@ export class JSONWorker {
   }
 
   async doHover(uri: string, position: jsonService.Position): Promise<jsonService.Hover | null> {
-    const document = this._getTextDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
-    const jsonDocument = this._getJSONDocument(document);
+    const jsonDocument = this.getLanguageDocument(document);
     return this._languageService.doHover(document, position, jsonDocument);
   }
 
@@ -86,7 +86,7 @@ export class JSONWorker {
     options: jsonService.FormattingOptions,
     docText?: string,
   ): Promise<jsonService.TextEdit[] | null> {
-    const document = docText ? jsonService.TextDocument.create(uri, "json", 0, docText) : this._getTextDocument(uri);
+    const document = docText ? jsonService.TextDocument.create(uri, "json", 0, docText) : this.getTextDocument(uri);
     if (!document) {
       return null;
     }
@@ -94,20 +94,20 @@ export class JSONWorker {
   }
 
   async findDocumentSymbols(uri: string): Promise<jsonService.DocumentSymbol[] | null> {
-    const document = this._getTextDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
-    const jsonDocument = this._getJSONDocument(document);
+    const jsonDocument = this.getLanguageDocument(document);
     return this._languageService.findDocumentSymbols2(document, jsonDocument);
   }
 
   async findDefinition(uri: string, position: jsonService.Position): Promise<jsonService.DefinitionLink[] | null> {
-    const document = this._getTextDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
-    const jsonDocument = this._getJSONDocument(document);
+    const jsonDocument = this.getLanguageDocument(document);
     const definition = await this._languageService.findDefinition(document, position, jsonDocument);
     if (definition) {
       return definition;
@@ -127,11 +127,11 @@ export class JSONWorker {
   }
 
   async findDocumentColors(uri: string): Promise<jsonService.ColorInformation[] | null> {
-    const document = this._getTextDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
-    const jsonDocument = this._getJSONDocument(document);
+    const jsonDocument = this.getLanguageDocument(document);
     return this._languageService.findDocumentColors(document, jsonDocument);
   }
 
@@ -140,11 +140,11 @@ export class JSONWorker {
     color: jsonService.Color,
     range: jsonService.Range,
   ): Promise<jsonService.ColorPresentation[] | null> {
-    const document = this._getTextDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
-    const jsonDocument = this._getJSONDocument(document);
+    const jsonDocument = this.getLanguageDocument(document);
     return this._languageService.getColorPresentations(
       document,
       jsonDocument,
@@ -154,7 +154,7 @@ export class JSONWorker {
   }
 
   async getFoldingRanges(uri: string, context?: { rangeLimit?: number }): Promise<jsonService.FoldingRange[] | null> {
-    const document = this._getTextDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
@@ -165,46 +165,16 @@ export class JSONWorker {
     uri: string,
     positions: jsonService.Position[],
   ): Promise<jsonService.SelectionRange[] | null> {
-    const document = this._getTextDocument(uri);
+    const document = this.getTextDocument(uri);
     if (!document) {
       return null;
     }
-    const jsonDocument = this._getJSONDocument(document);
+    const jsonDocument = this.getLanguageDocument(document);
     return this._languageService.getSelectionRanges(document, positions, jsonDocument);
   }
 
   async resetSchema(uri: string): Promise<boolean> {
     return this._languageService.resetSchema(uri);
-  }
-
-  async onDocumentRemoved(uri: string): Promise<void> {
-    this._documentCache.delete(uri);
-  }
-
-  private _getTextDocument(uri: string): jsonService.TextDocument | null {
-    for (const model of this._ctx.getMirrorModels()) {
-      if (model.uri.toString() === uri) {
-        const cached = this._documentCache.get(uri);
-        if (cached && cached[0] === model.version) {
-          return cached[1];
-        }
-        const document = jsonService.TextDocument.create(uri, "html", model.version, model.getValue());
-        this._documentCache.set(uri, [model.version, document, undefined]);
-        return document;
-      }
-    }
-    return null;
-  }
-
-  private _getJSONDocument(document: jsonService.TextDocument): jsonService.JSONDocument | null {
-    const { uri, version } = document;
-    const cached = this._documentCache.get(uri);
-    if (cached && cached[0] === version && cached[2]) {
-      return cached[2];
-    }
-    const jsonDocument = this._languageService.parseJSONDocument(document);
-    this._documentCache.set(uri, [version, document, jsonDocument]);
-    return jsonDocument;
   }
 }
 
