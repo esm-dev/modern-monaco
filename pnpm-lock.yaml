@@ -9,17 +9,17 @@ importers:
   .:
     devDependencies:
       '@shikijs/core':
-        specifier: 1.11.1
-        version: 1.11.1
+        specifier: 1.11.2
+        version: 1.11.2
       monaco-editor-core:
         specifier: 0.50.0
         version: 0.50.0
       tm-grammars:
-        specifier: 1.14.0
-        version: 1.14.0
+        specifier: 1.16.2
+        version: 1.16.2
       tm-themes:
-        specifier: 1.5.7
-        version: 1.5.7
+        specifier: 1.6.1
+        version: 1.6.1
       typescript:
         specifier: 5.5.4
         version: 5.5.4
@@ -33,19 +33,19 @@ importers:
         specifier: 5.4.0
         version: 5.4.0
       vscode-language-configurations:
-        specifier: 1.90.2
-        version: 1.90.2
+        specifier: 1.92.0
+        version: 1.92.0
       vscode-languageserver-textdocument:
-        specifier: 1.0.11
-        version: 1.0.11
+        specifier: 1.0.12
+        version: 1.0.12
       vscode-languageserver-types:
         specifier: 3.17.5
         version: 3.17.5
 
 packages:
 
-  '@shikijs/core@1.11.1':
-    resolution: {integrity: sha512-Qsn8h15SWgv5TDRoDmiHNzdQO2BxDe86Yq6vIHf5T0cCvmfmccJKIzHtep8bQO9HMBZYCtCBzaXdd1MnxZBPSg==}
+  '@shikijs/core@1.11.2':
+    resolution: {integrity: sha512-9IBY31lvOo2uhrZjqRt2wTqfqfrXJnddnIx0PFL5E8a5RQUNOhkx+PD11PogZtyrIHlL4aTYDVlb+eyryzy+pQ==}
 
   '@types/hast@3.0.4':
     resolution: {integrity: sha512-WPs+bbQw5aCj+x6laNGWLH3wviHtoCv/P3+otBhbOhJgG8qtpdAMlTCxLtsTWA7LH1Oh/bFCHsBn0TPS5m30EQ==}
@@ -62,11 +62,11 @@ packages:
   monaco-editor-core@0.50.0:
     resolution: {integrity: sha512-XKdublTat9qDKwJhMbm6nnTUKA75MU7jWVooZeXcZKP0/y2jscNWQ9FpCiRtWk33Teemihx155WQ7o7xgf89eA==}
 
-  tm-grammars@1.14.0:
-    resolution: {integrity: sha512-U4VxAX/XEYbFrzxLu0btW82iFMf1XImNsWHNljcj/XuFs5JrlV3l0WoW95oPpdyc0LL0YxfsEdyICWyox0Vk7Q==}
+  tm-grammars@1.16.2:
+    resolution: {integrity: sha512-XTxg7/sFP6pLrLaBap1tmzWQjozFUBpw2EC/uE3ElAEtxJtzVMUkPes+ixR5HC88wFdDyRxYilvIHRRCSDZ3nQ==}
 
-  tm-themes@1.5.7:
-    resolution: {integrity: sha512-po/2dZNyEDcPdlzHLWb8GZuCKierNUOyF5Nff6EUVqBknaoY6ksGc2xQ2/SnP4S22H/VuzN82ObABGu77RTa+w==}
+  tm-themes@1.6.1:
+    resolution: {integrity: sha512-Qaf7a9n/1BBaOYTiasZiR6NHGcFJIIpEb/xrBpEbz05PriMk8TQgeKhKBawGghg7XetRNqkMTXj2ilIFnZm7Yg==}
 
   typescript@5.5.4:
     resolution: {integrity: sha512-Mtq29sKDAEYP7aljRgtPOpTvOfbwRWlS6dPRzwjdE+C0R4brX/GUyhHSecbHMFLNBLcJIPt9nl9yG5TZ1weH+Q==}
@@ -82,11 +82,11 @@ packages:
   vscode-json-languageservice@5.4.0:
     resolution: {integrity: sha512-NCkkCr63OHVkE4lcb0xlUAaix6vE5gHQW4NrswbLEh3ArXj81lrGuFTsGEYEUXlNHdnc53vWPcjeSy/nMTrfXg==}
 
-  vscode-language-configurations@1.90.2:
-    resolution: {integrity: sha512-YEvHVSmZbjVhzRdJ04ygZ5La0T9YMCGXoILn1yJgYXpTe61rDtturr7J7592SYx0Iv+6nP2JpNsdR9TdSASA9g==}
+  vscode-language-configurations@1.92.0:
+    resolution: {integrity: sha512-JNIa9iMETtQj7zDKqLyaheA84T94kYEG2PF4I98vi1S4zjWK9SBHlNjysrZ9XYft6H0DN7zXG0XNfl/K7hoZdA==}
 
-  vscode-languageserver-textdocument@1.0.11:
-    resolution: {integrity: sha512-X+8T3GoiwTVlJbicx/sIAF+yuJAqz8VvwJyoMVhwEMoEKE/fkDmrqUgDMyBECcM2A2frVZIUj5HI/ErRXCfOeA==}
+  vscode-languageserver-textdocument@1.0.12:
+    resolution: {integrity: sha512-cxWNPesCnQCcMPeenjKKsOCKQZ/L6Tv19DTRIGuLWe32lyzWhihGVJ/rcckZXJxfdKCFvRLS3fpBIsV/ZGX4zA==}
 
   vscode-languageserver-types@3.17.5:
     resolution: {integrity: sha512-Ld1VelNuX9pdF39h2Hgaeb5hEZM2Z3jUrrMgWQAu82jMtZp7p3vJT3BzToKtZI7NgQssZje5o0zryOrhQvzQAg==}
@@ -96,7 +96,7 @@ packages:
 
 snapshots:
 
-  '@shikijs/core@1.11.1':
+  '@shikijs/core@1.11.2':
     dependencies:
       '@types/hast': 3.0.4
 
@@ -112,23 +112,23 @@ snapshots:
 
   monaco-editor-core@0.50.0: {}
 
-  tm-grammars@1.14.0: {}
+  tm-grammars@1.16.2: {}
 
-  tm-themes@1.5.7: {}
+  tm-themes@1.6.1: {}
 
   typescript@5.5.4: {}
 
   vscode-css-languageservice@6.3.0:
     dependencies:
       '@vscode/l10n': 0.0.18
-      vscode-languageserver-textdocument: 1.0.11
+      vscode-languageserver-textdocument: 1.0.12
       vscode-languageserver-types: 3.17.5
       vscode-uri: 3.0.8
 
   vscode-html-languageservice@5.3.0:
     dependencies:
       '@vscode/l10n': 0.0.18
-      vscode-languageserver-textdocument: 1.0.11
+      vscode-languageserver-textdocument: 1.0.12
       vscode-languageserver-types: 3.17.5
       vscode-uri: 3.0.8
 
@@ -136,13 +136,13 @@ snapshots:
     dependencies:
       '@vscode/l10n': 0.0.18
       jsonc-parser: 3.3.1
-      vscode-languageserver-textdocument: 1.0.11
+      vscode-languageserver-textdocument: 1.0.12
       vscode-languageserver-types: 3.17.5
       vscode-uri: 3.0.8
 
-  vscode-language-configurations@1.90.2: {}
+  vscode-language-configurations@1.92.0: {}
 
-  vscode-languageserver-textdocument@1.0.11: {}
+  vscode-languageserver-textdocument@1.0.12: {}
 
   vscode-languageserver-types@3.17.5: {}
 
