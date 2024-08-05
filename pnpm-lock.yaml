@@ -9,8 +9,8 @@ importers:
   .:
     devDependencies:
       '@shikijs/core':
-        specifier: 1.11.2
-        version: 1.11.2
+        specifier: 1.12.1
+        version: 1.12.1
       monaco-editor-core:
         specifier: 0.50.0
         version: 0.50.0
@@ -44,8 +44,8 @@ importers:
 
 packages:
 
-  '@shikijs/core@1.11.2':
-    resolution: {integrity: sha512-9IBY31lvOo2uhrZjqRt2wTqfqfrXJnddnIx0PFL5E8a5RQUNOhkx+PD11PogZtyrIHlL4aTYDVlb+eyryzy+pQ==}
+  '@shikijs/core@1.12.1':
+    resolution: {integrity: sha512-biCz/mnkMktImI6hMfMX3H9kOeqsInxWEyCHbSlL8C/2TR1FqfmGxTLRNwYCKsyCyxWLbB8rEqXRVZuyxuLFmA==}
 
   '@types/hast@3.0.4':
     resolution: {integrity: sha512-WPs+bbQw5aCj+x6laNGWLH3wviHtoCv/P3+otBhbOhJgG8qtpdAMlTCxLtsTWA7LH1Oh/bFCHsBn0TPS5m30EQ==}
@@ -96,7 +96,7 @@ packages:
 
 snapshots:
 
-  '@shikijs/core@1.11.2':
+  '@shikijs/core@1.12.1':
     dependencies:
       '@types/hast': 3.0.4
 
