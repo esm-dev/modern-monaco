@@ -101,7 +101,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
       return Object.keys(this._importMap.imports)
         .filter(key => key !== "@jsxImportSource" && (dirname.length === 0 || key.startsWith(dirname)))
         .map(key => dirname.length > 0 ? key.slice(dirname.length) : key)
-        .filter((key) => key.includes("/"))
+        .filter((key) => key !== "/" && key.includes("/"))
         .map(key => key.split("/")[0]);
     }
     return this.readDir(path).filter(([_, type]) => type === FileType.Directory).map(([name, _]) => name);
@@ -465,6 +465,9 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     }
     const items: lst.CompletionItem[] = [];
     for (const entry of completions.entries) {
+      if (entry.name === "") {
+        continue;
+      }
       // drop import completions that are in the import map for '.' and '..' imports
       if (entry.kind === "script" && entry.name in this._importMap.imports || entry.name + "/" in this._importMap.imports) {
         const { replacementSpan } = entry;
