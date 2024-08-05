@@ -233,7 +233,7 @@ function normalizeUri(uri?: string | URL | Uri) {
     uri = Uri.from({
       scheme: url.protocol.slice(0, -1),
       authority: url.host,
-      path: url.pathname,
+      path: decodeURIComponent(url.pathname),
       query: url.search.slice(1),
       fragment: url.hash.slice(1),
     });

@@ -29,7 +29,7 @@ import { type ImportMap, isBlankImportMap, resolve } from "../../import-map.js";
 
 export interface Host {
   openModel(uri: string): Promise<boolean>;
-  refreshDiagnostics: () => Promise<void>;
+  refreshDiagnostics(uri: string): Promise<void>;
 }
 
 export interface VersionedContent {
@@ -77,7 +77,6 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
   private _naModules = new Set<string>();
   private _openPromises = new Map<string, Promise<void>>();
   private _fetchPromises = new Map<string, Promise<void>>();
-  private _refreshDiagnosticsTimer: number | null = null;
 
   constructor(ctx: monacoNS.worker.IWorkerContext<Host>, createData: CreateData) {
     super(ctx, createData.vfs);
@@ -301,7 +300,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
               }
             }).finally(() => {
               this._openPromises.delete(moduleHref);
-              this._refreshDiagnostics();
+              this.host.refreshDiagnostics(containingFile);
             }),
           );
         }
@@ -391,7 +390,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
               this._rollbackVersion(containingFile);
             }).finally(() => {
               this._fetchPromises.delete(moduleHref);
-              this._refreshDiagnostics();
+              this.host.refreshDiagnostics(containingFile);
             }),
           );
         }
@@ -829,7 +828,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
         this._naModules.add(specifier);
       }
       this._rollbackVersion(containingFile);
-      this._refreshDiagnostics();
+      this.host.refreshDiagnostics(containingFile);
     }
   }
 
@@ -1093,17 +1092,6 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     } catch (err) {
       return fixes;
     }
-  }
-
-  /** notifies the host to refresh diagnostics. */
-  private _refreshDiagnostics(): void {
-    if (this._refreshDiagnosticsTimer !== null) {
-      clearTimeout(this._refreshDiagnosticsTimer);
-    }
-    this._refreshDiagnosticsTimer = setTimeout(() => {
-      this._refreshDiagnosticsTimer = null;
-      this.host.refreshDiagnostics();
-    }, 150);
   }
 
   /** rollback the version to force reinvoke `resolveModuleNameLiterals` method. */

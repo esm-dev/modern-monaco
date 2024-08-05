@@ -40,7 +40,7 @@ export async function setup(
     moduleId: "lsp/json/worker",
     label: languageId,
     createData,
-    host: ls.createVfsHost(vfs),
+    host: ls.createHost(vfs),
   });
 
   // reset schema on model change

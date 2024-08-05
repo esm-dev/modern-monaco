@@ -114,7 +114,6 @@ async function createWorker(
     types: typesStore.types,
     vfs: await ls.createWorkerVFS(vfs),
   };
-  const refreshDiagnostics = async () => ls.refreshDiagnostics("javascript", "typescript", "jsx", "tsx");
   const worker = monaco.editor.createWebWorker<TypeScriptWorker>({
     moduleId: "lsp/typescript/worker",
     label: "typescript",
@@ -133,9 +132,17 @@ async function createWorker(
           }
           throw error;
         }
-        return true; // model is opened or error is not NotFound
+        return true;
       },
-      refreshDiagnostics,
+      refreshDiagnostics: async (uri: string) => {
+        let model = monaco.editor.getModel(uri);
+        if (model && model.uri.path.includes(".(embedded).")) {
+          model = monaco.editor.getModel(model.uri.toString(true).split(".(embedded).")[0]);
+        }
+        if (model) {
+          Reflect.get(model, "refreshDiagnostics")?.();
+        }
+      },
     } satisfies Host,
   });
 
@@ -143,7 +150,12 @@ async function createWorker(
     const updateCompilerOptions: TypeScriptWorker["updateCompilerOptions"] = async (options) => {
       const proxy = await worker.getProxy();
       await proxy.updateCompilerOptions(options);
-      refreshDiagnostics();
+      monaco.editor.getModels().forEach((model) => {
+        const langaugeId = model.getLanguageId();
+        if (langaugeId === "typescript" || langaugeId === "javascript" || langaugeId === "jsx" || langaugeId === "tsx") {
+          Reflect.get(model, "refreshDiagnostics")?.();
+        }
+      });
     };
     const watchTypes = () =>
       (compilerOptions.$types as string[] ?? []).map((url) =>

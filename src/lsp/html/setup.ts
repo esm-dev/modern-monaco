@@ -47,7 +47,7 @@ export async function setup(
     moduleId: "lsp/html/worker",
     label: languageId,
     createData,
-    host: ls.createVfsHost(vfs),
+    host: ls.createHost(vfs),
   });
   const workerWithEmbeddedLanguages = ls.createWorkerWithEmbeddedLanguages(htmlWorker);
 

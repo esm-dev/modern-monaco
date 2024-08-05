@@ -36,7 +36,7 @@ export async function setup(
     moduleId: "lsp/css/worker",
     label: languageId,
     createData,
-    host: ls.createVfsHost(vfs),
+    host: ls.createHost(vfs),
   });
 
   // set monacoNS and register language features

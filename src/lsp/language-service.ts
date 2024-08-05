@@ -17,19 +17,16 @@ export function setup(monacoNS: typeof Monaco): void {
   monaco ??= monacoNS;
 }
 
-const registry: Map<string, Monaco.editor.MonacoWebWorker<any>> = new Map();
-const registryListeners: Map<string, () => void> = new Map();
-const refreshEmitters: Map<string, Monaco.Emitter<void>> = new Map();
-
-/** refresh diagnostics for the specified language */
-export function refreshDiagnostics(...langaugeIds: string[]) {
-  langaugeIds.forEach((langaugeId) => {
-    refreshEmitters.get(langaugeId)?.fire();
-  });
+/** create a worker VFS from the given VFS */
+export function createWorkerVFS(vfs?: VFS): Promise<WorkerVFS | undefined> {
+  if (vfs) {
+    return vfs.ls().then(files => ({ files }));
+  }
+  return Promise.resolve(undefined);
 }
 
 /** create a worker host that reads content from the given VFS */
-export function createVfsHost(vfs?: VFS) {
+export function createHost(vfs?: VFS) {
   return vfs
     ? {
       vfs_stat: async (uri: string) => {
@@ -48,15 +45,7 @@ export function createVfsHost(vfs?: VFS) {
     : undefined;
 }
 
-/** create a worker VFS from the given VFS */
-export function createWorkerVFS(vfs?: VFS): Promise<WorkerVFS | undefined> {
-  if (vfs) {
-    return vfs.ls().then(files => ({ files }));
-  }
-  return Promise.resolve(undefined);
-}
-
-/** make a request to the language worker, cancelable by the token */
+/** make a cancelable request to the language worker */
 function lspRequest<Result>(
   req: () => Promise<Result> | undefined,
   token: Monaco.CancellationToken,
@@ -82,6 +71,8 @@ function lspRequest<Result>(
 }
 
 // #region register basic language features
+
+const registry: Map<string, Monaco.editor.MonacoWebWorker<any>> = new Map();
 
 export function enableBasicFeatures<
   T extends
@@ -142,161 +133,26 @@ export function enableBasicFeatures<
 
   // add the worker to the registry
   registry.set(languageId, worker);
-  if (registryListeners.has(languageId)) {
-    registryListeners.get(languageId)!();
-    registryListeners.delete(languageId);
-  }
 
+  // refresh diagnostics of the master model if the worker is embedded
+  const embeddedExtname = getEmbeddedExtname(languageId);
+  monaco.editor.getModels().forEach((model) => {
+    const uri = model.uri.toString(true);
+    if (uri.endsWith(embeddedExtname)) {
+      const masterModel = monaco.editor.getModel(uri.slice(0, -embeddedExtname.length));
+      if (masterModel) {
+        Reflect.get(masterModel, "refreshDiagnostics")?.();
+      }
+    }
+  });
+
+  // sync VFS changes to the worker if the VFS is provided
   vfs?.watch("*", async (e) => {
     if (e.kind === "remove" || e.kind === "create") {
       const proxy = await worker.getProxy();
       await proxy.updateVFS({ kind: e.kind, path: e.path });
     }
   });
-}
-
-// #endregion
-
-// #region EmbeddedLanguages
-
-export interface ILanguageWorkerWithEmbeddedSupport {
-  getEmbeddedDocument(uri: string, langaugeId: string): Promise<{ content: string } | null>;
-}
-
-export function attachEmbeddedLanguages<T extends ILanguageWorkerWithEmbeddedSupport>(
-  languageId: string,
-  mainWorker: Monaco.editor.MonacoWebWorker<T>,
-  embeddedLanguages: string[],
-) {
-  const { editor, Uri } = monaco;
-  const listeners = new Map<string, Monaco.IDisposable>();
-  const validateModel = async (model: Monaco.editor.IModel) => {
-    if (model.getLanguageId() !== languageId) {
-      return;
-    }
-    const modelUri = model.uri.toString();
-    const getEmbeddedDocument = async (rsl: string) => {
-      const workerProxy = await mainWorker.withSyncedResources([model.uri]);
-      return workerProxy.getEmbeddedDocument(modelUri, rsl);
-    };
-    const attachEmbeddedLanguage = async (languageId: string) => {
-      const uri = Uri.parse(model.uri.path + getEmbeddedExtname(languageId));
-      const doc = await getEmbeddedDocument(languageId);
-      if (doc) {
-        let embeddedModel = editor.getModel(uri);
-        if (!embeddedModel) {
-          embeddedModel = editor.createModel(doc.content, normalizeLanguageId(languageId), uri);
-          Reflect.set(embeddedModel, "_versionId", model.getVersionId());
-        } else {
-          embeddedModel.setValue(doc.content);
-        }
-      } else {
-        const embeddedModel = editor.getModel(uri);
-        if (embeddedModel) {
-          embeddedModel.dispose();
-        }
-      }
-    };
-    const attachAll = () => embeddedLanguages.forEach(attachEmbeddedLanguage);
-    listeners.set(modelUri, model.onDidChangeContent(attachAll));
-    attachAll();
-  };
-  const cleanUp = (model: Monaco.editor.IModel) => {
-    const uri = model.uri.toString();
-    if (listeners.has(uri)) {
-      listeners.get(uri)!.dispose();
-      listeners.delete(uri);
-    }
-    embeddedLanguages.forEach((languageId) => {
-      const uri = Uri.parse(model.uri.path + getEmbeddedExtname(languageId));
-      editor.getModel(uri)?.dispose();
-    });
-  };
-  editor.onDidCreateModel(validateModel);
-  editor.onWillDisposeModel((model) => {
-    if (model.getLanguageId() === languageId) {
-      cleanUp(model);
-    }
-  });
-  editor.onDidChangeModelLanguage(({ model, oldLanguage }) => {
-    if (oldLanguage === languageId) {
-      cleanUp(model);
-    }
-    validateModel(model);
-  });
-  editor.getModels().forEach(validateModel);
-  embeddedLanguages.forEach((id) => {
-    onWorker(normalizeLanguageId(id), () => {
-      refreshDiagnostics(languageId);
-    });
-  });
-}
-
-export function createWorkerWithEmbeddedLanguages<T extends ILanguageWorkerWithEmbeddedSupport>(
-  mainWorker: Monaco.editor.MonacoWebWorker<T>,
-): Monaco.editor.MonacoWebWorker<T> {
-  const redirectLSPRequest = async (rsl: string, method: string, uri: string, ...args: any[]) => {
-    const langaugeId = normalizeLanguageId(rsl);
-    const worker = registry.get(langaugeId);
-    if (worker) {
-      const embeddedUri = monaco.Uri.parse(uri + getEmbeddedExtname(rsl));
-      return worker.withSyncedResources([embeddedUri]).then(worker => worker[method]?.(embeddedUri.toString(), ...args));
-    }
-    return null;
-  };
-  return {
-    withSyncedResources: async (resources: Monaco.Uri[]) => {
-      const workerProxy = await mainWorker.withSyncedResources(resources);
-      return new Proxy(workerProxy, {
-        get(target, prop, receiver) {
-          const value: any = Reflect.get(target, prop, receiver);
-          if (typeof value === "function") {
-            return async (uri: string, ...args: any[]) => {
-              const ret = await value(uri, ...args);
-              if (typeof ret === "object" && ret != null && !Array.isArray(ret) && "$embedded" in ret) {
-                const embedded = ret.$embedded;
-                if (typeof embedded === "string") {
-                  return redirectLSPRequest(embedded, prop as string, uri, ...args);
-                } else if (typeof embedded === "object" && embedded != null) {
-                  const { languageIds, data, origin } = embedded;
-                  const promises = languageIds.map((rsl: string, i: number) =>
-                    redirectLSPRequest(rsl, prop as string, uri, ...args, data?.[i])
-                  );
-                  const results = await Promise.all(promises);
-                  return origin.concat(...results.filter((r) => Array.isArray(r)));
-                }
-                return null;
-              }
-              return ret;
-            };
-          }
-          return value;
-        },
-      });
-    },
-    dispose: () => {
-      mainWorker.dispose();
-    },
-    getProxy: () => {
-      throw new Error("Method not implemented.");
-    },
-  };
-}
-
-function onWorker(languageId: string, cb: () => void) {
-  if (registry.has(languageId)) {
-    cb();
-  } else {
-    registryListeners.set(languageId, cb);
-  }
-}
-
-function normalizeLanguageId(languageId: string): string {
-  return languageId === "importmap" ? "json" : languageId;
-}
-
-function getEmbeddedExtname(rsl: string): string {
-  return ".(embedded)." + (rsl === "javascript" ? "js" : rsl);
 }
 
 // #endregion
@@ -311,9 +167,8 @@ function enableDiagnostics<T extends ILanguageWorkerWithValidation>(
   languageId: string,
   worker: Monaco.editor.MonacoWebWorker<T>,
 ) {
-  const { editor, Emitter } = monaco;
-  const refreshEmitter = new Emitter<void>();
-  const listeners = new Map<string, Monaco.IDisposable>();
+  const { editor } = monaco;
+  const modelChangeListeners = new Map<string, Monaco.IDisposable>();
   const doValidate = async (model: Monaco.editor.ITextModel) => {
     const workerProxy = await worker.withSyncedResources([model.uri]);
     const diagnostics = await workerProxy.doValidation(model.uri.toString());
@@ -330,7 +185,7 @@ function enableDiagnostics<T extends ILanguageWorkerWithValidation>(
     }
 
     let timer: number | null = null;
-    const reValidate = () => {
+    const validate = () => {
       if (timer) {
         clearTimeout(timer);
       }
@@ -340,42 +195,26 @@ function enableDiagnostics<T extends ILanguageWorkerWithValidation>(
       }, 500);
     };
 
-    listeners.set(uri, model.onDidChangeContent(reValidate));
+    modelChangeListeners.set(uri, model.onDidChangeContent(validate));
+    Reflect.set(model, "refreshDiagnostics", validate);
     doValidate(model);
   };
-  const dispose = (model: Monaco.editor.IModel): void => {
+  const onModelDispose = (model: Monaco.editor.IModel): void => {
     const uri = model.uri.toString();
-    if (listeners.has(uri)) {
-      listeners.get(uri)!.dispose();
-      listeners.delete(uri);
+    if (modelChangeListeners.has(uri)) {
+      modelChangeListeners.get(uri)!.dispose();
+      modelChangeListeners.delete(uri);
     }
-  };
-
-  editor.onDidCreateModel(validateModel);
-  editor.onWillDisposeModel((model) => {
-    if (model.getLanguageId() === languageId) {
-      dispose(model);
-    }
+    Reflect.deleteProperty(model, "refreshDiagnostics");
     editor.setModelMarkers(model, languageId, []);
-  });
-  editor.onDidChangeModelLanguage(({ model, oldLanguage }) => {
-    if (oldLanguage === languageId) {
-      dispose(model);
-    }
+  };
+  editor.onDidCreateModel(validateModel);
+  editor.onWillDisposeModel(onModelDispose);
+  editor.onDidChangeModelLanguage(({ model }) => {
+    onModelDispose(model);
     validateModel(model);
   });
   editor.getModels().forEach(validateModel);
-
-  // refresh diagnostics on event
-  refreshEmitter.event(() => {
-    editor.getModels().forEach((model) => {
-      if (model.getLanguageId() === languageId) {
-        dispose(model);
-      }
-      validateModel(model);
-    });
-  });
-  refreshEmitters.set(languageId, refreshEmitter);
 }
 
 function diagnosticToMarker(diag: lst.Diagnostic): Monaco.editor.IMarkerData {
@@ -387,7 +226,7 @@ function diagnosticToMarker(diag: lst.Diagnostic): Monaco.editor.IMarkerData {
     endLineNumber: end.line + 1,
     endColumn: end.character + 1,
     severity: convertSeverity(severity),
-    code: typeof code === "number" ? String(code) : code,
+    code: code?.toString(),
     message,
     source,
     tags,
@@ -404,9 +243,8 @@ function convertSeverity(lsSeverity: number | undefined): Monaco.MarkerSeverity 
     case lst.DiagnosticSeverity.Information:
       return monaco.MarkerSeverity.Info;
     case lst.DiagnosticSeverity.Hint:
-      return monaco.MarkerSeverity.Hint;
     default:
-      return monaco.MarkerSeverity.Info;
+      return monaco.MarkerSeverity.Hint;
   }
 }
 
@@ -1514,6 +1352,137 @@ function convertInlayHintLabelPart(part: lst.InlayHintLabelPart): Monaco.languag
 
 function convertPosition(position: lst.Position): Monaco.Position {
   return new monaco.Position(position.line + 1, position.character + 1);
+}
+
+// #endregion
+
+// #region EmbeddedLanguages
+
+export interface ILanguageWorkerWithEmbeddedSupport {
+  getEmbeddedDocument(uri: string, langaugeId: string): Promise<{ content: string } | null>;
+}
+
+export function attachEmbeddedLanguages<T extends ILanguageWorkerWithEmbeddedSupport>(
+  languageId: string,
+  masterWorker: Monaco.editor.MonacoWebWorker<T>,
+  embeddedLanguages: string[],
+) {
+  const { editor, Uri } = monaco;
+  const listeners = new Map<string, Monaco.IDisposable>();
+  const validateModel = async (model: Monaco.editor.IModel) => {
+    if (model.getLanguageId() !== languageId) {
+      return;
+    }
+    const modelUri = model.uri.toString();
+    const getEmbeddedDocument = async (rsl: string) => {
+      const workerProxy = await masterWorker.withSyncedResources([model.uri]);
+      return workerProxy.getEmbeddedDocument(modelUri, rsl);
+    };
+    const attachEmbeddedLanguage = async (languageId: string) => {
+      const uri = Uri.parse(model.uri.path + getEmbeddedExtname(languageId));
+      const doc = await getEmbeddedDocument(languageId);
+      if (doc) {
+        let embeddedModel = editor.getModel(uri);
+        if (!embeddedModel) {
+          embeddedModel = editor.createModel(doc.content, normalizeLanguageId(languageId), uri);
+          Reflect.set(embeddedModel, "_versionId", model.getVersionId());
+        } else {
+          embeddedModel.setValue(doc.content);
+        }
+      } else {
+        const embeddedModel = editor.getModel(uri);
+        if (embeddedModel) {
+          embeddedModel.dispose();
+        }
+      }
+    };
+    const attachAll = () => embeddedLanguages.forEach(attachEmbeddedLanguage);
+    listeners.set(modelUri, model.onDidChangeContent(attachAll));
+    attachAll();
+  };
+  const cleanUp = (model: Monaco.editor.IModel) => {
+    const uri = model.uri.toString();
+    if (listeners.has(uri)) {
+      listeners.get(uri)!.dispose();
+      listeners.delete(uri);
+    }
+    embeddedLanguages.forEach((languageId) => {
+      const uri = Uri.parse(model.uri.path + getEmbeddedExtname(languageId));
+      editor.getModel(uri)?.dispose();
+    });
+  };
+  editor.onDidCreateModel(validateModel);
+  editor.onWillDisposeModel((model) => {
+    if (model.getLanguageId() === languageId) {
+      cleanUp(model);
+    }
+  });
+  editor.onDidChangeModelLanguage(({ model, oldLanguage }) => {
+    if (oldLanguage === languageId) {
+      cleanUp(model);
+    }
+    validateModel(model);
+  });
+  editor.getModels().forEach(validateModel);
+}
+
+export function createWorkerWithEmbeddedLanguages<T extends ILanguageWorkerWithEmbeddedSupport>(
+  masterWorker: Monaco.editor.MonacoWebWorker<T>,
+): Monaco.editor.MonacoWebWorker<T> {
+  const redirectLSPRequest = async (rsl: string, method: string, uri: string, ...args: any[]) => {
+    const langaugeId = normalizeLanguageId(rsl);
+    const worker = registry.get(langaugeId);
+    if (worker) {
+      const embeddedUri = monaco.Uri.parse(uri + getEmbeddedExtname(rsl));
+      return worker.withSyncedResources([embeddedUri]).then(worker => worker[method]?.(embeddedUri.toString(), ...args));
+    }
+    return null;
+  };
+  return {
+    withSyncedResources: async (resources: Monaco.Uri[]) => {
+      const workerProxy = await masterWorker.withSyncedResources(resources);
+      return new Proxy(workerProxy, {
+        get(target, prop, receiver) {
+          const value: any = Reflect.get(target, prop, receiver);
+          if (typeof value === "function") {
+            return async (uri: string, ...args: any[]) => {
+              const ret = await value(uri, ...args);
+              if (typeof ret === "object" && ret != null && !Array.isArray(ret) && "$embedded" in ret) {
+                const embedded = ret.$embedded;
+                if (typeof embedded === "string") {
+                  return redirectLSPRequest(embedded, prop as string, uri, ...args);
+                } else if (typeof embedded === "object" && embedded != null) {
+                  const { languageIds, data, origin } = embedded;
+                  const promises = languageIds.map((rsl: string, i: number) =>
+                    redirectLSPRequest(rsl, prop as string, uri, ...args, data?.[i])
+                  );
+                  const results = await Promise.all(promises);
+                  return origin.concat(...results.filter((r) => Array.isArray(r)));
+                }
+                return null;
+              }
+              return ret;
+            };
+          }
+          return value;
+        },
+      });
+    },
+    dispose: () => {
+      masterWorker.dispose();
+    },
+    getProxy: () => {
+      throw new Error("Method not implemented.");
+    },
+  };
+}
+
+function normalizeLanguageId(languageId: string): string {
+  return languageId === "importmap" ? "json" : languageId;
+}
+
+function getEmbeddedExtname(rsl: string): string {
+  return ".(embedded)." + (rsl === "javascript" ? "js" : rsl);
 }
 
 // #endregion
