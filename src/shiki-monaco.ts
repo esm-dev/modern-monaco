@@ -8,29 +8,21 @@ import { INITIAL, StackElementMetadata } from "@shikijs/core/textmate";
 export interface MonacoTheme extends monacoNs.editor.IStandaloneThemeData {}
 
 export function textmateThemeToMonacoTheme(theme: ThemeRegistrationResolved): MonacoTheme {
-  let rules = "rules" in theme ? theme.rules as MonacoTheme["rules"] : undefined;
-
-  if (!rules) {
-    rules = [];
-    const themeSettings = theme.settings || theme.tokenColors;
-    if (Array.isArray(themeSettings)) {
-      for (const { scope, settings } of themeSettings) {
-        const scopes = Array.isArray(scope) ? scope : [scope];
-        for (const s of scopes) {
-          if (typeof s === "string" && s !== "") {
-            rules.push({
-              token: s,
-              foreground: normalizeColor(settings?.foreground),
-            });
-          }
-        }
+  const rules: MonacoTheme["rules"] = [];
+  for (const { scope, settings } of theme.tokenColors ?? theme.settings) {
+    const scopes = Array.isArray(scope) ? scope : [scope];
+    for (const s of scopes) {
+      if (settings?.foreground && s) {
+        rules.push({
+          token: s,
+          foreground: blendColors(theme.bg, settings.foreground),
+        });
       }
     }
   }
-
   return {
     base: theme.type === "dark" ? "vs-dark" : "vs",
-    colors: Object.fromEntries(Object.entries(theme.colors ?? {}).map(([key, value]) => [key, `#${normalizeColor(value)}`])),
+    colors: Object.fromEntries(Object.entries(theme.colors ?? {}).map(([key, value]) => [key, blendColors(theme.bg, value)])),
     inherit: false,
     rules,
   };
@@ -58,17 +50,21 @@ export function initShikiMonacoTokenizer(monaco: typeof monacoNs, highlighter: S
   // We hijack it here to keep track of the current theme.
   const setTheme = monaco.editor.setTheme.bind(monaco.editor);
   monaco.editor.setTheme = (themeId: string) => {
-    const ret = highlighter.setTheme(themeId);
     const theme = themeMap.get(themeId);
+    if (!theme) {
+      console.warn("Theme not found:", themeId);
+      return;
+    }
+    const ret = highlighter.setTheme(themeId);
     colorMap.length = ret.colorMap.length;
     ret.colorMap.forEach((color, i) => {
-      colorMap[i] = normalizeColor(color);
+      colorMap[i] = blendColors(ret.theme.bg, color);
     });
     colorToScopeMap.clear();
-    theme?.rules.forEach((rule) => {
-      const c = normalizeColor(rule.foreground);
-      if (c) {
-        colorToScopeMap.set(c, rule.token);
+    theme.rules.forEach((rule) => {
+      const color = rule.foreground;
+      if (color) {
+        colorToScopeMap.set(color, rule.token);
       }
     });
     setTheme(themeId);
@@ -142,19 +138,36 @@ class TokenizerState implements monacoNs.languages.IState {
   }
 }
 
-function normalizeColor(color: undefined): undefined;
-function normalizeColor(color: string): string;
-function normalizeColor(color: string | undefined): string | undefined;
-function normalizeColor(color: string | undefined): string | undefined {
-  if (!color) {
-    return color;
+function hexToRGBA(hex: string) {
+  const start = hex.startsWith("#") ? 1 : 0;
+  const step = (hex.length - start) >= 6 ? 2 : 1;
+  const rgba = [0, 1, 2, 3].map(i => {
+    const j = start + i * step;
+    return parseInt(hex.slice(j, j + step).repeat(3 - step), 16);
+  });
+  if (Number.isNaN(rgba[3])) {
+    rgba[3] = 1;
+  } else {
+    rgba[3] /= 255;
   }
+  return rgba as [r: number, g: number, b: number, a: number];
+}
 
-  color = (color.charCodeAt(0) === 35 ? color.slice(1) : color).toLowerCase();
-  // #RGB => #RRGGBB - Monaco does not support hex color with 3 or 4 digits
-  if (color.length === 3 || color.length === 4) {
-    color = color.split("").map(c => c + c).join("");
+function rgbToHex(rgb: number[]): string {
+  return "#" + rgb.map(c => c.toString(16).padStart(2, "0")).join("");
+}
+
+function channelMixer(channelA: number, channelB: number, amount: number) {
+  const a = channelA * (1 - amount);
+  const b = channelB * amount;
+  return Math.round(a + b);
+}
+
+export function blendColors(bg: string, fg: string): string {
+  const fgRgba = hexToRGBA(fg);
+  if (fgRgba[3] === 1) {
+    return rgbToHex(fgRgba.slice(0, 3));
   }
-
-  return color;
+  const bgRgba = hexToRGBA(bg);
+  return rgbToHex([0, 1, 2].map(i => channelMixer(bgRgba[i], fgRgba[i], fgRgba[3])));
 }
