@@ -57,9 +57,9 @@ export function initShikiMonacoTokenizer(monaco: typeof monacoNs, highlighter: S
   // Because Monaco does not have the API of reading the current theme,
   // We hijack it here to keep track of the current theme.
   const setTheme = monaco.editor.setTheme.bind(monaco.editor);
-  monaco.editor.setTheme = (themeName: string) => {
-    const ret = highlighter.setTheme(themeName);
-    const theme = themeMap.get(themeName);
+  monaco.editor.setTheme = (themeId: string) => {
+    const ret = highlighter.setTheme(themeId);
+    const theme = themeMap.get(themeId);
     colorMap.length = ret.colorMap.length;
     ret.colorMap.forEach((color, i) => {
       colorMap[i] = normalizeColor(color);
@@ -71,7 +71,7 @@ export function initShikiMonacoTokenizer(monaco: typeof monacoNs, highlighter: S
         colorToScopeMap.set(c, rule.token);
       }
     });
-    setTheme(themeName);
+    setTheme(themeId);
   };
 
   // Set the first theme as the default theme
