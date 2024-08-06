@@ -18,8 +18,8 @@ importers:
         specifier: 1.16.2
         version: 1.16.2
       tm-themes:
-        specifier: 1.6.1
-        version: 1.6.1
+        specifier: 1.5.6
+        version: 1.5.6
       typescript:
         specifier: 5.5.4
         version: 5.5.4
@@ -65,8 +65,8 @@ packages:
   tm-grammars@1.16.2:
     resolution: {integrity: sha512-XTxg7/sFP6pLrLaBap1tmzWQjozFUBpw2EC/uE3ElAEtxJtzVMUkPes+ixR5HC88wFdDyRxYilvIHRRCSDZ3nQ==}
 
-  tm-themes@1.6.1:
-    resolution: {integrity: sha512-Qaf7a9n/1BBaOYTiasZiR6NHGcFJIIpEb/xrBpEbz05PriMk8TQgeKhKBawGghg7XetRNqkMTXj2ilIFnZm7Yg==}
+  tm-themes@1.5.6:
+    resolution: {integrity: sha512-VkFe5yQyqJCl/f+4Ws1MWHt1jsjEHRwCtqkOc6PWquEfS/4YZThRQpemCzmGMeSSssStR8H5iDIBflVONnCxgA==}
 
   typescript@5.5.4:
     resolution: {integrity: sha512-Mtq29sKDAEYP7aljRgtPOpTvOfbwRWlS6dPRzwjdE+C0R4brX/GUyhHSecbHMFLNBLcJIPt9nl9yG5TZ1weH+Q==}
@@ -114,7 +114,7 @@ snapshots:
 
   tm-grammars@1.16.2: {}
 
-  tm-themes@1.6.1: {}
+  tm-themes@1.5.6: {}
 
   typescript@5.5.4: {}
 
