@@ -187,13 +187,13 @@ export const languageConfigurationAliases: Record<string, string> = {
 export function convertVscodeLanguageConfiguration(config: any): languages.LanguageConfiguration {
   const { indentationRules, folding, wordPattern, onEnterRules } = config;
   if (folding?.markers) {
-    fixRegexp(folding.markers, "start", "end");
+    toRegexp(folding.markers, "start", "end");
   }
   if (wordPattern) {
-    fixRegexp(config, "wordPattern");
+    toRegexp(config, "wordPattern");
   }
   if (indentationRules) {
-    fixRegexp(
+    toRegexp(
       indentationRules,
       "increaseIndentPattern",
       "decreaseIndentPattern",
@@ -203,25 +203,24 @@ export function convertVscodeLanguageConfiguration(config: any): languages.Langu
   }
   if (onEnterRules) {
     for (const rule of onEnterRules) {
-      fixRegexp(rule, "beforeText", "afterText", "previousLineText");
+      toRegexp(rule, "beforeText", "afterText", "previousLineText");
       if (typeof rule.action?.indent === "string") {
         rule.action.indentAction = ["none", "indent", "indentOutdent", "outdent"].indexOf(rule.action.indent);
         delete rule.action.indent;
       }
     }
   }
-  // seems `colorizedBracketPairs` breaks embedded languages tokenization in html
-  // let's remove it for now
   delete config.colorizedBracketPairs;
+  delete config.surroundingPairs;
   return config;
 }
 
-function fixRegexp(obj: any, ...keys: string[]) {
+function toRegexp(obj: any, ...keys: string[]) {
   for (const key of keys) {
     const value = obj[key];
     if (typeof value === "string") {
       obj[key] = new RegExp(value);
-    } else if (typeof value === "object" && value !== null && typeof value.pattern === "string") {
+    } else if (typeof value === "object" && value !== null && !(value instanceof RegExp) && typeof value.pattern === "string") {
       obj[key] = new RegExp(value.pattern, value.flags);
     }
   }
