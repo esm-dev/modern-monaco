@@ -111,6 +111,7 @@ export function render(highlighter: HighlighterCore, options: RenderOptions): st
     lang: language ?? (filename ? getLanguageIdFromPath(filename) : undefined) ?? "plaintext",
     theme: theme ?? highlighter.getLoadedThemes()[0],
     tokenizeMaxLineLength: maxTokenizationLineLength,
+    // todo: support colorized brackets by adding a shiki transformer
   });
   const style = [
     "display:flex",

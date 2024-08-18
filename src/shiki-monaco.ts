@@ -63,7 +63,7 @@ export function initShikiMonacoTokenizer(monaco: typeof monacoNs, highlighter: S
     colorToScopeMap.clear();
     theme.rules.forEach((rule) => {
       const color = rule.foreground;
-      if (color) {
+      if (color && !colorToScopeMap.has(color)) {
         colorToScopeMap.set(color, rule.token);
       }
     });
