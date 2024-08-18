@@ -9,17 +9,17 @@ importers:
   .:
     devDependencies:
       '@shikijs/core':
-        specifier: 1.12.1
-        version: 1.12.1
+        specifier: 1.14.1
+        version: 1.14.1
       monaco-editor-core:
         specifier: 0.50.0
         version: 0.50.0
       tm-grammars:
-        specifier: 1.16.2
-        version: 1.16.2
+        specifier: 1.17.2
+        version: 1.17.2
       tm-themes:
-        specifier: 1.5.6
-        version: 1.5.6
+        specifier: 1.7.1
+        version: 1.7.1
       typescript:
         specifier: 5.5.4
         version: 5.5.4
@@ -44,8 +44,8 @@ importers:
 
 packages:
 
-  '@shikijs/core@1.12.1':
-    resolution: {integrity: sha512-biCz/mnkMktImI6hMfMX3H9kOeqsInxWEyCHbSlL8C/2TR1FqfmGxTLRNwYCKsyCyxWLbB8rEqXRVZuyxuLFmA==}
+  '@shikijs/core@1.14.1':
+    resolution: {integrity: sha512-KyHIIpKNaT20FtFPFjCQB5WVSTpLR/n+jQXhWHWVUMm9MaOaG9BGOG0MSyt7yA4+Lm+4c9rTc03tt3nYzeYSfw==}
 
   '@types/hast@3.0.4':
     resolution: {integrity: sha512-WPs+bbQw5aCj+x6laNGWLH3wviHtoCv/P3+otBhbOhJgG8qtpdAMlTCxLtsTWA7LH1Oh/bFCHsBn0TPS5m30EQ==}
@@ -62,11 +62,11 @@ packages:
   monaco-editor-core@0.50.0:
     resolution: {integrity: sha512-XKdublTat9qDKwJhMbm6nnTUKA75MU7jWVooZeXcZKP0/y2jscNWQ9FpCiRtWk33Teemihx155WQ7o7xgf89eA==}
 
-  tm-grammars@1.16.2:
-    resolution: {integrity: sha512-XTxg7/sFP6pLrLaBap1tmzWQjozFUBpw2EC/uE3ElAEtxJtzVMUkPes+ixR5HC88wFdDyRxYilvIHRRCSDZ3nQ==}
+  tm-grammars@1.17.2:
+    resolution: {integrity: sha512-BbQ1E668+Pua7UPrLKQiNL9wJs9EekTntZfbx8Us90/pqJweFXe16yB+RI/jw0QX69mHtOjwhca1z2ejRZgjmw==}
 
-  tm-themes@1.5.6:
-    resolution: {integrity: sha512-VkFe5yQyqJCl/f+4Ws1MWHt1jsjEHRwCtqkOc6PWquEfS/4YZThRQpemCzmGMeSSssStR8H5iDIBflVONnCxgA==}
+  tm-themes@1.7.1:
+    resolution: {integrity: sha512-zmgx6J3jblhLJoWxZHW2wui0WOuyVDIxx2K/+omQWBdO5pWp0jNrCp/BeaiUH2nnNNZm1QoLDt7AX3rKxcHmRQ==}
 
   typescript@5.5.4:
     resolution: {integrity: sha512-Mtq29sKDAEYP7aljRgtPOpTvOfbwRWlS6dPRzwjdE+C0R4brX/GUyhHSecbHMFLNBLcJIPt9nl9yG5TZ1weH+Q==}
@@ -96,7 +96,7 @@ packages:
 
 snapshots:
 
-  '@shikijs/core@1.12.1':
+  '@shikijs/core@1.14.1':
     dependencies:
       '@types/hast': 3.0.4
 
@@ -112,9 +112,9 @@ snapshots:
 
   monaco-editor-core@0.50.0: {}
 
-  tm-grammars@1.16.2: {}
+  tm-grammars@1.17.2: {}
 
-  tm-themes@1.5.6: {}
+  tm-themes@1.7.1: {}
 
   typescript@5.5.4: {}
 
