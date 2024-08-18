@@ -39,8 +39,8 @@
     }
   },
   "scripts": {
-    "postinstall": "deno run -A --no-lock scripts/patch.ts",
     "prepublishOnly": "deno run -A --no-lock scripts/build.ts",
+    "prepare": "deno run -A --no-lock scripts/patch.ts",
     "dev": "deno run -A --no-lock scripts/dev.ts",
     "fmt": "dprint fmt"
   },

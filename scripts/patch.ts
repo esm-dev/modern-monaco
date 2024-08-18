@@ -71,12 +71,11 @@ if (isMacintosh) {
   const appendTS = "\nexport * from './vscode';\n";
   if (!dts.includes(appendTS)) {
     await Deno.writeTextFile(path, dts + appendTS);
+    const pathOrgi = "types/vscode.d.ts";
+    const pathDest = "node_modules/monaco-editor-core/esm/vs/editor/vscode.d.ts";
+    await Deno.writeTextFile(pathDest, (await Deno.readTextFile(pathOrgi)).replace("./monaco.d.ts", "./editor.api.d.ts"));
+    console.log("Patched", pathDest.slice("node_modules/".length));
   }
-  const pathOrgi = "types/vscode.d.ts";
-  const pathDest = "node_modules/monaco-editor-core/esm/vs/editor/vscode.d.ts";
-  const dts2 = await Deno.readTextFile(pathOrgi);
-  await Deno.writeTextFile(pathDest, dts2.replace("./monaco.d.ts", "./editor.api.d.ts"));
-  console.log("Patched", pathDest.slice("node_modules/".length));
 }
 
 // [path-5] fix the issue of `maxDigitWidth` not being set correctly in SSR mode
