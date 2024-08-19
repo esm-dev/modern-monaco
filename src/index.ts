@@ -101,7 +101,7 @@ async function loadMonaco(highlighter: Highlighter, options?: InitOption, onEdit
     getLanguageIdFromUri: (uri: monacoNS.Uri) => getLanguageIdFromPath(uri.path),
   });
 
-  // prevent to open the http link which is a model
+  // prevent to open a http link which is a model
   monaco.editor.registerLinkOpener({
     async open(link) {
       if ((link.scheme === "https" || link.scheme === "http") && monaco.editor.getModel(link)) {
@@ -163,38 +163,38 @@ async function loadMonaco(highlighter: Highlighter, options?: InitOption, onEdit
   // use the shiki as the tokenizer for the monaco editor
   const allLanguages = new Set(tmGrammars.filter(g => !g.injectTo).map(g => g.name));
   allLanguages.forEach((id) => {
-    monaco.languages.register({ id, aliases: tmGrammars.find(g => g.name === id)?.aliases });
-    monaco.languages.onLanguage(id, async () => {
+    const languages = monaco.languages;
+    languages.register({ id, aliases: tmGrammars.find(g => g.name === id)?.aliases });
+    languages.onLanguage(id, async () => {
       const config = monaco.languageConfigurations[monaco.languageConfigurationAliases[id] ?? id];
-      if (config) {
-        monaco.languages.setLanguageConfiguration(id, monaco.convertVscodeLanguageConfiguration(config));
-      }
-
       const loadedGrammars = new Set(highlighter.getLoadedLanguages());
-      const reqiredGrammars = [id]
-        .concat(tmGrammars.find(g => g.name === id)?.embedded ?? [])
-        .filter((id) => !loadedGrammars.has(id));
+      const reqiredGrammars = [id].concat(tmGrammars.find(g => g.name === id)?.embedded ?? []).filter((id) => !loadedGrammars.has(id));
+      if (config) {
+        languages.setLanguageConfiguration(id, monaco.convertVscodeLanguageConfiguration(config));
+      }
       if (reqiredGrammars.length > 0) {
         await highlighter.loadGrammarFromCDN(...reqiredGrammars);
       }
 
+      // register the shiki tokenizer for the language
       registerShikiMonacoTokenizer(monaco, highlighter, id);
 
-      let label = id;
-      let provider = lspProviders[label];
-      if (!provider) {
+      // check if the language is supported by the LSP provider
+      let lspLabel = id;
+      let lspProvider = lspProviders[lspLabel];
+      if (!lspProvider) {
         const alias = Object.entries(lspProviders).find(([, lsp]) => lsp.aliases?.includes(id));
         if (alias) {
-          [label, provider] = alias;
+          [lspLabel, lspProvider] = alias;
         }
       }
-      if (provider) {
-        provider.import().then(({ setup }) => setup(monaco, id, options?.[label], options?.lsp?.format, vfs));
+      if (lspProvider) {
+        lspProvider.import().then(({ setup }) => setup(monaco, id, options?.[lspLabel], options?.lsp?.format, vfs));
       }
     });
   });
 
-  // using the shiki as the tokenizer for the monaco editor
+  // use shiki as the tokenizer of monaco editor
   initShikiMonacoTokenizer(monaco, highlighter);
 
   return monaco;
@@ -454,7 +454,7 @@ export function lazy(options?: InitOption, hydrate?: boolean) {
                 if (animate) {
                   animate.finished.then(() => prerenderEl.remove());
                 } else {
-                  // don't support animation api
+                  // animation API is not supported
                   setTimeout(() => prerenderEl.remove(), 150);
                 }
               }, 100);
@@ -472,5 +472,5 @@ export function hydrate(options?: InitOption) {
   return lazy(options, true);
 }
 
-// set shiki wasm loader
+// set the shiki wasm default loader
 setDefaultWasmLoader(getWasmInstance);

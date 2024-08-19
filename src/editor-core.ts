@@ -185,7 +185,7 @@ export const languageConfigurationAliases: Record<string, string> = {
 };
 
 export function convertVscodeLanguageConfiguration(config: any): languages.LanguageConfiguration {
-  const { indentationRules, folding, wordPattern, onEnterRules } = config;
+  const { indentationRules, folding, wordPattern, onEnterRules, surroundingPairs, autoClosingPairs } = config;
   if (folding?.markers) {
     toRegexp(folding.markers, "start", "end");
   }
@@ -210,8 +210,14 @@ export function convertVscodeLanguageConfiguration(config: any): languages.Langu
       }
     }
   }
-  delete config.colorizedBracketPairs;
-  delete config.surroundingPairs;
+  if (autoClosingPairs) {
+    // ['"', '"'] -> { open: '"', close: '"' }
+    config.autoClosingPairs = autoClosingPairs.map((v) => Array.isArray(v) ? ({ open: v[0], close: v[1] }) : v);
+  }
+  if (surroundingPairs) {
+    // ['"', '"'] -> { open: '"', close: '"' }
+    config.surroundingPairs = surroundingPairs.map((v) => Array.isArray(v) ? ({ open: v[0], close: v[1] }) : v);
+  }
   return config;
 }
 
