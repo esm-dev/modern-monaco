@@ -9,29 +9,29 @@ importers:
   .:
     devDependencies:
       '@shikijs/core':
-        specifier: 1.14.1
-        version: 1.14.1
+        specifier: 1.15.0
+        version: 1.15.0
       monaco-editor-core:
-        specifier: 0.50.0
-        version: 0.50.0
+        specifier: 0.51.0
+        version: 0.51.0
       tm-grammars:
-        specifier: 1.17.2
-        version: 1.17.2
+        specifier: 1.17.9
+        version: 1.17.9
       tm-themes:
-        specifier: 1.7.1
-        version: 1.7.1
+        specifier: 1.8.1
+        version: 1.8.1
       typescript:
         specifier: 5.5.4
         version: 5.5.4
       vscode-css-languageservice:
-        specifier: 6.3.0
-        version: 6.3.0
+        specifier: 6.3.1
+        version: 6.3.1
       vscode-html-languageservice:
-        specifier: 5.3.0
-        version: 5.3.0
+        specifier: 5.3.1
+        version: 5.3.1
       vscode-json-languageservice:
-        specifier: 5.4.0
-        version: 5.4.0
+        specifier: 5.4.1
+        version: 5.4.1
       vscode-language-configurations:
         specifier: 1.92.0
         version: 1.92.0
@@ -44,8 +44,8 @@ importers:
 
 packages:
 
-  '@shikijs/core@1.14.1':
-    resolution: {integrity: sha512-KyHIIpKNaT20FtFPFjCQB5WVSTpLR/n+jQXhWHWVUMm9MaOaG9BGOG0MSyt7yA4+Lm+4c9rTc03tt3nYzeYSfw==}
+  '@shikijs/core@1.15.0':
+    resolution: {integrity: sha512-wUcOmlcEN/ub8i4pcjnAABExIUo7xwhZTBa43CwHu5KO9e/zLJlXYYNjeE+5K7W8VHiVtvRC2wcuaXyd0yG8rg==}
 
   '@types/hast@3.0.4':
     resolution: {integrity: sha512-WPs+bbQw5aCj+x6laNGWLH3wviHtoCv/P3+otBhbOhJgG8qtpdAMlTCxLtsTWA7LH1Oh/bFCHsBn0TPS5m30EQ==}
@@ -59,28 +59,28 @@ packages:
   jsonc-parser@3.3.1:
     resolution: {integrity: sha512-HUgH65KyejrUFPvHFPbqOY0rsFip3Bo5wb4ngvdi1EpCYWUQDC5V+Y7mZws+DLkr4M//zQJoanu1SP+87Dv1oQ==}
 
-  monaco-editor-core@0.50.0:
-    resolution: {integrity: sha512-XKdublTat9qDKwJhMbm6nnTUKA75MU7jWVooZeXcZKP0/y2jscNWQ9FpCiRtWk33Teemihx155WQ7o7xgf89eA==}
+  monaco-editor-core@0.51.0:
+    resolution: {integrity: sha512-wNWSPfvQirGt2vxn9DzlwnXURPH20kyND60UZXD+Vk9x7+QbUpV5Cc1J5ojlSq3lxu1dEIMpG5gbL7oPJSCRWw==}
 
-  tm-grammars@1.17.2:
-    resolution: {integrity: sha512-BbQ1E668+Pua7UPrLKQiNL9wJs9EekTntZfbx8Us90/pqJweFXe16yB+RI/jw0QX69mHtOjwhca1z2ejRZgjmw==}
+  tm-grammars@1.17.9:
+    resolution: {integrity: sha512-zfffNWj6Nde5FzlHRmN5AkGYfz0yTaYIpcoHB3OcvDNmn70aHN0HmkZpoItjZomk3V/noemcGXRW53Ueve++eg==}
 
-  tm-themes@1.7.1:
-    resolution: {integrity: sha512-zmgx6J3jblhLJoWxZHW2wui0WOuyVDIxx2K/+omQWBdO5pWp0jNrCp/BeaiUH2nnNNZm1QoLDt7AX3rKxcHmRQ==}
+  tm-themes@1.8.1:
+    resolution: {integrity: sha512-jTUfDRn5TysYhkxxEWBQDo1C1n4yoHcnfNNqXkVxIMGQCgal/9poGuMBsfbnZCPEmFVcN2rtrUwaOJ8s2hVQXg==}
 
   typescript@5.5.4:
     resolution: {integrity: sha512-Mtq29sKDAEYP7aljRgtPOpTvOfbwRWlS6dPRzwjdE+C0R4brX/GUyhHSecbHMFLNBLcJIPt9nl9yG5TZ1weH+Q==}
     engines: {node: '>=14.17'}
     hasBin: true
 
-  vscode-css-languageservice@6.3.0:
-    resolution: {integrity: sha512-nU92imtkgzpCL0xikrIb8WvedV553F2BENzgz23wFuok/HLN5BeQmroMy26pUwFxV2eV8oNRmYCUv8iO7kSMhw==}
+  vscode-css-languageservice@6.3.1:
+    resolution: {integrity: sha512-1BzTBuJfwMc3A0uX4JBdJgoxp74cjj4q2mDJdp49yD/GuAq4X0k5WtK6fNcMYr+FfJ9nqgR6lpfCSZDkARJ5qQ==}
 
-  vscode-html-languageservice@5.3.0:
-    resolution: {integrity: sha512-C4Z3KsP5Ih+fjHpiBc5jxmvCl+4iEwvXegIrzu2F5pktbWvQaBT3YkVPk8N+QlSSMk8oCG6PKtZ/Sq2YHb5e8g==}
+  vscode-html-languageservice@5.3.1:
+    resolution: {integrity: sha512-ysUh4hFeW/WOWz/TO9gm08xigiSsV/FOAZ+DolgJfeLftna54YdmZ4A+lIn46RbdO3/Qv5QHTn1ZGqmrXQhZyA==}
 
-  vscode-json-languageservice@5.4.0:
-    resolution: {integrity: sha512-NCkkCr63OHVkE4lcb0xlUAaix6vE5gHQW4NrswbLEh3ArXj81lrGuFTsGEYEUXlNHdnc53vWPcjeSy/nMTrfXg==}
+  vscode-json-languageservice@5.4.1:
+    resolution: {integrity: sha512-5czFGNyVPxz3ZJYl8R3a3SuIj5gjhmGF4Wv05MRPvD4DEnHK6b8km4VbNMJNHBlTCh7A0aHzUbPVzo+0C18mCA==}
 
   vscode-language-configurations@1.92.0:
     resolution: {integrity: sha512-JNIa9iMETtQj7zDKqLyaheA84T94kYEG2PF4I98vi1S4zjWK9SBHlNjysrZ9XYft6H0DN7zXG0XNfl/K7hoZdA==}
@@ -96,7 +96,7 @@ packages:
 
 snapshots:
 
-  '@shikijs/core@1.14.1':
+  '@shikijs/core@1.15.0':
     dependencies:
       '@types/hast': 3.0.4
 
@@ -110,29 +110,29 @@ snapshots:
 
   jsonc-parser@3.3.1: {}
 
-  monaco-editor-core@0.50.0: {}
+  monaco-editor-core@0.51.0: {}
 
-  tm-grammars@1.17.2: {}
+  tm-grammars@1.17.9: {}
 
-  tm-themes@1.7.1: {}
+  tm-themes@1.8.1: {}
 
   typescript@5.5.4: {}
 
-  vscode-css-languageservice@6.3.0:
+  vscode-css-languageservice@6.3.1:
     dependencies:
       '@vscode/l10n': 0.0.18
       vscode-languageserver-textdocument: 1.0.12
       vscode-languageserver-types: 3.17.5
       vscode-uri: 3.0.8
 
-  vscode-html-languageservice@5.3.0:
+  vscode-html-languageservice@5.3.1:
     dependencies:
       '@vscode/l10n': 0.0.18
       vscode-languageserver-textdocument: 1.0.12
       vscode-languageserver-types: 3.17.5
       vscode-uri: 3.0.8
 
-  vscode-json-languageservice@5.4.0:
+  vscode-json-languageservice@5.4.1:
     dependencies:
       '@vscode/l10n': 0.0.18
       jsonc-parser: 3.3.1
