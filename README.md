@@ -114,9 +114,7 @@ You can also create a monaco editor instance manually.
   import { init } from "esm-monaco";
 
   // load editor-core.js
-  const monaco = await init({
-    theme: "THEME_ID"
-  });
+  const monaco = await init();
 
   // create a monaco editor instance
   const editor = monaco.editor.create(document.getElementById("editor"), {
@@ -137,13 +135,13 @@ esm-monaco uses [Shiki](https://shiki.style) for syntax highlighting with tons o
 To set the theme of the editor, you can add a `theme` attribute to the `<monaco-editor>` tag.
 
 ```html
-<monaco-editor theme="THEME_ID"></monaco-editor>
+<monaco-editor theme="theme-id"></monaco-editor>
 ```
 
 or set it in the `lazy`, `init`, or `hydrate` function.
 
 ```js
-lazy({ theme: "THEME_ID" });
+lazy({ theme: "theme-id" });
 ```
 
 > [!Note]
