@@ -239,10 +239,10 @@ You can also add a `tsconfig.json` file in the VFS to configure the TypeScript c
 ```js
 const tsconfig = {
   "compilerOptions": {
-    "target": "esnext",
+    "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noUnusedLocals": true,
+    "noFallthroughCasesInSwitch": true
   },
 };
 const vfs = new VFS({
