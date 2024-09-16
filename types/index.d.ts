@@ -40,6 +40,7 @@ export interface InitOptions extends ShikiInitOptions {
   lsp?: LSPConfig;
 }
 
-export function init(options?: InitOptions): Promise<typeof monacoNS>;
+export function init(options?: Omit<InitOptions, "vfs">): Promise<typeof monacoNS>;
 export function lazy(options?: InitOptions): void;
 export function hydrate(options?: InitOptions): void;
+export { VFS, VFSBrowserHistory } from "./vfs";

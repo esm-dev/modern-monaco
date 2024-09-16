@@ -1,5 +1,6 @@
 import type ts from "typescript";
 import type monacoNS from "./monaco.d.ts";
+import type { ImportMap } from "./import-map.d.ts";
 import type { JSONSchema } from "./jsonSchema.d.ts";
 import type { VFS } from "./vfs.d.ts";
 
@@ -97,7 +98,7 @@ declare global {
       /** The compiler options. */
       compilerOptions?: ts.CompilerOptions;
       /** The global import maps. */
-      importMap?: import("./import-map").ImportMap;
+      importMap?: ImportMap;
       /** The version of the typescript from CDN. Default: ">= 5.5.0" */
       tsVersion?: string;
     };

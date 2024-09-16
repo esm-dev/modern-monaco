@@ -202,9 +202,10 @@ export class VFS extends BasicVFS {
         this._history = options.history;
       }
     } else if (options.history === "browserHistory") {
-      if (globalThis.history) {
-        this._history = new VFSBrowserHistory("/");
+      if (!globalThis.history) {
+        throw new Error("VFS: Browser history is not supported.");
       }
+      this._history = new VFSBrowserHistory("/");
     } else if (supportLocalStroage()) {
       this._history = new VFSLocalStorageHistory(options.scope ?? "default");
     }
@@ -449,8 +450,8 @@ function createPersistStateStorage<T extends object>(storeKey: string, defaultVa
 function supportLocalStroage() {
   if (globalThis.localStorage) {
     try {
-      localStorage.setItem(".__", "");
-      localStorage.removeItem(".__");
+      localStorage.setItem("._", "");
+      localStorage.removeItem("._");
       return true;
     } catch {}
   }

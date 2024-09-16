@@ -10,6 +10,7 @@ import { getLanguageIdFromPath, initShiki, setDefaultWasmLoader, tmGrammars } fr
 import { initShikiMonacoTokenizer, registerShikiMonacoTokenizer } from "./shiki.js";
 import { render } from "./shiki.js";
 import { getWasmInstance } from "./shiki-wasm.js";
+export { VFS, VFSBrowserHistory } from "./vfs.js";
 
 const editorProps = [
   "autoDetectHighContrast",
@@ -201,7 +202,7 @@ async function loadMonaco(highlighter: Highlighter, options?: InitOption, onEdit
 }
 
 /* Initialize and return the monaco editor namespace. */
-export async function init(options?: InitOption): Promise<typeof monacoNS> {
+export async function init(options?: Omit<InitOption, "vfs">): Promise<typeof monacoNS> {
   const langs = (options?.langs ?? []).concat(preloadGrammars, syntaxes as any[]);
   const hightlighter = await initShiki({ ...options, langs });
   return loadMonaco(hightlighter, options);
