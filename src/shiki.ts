@@ -36,15 +36,19 @@ export async function initShiki({
   const themes: ThemeInput[] = [];
 
   if (languages?.length) {
-    languages.forEach((input) => {
-      if (typeof input === "string" || input instanceof URL) {
-        const g = tmGrammars.find((g) => g.name === input);
-        if (g?.embedded) {
-          langs.push(...g.embedded.map((id) => loadTMGrammar(id, downloadCDN)));
+    const set = new Set<string>();
+    languages.forEach((l) => {
+      if (typeof l === "string" || l instanceof URL) {
+        if (!set.has(l.toString())) {
+          const g = tmGrammars.find((g) => g.name === l);
+          if (g?.embedded) {
+            langs.push(...g.embedded.map((id) => loadTMGrammar(id, downloadCDN)));
+          }
+          langs.push(loadTMGrammar(l, downloadCDN));
+          set.add(l.toString());
         }
-        langs.push(loadTMGrammar(input, downloadCDN));
-      } else if (isPlainObject(input)) {
-        langs.push(input);
+      } else if (isPlainObject(l)) {
+        langs.push(l);
       }
     });
   }
