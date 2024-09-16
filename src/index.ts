@@ -75,7 +75,7 @@ async function loadMonaco(highlighter: Highlighter, options?: InitOption, onEdit
     document.head.appendChild(styleEl);
   }
 
-  // set the global `MonacoEnvironment` object
+  // set the global `MonacoEnvironment` variable
   Reflect.set(globalThis, "MonacoEnvironment", {
     getWorker: async (_workerId: string, label: string) => {
       let provider: LSPProvider | undefined = lspProviders[label];
@@ -210,8 +210,7 @@ export async function init(options?: Omit<InitOption, "vfs">): Promise<typeof mo
 
 /** Render a mock editor, then load the monaco editor in background. */
 export function lazy(options?: InitOption, hydrate?: boolean) {
-  const vfs = options?.vfs;
-
+  let vfs = options?.vfs;
   let monacoCore: typeof monacoNS | Promise<typeof monacoNS> | null = null;
   let editorWorkerPromise: Promise<void> | null = null;
 

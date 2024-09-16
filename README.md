@@ -37,13 +37,14 @@ You can install the package from NPM in your node project with a bundler like [v
 npm i esm-monaco typescript
 ```
 
+> [!Note]
+> The `typescript` package is required by JavaScript/TypeScript LSP worker. We recommend `typescript@5.5.x` or later.
+
 or import it from [esm.sh](https://esm.sh/) in browser without build step:
 
 ```js
 import * from "https://esm.sh/esm-monaco"
 ```
-
-> **Note**: The `typescript` package is required for JavaScript/TypeScript LSP support. We recommend `typescript@5.5.x` or later.
 
 ## Usage
 
@@ -55,7 +56,7 @@ esm-monaco provides three modes to create a code editor:
 
 ### Lazy Mode
 
-[monaco-editor-core](https://www.npmjs.com/package/monaco-editor-core) is a large module with extra CSS/Worker dependencies, not mention the `MonacoEnvironment` setup. esm-monaco provides a lazy but smart way to load the editor on demand. It pre-highlights code with Shiki while loading the `editor-core.js` in background.
+[monaco-editor](https://www.npmjs.com/package/monaco-editor) is a large module with extra CSS/Worker dependencies, not mention the `MonacoEnvironment` setup. esm-monaco provides a lazy but smart way to load the editor on demand, and it pre-highlights code with Shiki while loading the `editor-core.js` in background.
 
 ```html
 <monaco-editor></monaco-editor>
@@ -66,6 +67,7 @@ esm-monaco provides three modes to create a code editor:
   // create a virtual file system
   const vfs = new VFS({
     initial: {
+      "index.html": `<html><head><title>Hello, world!</title></head><body><script src="main.js"></script></body></html>`,
       "main.js": `console.log("Hello, world!")`
     }
   });
@@ -238,7 +240,7 @@ const tsconfig = {
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
   },
 };
 const vfs = new VFS({
@@ -376,7 +378,7 @@ export interface LSPLanguageConfig {
     /** The compiler options. */
     compilerOptions?: ts.CompilerOptions;
     /** The global import maps. */
-    importMap?: import("./import-map").ImportMap;
+    importMap?: ImportMap;
     /** The version of the typescript from CDN. Default: ">= 5.5.0" */
     tsVersion?: string;
   };
