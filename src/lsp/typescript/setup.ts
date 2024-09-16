@@ -11,6 +11,7 @@ import { createBlankImportMap, importMapFrom, isBlankImportMap, parseImportMapFr
 import * as ls from "../language-service.js";
 
 type TSWorker = monacoNS.editor.MonacoWebWorker<TypeScriptWorker>;
+type CompilerOptions = { [key: string]: ts.CompilerOptionsValue };
 
 // javascript and typescript share the same worker
 let worker: TSWorker | Promise<TSWorker> | null = null;
@@ -56,14 +57,18 @@ async function createWorker(
   formattingOptions?: FormattingOptions & { semicolon?: "ignore" | "insert" | "remove" },
   vfs?: VFS,
 ) {
-  const defaultCompilerOptions: ts.CompilerOptions = {
+  const defaultCompilerOptions: CompilerOptions = {
     allowImportingTsExtensions: true,
     allowJs: true,
-    module: 99, // ModuleKind.ESNext,
-    moduleResolution: 100, // ModuleResolutionKind.Bundler,
-    target: 99, // ScriptTarget.ESNext,
+    isolatedModules: true,
+    module: "esnext",
+    moduleResolution: "bundler",
+    moduleDetection: "force",
+    skipLibCheck: true,
+    target: "esnext",
     noEmit: true,
-    ...(languageSettings?.compilerOptions as ts.CompilerOptions),
+    useDefineForClassFields: true,
+    ...(languageSettings?.compilerOptions as CompilerOptions),
   };
   const typesStore = new TypesStore();
   const defaultImportMap = importMapFrom(languageSettings?.importMap);
@@ -78,7 +83,7 @@ async function createWorker(
     };
   };
 
-  let compilerOptions: ts.CompilerOptions = { ...defaultCompilerOptions };
+  let compilerOptions: CompilerOptions = { ...defaultCompilerOptions };
   let importMap = { ...defaultImportMap };
 
   if (vfs) {
@@ -279,7 +284,7 @@ class TypesStore {
   }
 
   /** load types defined in tsconfig.json */
-  async load(compilerOptions: ts.CompilerOptions, vfs?: VFS) {
+  async load(compilerOptions: CompilerOptions, vfs?: VFS) {
     const types = compilerOptions.types;
     if (Array.isArray(types)) {
       delete compilerOptions.types;
@@ -326,7 +331,7 @@ class TypesStore {
 
 /** Load compiler options from tsconfig.json in VFS if exists. */
 async function loadCompilerOptions(vfs: VFS) {
-  const compilerOptions: ts.CompilerOptions = {};
+  const compilerOptions: CompilerOptions = {};
   try {
     const tsconfigjson = await vfs.readTextFile("tsconfig.json");
     const tsconfig = parseJsonc(tsconfigjson);

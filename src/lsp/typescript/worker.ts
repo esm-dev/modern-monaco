@@ -38,7 +38,7 @@ export interface VersionedContent {
 }
 
 export interface CreateData {
-  compilerOptions: ts.CompilerOptions;
+  compilerOptions: Record<string, unknown>;
   formatOptions: ts.FormatCodeSettings & Pick<ts.UserPreferences, "quotePreference">;
   importMap: ImportMap;
   types: Record<string, VersionedContent>;
@@ -80,7 +80,8 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
 
   constructor(ctx: monacoNS.worker.IWorkerContext<Host>, createData: CreateData) {
     super(ctx, createData.vfs);
-    this._compilerOptions = createData.compilerOptions;
+    this._compilerOptions = ts.convertCompilerOptionsFromJson(createData.compilerOptions, ".").options;
+    console.log(this._compilerOptions, createData.compilerOptions);
     this._importMap = createData.importMap;
     this._importMapVersion = 0;
     this._isBlankImportMap = isBlankImportMap(createData.importMap);
@@ -836,13 +837,13 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
   }
 
   async updateCompilerOptions(options: {
-    compilerOptions?: ts.CompilerOptions;
+    compilerOptions?: Record<string, unknown>;
     importMap?: ImportMap;
     types?: Record<string, VersionedContent>;
   }): Promise<void> {
     const { compilerOptions, importMap, types } = options;
     if (compilerOptions) {
-      this._compilerOptions = compilerOptions;
+      this._compilerOptions = ts.convertCompilerOptionsFromJson(compilerOptions, ".").options;
       this._updateJsxImportSource();
     }
     if (importMap) {
