@@ -184,6 +184,11 @@ lazy({
 
 Virtual File System(VFS) provides a way of multiple files editing in the editor.
 
+- Store files in indexedDB.
+- Watch file changes.
+- File system provider for LSP worker.
+- Editor navigation.
+
 ```js
 import { VFS } from "https://esm.sh/esm-monaco";
 
@@ -193,19 +198,14 @@ const vfs = new VFS({
   /** initial files in the VFS */
   initial: {
     "index.html": `<html><head><title>Hello, world!</title></head><body><script src="main.js"></script></body></html>`,
-    "main.js": `console.log("Hello, world!")`
-  }
+    "main.js": `console.log("Hello, world!")`,
+  },
   /** file to open when the editor is loaded at first time */
-  entryFile: "index.html"
+  entryFile: "index.html",
   /** editing history provider, default is "localStorage" */
-  history: "browserHistory"
+  history: "browserHistory",
 });
 ```
-
-- Store files in indexedDB.
-- Watch file changes.
-- File system provider for LSP worker.
-- Editor navigation.
 
 ### Using the API of the VFS
 
@@ -237,20 +237,17 @@ vfs.watch("*", (evt) => console.log(`${evt.path} has been ${evt.kind}`));
 You can also add a `tsconfig.json` file in the VFS to configure the TypeScript compiler options for the TypeScript LSP worker.
 
 ```js
+const tsconfig = {
+  "compilerOptions": {
+    "target": "esnext",
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noUnusedLocals": true,
+  },
+};
 const vfs = new VFS({
   initial: {
-    "tsconfig.json": JSON.stringify(
-      {
-        "compilerOptions": {
-          "target": "esnext",
-          "noUnusedLocals": true,
-          "noUnusedParameters": true,
-          "noUnusedLocals": true,
-        },
-      },
-      null,
-      2,
-    ),
+    "tsconfig.json": JSON.stringify(tsconfig, null, 2),
   },
 });
 ```
@@ -290,13 +287,14 @@ const vfs = new VFS({
 or you can add a `importmap.json` file in the VFS to configure the import maps.
 
 ```js
+const importmap = {
+  "imports": {
+    "lodash": "https://esm.sh/lodash",
+  },
+};
 const vfs = new VFS({
   initial: {
-    "importmap.json": JSON.stringify({
-      "imports": {
-        "lodash": "https://esm.sh/lodash",
-      },
-    }),
+    "importmap.json": JSON.stringify(importmap),
   },
 });
 ```
@@ -361,7 +359,7 @@ lazy({
     html: {/* ... */},
     json: {/* ... */},
     typescript: {/* ... */},
-  }
+  },
 });
 ```
 
