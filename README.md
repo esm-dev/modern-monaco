@@ -7,7 +7,7 @@ A Web Code Editor powered by [monaco-editor-core](https://www.npmjs.com/package/
 
 - ESM only, load dependencies on demand, no `MonacoEnvironment` required.
 - Using [Shiki](https://shiki.style) for syntax highlighting with tons of grammars and themes.
-- Pre-highlighting code with Shiki and load `monaco-editor-core` in background.
+- Pre-highlighting code with Shiki while loading `monaco-editor-core` in background.
 - Support **server-side rendering(SSR)**.
 - Builtin Virtual File System(VFS) for multiple files editing.
 - Automatically loading `.d.ts` from [esm.sh](https://esm.sh) CDN for type checking.
@@ -19,8 +19,9 @@ A Web Code Editor powered by [monaco-editor-core](https://www.npmjs.com/package/
 
 Planned features:
 
+- [ ] Show a loading indicator while loading the editor
 - [ ] Quick open file in VFS
-- [ ] Drag and drop file (only the VFS is provided)
+- [ ] Drag and drop file (only if the VFS is provided)
 - [ ] Display Non-Code files in VFS, like images, videos, etc.
 - [ ] VSCode `winodow.show<XXX>Message` APIs
 - [ ] Emmet
@@ -47,11 +48,13 @@ import * from "https://esm.sh/esm-monaco"
 
 esm-monaco provides three modes to create a code editor:
 
-- **Lazy**: hightlight the code with Shiki and load the `editor-core.js` in background.
-- **SSR**: render the editor(mocked) in server side, and hydrate it in client side.
+- **Lazy**: pre-hightlight code with Shiki while loading the `editor-core.js` in background.
+- **SSR**: render the editor in server side, and hydrate it in client side.
 - **Manual**: create a monaco editor instance manually.
 
 ### Lazy Mode
+
+[monaco-editor-core](https://www.npmjs.com/package/monaco-editor-core) is a large module with extra CSS/Worker dependencies, not mention the `MonacoEnvironment` setup. esm-monaco provides a lazy but smart way to load the editor on demand. It pre-highlights code with Shiki while loading the `editor-core.js` in background.
 
 ```html
 <monaco-editor></monaco-editor>
@@ -69,15 +72,17 @@ esm-monaco provides three modes to create a code editor:
 
 ### SSR Mode
 
+SSR mode returns a instant rendered editor in server side, and hydrate it in client side.
+
 ```js
 import { renderToWebComponent } from "esm-monaco/ssr";
 
 export default {
   fetch(req) => {
     const ssrOut = renderToWebComponent({
-      code: `console.log("Hello, world!")`,
       filename: "app.js",
-      userAgent: req.headers.get("user-agent"), // for system detection
+      code: `console.log("Hello, world!")`,
+      userAgent: req.headers.get("user-agent"), // font detection for different platforms
     });
     return new Response(html`
       ${ssrOut}
