@@ -4,25 +4,32 @@ import type monacoNS from "monaco-editor-core";
 import { createPersistTask, createSyncPersistTask } from "./util.js";
 import { createProxy, decode, encode, promisifyIDBRequest, toUrl } from "./util.js";
 
+interface VFSOptions {
+  /** scope of the VFS, used for project isolation, default is "default" */
+  scope?: string;
+  /** initial files in the VFS */
+  initial?: Record<string, string | Uint8Array>;
+  /** file to open when the editor is loaded at first time */
+  entryFile?: string;
+  /** history provider, default is "localStorage" */
+  history?: "localStorage" | "browserHistory" | VFSHistory;
+}
+
+interface VFSEvent {
+  /** The kind of the event. */
+  kind: "create" | "modify" | "remove";
+  /** The path of the file. */
+  path: string;
+  /** If the event is triggered by model content change. */
+  isModelContentChange?: boolean;
+}
+
 interface VFile {
   url: string;
   version: number;
   content: string | Uint8Array;
   ctime: number;
   mtime: number;
-}
-
-interface VFSEvent {
-  kind: "create" | "modify" | "remove";
-  path: string;
-  isModelContentChange?: boolean;
-}
-
-interface VFSOptions {
-  scope?: string;
-  initial?: Record<string, string | Uint8Array>;
-  defaultFile?: string;
-  history?: "localStorage" | "browserHistory" | VFSHistory;
 }
 
 interface VFSHistory {
@@ -183,13 +190,13 @@ export class BasicVFS {
 /** A virtual file system for esm-monaco editor. */
 export class VFS extends BasicVFS {
   private _monaco: typeof monacoNS;
-  private _defaultFile?: string;
+  private _entryFile?: string;
   private _history: VFSHistory;
   private _viewState: Record<string, monacoNS.editor.ICodeEditorViewState> = {};
 
   constructor(options: VFSOptions) {
     super(options);
-    this._defaultFile = options.defaultFile;
+    this._entryFile = options.entryFile;
     if (options.history && typeof options.history === "object") {
       if (typeof options.history.push === "function") {
         this._history = options.history;
@@ -198,16 +205,16 @@ export class VFS extends BasicVFS {
       if (globalThis.history) {
         this._history = new VFSBrowserHistory("/");
       }
-    } else if (globalThis.localStorage) {
+    } else if (supportLocalStroage()) {
       this._history = new VFSLocalStorageHistory(options.scope ?? "default");
     }
-    if (globalThis.localStorage) {
+    if (supportLocalStroage()) {
       this._viewState = createPersistStateStorage("monaco:vfs.viewState." + (options.scope ?? "default"));
     }
   }
 
-  get defaultFile() {
-    return this._defaultFile;
+  get entryFile() {
+    return this._entryFile;
   }
 
   get history() {
@@ -437,6 +444,17 @@ function createPersistStateStorage<T extends object>(storeKey: string, defaultVa
   }
   const persist = createSyncPersistTask(() => localStorage.setItem(storeKey, JSON.stringify(state)), 1000);
   return state = createProxy(init, persist);
+}
+
+function supportLocalStroage() {
+  if (globalThis.localStorage) {
+    try {
+      localStorage.setItem(".__", "");
+      localStorage.removeItem(".__");
+      return true;
+    } catch {}
+  }
+  return false;
 }
 
 /** Error for file not found. */

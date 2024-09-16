@@ -32,7 +32,7 @@ export const files = {
     "  </script>",
     "  <style>",
     "    h1 {",
-    "      color: #232323;",
+    "      color: #5eaab5;",
     "    }",
     "  </style>",
     "</head>",
@@ -66,6 +66,6 @@ export const files = {
 export const vfs = new VFS({
   scope: "test",
   initial: files,
-  defaultFile: "index.html",
+  entryFile: "index.html",
   history: "browserHistory"
 });

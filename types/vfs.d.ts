@@ -1,24 +1,31 @@
 import type { editor, IPosition, IRange } from "./monaco.d.ts";
 
-export interface VFile {
+interface VFSOptions {
+  /** scope of the VFS, used for project isolation, default is "default" */
+  scope?: string;
+  /** initial files in the VFS */
+  initial?: Record<string, string | Uint8Array>;
+  /** file to open when the editor is loaded at first time */
+  entryFile?: string;
+  /** history provider, default is "localStorage" */
+  history?: "localStorage" | "browserHistory" | VFSHistory;
+}
+
+interface VFSEvent {
+  /** The kind of the event. */
+  kind: "create" | "modify" | "remove";
+  /** The path of the file. */
+  path: string;
+  /** If the event is triggered by model content change. */
+  isModelContentChange?: boolean;
+}
+
+interface VFile {
   url: string;
   version: number;
   content: string | Uint8Array;
   ctime: number;
   mtime: number;
-}
-
-export interface VFSEvent {
-  kind: "create" | "modify" | "remove";
-  path: string;
-  isModelChange?: boolean;
-}
-
-interface VFSOptions {
-  scope?: string;
-  initial?: Record<string, string | Uint8Array>;
-  defaultFile?: string;
-  history?: "localStorage" | "browserHistory" | VFSHistory;
 }
 
 interface VFSHistory {
@@ -33,8 +40,8 @@ interface VFSHistory {
 export class BasicVFS {
   readonly ErrorNotFound: typeof ErrorNotFound;
   constructor(options?: VFSOptions);
-  exists(name: string | URL): Promise<boolean>;
   ls(): Promise<string[]>;
+  exists(name: string | URL): Promise<boolean>;
   open(name: string | URL): Promise<VFile>;
   readFile(name: string | URL): Promise<Uint8Array>;
   readTextFile(name: string | URL): Promise<string>;
@@ -44,7 +51,7 @@ export class BasicVFS {
 }
 
 export class VFS extends BasicVFS {
-  readonly defaultFile?: string;
+  readonly entryFile?: string;
   readonly history: VFSHistory;
   openModel(name: string | URL, attachTo?: editor.ICodeEditor, selectionOrPosition?: IRange | IPosition): Promise<editor.ITextModel>;
 }
