@@ -142,7 +142,7 @@ To set the theme of the editor, you can add a `theme` attribute to the `<monaco-
 <monaco-editor theme="THEME_ID"></monaco-editor>
 ```
 
-or set it in the `lazy` function.
+or set it in the `lazy`, `init`, or `hydrate` function.
 
 ```js
 lazy({ theme: "THEME_ID" });
@@ -153,7 +153,7 @@ lazy({ theme: "THEME_ID" });
 
 ### Pre-loading Language Grammars
 
-By default, esm-monaco loads the language grammars when a specific language mode is attached in the editor. You can also pre-load the language grammars by adding the `langs` option to the `lazy` function.
+By default, esm-monaco loads the language grammars when a specific language mode is attached in the editor. You can also pre-load the language grammars by adding the `langs` option to the `lazy`, `init`, or `hydrate` function.
 
 ```js
 lazy({
@@ -207,9 +207,9 @@ const vfs = new VFS({
 - File system provider for LSP worker.
 - Editor navigation.
 
-### Using the API of VFS
+### Using the API of the VFS
 
-You can watch file changes in the VFS.
+You can use the API of the VFS to read, write, and watch files in a VFS.
 
 ```js
 // read all files in the VFS
@@ -349,3 +349,46 @@ Plus, esm-monaco also supports features like:
 > [!Note]
 > You don't need to set the `MonacoEnvironment.getWorker` for LSP support.
 > esm-monaco will automatically load the LSP worker for you.
+
+### LSP language configuration
+
+You can configure the LSP languages in the `lazy`, `init`, or `hydrate` function.
+
+```js
+// configure the LSP languages
+lazy({
+  lsp: {
+    html: {/* ... */},
+    json: {/* ... */},
+    typescript: {/* ... */},
+  }
+});
+```
+
+The `LSPLanguageConfig` interface is defined as:
+
+```ts
+export interface LSPLanguageConfig {
+  html?: {
+    attributeDefaultValue?: "empty" | "singlequotes" | "doublequotes";
+    customTags?: ITagData[];
+    hideAutoCompleteProposals?: boolean;
+  };
+  css?: {};
+  json?: {
+    schemas?: JSONSchemaSource[];
+  };
+  typescript?: {
+    /** The compiler options. */
+    compilerOptions?: ts.CompilerOptions;
+    /** The global import maps. */
+    importMap?: import("./import-map").ImportMap;
+    /** The version of the typescript from CDN. Default: ">= 5.5.0" */
+    tsVersion?: string;
+  };
+}
+```
+
+### Custom LSP
+
+[TODO]
