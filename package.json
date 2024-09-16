@@ -58,7 +58,7 @@
     "monaco-editor-core": "0.51.0",
     "tm-grammars": "1.17.9",
     "tm-themes": "1.8.1",
-    "typescript": "5.5.4",
+    "typescript": "5.6.2",
     "vscode-css-languageservice": "6.3.1",
     "vscode-html-languageservice": "5.3.1",
     "vscode-json-languageservice": "5.4.1",
@@ -67,7 +67,7 @@
     "vscode-languageserver-types": "3.17.5"
   },
   "peerDependencies": {
-    "typescript": ">= 5.5.0"
+    "typescript": ">= 5.6.0"
   },
   "repository": {
     "type": "git",
