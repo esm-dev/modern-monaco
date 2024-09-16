@@ -27,6 +27,7 @@ Planned features:
 - [ ] Emmet
 - [ ] LSP for inline `html` and `css` in JavaScript/TypeScript
 - [ ] [Volar](https://github.com/volarjs/volar.js) integration
+- [ ] Support [Shiki JS RegExp Engine](https://shiki.style/guide/regex-engines#javascript-regexp-engine-experimental)
 
 ## Installation
 
