@@ -11,11 +11,11 @@ const MINIMUM_LINE_HEIGHT = 8;
 const MINIMUM_MAX_DIGIT_WIDTH = 5;
 
 export interface RenderOptions extends Omit<editor.IStandaloneEditorConstructionOptions, "language"> {
-  shiki?: ShikiInitOptions;
   code: string;
   filename?: string;
-  language?: string;
   fontDigitWidth?: number;
+  language?: string;
+  shiki?: ShikiInitOptions;
   userAgent?: string;
 }
 

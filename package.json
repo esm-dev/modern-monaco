@@ -54,10 +54,10 @@
   },
   "sideEffects": false,
   "devDependencies": {
-    "@shikijs/core": "1.15.0",
+    "@shikijs/core": "1.17.6",
     "monaco-editor-core": "0.51.0",
-    "tm-grammars": "1.17.9",
-    "tm-themes": "1.8.1",
+    "tm-grammars": "1.17.20",
+    "tm-themes": "1.8.2",
     "typescript": "5.6.2",
     "vscode-css-languageservice": "6.3.1",
     "vscode-html-languageservice": "5.3.1",

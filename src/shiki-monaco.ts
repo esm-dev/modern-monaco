@@ -3,7 +3,7 @@
 import type monacoNs from "monaco-editor-core";
 import type { ShikiInternal, ThemeRegistrationResolved } from "@shikijs/core";
 import type { StateStack } from "@shikijs/core/textmate";
-import { INITIAL, StackElementMetadata } from "@shikijs/core/textmate";
+import { EncodedTokenMetadata, INITIAL } from "@shikijs/core/textmate";
 
 export interface MonacoTheme extends monacoNs.editor.IStandaloneThemeData {}
 
@@ -12,17 +12,17 @@ export function textmateThemeToMonacoTheme(theme: ThemeRegistrationResolved): Mo
   for (const { scope, settings } of theme.tokenColors ?? theme.settings) {
     const scopes = Array.isArray(scope) ? scope : [scope];
     for (const s of scopes) {
-      if (settings?.foreground && s) {
+      if (s && settings?.foreground) {
         rules.push({
           token: s,
-          foreground: blendColors(theme.bg, settings.foreground),
+          foreground: normalizeColor(theme.bg, settings.foreground),
         });
       }
     }
   }
   return {
     base: theme.type === "dark" ? "vs-dark" : "vs",
-    colors: Object.fromEntries(Object.entries(theme.colors ?? {}).map(([key, value]) => [key, blendColors(theme.bg, value)])),
+    colors: Object.fromEntries(Object.entries(theme.colors ?? {}).map(([key, value]) => [key, normalizeColor(theme.bg, value)])),
     inherit: false,
     rules,
   };
@@ -58,7 +58,7 @@ export function initShikiMonacoTokenizer(monaco: typeof monacoNs, highlighter: S
     const ret = highlighter.setTheme(themeId);
     colorMap.length = ret.colorMap.length;
     ret.colorMap.forEach((color, i) => {
-      colorMap[i] = blendColors(ret.theme.bg, color);
+      colorMap[i] = normalizeColor(ret.theme.bg, color);
     });
     colorToScopeMap.clear();
     theme.rules.forEach((rule) => {
@@ -103,7 +103,7 @@ export function registerShikiMonacoTokenizer(monaco: typeof monacoNs, highlighte
       for (let j = 0; j < tokensLength; j++) {
         const startIndex = result.tokens[2 * j];
         const metadata = result.tokens[2 * j + 1];
-        const color = colorMap[StackElementMetadata.getForeground(metadata)] ?? "";
+        const color = colorMap[EncodedTokenMetadata.getForeground(metadata)] ?? "";
         // Because Monaco only support one scope per token,
         // we workaround this to use color to trace back the scope
         const scope = colorToScopeMap.get(color) ?? "";
@@ -138,8 +138,8 @@ class TokenizerState implements monacoNs.languages.IState {
   }
 }
 
-function hexToRGBA(hex: string) {
-  const start = hex.startsWith("#") ? 1 : 0;
+function toRGBA(hex: string) {
+  const start = hex.charCodeAt(0) === 35 /* '#' */ ? 1 : 0;
   const step = (hex.length - start) >= 6 ? 2 : 1;
   const rgba = [0, 1, 2, 3].map(i => {
     const j = start + i * step;
@@ -153,7 +153,7 @@ function hexToRGBA(hex: string) {
   return rgba as [r: number, g: number, b: number, a: number];
 }
 
-function rgbToHex(rgb: number[]): string {
+function toHexColor(rgb: number[]): string {
   return "#" + rgb.map(c => c.toString(16).padStart(2, "0")).join("");
 }
 
@@ -163,11 +163,11 @@ function channelMixer(channelA: number, channelB: number, amount: number) {
   return Math.round(a + b);
 }
 
-export function blendColors(bg: string, fg: string): string {
-  const fgRgba = hexToRGBA(fg);
+function normalizeColor(bg: string, fg: string): string {
+  const fgRgba = toRGBA(fg);
   if (fgRgba[3] === 1) {
-    return rgbToHex(fgRgba.slice(0, 3));
+    return toHexColor(fgRgba.slice(0, 3));
   }
-  const bgRgba = hexToRGBA(bg);
-  return rgbToHex([0, 1, 2].map(i => channelMixer(bgRgba[i], fgRgba[i], fgRgba[3])));
+  const bgRgba = toRGBA(bg);
+  return toHexColor([0, 1, 2].map(i => channelMixer(bgRgba[i], fgRgba[i], fgRgba[3])));
 }
