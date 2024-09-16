@@ -351,23 +351,32 @@ async function loadCompilerOptions(vfs: VFS) {
 export async function loadImportMap(vfs: VFS, validate: (im: ImportMap) => ImportMap) {
   let src: string | undefined;
   try {
-    const indexHtml = await vfs.readTextFile("index.html");
-    const tplEl = document.createElement("template");
-    tplEl.innerHTML = indexHtml;
-    const scriptEl: HTMLScriptElement | null = tplEl.content.querySelector("script[type=\"importmap\"]");
-    if (scriptEl) {
-      src = "file:///index.html";
-      if (scriptEl.src) {
-        src = new URL(scriptEl.src, src).href;
+    if (await vfs.exists("index.html")) {
+      let indexHtml = await vfs.readTextFile("index.html");
+      let tplEl = document.createElement("template");
+      let scriptEl: HTMLScriptElement | null;
+      tplEl.innerHTML = indexHtml;
+      scriptEl = tplEl.content.querySelector("script[type=\"importmap\"]");
+      if (scriptEl) {
+        src = scriptEl.src ? new URL(scriptEl.src, "file:///").href : "file:///index.html";
+        const importMap = parseImportMapFromJson(
+          scriptEl.src ? await vfs.readTextFile(scriptEl.src) : scriptEl.textContent!,
+        );
+        importMap.$src = src;
+        return validate(importMap);
       }
-      const importMap = parseImportMapFromJson(
-        scriptEl.src ? await vfs.readTextFile(scriptEl.src) : scriptEl.textContent!,
-      );
-      importMap.$src = src;
-      return validate(importMap);
+    } else {
+      for (const imJson of ["importmap.json", "importMap.json", "import-map.json", "import_map.json"]) {
+        if (await vfs.exists(imJson)) {
+          src = new URL(imJson, "file:///").href;
+          const importMap = parseImportMapFromJson(await vfs.readTextFile(imJson));
+          importMap.$src = src;
+          return validate(importMap);
+        }
+      }
     }
   } catch (error) {
-    // ignore error, fallback to a blank import map
+    // ignore error, and use a blank import map instead
     console.error(`Failed to load import map from "${src}":`, error.message);
   }
   const importMap = createBlankImportMap();

@@ -81,7 +81,6 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
   constructor(ctx: monacoNS.worker.IWorkerContext<Host>, createData: CreateData) {
     super(ctx, createData.vfs);
     this._compilerOptions = ts.convertCompilerOptionsFromJson(createData.compilerOptions, ".").options;
-    console.log(this._compilerOptions, createData.compilerOptions);
     this._importMap = createData.importMap;
     this._importMapVersion = 0;
     this._isBlankImportMap = isBlankImportMap(createData.importMap);
