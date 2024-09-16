@@ -61,7 +61,7 @@ esm-monaco provides three modes to create a code editor:
 <monaco-editor></monaco-editor>
 
 <script type="module">
-  import { lazy, VFS } from "https://esm.sh/esm-monaco";
+  import { lazy, VFS } from "esm-monaco";
 
   // create a virtual file system
   const vfs = new VFS({
@@ -92,13 +92,9 @@ export default {
     return new Response(html`
       ${ssrOut}
       <script type="module">
-        import { hydrate, VFS } from "https://esm.sh/esm-monaco";
-
-        // create a virtual file system
-        const vfs = new VFS();
-
+        import { hydrate } from "https://esm.sh/esm-monaco";
         // hydrate the editor
-        hydrate({ vfs });
+        hydrate();
       </script>
     `, { headers: { "Content-Type": "text/html" }});
   }
@@ -113,7 +109,7 @@ You can also create a monaco editor instance manually.
 <div id="editor"></div>
 
 <script type="module">
-  import { init } from "https://esm.sh/esm-monaco";
+  import { init } from "esm-monaco";
 
   // load editor-core.js
   const monaco = await init({
@@ -190,7 +186,7 @@ Virtual File System(VFS) provides a way of multiple files editing in the editor.
 - Editor navigation.
 
 ```js
-import { VFS } from "https://esm.sh/esm-monaco";
+import { VFS } from "esm-monaco";
 
 const vfs = new VFS({
   /** scope of the VFS, used for project isolation, default is "default" */
@@ -317,7 +313,7 @@ esm-monaco adds some of the `window` APIs from VSCode:
 - [`showQuickPick`](https://code.visualstudio.com/api/references/vscode-api#window.showQuickPick) - Show a selection list to ask for user input.
 
 ```js
-import { init } from "https://esm.sh/esm-monaco";
+import { init } from "esm-monaco";
 const monaco = await init();
 
 monaco.showInputBox({
