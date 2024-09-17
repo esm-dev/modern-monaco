@@ -2,13 +2,9 @@ import type monacoNS from "monaco-editor-core";
 import { TextDocument } from "vscode-languageserver-textdocument";
 
 export enum FileType {
-  /**
-   * A regular file.
-   */
+  /**  A regular file. */
   File = 1,
-  /**
-   * A directory.
-   */
+  /** A directory. */
   Directory = 2,
 }
 
@@ -21,7 +17,7 @@ export class WorkerBase<Host = undefined, LanguageDocument = undefined> {
   private _vfs?: WorkerVFS;
   private _documentCache = new Map<string, [number, TextDocument, LanguageDocument | undefined]>();
 
-  createLanguageDocument: (document: TextDocument) => LanguageDocument;
+  createLanguageDocument?: (document: TextDocument) => LanguageDocument;
 
   constructor(ctx: monacoNS.worker.IWorkerContext<Host>, vfs?: WorkerVFS) {
     this._ctx = ctx;
@@ -66,47 +62,6 @@ export class WorkerBase<Host = undefined, LanguageDocument = undefined> {
     return null;
   }
 
-  async removeDocumentCache(uri: string): Promise<void> {
-    this._documentCache.delete(uri);
-  }
-
-  async updateVFS(evt: { kind: "create" | "remove"; path: string }): Promise<void> {
-    const { kind, path } = evt;
-    const url = new URL(path, "file:///").href;
-    if (!this._vfs) {
-      throw new Error("VFS not initialized");
-    }
-    const files = this._vfs.files;
-    if (kind === "create") {
-      files.push(url);
-    } else {
-      this.removeDocumentCache(url);
-      const index = files.indexOf(url);
-      if (index !== -1) {
-        files.splice(index, 1);
-      }
-    }
-  }
-
-  // resolveReference implementes the `FileSystemProvider` interface
-  resolveReference(ref: string, baseUrl: string): string | undefined {
-    const url = new URL(ref, baseUrl);
-    const href = url.href;
-    if (url.protocol === "file:" && !url.pathname.endsWith("/")) {
-      if (this.vfs) {
-        const files = this.vfs.files;
-        const isDir = href.endsWith("/");
-        if (
-          (isDir && !files.find((f) => f.startsWith(href)))
-          || (!isDir && !files.includes(href))
-        ) {
-          return undefined;
-        }
-      }
-    }
-    return href;
-  }
-
   getTextDocument(uri: string): TextDocument | null {
     const model = this.getModel(uri);
     if (!model) {
@@ -127,9 +82,34 @@ export class WorkerBase<Host = undefined, LanguageDocument = undefined> {
     if (cached && cached[0] === version && cached[2]) {
       return cached[2];
     }
+    if (!this.createLanguageDocument) {
+      throw new Error("createLanguageDocument is not implemented");
+    }
     const languageDocument = this.createLanguageDocument(document);
     this._documentCache.set(uri, [version, document, languageDocument]);
     return languageDocument;
+  }
+
+  async removeDocumentCache(uri: string): Promise<void> {
+    this._documentCache.delete(uri);
+  }
+
+  async updateVFS(evt: { kind: "create" | "remove"; path: string }): Promise<void> {
+    const { kind, path } = evt;
+    const url = new URL(path, "file:///").href;
+    if (!this._vfs) {
+      throw new Error("VFS not initialized");
+    }
+    const files = this._vfs.files;
+    if (kind === "create") {
+      files.push(url);
+    } else {
+      const index = files.indexOf(url);
+      if (index !== -1) {
+        files.splice(index, 1);
+      }
+      this.removeDocumentCache(url);
+    }
   }
 
   readDir(uri: string, extensions?: readonly string[]): [string, FileType][] {
@@ -160,10 +140,10 @@ export class WorkerBase<Host = undefined, LanguageDocument = undefined> {
       throw new Error("VFS not initialized");
     }
     return {
-      readDirectory: (uri: string) => {
+      readDirectory: (uri: string): Promise<[string, FileType][]> => {
         return Promise.resolve(this.readDir(uri));
       },
-      stat: async (uri: string) => {
+      stat: async (uri: string): Promise<{ type: FileType; ctime: number; mtime: number; size: number }> => {
         // @ts-expect-error `vfs_stat` is defined in host
         return this._ctx.host.vfs_stat(uri);
       },
@@ -172,6 +152,22 @@ export class WorkerBase<Host = undefined, LanguageDocument = undefined> {
         return this._ctx.host.vfs_readTextFile(uri);
       },
     };
+  }
+
+  // resolveReference implementes the `DocumentContext` interface
+  resolveReference(ref: string, baseUrl: string): string | undefined {
+    const url = new URL(ref, baseUrl);
+    const href = url.href;
+    if (url.protocol === "file:" && !url.pathname.endsWith("/")) {
+      if (this.vfs) {
+        const files = this.vfs.files;
+        const isDir = href.endsWith("/");
+        if ((isDir && !files.find((f) => f.startsWith(href))) || (!isDir && !files.includes(href))) {
+          return undefined;
+        }
+      }
+    }
+    return href;
   }
 }
 

@@ -30,13 +30,8 @@ export function createHost(vfs?: VFS) {
   return vfs
     ? {
       vfs_stat: async (uri: string) => {
-        const file = await vfs.open(uri);
-        return {
-          type: 1,
-          ctime: file.ctime,
-          mtime: file.mtime,
-          size: file.content.length,
-        };
+        const { ctime, mtime, content } = await vfs.open(uri);
+        return { type: 1, ctime, mtime, size: content.length };
       },
       vfs_readTextFile: async (uri: string, encoding?: string): Promise<string> => {
         return vfs.readTextFile(uri);

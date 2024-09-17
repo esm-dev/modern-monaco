@@ -47,9 +47,14 @@ export const builtinProviders: Record<string, LSPProvider> = {
 
 export function createWebWorker(url: URL, name?: string): Worker {
   let workerUrl: URL | string = url;
+  // create a blob url for cross-origin workers if the url is not same-origin
   if (url.origin !== location.origin) {
-    const workerBlob = new Blob([`import "${url.href}"`], { type: "application/javascript" });
-    workerUrl = URL.createObjectURL(workerBlob);
+    workerUrl = URL.createObjectURL(
+      new Blob(
+        [`import "${url.href}"`],
+        { type: "application/javascript" },
+      ),
+    );
   }
   return new Worker(workerUrl, {
     type: "module",
