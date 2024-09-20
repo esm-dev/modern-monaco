@@ -225,14 +225,13 @@ export function lazy(options?: InitOption, hydrate?: boolean) {
     return monacoCore = loadMonaco(highlighter, options, onEditorWorkerReady).then((m) => monacoCore = m);
   }
 
+  function setStyle(el: HTMLElement, style: Partial<CSSStyleDeclaration>) {
+    Object.assign(el.style, style);
+  }
+
   customElements.define(
     "monaco-editor",
     class extends HTMLElement {
-      constructor() {
-        super();
-        Object.assign(this.style, { display: "block", position: "relative" });
-      }
-
       async connectedCallback() {
         const renderOptions: Partial<RenderOptions> = {};
 
@@ -297,13 +296,17 @@ export function lazy(options?: InitOption, hydrate?: boolean) {
           }
         }
 
+        // set the base style of the container element
+        setStyle(this, { display: "block", position: "relative" });
+
         // set dimension from width and height attributes
         const width = Number(this.getAttribute("width"));
         const height = Number(this.getAttribute("height"));
         if (width > 0 && height > 0) {
-          this.style.width = `${width}px`;
-          this.style.height = `${height}px`;
+          setStyle(this, { width: `${width}px`, height: `${height}px` });
           renderOptions.dimension = { width, height };
+        } else {
+          setStyle(this, { width: "100%", height: "100%" });
         }
 
         // the container element for monaco editor instance
@@ -338,7 +341,7 @@ export function lazy(options?: InitOption, hydrate?: boolean) {
         // create a highlighter instance for the renderer/editor
         const highlighter = await initShiki({ theme: renderOptions.theme, ...options, langs });
 
-        // check the pre-rendered content, if not exists, render one
+        // check the pre-rendered editor(mock), if not exists, render one
         let prerenderEl = hydrate ? this.querySelector<HTMLElement>(".monaco-editor-prerender") : undefined;
         if (!prerenderEl && filename && vfs) {
           try {
@@ -361,9 +364,7 @@ export function lazy(options?: InitOption, hydrate?: boolean) {
         }
 
         if (prerenderEl) {
-          prerenderEl.style.position = "absolute";
-          prerenderEl.style.top = "0";
-          prerenderEl.style.left = "0";
+          setStyle(prerenderEl, { position: "absolute", top: "0", left: "0" });
           this.appendChild(prerenderEl);
           if (filename) {
             const scrollTop = vfs?.viewState[new URL(filename, "file:///").href]?.viewState?.scrollTop ?? 0;
