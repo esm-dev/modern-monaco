@@ -64,7 +64,6 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
   private _importMapVersion: number;
   private _isBlankImportMap: boolean;
   private _types: Record<string, VersionedContent>;
-  private _jsxImportUrl: string;
   private _formatOptions?: CreateData["formatOptions"];
   private _languageService = ts.createLanguageService(this);
   private _httpRedirects = new Map<string, string>();
@@ -86,7 +85,6 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     this._isBlankImportMap = isBlankImportMap(createData.importMap);
     this._types = createData.types;
     this._formatOptions = createData.formatOptions;
-    this._updateJsxImportSource();
   }
 
   // #region language service host
@@ -338,7 +336,8 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
           };
         }
         if (!this._fetchPromises.has(moduleHref)) {
-          const autoFetch = specifier === this._jsxImportUrl || importMapResovled || isHttpUrl(containingFile) || isEsmshModule(moduleUrl);
+          const autoFetch = importMapResovled || this._isJsxImportUrl(specifier) || isHttpUrl(containingFile)
+            || isWellKnownEsmshModule(moduleUrl);
           const promise = autoFetch ? cache.fetch(moduleUrl) : cache.query(moduleUrl);
           this._fetchPromises.set(
             moduleHref,
@@ -843,13 +842,11 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     const { compilerOptions, importMap, types } = options;
     if (compilerOptions) {
       this._compilerOptions = ts.convertCompilerOptionsFromJson(compilerOptions, ".").options;
-      this._updateJsxImportSource();
     }
     if (importMap) {
       this._importMap = importMap;
       this._importMapVersion++;
       this._isBlankImportMap = isBlankImportMap(importMap);
-      this._updateJsxImportSource();
     }
     if (types) {
       for (const uri of Object.keys(this._types)) {
@@ -928,9 +925,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
       detail?.codeActions?.forEach((action) => {
         if (action.description.startsWith("Add import from ")) {
           const specifier = action.description.slice(17, -1);
-          const newSpecifier = this._getSpecifierFromDts(
-            isDts(specifier) ? specifier : specifier + ".d.ts",
-          );
+          const newSpecifier = this._getSpecifierFromDts(isDts(specifier) ? specifier : specifier + ".d.ts");
           if (newSpecifier) {
             action.description = `Add type import from "${newSpecifier}"`;
             action.changes.forEach((change) => {
@@ -1184,26 +1179,12 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     return { ...this._formatOptions, ...formatOptions };
   }
 
-  private _updateJsxImportSource(): void {
-    const compilerOptions = this._compilerOptions;
-    if (!compilerOptions.jsxImportSource) {
-      const jsxImportSource = this._importMap.imports["@jsxRuntime"];
-      if (jsxImportSource) {
-        compilerOptions.jsxImportSource = jsxImportSource;
-        if (!compilerOptions.jsx) {
-          compilerOptions.jsx = ts.JsxEmit.ReactJSX;
-        }
-      }
+  private _isJsxImportUrl(url: string): boolean {
+    const jsxImportUrl = this._importMap.imports["@jsxRuntime"];
+    if (jsxImportUrl) {
+      return url === jsxImportUrl + "/jsx-runtime" || url === jsxImportUrl + "/jsx-dev-runtime";
     }
-
-    let runtimePath = "/jsx-runtime";
-    if (this._compilerOptions.jsx === ts.JsxEmit.ReactJSXDev) {
-      runtimePath = "/jsx-dev-runtime";
-    }
-    if (this._compilerOptions.jsxImportSource) {
-      const url = new URL(this._compilerOptions.jsxImportSource + runtimePath);
-      this._jsxImportUrl = url.toString();
-    }
+    return false;
   }
 
   // #endregion
@@ -1253,9 +1234,9 @@ function isEsmshHost(hostname: string): boolean {
   return hostname === "esm.sh" || hostname.endsWith(".esm.sh");
 }
 
-function isEsmshModule(url: URL): boolean {
+const regexpWellKnownModule = /\/(jsr\/)?((@|gh\/)[\w\.\-]+\/)?[\w\.\-]+@(\d+(\.\d+){0,2}(\-[\w\.]+)?|next|canary|rc|beta|latest)$/;
+function isWellKnownEsmshModule(url: URL): boolean {
   const { hostname, pathname } = url;
-  const regexpWellKnownModule = /\/(jsr\/)?((@|gh\/)[\w\.\-]+\/)?[\w\.\-]+@(\d+(\.\d+){0,2}(\-[\w\.]+)?|next|canary|rc|beta|latest)$/;
   return isEsmshHost(hostname) && regexpWellKnownModule.test(pathname);
 }
 

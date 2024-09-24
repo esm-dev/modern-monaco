@@ -59,7 +59,6 @@ async function createWorker(
 ) {
   const defaultCompilerOptions: CompilerOptions = {
     allowImportingTsExtensions: true,
-    allowJs: true,
     isolatedModules: true,
     module: "esnext",
     moduleResolution: "bundler",
