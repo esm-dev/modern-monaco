@@ -2,7 +2,7 @@ import { VFS } from "/esm-monaco/vfs.js";
 
 const importMap = {
   imports: {
-    "@jsxImportSource": "https://esm.sh/react@18.3.1",
+    "@jsxRuntime": "https://esm.sh/react@18.3.1",
     "react": "https://esm.sh/react@18.3.1",
     "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
   },

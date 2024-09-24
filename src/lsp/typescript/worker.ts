@@ -99,7 +99,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     if (path.startsWith("file:///node_modules/")) {
       const dirname = path.slice("file:///node_modules/".length);
       return Object.keys(this._importMap.imports)
-        .filter(key => key !== "@jsxImportSource" && (dirname.length === 0 || key.startsWith(dirname)))
+        .filter(key => key !== "@jsxRuntime" && (dirname.length === 0 || key.startsWith(dirname)))
         .map(key => dirname.length > 0 ? key.slice(dirname.length) : key)
         .filter((key) => key !== "/" && key.includes("/"))
         .map(key => key.split("/")[0]);
@@ -117,7 +117,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     if (path.startsWith("file:///node_modules/")) {
       const dirname = path.slice("file:///node_modules/".length);
       return Object.keys(this._importMap.imports)
-        .filter(key => key !== "@jsxImportSource" && (dirname.length === 0 || key.startsWith(dirname)))
+        .filter(key => key !== "@jsxRuntime" && (dirname.length === 0 || key.startsWith(dirname)))
         .map(key => dirname.length > 0 ? key.slice(dirname.length) : key)
         .filter((key) => !key.includes("/"));
     }
@@ -1123,7 +1123,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
       if (filename === dts) {
         if (!this._isBlankImportMap) {
           for (const [key, value] of Object.entries(this._importMap.imports)) {
-            if (value === specifier && key !== "@jsxImportSource") {
+            if (value === specifier && key !== "@jsxRuntime") {
               return key;
             }
           }
@@ -1187,7 +1187,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
   private _updateJsxImportSource(): void {
     const compilerOptions = this._compilerOptions;
     if (!compilerOptions.jsxImportSource) {
-      const jsxImportSource = this._importMap.imports["@jsxImportSource"];
+      const jsxImportSource = this._importMap.imports["@jsxRuntime"];
       if (jsxImportSource) {
         compilerOptions.jsxImportSource = jsxImportSource;
         if (!compilerOptions.jsx) {
