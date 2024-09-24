@@ -260,15 +260,15 @@ const indexHtml = html`<!DOCTYPE html>
     <script type="importmap">
       {
         "imports": {
-          "lodash": "https://esm.sh/lodash"
+          "@jsxRuntime": "https://esm.sh/react@18",
+          "react": "https://esm.sh/react@18"
         }
       }
     </script>
   </head>
   <body>
   <script type="module">
-    import _ from "lodash";
-    console.log(_.VERSION);
+    import React from "react";
   </script>
   </body>
 </html>
@@ -285,7 +285,8 @@ or you can add a `importmap.json` file in the VFS to configure the import maps.
 ```js
 const importmap = {
   "imports": {
-    "lodash": "https://esm.sh/lodash",
+    "@jsxRuntime": "https://esm.sh/react@18",
+    "react": "https://esm.sh/react@18",
   },
 };
 const vfs = new VFS({
@@ -294,6 +295,9 @@ const vfs = new VFS({
   },
 });
 ```
+
+> [!Note]
+> The `@jsxRuntime` is a special specifier for `jsxImportSource` option in TypeScript compiler options.
 
 ### Editing History Provider
 
