@@ -19,13 +19,13 @@ export function createBlankImportMap(baseURL?: string): ImportMap {
 
 /** Check if the import map is blank. */
 export function isBlankImportMap(importMap: ImportMap) {
-  if (!importMap) {
-    return true;
+  if (
+    (isObject(importMap.imports) && Object.keys(importMap.imports).length > 0)
+    || (isObject(importMap.scopes) && Object.keys(importMap.scopes).length > 0)
+  ) {
+    return false;
   }
-  if (!isObject(importMap.imports) && !isObject(importMap.scopes)) {
-    return true;
-  }
-  return Object.keys(importMap.imports ?? {}).length + Object.keys(importMap.scopes ?? {}).length === 0;
+  return true;
 }
 
 /** Validate the given import map. */
@@ -68,7 +68,7 @@ export function parseImportMapFromJson(json: string, baseURL?: string): ImportMa
   return importMap;
 }
 
-/** Parse the import map from Html. */
+/** Parse the import map from the given HTML. */
 export function parseImportMapFromHtml(html: string, baseURL?: string): ImportMap {
   const tplEl = document.createElement("template");
   tplEl.innerHTML = html;
@@ -81,9 +81,9 @@ export function parseImportMapFromHtml(html: string, baseURL?: string): ImportMa
 }
 
 /** Resolve the specifier with the import map. */
-export function resolve(importMap: ImportMap, specifier: string, containingFile: string): string {
+export function resolve(importMap: ImportMap, specifier: string, containingFile: string): [string, boolean] {
   const { $baseURL, imports, scopes } = importMap;
-  const { origin, pathname } = new URL(containingFile);
+  const { origin, pathname } = new URL(containingFile, $baseURL);
   const sameOriginScopes: [string, ImportMap["imports"]][] = [];
   for (const scopeName in scopes) {
     const scopeUrl = new URL(scopeName, $baseURL);
@@ -95,28 +95,32 @@ export function resolve(importMap: ImportMap, specifier: string, containingFile:
   if (sameOriginScopes.length > 0) {
     for (const [scopePathname, scopeImports] of sameOriginScopes) {
       if (pathname.startsWith(scopePathname)) {
-        const match = matchImports(specifier, scopeImports);
-        if (match) {
-          return match;
+        const url = matchImportUrl(specifier, scopeImports);
+        if (url) {
+          return [url, true];
         }
       }
     }
   }
   if (origin === new URL($baseURL).origin) {
-    const match = matchImports(specifier, imports);
-    if (match) {
-      return match;
+    const url = matchImportUrl(specifier, imports);
+    if (url) {
+      return [url, true];
     }
   }
-  return specifier;
+  return [specifier, false];
 }
 
-function matchImports(specifier: string, imports: ImportMap["imports"]) {
+function matchImportUrl(specifier: string, imports: ImportMap["imports"]): string | null {
   if (specifier in imports) {
     return imports[specifier];
   }
   for (const [k, v] of Object.entries(imports)) {
-    if (k.endsWith("/") && specifier.startsWith(k)) {
+    if (k.endsWith("/")) {
+      if (specifier.startsWith(k)) {
+        return v + specifier.slice(k.length);
+      }
+    } else if (specifier.startsWith(k + "/")) {
       return v + specifier.slice(k.length);
     }
   }
