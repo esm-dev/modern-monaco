@@ -1,9 +1,3 @@
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Copyright (c) Je Xia <i@jex.me>
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
-
 import type monacoNS from "monaco-editor-core";
 import * as cssService from "vscode-css-languageservice";
 import { WorkerBase, type WorkerVFS } from "../worker-base.ts";

@@ -1359,7 +1359,7 @@ export interface ILanguageWorkerWithEmbeddedSupport {
 
 export function attachEmbeddedLanguages<T extends ILanguageWorkerWithEmbeddedSupport>(
   languageId: string,
-  masterWorker: Monaco.editor.MonacoWebWorker<T>,
+  mainWorker: Monaco.editor.MonacoWebWorker<T>,
   embeddedLanguages: string[],
 ) {
   const { editor, Uri } = monaco;
@@ -1370,7 +1370,7 @@ export function attachEmbeddedLanguages<T extends ILanguageWorkerWithEmbeddedSup
     }
     const modelUri = model.uri.toString();
     const getEmbeddedDocument = async (rsl: string) => {
-      const workerProxy = await masterWorker.withSyncedResources([model.uri]);
+      const workerProxy = await mainWorker.withSyncedResources([model.uri]);
       return workerProxy.getEmbeddedDocument(modelUri, rsl);
     };
     const attachEmbeddedLanguage = async (languageId: string) => {
