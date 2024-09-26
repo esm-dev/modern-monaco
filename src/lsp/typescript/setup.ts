@@ -58,14 +58,16 @@ async function createWorker(
   vfs?: VFS,
 ) {
   const defaultCompilerOptions: CompilerOptions = {
+    // set allowJs to true to support embedded javascript in html
+    allowJs: true,
     allowImportingTsExtensions: true,
+    noEmit: true,
     isolatedModules: true,
     module: "esnext",
     moduleResolution: "bundler",
     moduleDetection: "force",
     skipLibCheck: true,
     target: "esnext",
-    noEmit: true,
     useDefineForClassFields: true,
     ...(languageSettings?.compilerOptions as CompilerOptions),
   };

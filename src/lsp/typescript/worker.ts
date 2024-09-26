@@ -1,9 +1,3 @@
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Copyright (c) Je Xia <i@jex.me>
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
-
 import type monacoNS from "monaco-editor-core";
 import type * as lst from "vscode-languageserver-types";
 import ts from "typescript";
@@ -66,14 +60,14 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
   private _types: Record<string, VersionedContent>;
   private _formatOptions?: CreateData["formatOptions"];
   private _languageService = ts.createLanguageService(this);
-  private _httpRedirects = new Map<string, string>();
+  private _urlMappings = new Map<string, string>();
+  private _typesMappings = new Map<string, string>();
   private _httpLibs = new Map<string, string>();
   private _httpModules = new Map<string, string>();
   private _httpTsModules = new Map<string, string>();
-  private _dtsMap = new Map<string, string>();
-  private _redirectModules: [modelUrl: string, node: ts.Node, url: string][] = [];
-  private _unknownModules = new Set<string>();
-  private _naModules = new Set<string>();
+  private _redirectedImports: [modelUrl: string, node: ts.Node, url: string][] = [];
+  private _unknownImports = new Set<string>();
+  private _badImports = new Set<string>();
   private _openPromises = new Map<string, Promise<void>>();
   private _fetchPromises = new Map<string, Promise<void>>();
 
@@ -85,6 +79,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     this._isBlankImportMap = isBlankImportMap(createData.importMap);
     this._types = createData.types;
     this._formatOptions = createData.formatOptions;
+    this._updateJsxImportSource();
   }
 
   // #region language service host
@@ -139,10 +134,6 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     return this._getScriptText(filename);
   }
 
-  getCompilationSettings(): ts.CompilerOptions {
-    return this._compilerOptions;
-  }
-
   getScriptFileNames(): string[] {
     const models = this.getMirrorModels();
     const types = Object.keys(this._types);
@@ -160,13 +151,13 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     for (const filename of libNames) {
       filenames[i++] = filename;
     }
-    for (const [filename] of this._httpLibs) {
+    for (const filename of this._httpLibs.keys()) {
       filenames[i++] = filename;
     }
-    for (const [filename] of this._httpModules) {
+    for (const filename of this._httpModules.keys()) {
       filenames[i++] = filename;
     }
-    for (const [filename] of this._httpTsModules) {
+    for (const filename of this._httpTsModules.keys()) {
       filenames[i++] = filename;
     }
     return filenames;
@@ -197,13 +188,12 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
   getScriptSnapshot(fileName: string): ts.IScriptSnapshot | undefined {
     const text = this._getScriptText(fileName);
     if (text) {
-      return {
-        getText: (start, end) => text.substring(start, end),
-        getLength: () => text.length,
-        // todo: support incremental parsing
-        getChangeRange: (_old: ts.IScriptSnapshot) => undefined,
-      };
+      return ts.ScriptSnapshot.fromString(text);
     }
+  }
+
+  getCompilationSettings(): ts.CompilerOptions {
+    return this._compilerOptions;
   }
 
   getDefaultLibFileName(options: ts.CompilerOptions): string {
@@ -237,31 +227,31 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     _containingSourceFile: ts.SourceFile,
     _reusedNames: readonly ts.StringLiteralLike[] | undefined,
   ): readonly ts.ResolvedModuleWithFailedLookupLocations[] {
-    this._redirectModules = this._redirectModules.filter(([modelUrl]) => modelUrl !== containingFile);
+    this._redirectedImports = this._redirectedImports.filter(([modelUrl]) => modelUrl !== containingFile);
     return moduleLiterals.map((literal): ts.ResolvedModuleWithFailedLookupLocations["resolvedModule"] => {
       let specifier = literal.text;
-      let importMapResovled = false;
+      let importMapResolved = false;
       if (!this._isBlankImportMap) {
-        const url = resolve(this._importMap, specifier, containingFile);
-        importMapResovled = url !== specifier;
-        if (importMapResovled) {
+        const [url, resolved] = resolve(this._importMap, specifier, containingFile);
+        importMapResolved = resolved;
+        if (importMapResolved) {
           specifier = url;
         }
       }
-      if (!importMapResovled && !isHttpUrl(specifier) && !isRelativePath(specifier)) {
+      if (!importMapResolved && !isHttpUrl(specifier) && !isRelativePath(specifier)) {
         return undefined;
       }
       let moduleUrl: URL;
       try {
-        moduleUrl = new URL(specifier, containingFile);
+        moduleUrl = new URL(specifier, toUrl(containingFile));
       } catch (error) {
         return undefined;
       }
       if (getScriptExtension(moduleUrl.pathname) === null) {
         const ext = getScriptExtension(containingFile);
+        // use the extension of the containing file which is a dts file
+        // when the module name has no extension.
         if (ext === ".d.ts" || ext === ".d.mts" || ext === ".d.cts") {
-          // use the extension of the containing file which is a dts file
-          // when the module name has no extension.
           moduleUrl.pathname += ext;
         }
       }
@@ -274,7 +264,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
       }
       if (moduleUrl.protocol === "file:") {
         const moduleHref = moduleUrl.href;
-        if (this._naModules.has(moduleHref)) {
+        if (this._badImports.has(moduleHref)) {
           return undefined;
         }
         for (const model of this.getMirrorModels()) {
@@ -293,7 +283,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
             moduleHref,
             this.host.openModel(moduleHref).then((ok) => {
               if (!ok) {
-                this._naModules.add(moduleHref);
+                this._badImports.add(moduleHref);
                 this._rollbackVersion(containingFile);
               }
             }).finally(() => {
@@ -304,12 +294,12 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
         }
       } else {
         const moduleHref = moduleUrl.href;
-        if (this._naModules.has(moduleHref) || this._unknownModules.has(moduleHref)) {
+        if (this._badImports.has(moduleHref) || this._unknownImports.has(moduleHref)) {
           return undefined;
         }
-        if (!importMapResovled && this._httpRedirects.has(moduleHref)) {
-          const redirectUrl = this._httpRedirects.get(moduleHref)!;
-          this._redirectModules.push([containingFile, literal, redirectUrl]);
+        if (!importMapResolved && this._urlMappings.has(moduleHref)) {
+          const redirectUrl = this._urlMappings.get(moduleHref)!;
+          this._redirectedImports.push([containingFile, literal, redirectUrl]);
         }
         if (this._httpModules.has(moduleHref)) {
           return {
@@ -323,9 +313,9 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
             extension: getScriptExtension(moduleUrl.pathname) ?? ".ts",
           };
         }
-        if (this._dtsMap.has(moduleHref)) {
+        if (this._typesMappings.has(moduleHref)) {
           return {
-            resolvedFileName: this._dtsMap.get(moduleHref)!,
+            resolvedFileName: this._typesMappings.get(moduleHref)!,
             extension: ".d.ts",
           };
         }
@@ -336,58 +326,57 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
           };
         }
         if (!this._fetchPromises.has(moduleHref)) {
-          const autoFetch = importMapResovled || this._isJsxImportUrl(specifier) || isHttpUrl(containingFile)
-            || isWellKnownEsmshModule(moduleUrl);
+          const autoFetch = importMapResolved || this._isJsxImportUrl(specifier) || isHttpUrl(containingFile)
+            || isWellKnownCDNURL(moduleUrl);
           const promise = autoFetch ? cache.fetch(moduleUrl) : cache.query(moduleUrl);
           this._fetchPromises.set(
             moduleHref,
             promise.then(async (res) => {
               if (!res) {
                 // did not find the module in the cache
-                this._unknownModules.add(moduleHref);
-                this._rollbackVersion(containingFile);
+                this._unknownImports.add(moduleHref);
                 return;
               }
               if (res.ok) {
                 const contentType = res.headers.get("content-type");
                 const dts = res.headers.get("x-typescript-types");
-                const resUrl = new URL(res.url);
                 if (res.redirected) {
-                  this._httpRedirects.set(moduleHref, resUrl.href);
-                }
-                if (dts) {
+                  this._urlMappings.set(moduleHref, res.url);
+                } else if (dts) {
                   res.body?.cancel();
                   const dtsRes = await cache.fetch(new URL(dts, res.url));
                   if (dtsRes.ok) {
-                    this._httpLibs.set(dtsRes.url, await dtsRes.text());
-                    this._dtsMap.set(moduleHref, dtsRes.url);
+                    this._typesMappings.set(moduleHref, dtsRes.url);
+                    this._markHttpLib(dtsRes.url, await dtsRes.text());
                   }
                 } else if (
-                  /\.(c|m)?jsx?$/.test(resUrl.pathname)
+                  /\.(c|m)?jsx?$/.test(moduleUrl.pathname)
                   || (contentType && /^(application|text)\/(javascript|jsx)/.test(contentType))
                 ) {
                   this._httpModules.set(moduleHref, await res.text());
                 } else if (
-                  /\.(c|m)?tsx?$/.test(resUrl.pathname)
+                  /\.(c|m)?tsx?$/.test(moduleUrl.pathname)
                   || (contentType && /^(application|text)\/(typescript|tsx)/.test(contentType))
                 ) {
-                  if (/\.d\.(c|m)?ts$/.test(resUrl.pathname)) {
-                    this._httpLibs.set(moduleHref, await res.text());
+                  if (/\.d\.(c|m)?ts$/.test(moduleUrl.pathname)) {
+                    this._markHttpLib(moduleHref, await res.text());
                   } else {
                     this._httpTsModules.set(moduleHref, await res.text());
                   }
                 } else {
                   // not a javascript or typescript module
                   res.body?.cancel();
-                  this._naModules.add(moduleHref);
+                  this._badImports.add(moduleHref);
                 }
               } else {
                 // bad response
                 res.body?.cancel();
-                this._naModules.add(moduleHref);
+                this._badImports.add(moduleHref);
               }
-              this._rollbackVersion(containingFile);
+            }).catch((err) => {
+              console.error(`Failed to fetch module: ${moduleHref}`, err);
             }).finally(() => {
+              this._rollbackVersion(containingFile);
               this._fetchPromises.delete(moduleHref);
               this.host.refreshDiagnostics(containingFile);
             }),
@@ -423,8 +412,8 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
         diagnostics.push(this._convertDiagnostic(document, diagnostic));
       }
     }
-    if (this._redirectModules.length > 0) {
-      this._redirectModules.forEach(([modelUrl, node, url]) => {
+    if (this._redirectedImports.length > 0) {
+      this._redirectedImports.forEach(([modelUrl, node, url]) => {
         if (modelUrl === uri) {
           diagnostics.push(this._convertDiagnostic(document, {
             file: undefined,
@@ -822,12 +811,12 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
   // #region public methods used by the host
 
   async fetchHttpModule(specifier: string, containingFile: string): Promise<void> {
-    if (this._unknownModules.has(specifier)) {
+    if (this._unknownImports.has(specifier)) {
       const res = await cache.fetch(specifier);
       res.body?.cancel();
-      this._unknownModules.delete(specifier);
+      this._unknownImports.delete(specifier);
       if (!res.ok) {
-        this._naModules.add(specifier);
+        this._badImports.add(specifier);
       }
       this._rollbackVersion(containingFile);
       this.host.refreshDiagnostics(containingFile);
@@ -842,11 +831,13 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     const { compilerOptions, importMap, types } = options;
     if (compilerOptions) {
       this._compilerOptions = ts.convertCompilerOptionsFromJson(compilerOptions, ".").options;
+      this._updateJsxImportSource();
     }
     if (importMap) {
       this._importMap = importMap;
       this._importMapVersion++;
       this._isBlankImportMap = isBlankImportMap(importMap);
+      this._updateJsxImportSource();
     }
     if (types) {
       for (const uri of Object.keys(this._types)) {
@@ -886,7 +877,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
           return true;
         }
         const { moduleSpecifier, exportName } = data;
-        if (moduleSpecifier && (moduleSpecifier in this._importMap.imports || this._dtsMap.has(moduleSpecifier))) {
+        if (moduleSpecifier && (moduleSpecifier in this._importMap.imports || this._typesMappings.has(moduleSpecifier))) {
           autoImports.add(exportName + " " + moduleSpecifier);
           return true;
         }
@@ -974,7 +965,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
         kindModifiers === "declare" && moduleName.startsWith("\"http")
       ) {
         const specifier = JSON.parse(moduleName);
-        for (const [url, dts] of this._dtsMap) {
+        for (const [url, dts] of this._typesMappings) {
           if (specifier + ".d.ts" === dts) {
             displayParts[2].text = "\"" + url + "\"";
             info.tags = [{
@@ -1020,7 +1011,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
   ): Promise<ts.CodeFixAction[]> {
     let span = [start + 1, end - 1] as [number, number];
     // fix url/path span
-    if (start === end && (this._redirectModules.length > 0 || errorCodes.includes(2307))) {
+    if (start === end && (this._redirectedImports.length > 0 || errorCodes.includes(2307))) {
       const a = this._languageService.getReferencesAtPosition(fileName, start);
       if (a && a.length > 0) {
         const b = a[0];
@@ -1028,12 +1019,12 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
       }
     }
     const fixes: ts.CodeFixAction[] = [];
-    if (this._redirectModules.length > 0) {
-      const i = this._redirectModules.findIndex(([modelUrl, node]) => {
+    if (this._redirectedImports.length > 0) {
+      const i = this._redirectedImports.findIndex(([modelUrl, node]) => {
         return fileName === modelUrl && node.getStart() === span[0] - 1 && node.getEnd() === span[1] + 1;
       });
       if (i >= 0) {
-        const [_, node, url] = this._redirectModules[i];
+        const [_, node, url] = this._redirectedImports[i];
         const fixName = `Update module specifier to ${url}`;
         fixes.push({
           fixName,
@@ -1051,7 +1042,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     if (errorCodes.includes(2307)) {
       const specifier = this.getModel(fileName)?.getValue().slice(...span);
       if (specifier) {
-        if (this._unknownModules.has(specifier)) {
+        if (this._unknownImports.has(specifier)) {
           const fixName = `Fetch module from '${specifier}'`;
           fixes.push({
             fixName,
@@ -1113,8 +1104,35 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
       ?? this.getModel(fileName)?.getValue();
   }
 
+  private _markHttpLib(url: string, dtsContent: string): void {
+    this._httpLibs.set(url, dtsContent);
+    setTimeout(() => {
+      const referencedFiles = this._languageService.getProgram()?.getSourceFile(url)?.referencedFiles ?? [];
+      referencedFiles.forEach((ref) => {
+        const refUrl = new URL(ref.fileName, url).href;
+        if (!this._fetchPromises.has(refUrl) && !this._httpLibs.has(refUrl) && !this._badImports.has(refUrl)) {
+          console.log(`Fetching types: ${refUrl}`);
+          this._fetchPromises.set(
+            refUrl,
+            cache.fetch(refUrl).then(async res => {
+              if (res.ok) {
+                this._httpLibs.set(refUrl, await res.text());
+              } else {
+                this._badImports.add(refUrl);
+              }
+            }).catch(err => {
+              console.error(`Failed to fetch types: ${refUrl}`, err);
+            }).finally(() => {
+              this._fetchPromises.delete(refUrl);
+            }),
+          );
+        }
+      });
+    });
+  }
+
   private _getSpecifierFromDts(filename: string): string | void {
-    for (const [specifier, dts] of this._dtsMap) {
+    for (const [specifier, dts] of this._typesMappings) {
       if (filename === dts) {
         if (!this._isBlankImportMap) {
           for (const [key, value] of Object.entries(this._importMap.imports)) {
@@ -1175,12 +1193,32 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     return result;
   }
 
+  private _getJsxImportSource(): string | undefined {
+    const { imports } = this._importMap;
+    for (const specifier of ["@jsxRuntime", "react", "preact", "solid-js", "nano-jsx", "vue"]) {
+      if (specifier in imports) {
+        return imports[specifier];
+      }
+    }
+    return undefined;
+  }
+
+  private _updateJsxImportSource(): void {
+    if (!this._compilerOptions.jsxImportSource) {
+      const jsxImportSource = this._getJsxImportSource();
+      if (jsxImportSource) {
+        this._compilerOptions.jsx = ts.JsxEmit.React;
+        this._compilerOptions.jsxImportSource = jsxImportSource;
+      }
+    }
+  }
+
   private _mergeFormatOptions(formatOptions: ts.FormatCodeSettings): ts.FormatCodeSettings {
     return { ...this._formatOptions, ...formatOptions };
   }
 
   private _isJsxImportUrl(url: string): boolean {
-    const jsxImportUrl = this._importMap.imports["@jsxRuntime"];
+    const jsxImportUrl = this._getJsxImportSource();
     if (jsxImportUrl) {
       return url === jsxImportUrl + "/jsx-runtime" || url === jsxImportUrl + "/jsx-dev-runtime";
     }
@@ -1234,10 +1272,10 @@ function isEsmshHost(hostname: string): boolean {
   return hostname === "esm.sh" || hostname.endsWith(".esm.sh");
 }
 
-const regexpWellKnownModule = /\/(jsr\/)?((@|gh\/)[\w\.\-]+\/)?[\w\.\-]+@(\d+(\.\d+){0,2}(\-[\w\.]+)?|next|canary|rc|beta|latest)$/;
-function isWellKnownEsmshModule(url: URL): boolean {
-  const { hostname, pathname } = url;
-  return isEsmshHost(hostname) && regexpWellKnownModule.test(pathname);
+const regexpPackagePath = /\/((@|gh\/|pr\/|jsr\/@)[\w\.\-]+\/)?[\w\.\-]+@(\d+(\.\d+){0,2}(\-[\w\.]+)?|next|canary|rc|beta|latest)$/;
+function isWellKnownCDNURL(url: URL): boolean {
+  const { pathname } = url;
+  return regexpPackagePath.test(pathname);
 }
 
 function isDts(fileName: string): boolean {
