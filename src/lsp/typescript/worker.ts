@@ -1110,8 +1110,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
       const referencedFiles = this._languageService.getProgram()?.getSourceFile(url)?.referencedFiles ?? [];
       referencedFiles.forEach((ref) => {
         const refUrl = new URL(ref.fileName, url).href;
-        if (!this._fetchPromises.has(refUrl) && !this._httpLibs.has(refUrl) && !this._badImports.has(refUrl)) {
-          console.log(`Fetching types: ${refUrl}`);
+        if (isDts(refUrl) && !this._fetchPromises.has(refUrl) && !this._httpLibs.has(refUrl) && !this._badImports.has(refUrl)) {
           this._fetchPromises.set(
             refUrl,
             cache.fetch(refUrl).then(async res => {

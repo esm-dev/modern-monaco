@@ -66,8 +66,10 @@ class Cache {
       const headers = new Headers(ret.headers);
       if (headers.has("location")) {
         const redirectedUrl = headers.get("location")!;
-        const res = await this.fetch(redirectedUrl);
-        defineProperty(res, "redirected", true);
+        const res = await this.query(redirectedUrl);
+        if (res) {
+          defineProperty(res, "redirected", true);
+        }
         return res;
       }
       const res = new Response(ret.content, { headers });
