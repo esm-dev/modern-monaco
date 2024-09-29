@@ -11,7 +11,7 @@ A Web Code Editor powered by [monaco-editor-core](https://www.npmjs.com/package/
 - Support **server-side rendering(SSR)**.
 - Builtin Virtual File System(VFS) for multiple files editing.
 - Automatically loading `.d.ts` from [esm.sh](https://esm.sh) CDN for type checking.
-- Using [import maps](https://github.com/WICG/import-maps) to resolving **bare specifier** import in JavaScript/TypeScript.
+- Using [import maps](https://github.com/WICG/import-maps) for resolving **bare specifier** imports in JavaScript/TypeScript.
 - VSCode `window` APIs like `showInputBox`, `showQuickPick`, etc.
 - Embedded languages(importmap/CSS/JavaScript) in HTML.
 - Inline `html` and `css` in JavaScript/TypeScript.
@@ -20,12 +20,13 @@ A Web Code Editor powered by [monaco-editor-core](https://www.npmjs.com/package/
 Planned features:
 
 - [ ] Show a loading indicator while loading the editor
-- [ ] Quick open file in VFS
+- [ ] Quick open menu (only if the VFS is provided)
 - [ ] Drag and drop file (only if the VFS is provided)
-- [ ] Display Non-Code files in VFS, like images, videos, etc.
+- [ ] Display non-code files in VFS, like images, videos, etc.
 - [ ] VSCode `winodow.show<XXX>Message` APIs
 - [ ] Emmet
 - [ ] LSP for inline `html` and `css` in JavaScript/TypeScript
+- [ ] Markdown language service
 - [ ] [Volar](https://github.com/volarjs/volar.js) integration
 - [ ] Support [Shiki JS RegExp Engine](https://shiki.style/guide/regex-engines#javascript-regexp-engine-experimental)
 
@@ -89,7 +90,7 @@ export default {
     const ssrOut = renderToWebComponent({
       filename: "main.js",
       code: `console.log("Hello, world!")`,
-      userAgent: req.headers.get("user-agent"), // font detection for different platforms
+      userAgent: req.headers.get("user-agent"), // default font detection for different platforms
     });
     return new Response(html`
       ${ssrOut}
@@ -117,9 +118,7 @@ You can also create a monaco editor instance manually.
   const monaco = await init();
 
   // create a monaco editor instance
-  const editor = monaco.editor.create(document.getElementById("editor"), {
-    /* add your editor options here */
-  });
+  const editor = monaco.editor.create(document.getElementById("editor"));
 
   // create and attach a model to the editor
   editor.setModel(monaco.editor.createModel(`console.log("Hello, world!")`, "javascript"));
@@ -128,11 +127,11 @@ You can also create a monaco editor instance manually.
 
 ## Editor Theme & Language Grammars
 
-esm-monaco uses [Shiki](https://shiki.style) for syntax highlighting with tons of grammars and themes. It loads the theme and language grammar from esm.sh on demand.
+esm-monaco uses [Shiki](https://shiki.style) for syntax highlighting with tons of grammars and themes. It loads themes and grammars from esm.sh on demand.
 
 ### Setting the Editor Theme
 
-To set the theme of the editor, you can add a `theme` attribute to the `<monaco-editor>` tag.
+To set the theme of the editor, you can add a `theme` attribute to the `<monaco-editor>` element.
 
 ```html
 <monaco-editor theme="theme-id"></monaco-editor>
@@ -149,7 +148,7 @@ lazy({ theme: "theme-id" });
 
 ### Pre-loading Language Grammars
 
-By default, esm-monaco loads the language grammars when a specific language mode is attached in the editor. You can also pre-load the language grammars by adding the `langs` option to the `lazy`, `init`, or `hydrate` function.
+By default, esm-monaco loads language grammars when a specific language mode is attached in the editor. You can also pre-load language grammars by adding the `langs` option to the `lazy`, `init`, or `hydrate` function.
 
 ```js
 lazy({
@@ -157,7 +156,7 @@ lazy({
 });
 ```
 
-### Custom Language Grammar
+### Custom Language Grammars
 
 You can also add custom language grammars to the editor.
 
@@ -178,12 +177,12 @@ lazy({
 
 ## Virtual File System(VFS)
 
-Virtual File System(VFS) provides a way of multiple files editing in the editor.
+The Virtual File System(VFS) of esm-monaco provides a way of multiple files editing.
 
-- Store files in indexedDB.
-- Watch file changes.
-- File system provider for LSP worker.
-- Editor navigation.
+- Editor navigation
+- File system provider for language service worker
+- Store files in indexedDB
+- Watch file changes
 
 ```js
 import { VFS } from "esm-monaco";
@@ -228,9 +227,9 @@ vfs.watch("main.js", (evt) => console.log(`main.js has been ${evt.kind}`));
 vfs.watch("*", (evt) => console.log(`${evt.path} has been ${evt.kind}`));
 ```
 
-### `tsconfig.json` File
+### Adding `tsconfig.json`
 
-You can also add a `tsconfig.json` file in the VFS to configure the TypeScript compiler options for the TypeScript LSP worker.
+You can also add a `tsconfig.json` file in the VFS to configure the TypeScript compiler options for the TypeScript language service worker.
 
 ```js
 const tsconfig = {
@@ -248,7 +247,7 @@ const vfs = new VFS({
 });
 ```
 
-### Dedetecting Import Maps in VFS
+### Dedetecting Import Maps
 
 esm-monaco use [import maps](https://github.com/WICG/import-maps) to resolving **bare specifier** import in JavaScript/TypeScript.
 By default, esm-monaco will dedetect the import maps in the `index.html` file in the VFS if it exists.
@@ -308,6 +307,39 @@ const vfs = new VFS({
   history: "browserHistory",
 });
 ```
+
+## Editor Options
+
+You can set the editor options in the `<monaco-editor>` element as attributes. The editor options are the same as the [`editor.EditorOptions`](https://microsoft.github.io/monaco-editor/docs.html#variables/editor.EditorOptions.html).
+
+```html
+<monaco-editor
+  theme="theme-id"
+  fontFamily="MONO-FONT"
+  fontSize="16"
+></monaco-editor>
+```
+
+For SSR mode, you can set the editor options in the `renderToWebComponent` function.
+
+```js
+import { renderToWebComponent } from "esm-monaco/ssr";
+
+const html = renderToWebComponent({
+  // render options
+  filename: "main.js",
+  code: `console.log("Hello, world!")`,
+  userAgent: req.headers.get("user-agent"), // font detection for different platforms
+
+  // editor options
+  theme: "theme-id",
+  fontFamily: "MONO-FONT",
+  fontSize: 16,
+  // ...
+});
+```
+
+For manual mode, check [here](https://microsoft.github.io/monaco-editor/docs.html#functions/editor.create.html) for more details.
 
 ## VSCode `window` APIs compatibility
 
