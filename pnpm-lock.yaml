@@ -12,8 +12,8 @@ importers:
         specifier: 1.17.6
         version: 1.17.6
       monaco-editor-core:
-        specifier: 0.51.0
-        version: 0.51.0
+        specifier: 0.52.0
+        version: 0.52.0
       tm-grammars:
         specifier: 1.17.20
         version: 1.17.20
@@ -93,8 +93,8 @@ packages:
   devlop@1.1.0:
     resolution: {integrity: sha512-RWmIqhcFf1lRYBvNmr7qTNuyCt/7/ns2jbpp1+PalgE/rDQcBT0fioSMUpJ93irlUhC5hrg4cYqe6U+0ImW0rA==}
 
-  hast-util-to-html@9.0.2:
-    resolution: {integrity: sha512-RP5wNpj5nm1Z8cloDv4Sl4RS8jH5HYa0v93YB6Wb4poEzgMo/dAAL0KcT4974dCjcNG5pkLqTImeFHHCwwfY3g==}
+  hast-util-to-html@9.0.3:
+    resolution: {integrity: sha512-M17uBDzMJ9RPCqLMO92gNNUDuBSq10a25SDBI08iCCxmorf4Yy6sYHK57n9WAbRAAaU+DuR4W6GN9K4DFZesYg==}
 
   hast-util-whitespace@3.0.0:
     resolution: {integrity: sha512-88JUN06ipLwsnv+dVn+OIYOvAuvBMy/Qoi6O7mQHxdPXpjy+Cd6xRkWwux7DKO+4sYILtLBRIKgsdpS2gQc7qw==}
@@ -123,8 +123,8 @@ packages:
   micromark-util-types@2.0.0:
     resolution: {integrity: sha512-oNh6S2WMHWRZrmutsRmDDfkzKtxF+bc2VxLC9dvtrDIRFln627VsFP6fLMgTryGDljgLPjkrzQSDcPrjPyDJ5w==}
 
-  monaco-editor-core@0.51.0:
-    resolution: {integrity: sha512-wNWSPfvQirGt2vxn9DzlwnXURPH20kyND60UZXD+Vk9x7+QbUpV5Cc1J5ojlSq3lxu1dEIMpG5gbL7oPJSCRWw==}
+  monaco-editor-core@0.52.0:
+    resolution: {integrity: sha512-Ur6BNCVgBcmOc4ZizEBl+rGiYtuozztOi4fgRFnAV64sRgKOxkwC1RxGfvJa3pHedoJ2eepV8Frjnr4PbhLcYA==}
 
   oniguruma-to-js@0.4.3:
     resolution: {integrity: sha512-X0jWUcAlxORhOqqBREgPMgnshB7ZGYszBNspP+tS9hPD3l13CdaXcHbgImoHUHlrvGx/7AvFEkTRhAGYh+jzjQ==}
@@ -209,7 +209,7 @@ snapshots:
       '@shikijs/types': 1.17.6
       '@shikijs/vscode-textmate': 9.2.2
       '@types/hast': 3.0.4
-      hast-util-to-html: 9.0.2
+      hast-util-to-html: 9.0.3
 
   '@shikijs/engine-javascript@1.17.6':
     dependencies:
@@ -256,7 +256,7 @@ snapshots:
     dependencies:
       dequal: 2.0.3
 
-  hast-util-to-html@9.0.2:
+  hast-util-to-html@9.0.3:
     dependencies:
       '@types/hast': 3.0.4
       '@types/unist': 3.0.2
@@ -307,7 +307,7 @@ snapshots:
 
   micromark-util-types@2.0.0: {}
 
-  monaco-editor-core@0.51.0: {}
+  monaco-editor-core@0.52.0: {}
 
   oniguruma-to-js@0.4.3:
     dependencies:
