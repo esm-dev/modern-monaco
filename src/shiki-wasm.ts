@@ -1,1 +1,1 @@
-export { getWasmInstance } from "@shikijs/core/wasm-inlined";
+export { getWasmInstance } from "@shikijs/engine-oniguruma/wasm-inlined";

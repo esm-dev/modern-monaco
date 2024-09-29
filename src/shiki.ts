@@ -1,6 +1,7 @@
-import type { HighlighterCore, LanguageInput, ThemeInput } from "@shikijs/core";
+import type { HighlighterCore, LanguageInput, RegexEngine, ThemeInput } from "@shikijs/core";
 import type { VFS } from "./vfs.ts";
-import { createHighlighterCore, setDefaultWasmLoader } from "@shikijs/core";
+import { createHighlighterCore } from "@shikijs/core";
+import { createOnigurumaEngine, getDefaultWasmLoader, setDefaultWasmLoader } from "@shikijs/engine-oniguruma";
 import { version as tmGrammarsVersion } from "../node_modules/tm-grammars/package.json";
 import { version as tmThemesVersion } from "../node_modules/tm-themes/package.json";
 
@@ -19,6 +20,7 @@ export interface ShikiInitOptions {
   langs?: (string | URL | LanguageInput)[];
   theme?: string | URL | ThemeInput;
   downloadCDN?: string;
+  engine?: RegexEngine | Promise<RegexEngine>;
 }
 
 export interface Highlighter extends HighlighterCore {
@@ -31,6 +33,7 @@ export async function initShiki({
   theme = vitesseDark,
   langs: languages,
   downloadCDN,
+  engine = createOnigurumaEngine(getDefaultWasmLoader()),
 }: ShikiInitOptions = {}): Promise<Highlighter> {
   const langs: LanguageInput[] = [];
   const themes: ThemeInput[] = [];
@@ -59,7 +62,7 @@ export async function initShiki({
     themes.push(theme);
   }
 
-  const highlighterCore = await createHighlighterCore({ langs, themes });
+  const highlighterCore = await createHighlighterCore({ langs, themes, engine });
   Object.assign(highlighterCore, {
     loadThemeFromCDN: (themeName: string) => highlighterCore.loadTheme(loadTMTheme(themeName, downloadCDN)),
     loadGrammarFromCDN: (...ids: string[]) => highlighterCore.loadLanguage(...ids.map(id => loadTMGrammar(id, downloadCDN))),

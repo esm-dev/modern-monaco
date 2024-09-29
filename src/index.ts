@@ -339,7 +339,11 @@ export function lazy(options?: InitOption, hydrate?: boolean) {
         }
 
         // create a highlighter instance for the renderer/editor
-        const highlighter = await initShiki({ theme: renderOptions.theme, ...options, langs });
+        const highlighter = await initShiki({
+          theme: renderOptions.theme,
+          ...options,
+          langs,
+        });
 
         // check the pre-rendered editor(mock), if not exists, render one
         let prerenderEl = hydrate ? this.querySelector<HTMLElement>(".monaco-editor-prerender") : undefined;

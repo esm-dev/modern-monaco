@@ -1,7 +1,7 @@
-import { build as esbuild } from "https://deno.land/x/esbuild@v0.23.1/mod.js";
+import { build as esbuild } from "https://deno.land/x/esbuild@v0.24.0/mod.js";
 import { grammars as tmGrammars } from "../node_modules/tm-grammars/index.js";
 import { themes as tmThemes } from "../node_modules/tm-themes/index.js";
-import { wasmBinary } from "../node_modules/@shikijs/core/dist/wasm-inlined.mjs";
+import { wasmBinary } from "../node_modules/@shikijs/engine-oniguruma/dist/wasm-inlined.mjs";
 
 const build = (entryPoints: string[], define?: Record<string, string>) => {
   return esbuild({
