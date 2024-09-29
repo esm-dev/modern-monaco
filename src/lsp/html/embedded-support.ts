@@ -1,8 +1,5 @@
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Copyright (c) Je Xia <i@jex.me>
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
+// embedded language support for HTML
+// based on https://github.com/microsoft/vscode/blob/main/extensions/html-language-features/server/src/modes/embeddedSupport.ts
 
 import { LanguageService, Position, TextDocument, TokenType } from "vscode-html-languageservice";
 

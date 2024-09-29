@@ -1107,6 +1107,8 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
   private _markHttpLib(url: string, dtsContent: string): void {
     this._httpLibs.set(url, dtsContent);
     setTimeout(() => {
+      // resolve types reference directives
+      // e.g. `/// <reference types="./common.d.ts" />`
       const referencedFiles = this._languageService.getProgram()?.getSourceFile(url)?.referencedFiles ?? [];
       referencedFiles.forEach((ref) => {
         const refUrl = new URL(ref.fileName, url).href;
