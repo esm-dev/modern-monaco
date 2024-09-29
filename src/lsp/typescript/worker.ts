@@ -70,6 +70,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
   private _badImports = new Set<string>();
   private _openPromises = new Map<string, Promise<void>>();
   private _fetchPromises = new Map<string, Promise<void>>();
+  private _httpDocumentCache = new Map<string, TextDocument>();
 
   constructor(ctx: monacoNS.worker.IWorkerContext<Host>, createData: CreateData) {
     super(ctx, createData.vfs);
@@ -395,7 +396,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
   // #region language features
 
   async doValidation(uri: string): Promise<lst.Diagnostic[] | null> {
-    const document = this.getTextDocument(uri);
+    const document = this._getTextDocument(uri);
     if (!document) {
       return null;
     }
@@ -430,7 +431,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
   }
 
   async doAutoComplete(uri: string, position: lst.Position, ch: string): Promise<string | null> {
-    const document = this.getTextDocument(uri);
+    const document = this._getTextDocument(uri);
     if (!document) {
       return null;
     }
@@ -442,7 +443,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
   }
 
   async doComplete(uri: string, position: lst.Position): Promise<lst.CompletionList | null> {
-    const document = this.getTextDocument(uri);
+    const document = this._getTextDocument(uri);
     if (!document) {
       return null;
     }
@@ -496,7 +497,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
       return null;
     }
     const { uri, offset } = item.data.context;
-    const document = this.getTextDocument(uri);
+    const document = this._getTextDocument(uri);
     if (!document) {
       return null;
     }
@@ -523,7 +524,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
   }
 
   async doHover(uri: string, position: lst.Position): Promise<lst.Hover | null> {
-    const document = this.getTextDocument(uri);
+    const document = this._getTextDocument(uri);
     if (!document) {
       return null;
     }
@@ -589,7 +590,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     context: lst.CodeActionContext,
     formatOptions: lst.FormattingOptions,
   ): Promise<lst.CodeAction[] | null> {
-    const document = this.getTextDocument(uri);
+    const document = this._getTextDocument(uri);
     if (!document) {
       return null;
     }
@@ -624,7 +625,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
   }
 
   async doRename(uri: string, position: lst.Position, newName: string): Promise<lst.WorkspaceEdit | null> {
-    const document = this.getTextDocument(uri);
+    const document = this._getTextDocument(uri);
     if (!document) {
       return null;
     }
@@ -643,7 +644,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     const changes: Record<string, lst.TextEdit[]> = {};
     locations.map(loc => {
       const edits = changes[loc.fileName] || (changes[loc.fileName] = []);
-      const locDocument = this.getTextDocument(loc.fileName);
+      const locDocument = this._getTextDocument(loc.fileName);
       if (locDocument) {
         edits.push({
           range: createRangeFromDocumentSpan(locDocument, loc.textSpan),
@@ -660,7 +661,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     formatOptions: lst.FormattingOptions,
     docText?: string,
   ): Promise<lst.TextEdit[] | null> {
-    const document = docText ? TextDocument.create(uri, "typescript", 0, docText) : this.getTextDocument(uri);
+    const document = docText ? TextDocument.create(uri, "typescript", 0, docText) : this._getTextDocument(uri);
     if (!document) {
       return null;
     }
@@ -680,7 +681,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
   }
 
   async findDocumentSymbols(uri: string): Promise<lst.DocumentSymbol[] | null> {
-    const document = this.getTextDocument(uri);
+    const document = this._getTextDocument(uri);
     if (!document) {
       return null;
     }
@@ -698,14 +699,12 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
       return result;
     };
     const root = this._languageService.getNavigationTree(uri);
+    console.log(root.childItems?.map((item) => toSymbol(item)));
     return root.childItems?.map((item) => toSymbol(item)) ?? null;
   }
 
-  async findDefinition(
-    uri: string,
-    position: lst.Position,
-  ): Promise<(lst.Location & { originSelectionRange: lst.Range })[] | null> {
-    const document = this.getTextDocument(uri);
+  async findDefinition(uri: string, position: lst.Position): Promise<(lst.Location & { originSelectionRange: lst.Range })[] | null> {
+    const document = this._getTextDocument(uri);
     if (!document) {
       return null;
     }
@@ -714,7 +713,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
       const { definitions, textSpan } = res;
       if (definitions) {
         return definitions.map(d => {
-          const doc = d.fileName === uri ? document : this.getTextDocument(d.fileName);
+          const doc = d.fileName === uri ? document : this._getTextDocument(d.fileName);
           if (doc) {
             return {
               uri: d.fileName,
@@ -730,7 +729,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
   }
 
   async findReferences(uri: string, position: lst.Position): Promise<lst.Location[] | null> {
-    const document = this.getTextDocument(uri);
+    const document = this._getTextDocument(uri);
     if (!document) {
       return null;
     }
@@ -738,7 +737,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     const result: lst.Location[] = [];
     if (references) {
       for (let entry of references) {
-        const entryDocument = this.getTextDocument(entry.fileName);
+        const entryDocument = this._getTextDocument(entry.fileName);
         if (entryDocument) {
           result.push({
             uri: entryDocument.uri,
@@ -751,7 +750,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
   }
 
   async findDocumentHighlights(uri: string, position: lst.Position): Promise<lst.DocumentHighlight[] | null> {
-    const document = this.getTextDocument(uri);
+    const document = this._getTextDocument(uri);
     if (!document) {
       return null;
     }
@@ -769,7 +768,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
   }
 
   async getFoldingRanges(uri: string): Promise<lst.FoldingRange[] | null> {
-    const document = this.getTextDocument(uri);
+    const document = this._getTextDocument(uri);
     if (!document) {
       return null;
     }
@@ -792,7 +791,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
   }
 
   async getSelectionRanges(uri: string, positions: lst.Position[]): Promise<lst.SelectionRange[] | null> {
-    const document = this.getTextDocument(uri);
+    const document = this._getTextDocument(uri);
     if (!document) {
       return null;
     }
@@ -1104,6 +1103,26 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
       ?? this.getModel(fileName)?.getValue();
   }
 
+  private _getTextDocument(uri: string): TextDocument | null {
+    const doc = this.getTextDocument(uri);
+    if (doc) {
+      return doc;
+    }
+    if (uri.startsWith("http://") || uri.startsWith("https://")) {
+      const docCache = this._httpDocumentCache;
+      if (docCache.has(uri)) {
+        return docCache.get(uri)!;
+      }
+      const scriptText = this._getScriptText(uri);
+      if (scriptText) {
+        const doc = TextDocument.create(uri, "typescript", 1, scriptText);
+        docCache.set(uri, doc);
+        return doc;
+      }
+    }
+    return null;
+  }
+
   private _markHttpLib(url: string, dtsContent: string): void {
     this._httpLibs.set(url, dtsContent);
     setTimeout(() => {
@@ -1176,7 +1195,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
 
     const result: lst.DiagnosticRelatedInformation[] = [];
     relatedInformation.forEach((info) => {
-      const doc = info.file ? this.getTextDocument(info.file.fileName) : document;
+      const doc = info.file ? this._getTextDocument(info.file.fileName) : document;
       if (!doc) {
         return;
       }
