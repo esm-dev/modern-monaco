@@ -1215,7 +1215,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
 
   private _getJsxImportSource(): string | undefined {
     const { imports } = this._importMap;
-    for (const specifier of ["@jsxRuntime", "react", "preact", "solid-js", "nano-jsx", "vue"]) {
+    for (const specifier of ["@jsxRuntime", "@jsxImportSource", "react", "preact"]) {
       if (specifier in imports) {
         return imports[specifier];
       }
