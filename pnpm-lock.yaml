@@ -21,8 +21,8 @@ importers:
         specifier: 1.17.28
         version: 1.17.28
       tm-themes:
-        specifier: 1.8.6
-        version: 1.8.6
+        specifier: 1.8.7
+        version: 1.8.7
       typescript:
         specifier: 5.6.2
         version: 5.6.2
@@ -147,8 +147,8 @@ packages:
   tm-grammars@1.17.28:
     resolution: {integrity: sha512-pl0XTHnfLGQkRTvt+QgNvDTJJv77KWEi24qNbnh//5awCTXAFuvzk+OJjX/KKKvFE8qRptBgLcEpRQ8gVePECQ==}
 
-  tm-themes@1.8.6:
-    resolution: {integrity: sha512-gl0qBBxWw2tCfHOCy9ash10uxkYakkjyCBUhfnXr1G6Jw+8JxRXlymTBrTgRSx4x+YlyOj0DGU5O9bNUs0PqSw==}
+  tm-themes@1.8.7:
+    resolution: {integrity: sha512-JdABosHlB36PMrF+0VySYnNZRwVAmpaN2NhZPCQjCnWYHkq3NLBKYRepY3B6sgOmvnKOhtk1uxRe4Is5bf3cpg==}
 
   trim-lines@3.0.1:
     resolution: {integrity: sha512-kRj8B+YHZCc9kQYdWfJB2/oUl9rA99qbowYYBtr4ui4mZyAQ2JpvVBd/6U2YloATfqBhBTSMhTpgBHtU0Mf3Rg==}
@@ -330,7 +330,7 @@ snapshots:
 
   tm-grammars@1.17.28: {}
 
-  tm-themes@1.8.6: {}
+  tm-themes@1.8.7: {}
 
   trim-lines@3.0.1: {}
 

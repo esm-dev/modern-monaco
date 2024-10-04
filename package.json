@@ -58,7 +58,7 @@
     "@shikijs/engine-oniguruma": "1.21.0",
     "monaco-editor-core": "0.52.0",
     "tm-grammars": "1.17.28",
-    "tm-themes": "1.8.6",
+    "tm-themes": "1.8.7",
     "typescript": "5.6.2",
     "vscode-css-languageservice": "6.3.1",
     "vscode-html-languageservice": "5.3.1",
