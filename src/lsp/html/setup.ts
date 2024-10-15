@@ -63,7 +63,7 @@ export async function setup(
   languages.registerCodeLensProvider(languageId, {
     provideCodeLenses: (model, _token) => {
       const m = model.findNextMatch(
-        `type=['"]importmap['"]`,
+        `<script\\s[^>]*?type=['"]importmap['"]`,
         { lineNumber: 4, column: 1 },
         true,
         false,
@@ -83,12 +83,11 @@ export async function setup(
           lenses: [
             {
               range: (m2 ?? m).range,
-              id: "search-npm-package",
               command: {
-                id: "search-npm-packages",
+                id: "search-npm-package",
                 title: "$(sparkle-filled) Search packages on NPM",
                 tooltip: "Search packages on NPM",
-                arguments: [model.uri.toString()],
+                arguments: [model],
               },
             },
           ],

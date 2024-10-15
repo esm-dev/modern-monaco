@@ -65,7 +65,7 @@ export async function setup(
 
   // register code lens provider for import maps
   languages.registerCodeLensProvider(languageId, {
-    provideCodeLenses: function(model, token) {
+    provideCodeLenses: function(model, _token) {
       const isImportMap = model.uri.scheme == "file"
         && ["importmap.json", "import_map.json", "import-map.json", "importMap.json"].some((name) => model.uri.path === "/" + name);
       if (isImportMap) {
@@ -74,12 +74,11 @@ export async function setup(
           lenses: [
             {
               range: m2?.range ?? new monaco.Range(1, 1, 1, 1),
-              id: "search-npm-packages",
               command: {
-                id: "search-npm-packages",
+                id: "search-npm-package",
                 title: "$(sparkle-filled) Search packages on NPM",
                 tooltip: "Search packages on NPM",
-                arguments: [model.uri.toString()],
+                arguments: [model],
               },
             },
           ],
@@ -90,7 +89,7 @@ export async function setup(
   });
 
   // register command to search npm modules
-  editor.registerCommand("search-npm-packages", async () => {
+  editor.registerCommand("search-npm-package", async (_accessor: any, model: monacoNS.editor.ITextModel) => {
     const keyword = await monaco.showInputBox({
       placeHolder: "Enter package name, e.g. lodash",
       validateInput: (value) => {
@@ -108,32 +107,29 @@ export async function setup(
       return;
     }
     const editor = monaco.editor.getEditors().filter(e => e.hasWidgetFocus())[0];
-    const model = editor?.getModel();
-    if (model) {
-      const modelPath = model.uri.path;
-      const { imports, scopes } = modelPath.endsWith(".json")
-        ? parseImportMapFromJson(model.getValue())
-        : parseImportMapFromHtml(model.getValue());
-      const specifier = "https://esm.sh/" + pkg.name + "@" + pkg.version;
-      if (imports[pkg.name] === specifier) {
-        return;
-      }
-      imports[pkg.name] = specifier;
-      const json = JSON.stringify({ imports, scopes: Object.keys(scopes).length > 0 ? scopes : undefined }, null, 2);
-      if (modelPath.endsWith(".json")) {
-        const viewState = editor.saveViewState();
-        model.setValue(model.normalizeIndentation(json));
-        editor.restoreViewState(viewState);
-      } else if (modelPath.endsWith(".html")) {
-        const html = model.getValue();
-        const newHtml = html.replace(
-          /<script[^>]*? type="importmap"[^>]*?>[^]*?<\/script>/,
-          ["<script type=\"importmap\">", ...json.split("\n").map((l) => "  " + l), "</script>"].join("\n  "),
-        );
-        const viewState = editor.saveViewState();
-        model.setValue(model.normalizeIndentation(newHtml));
-        editor.restoreViewState(viewState);
-      }
+    const modelPath = model.uri.path;
+    const { imports, scopes } = modelPath.endsWith(".json")
+      ? parseImportMapFromJson(model.getValue())
+      : parseImportMapFromHtml(model.getValue());
+    const specifier = "https://esm.sh/" + pkg.name + "@" + pkg.version;
+    if (imports[pkg.name] === specifier) {
+      return;
+    }
+    imports[pkg.name] = specifier;
+    const json = JSON.stringify({ imports, scopes: Object.keys(scopes).length > 0 ? scopes : undefined }, null, 2);
+    if (modelPath.endsWith(".json")) {
+      const viewState = editor?.saveViewState();
+      model.setValue(model.normalizeIndentation(json));
+      editor?.restoreViewState(viewState);
+    } else if (modelPath.endsWith(".html")) {
+      const html = model.getValue();
+      const newHtml = html.replace(
+        /<script[^>]*? type="importmap"[^>]*?>[^]*?<\/script>/,
+        ["<script type=\"importmap\">", ...json.split("\n").map((l) => "  " + l), "</script>"].join("\n  "),
+      );
+      const viewState = editor?.saveViewState();
+      model.setValue(model.normalizeIndentation(newHtml));
+      editor?.restoreViewState(viewState);
     }
   });
 }
@@ -149,10 +145,9 @@ async function searchPackagesFromNpm(keyword: string, size = 20) {
   }
   const items: (monacoNS.QuickPickItem & { name: string; version: string })[] = new Array(objects.length);
   let len = 0;
-  for (let i = 0; i < objects.length; i++) {
-    const { package: pkg } = objects[i];
+  for (const { package: pkg } of objects) {
     if (!pkg.name.startsWith("@types/")) {
-      items[i] = {
+      items[len] = {
         label: (keyword === pkg.name ? "$(star-empty) " : "") + pkg.name,
         description: pkg.version,
         detail: pkg.description,
