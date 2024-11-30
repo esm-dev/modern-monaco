@@ -16,6 +16,7 @@ export function textmateThemeToMonacoTheme(theme: ThemeRegistrationResolved): Mo
         rules.push({
           token: s,
           foreground: normalizeColor(theme.bg, settings.foreground),
+          fontStyle: settings?.fontStyle,
         });
       }
     }
