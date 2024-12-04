@@ -9,7 +9,7 @@
     "**/*.ts"
   ],
   "plugins": [
-    "https://plugins.dprint.dev/typescript-0.91.8.wasm",
+    "https://plugins.dprint.dev/typescript-0.93.3.wasm",
     "https://plugins.dprint.dev/markdown-0.17.8.wasm"
   ]
 }
