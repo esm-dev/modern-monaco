@@ -41,6 +41,7 @@
   "scripts": {
     "prepublishOnly": "deno run -A --no-lock scripts/build.ts",
     "prepare": "deno run -A --no-lock scripts/patch.ts",
+    "update-language-configurations": "deno run -A --no-lock scripts/update-language-configurations.ts",
     "dev": "deno run -A --no-lock scripts/dev.ts",
     "fmt": "dprint fmt"
   },
@@ -63,7 +64,6 @@
     "vscode-css-languageservice": "6.3.2",
     "vscode-html-languageservice": "5.3.1",
     "vscode-json-languageservice": "5.4.2",
-    "vscode-language-configurations": "1.92.0",
     "vscode-languageserver-textdocument": "1.0.12",
     "vscode-languageserver-types": "3.17.5"
   },

@@ -2,7 +2,7 @@ import type { InputBoxOptions, QuickPickItem, QuickPickOptions } from "monaco-ed
 import { editor, languages, Uri } from "monaco-editor-core";
 import { IQuickInputService } from "monaco-editor-core/esm/vs/platform/quickinput/common/quickInput.js";
 import { StandaloneServices } from "monaco-editor-core/esm/vs/editor/standalone/browser/standaloneServices.js";
-import languageConfigurations from "vscode-language-configurations";
+import languageConfigurations from "../language-configurations.json" with { type: "json" };
 
 const defaultEditorOptions: editor.IStandaloneEditorConstructionOptions = {
   automaticLayout: true,
