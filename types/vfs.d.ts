@@ -47,7 +47,7 @@ export class BasicVFS {
   readTextFile(name: string | URL): Promise<string>;
   writeFile(name: string | URL, content: string | Uint8Array, version?: number): Promise<void>;
   remove(name: string | URL): Promise<void>;
-  watch(name: "*" | string | URL, handler: (evt: VFSEvent) => void): () => void;
+  watch(name: "*" | (string & {}) | URL, handler: (evt: VFSEvent) => void): () => void;
 }
 
 export class VFS extends BasicVFS {

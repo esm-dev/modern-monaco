@@ -90,7 +90,7 @@ export default {
     const ssrOut = renderToWebComponent({
       filename: "main.js",
       code: `console.log("Hello, world!")`,
-      userAgent: req.headers.get("user-agent"), // default font detection for different platforms
+      userAgent: req.headers.get("user-agent"), // detecte default font for different platforms
     });
     return new Response(html`
       ${ssrOut}
@@ -222,9 +222,9 @@ await vfs.writeFile("main.js", `console.log("Hello, world!")`);
 // remove main.js
 await vfs.remove("main.js");
 // watch main.js for changes
-vfs.watch("main.js", (evt) => console.log(`main.js has been ${evt.kind}`));
+const dispose = vfs.watch("main.js", (evt) => console.log(`main.js has been ${evt.kind}`));
 // watch all files for changes
-vfs.watch("*", (evt) => console.log(`${evt.path} has been ${evt.kind}`));
+const dispose = vfs.watch("*", (evt) => console.log(`${evt.path} has been ${evt.kind}`));
 ```
 
 ### Adding `tsconfig.json`
@@ -266,9 +266,9 @@ const indexHtml = html`<!DOCTYPE html>
     </script>
   </head>
   <body>
-  <script type="module">
-    import React from "react";
-  </script>
+    <script type="module">
+      import React from "react";
+    </script>
   </body>
 </html>
 `;

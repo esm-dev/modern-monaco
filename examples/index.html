@@ -349,8 +349,8 @@
     folderButton.addEventListener('click', toggleFolder)
 
     // render button text
-    vfs.history.onChange(renderButtonText)
     renderButtonText(vfs.history.current)
+    vfs.history.onChange(renderButtonText)
 
     // render file list
     vfs.watch('*', (evt) => {

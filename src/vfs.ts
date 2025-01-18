@@ -183,6 +183,9 @@ export class BasicVFS {
     handlers.add(handler);
     return () => {
       handlers!.delete(handler);
+      if (handlers!.size === 0) {
+        this._watchHandlers.delete(url);
+      }
     };
   }
 }
