@@ -55,10 +55,10 @@
   },
   "sideEffects": false,
   "devDependencies": {
-    "@shikijs/core": "1.27.2",
-    "@shikijs/engine-oniguruma": "1.27.2",
+    "@shikijs/core": "2.0.3",
+    "@shikijs/engine-oniguruma": "2.0.3",
     "monaco-editor-core": "0.52.2",
-    "tm-grammars": "1.22.7",
+    "tm-grammars": "1.22.8",
     "tm-themes": "1.9.8",
     "typescript": "5.7.3",
     "vscode-css-languageservice": "6.3.2",
