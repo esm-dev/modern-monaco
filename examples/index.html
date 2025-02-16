@@ -194,6 +194,13 @@
       display: block;
     }
   </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "esm-monaco": "/esm-monaco/index.js"
+      }
+    }
+  </script>
 </head>
 
 <body>
@@ -238,8 +245,8 @@
   </template>
 
   <script type="module">
-    import { lazy } from '/esm-monaco/index.js';
-    import { workspace } from '/workspace.js';
+    import { lazy } from 'esm-monaco';
+    import { workspaceWithBrowserHistory as workspace } from '/workspace.js';
 
     const folderButton = document.querySelector('button.folder')
     const selector = document.querySelector('ul.selector')

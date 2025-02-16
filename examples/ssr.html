@@ -13,17 +13,25 @@
       height: 100vh;
       overflow: hidden;
     }
+
     monaco-editor {
       width: 100%;
       height: 100%;
     }
   </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "esm-monaco": "/esm-monaco/index.js"
+      }
+    }
+  </script>
 </head>
 
 <body>
   {SSR}
   <script type="module">
-    import { hydrate } from '/esm-monaco/index.js';
+    import { hydrate } from 'esm-monaco';
     import { workspace } from '/workspace.js';
     hydrate({ workspace });
   </script>

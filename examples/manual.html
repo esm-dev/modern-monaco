@@ -19,12 +19,19 @@
       height: 100%;
     }
   </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "esm-monaco": "/esm-monaco/index.js"
+      }
+    }
+  </script>
 </head>
 
 <body>
   <div id="editor"></div>
   <script type="module">
-    import { init } from '/esm-monaco/index.js';
+    import { init } from 'esm-monaco';
     import { workspace } from '/workspace.js';
     const monaco = await init({ workspace });
     const editor = monaco.editor.create(document.getElementById("editor"), {

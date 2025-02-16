@@ -1,19 +1,4 @@
-const appTsx = `
-import confetti from \"https://esm.sh/canvas-confetti@1.6.0\";
-import _ from "lodash";
-import { useEffect } from \"react\";
-import { message } from \"./greeting.ts\";
-
-export default function App() {
-  useEffect(() => {
-    confetti();
-    log(message);
-  }, []);
-  return (
-    <h1>{message}</h1>
-  );
-}
-`.trim();
+import { ssr } from "../examples/ssr.js";
 
 async function serveDist(url: URL, req: Request) {
   try {
@@ -58,7 +43,7 @@ async function serveDist(url: URL, req: Request) {
 async function servePages(url: URL, req: Request) {
   const { pathname } = url;
   let filename = "index.html";
-  if (pathname === "/ssr" || pathname === "/lazy" || pathname === "/manual") {
+  if (pathname === "/ssr" || pathname === "/lazy" || pathname === "/manual" || pathname === "/compare") {
     filename = pathname.slice(1) + ".html";
   }
   try {
@@ -66,14 +51,7 @@ async function servePages(url: URL, req: Request) {
     let body = (await Deno.open(fileUrl)).readable;
     if (filename === "ssr.html") {
       let replaced = false;
-      const murl = "../dist/ssr/index.js";
-      const { renderToWebComponent } = await import(murl);
-      const ssrOutput = await renderToWebComponent({
-        filename: "src/App.tsx",
-        code: appTsx,
-        padding: { top: 8, bottom: 8 },
-        userAgent: req.headers.get("user-agent"),
-      });
+      const ssrOutput = await ssr(req, "src/App.tsx");
       body = body.pipeThrough(
         new TransformStream({
           transform: (chunk, controller) => {
@@ -129,16 +107,13 @@ const cmd = new Deno.Command(Deno.execPath(), {
 });
 cmd.spawn();
 
-const workspaceJS = await Deno.readTextFile(new URL("../examples/workspace.js", import.meta.url)).then((text) => {
-  return text.replace("$APP_TSX", JSON.stringify(appTsx));
-});
-
 Deno.serve(async (req) => {
   let url = new URL(req.url);
   let pathname = url.pathname;
-  if (pathname === "/workspace.js") {
+  if (pathname === "/workspace.js" || pathname === "/shared.js") {
+    const file = await Deno.open(new URL("../examples" + pathname, import.meta.url));
     return new Response(
-      workspaceJS,
+      file.readable,
       {
         headers: {
           "content-type": "application/javascript; charset=utf-8",
