@@ -1,4 +1,4 @@
-import { ssr } from "../examples/js/ssr.js";
+import ssr from "../examples/js/ssr.js";
 
 async function serveDist(url: URL, req: Request) {
   try {
@@ -48,38 +48,15 @@ async function servePages(url: URL, req: Request) {
   }
   try {
     const fileUrl = new URL("../examples/" + filename, import.meta.url);
-    let body = (await Deno.open(fileUrl)).readable;
     if (filename === "ssr.html") {
-      let replaced = false;
-      const ssrOutput = await ssr(req, "src/App.tsx");
-      body = body.pipeThrough(
-        new TransformStream({
-          transform: (chunk, controller) => {
-            if (replaced) {
-              controller.enqueue(chunk);
-              return;
-            }
-            const text = new TextDecoder().decode(chunk);
-            const searchExpr = /\{SSR}/;
-            const m = text.match(searchExpr);
-            if (m) {
-              controller.enqueue(new TextEncoder().encode(
-                text.replace(searchExpr, ssrOutput),
-              ));
-              replaced = true;
-            } else {
-              controller.enqueue(chunk);
-            }
-          },
-        }),
-      );
+      return ssr.fetch(req);
     }
     const headers = new Headers({
       "transfer-encoding": "chunked",
       "cache-control": "public, max-age=0, revalidate",
       "content-type": getContentType(fileUrl.pathname),
     });
-    return new Response(body, { headers });
+    return new Response((await Deno.open(fileUrl)).readable, { headers });
   } catch (e: any) {
     if (e instanceof Deno.errors.NotFound) {
       return new Response("Not found", { status: 404 });
@@ -110,8 +87,8 @@ cmd.spawn();
 Deno.serve(async (req) => {
   let url = new URL(req.url);
   let pathname = url.pathname;
-  if (pathname === "/workspace.js" || pathname === "/files.js") {
-    const file = await Deno.open(new URL("../examples/js" + pathname, import.meta.url));
+  if (pathname.startsWith("/js/")) {
+    const file = await Deno.open(new URL("../examples" + pathname, import.meta.url));
     return new Response(
       file.readable,
       {
