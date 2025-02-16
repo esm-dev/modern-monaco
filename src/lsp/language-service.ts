@@ -326,26 +326,12 @@ export class CompletionAdapter<T extends ILanguageWorkerWithCompletions> impleme
     item: Monaco.languages.CompletionItem & { data?: any },
     token: Monaco.CancellationToken,
   ): Promise<Monaco.languages.CompletionItem | undefined> {
-    if (item.data?.context) {
-      const { languageId } = item.data.context;
-      const worker = registry.get(languageId);
-      if (worker) {
-        const workerProxy = await lspRequest<ILanguageWorkerWithCompletions>(() => worker.withSyncedResources([]), token);
-        const details = await lspRequest(() => workerProxy?.doResolveCompletionItem?.(item as unknown as lst.CompletionItem), token);
-        if (details) {
-          item.detail = details.detail;
-          item.documentation = details.documentation;
-          item.additionalTextEdits = details.additionalTextEdits?.map(convertTextEdit);
-        }
-      }
-    } else {
-      const worker = await lspRequest(() => this._worker.withSyncedResources([]), token);
-      const details = await lspRequest(() => worker?.doResolveCompletionItem?.(item as unknown as lst.CompletionItem), token);
-      if (details) {
-        item.detail = details.detail;
-        item.documentation = details.documentation;
-        item.additionalTextEdits = details.additionalTextEdits?.map(convertTextEdit);
-      }
+    const workerProxy = await lspRequest(() => this._worker.withSyncedResources([]), token);
+    const details = await lspRequest(() => workerProxy?.doResolveCompletionItem?.(item as unknown as lst.CompletionItem), token);
+    if (details) {
+      item.detail = details.detail;
+      item.documentation = details.documentation;
+      item.additionalTextEdits = details.additionalTextEdits?.map(convertTextEdit);
     }
     return item;
   }
