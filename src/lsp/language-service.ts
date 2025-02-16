@@ -1407,7 +1407,7 @@ export function attachEmbeddedLanguages<T extends ILanguageWorkerWithEmbeddedSup
 }
 
 export function createWorkerWithEmbeddedLanguages<T extends ILanguageWorkerWithEmbeddedSupport>(
-  masterWorker: Monaco.editor.MonacoWebWorker<T>,
+  mainWorker: Monaco.editor.MonacoWebWorker<T>,
 ): Monaco.editor.MonacoWebWorker<T> {
   const redirectLSPRequest = async (rsl: string, method: string, uri: string, ...args: any[]) => {
     const langaugeId = normalizeLanguageId(rsl);
@@ -1420,7 +1420,7 @@ export function createWorkerWithEmbeddedLanguages<T extends ILanguageWorkerWithE
   };
   return {
     withSyncedResources: async (resources: Monaco.Uri[]) => {
-      const workerProxy = await masterWorker.withSyncedResources(resources);
+      const workerProxy = await mainWorker.withSyncedResources(resources);
       return new Proxy(workerProxy, {
         get(target, prop, receiver) {
           const value: any = Reflect.get(target, prop, receiver);
@@ -1448,12 +1448,8 @@ export function createWorkerWithEmbeddedLanguages<T extends ILanguageWorkerWithE
         },
       });
     },
-    dispose: () => {
-      masterWorker.dispose();
-    },
-    getProxy: () => {
-      throw new Error("Method not implemented.");
-    },
+    dispose: () => mainWorker.dispose(),
+    getProxy: () => mainWorker.getProxy(),
   };
 }
 
