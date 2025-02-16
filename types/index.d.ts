@@ -1,7 +1,7 @@
 import type monacoNS from "./monaco.d.ts";
 import type { LSPConfig } from "./lsp.d.ts";
 import type { TextmateGrammarName, TextmateThemeName } from "./textmate.d.ts";
-import type { VFS } from "./vfs.d.ts";
+import type { Workspace } from "./workspace.d.ts";
 
 type Awaitable<T> = T | Promise<T>;
 type MaybeGetter<T> = Awaitable<MaybeModule<T>> | (() => Awaitable<MaybeModule<T>>);
@@ -33,14 +33,15 @@ export interface InitOptions extends ShikiInitOptions {
   /**
    * Virtual file system to be used by the editor.
    */
-  vfs?: VFS;
+  workspace?: Workspace;
   /**
    * Language server protocol configuration.
    */
   lsp?: LSPConfig;
 }
 
-export function init(options?: Omit<InitOptions, "vfs">): Promise<typeof monacoNS>;
+export function init(options?: InitOptions): Promise<typeof monacoNS>;
 export function lazy(options?: InitOptions): void;
 export function hydrate(options?: InitOptions): void;
-export { VFS, VFSBrowserHistory } from "./vfs";
+
+export { Workspace };

@@ -1,6 +1,6 @@
 import type monacoNS from "monaco-editor-core";
 import type { FormattingOptions } from "vscode-languageserver-types";
-import type { VFS } from "~/vfs.ts";
+import type { Workspace } from "~/workspace.ts";
 import type { CreateData, HTMLWorker } from "./worker.ts";
 
 // ! external modules, don't remove the `.js` extension
@@ -9,9 +9,9 @@ import * as ls from "../language-service.js";
 export async function setup(
   monaco: typeof monacoNS,
   languageId: string,
+  workspace?: Workspace,
   languageSettings?: Record<string, unknown>,
   formattingOptions?: FormattingOptions,
-  vfs?: VFS,
 ) {
   const { editor, languages } = monaco;
   const { tabSize, insertSpaces, insertFinalNewline, trimFinalNewlines } = formattingOptions ?? {};
@@ -41,20 +41,19 @@ export async function setup(
         ? { custom: { version: 1.1, tags: languageSettings.customTags as any } }
         : undefined,
     },
-    vfs: await ls.createWorkerVFS(vfs),
   };
   const htmlWorker = editor.createWebWorker<HTMLWorker>({
     moduleId: "lsp/html/worker",
     label: languageId,
     createData,
-    host: ls.createHost(vfs),
+    host: ls.createHost(workspace),
   });
   const workerWithEmbeddedLanguages = ls.createWorkerWithEmbeddedLanguages(htmlWorker);
 
   // set monacoNS and register language features
   ls.setup(monaco);
   ls.attachEmbeddedLanguages(languageId, workerWithEmbeddedLanguages, ["css", "javascript", "importmap"]);
-  ls.enableBasicFeatures(languageId, workerWithEmbeddedLanguages, ["<", "/", "=", "\""], vfs);
+  ls.enableBasicFeatures(languageId, workerWithEmbeddedLanguages, ["<", "/", "=", "\""], workspace);
   ls.enableAutoComplete(languageId, workerWithEmbeddedLanguages, [">", "/", "="]);
   ls.enableColorPresentation(languageId, workerWithEmbeddedLanguages); // css color presentation
   ls.enableDocumentLinks(languageId, workerWithEmbeddedLanguages);

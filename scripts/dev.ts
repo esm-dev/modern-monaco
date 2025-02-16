@@ -1,6 +1,6 @@
 const appTsx = `
 import confetti from \"https://esm.sh/canvas-confetti@1.6.0\";
-import _ from "loadsh";
+import _ from "lodash";
 import { useEffect } from \"react\";
 import { message } from \"./greeting.ts\";
 
@@ -47,7 +47,7 @@ async function serveDist(url: URL, req: Request) {
       "content-type": getContentType(fileUrl.pathname),
     });
     return new Response(body, { headers });
-  } catch (e) {
+  } catch (e: any) {
     if (e instanceof Deno.errors.NotFound) {
       return new Response("Not found", { status: 404 });
     }
@@ -69,7 +69,7 @@ async function servePages(url: URL, req: Request) {
       const murl = "../dist/ssr/index.js";
       const { renderToWebComponent } = await import(murl);
       const ssrOutput = await renderToWebComponent({
-        filename: "App.tsx",
+        filename: "src/App.tsx",
         code: appTsx,
         padding: { top: 8, bottom: 8 },
         userAgent: req.headers.get("user-agent"),
@@ -102,7 +102,7 @@ async function servePages(url: URL, req: Request) {
       "content-type": getContentType(fileUrl.pathname),
     });
     return new Response(body, { headers });
-  } catch (e) {
+  } catch (e: any) {
     if (e instanceof Deno.errors.NotFound) {
       return new Response("Not found", { status: 404 });
     }
@@ -129,16 +129,16 @@ const cmd = new Deno.Command(Deno.execPath(), {
 });
 cmd.spawn();
 
-const vfsJs = await Deno.readTextFile(new URL("../examples/vfs.js", import.meta.url)).then((text) => {
+const workspaceJS = await Deno.readTextFile(new URL("../examples/workspace.js", import.meta.url)).then((text) => {
   return text.replace("$APP_TSX", JSON.stringify(appTsx));
 });
 
 Deno.serve(async (req) => {
   let url = new URL(req.url);
   let pathname = url.pathname;
-  if (pathname === "/vfs.js") {
+  if (pathname === "/workspace.js") {
     return new Response(
-      vfsJs,
+      workspaceJS,
       {
         headers: {
           "content-type": "application/javascript; charset=utf-8",

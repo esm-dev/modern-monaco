@@ -9,20 +9,20 @@ importers:
   .:
     devDependencies:
       '@shikijs/core':
-        specifier: 2.1.0
-        version: 2.1.0
+        specifier: 2.4.1
+        version: 2.4.1
       '@shikijs/engine-oniguruma':
-        specifier: 2.1.0
-        version: 2.1.0
+        specifier: 2.4.1
+        version: 2.4.1
       monaco-editor-core:
         specifier: 0.52.2
         version: 0.52.2
       tm-grammars:
-        specifier: 1.22.10
-        version: 1.22.10
+        specifier: 1.22.14
+        version: 1.22.14
       tm-themes:
-        specifier: 1.9.8
-        version: 1.9.8
+        specifier: 1.9.12
+        version: 1.9.12
       typescript:
         specifier: 5.7.3
         version: 5.7.3
@@ -44,20 +44,20 @@ importers:
 
 packages:
 
-  '@shikijs/core@2.1.0':
-    resolution: {integrity: sha512-v795KDmvs+4oV0XD05YLzfDMe9ISBgNjtFxP4PAEv5DqyeghO1/TwDqs9ca5/E6fuO95IcAcWqR6cCX9TnqLZA==}
+  '@shikijs/core@2.4.1':
+    resolution: {integrity: sha512-c7AkRsCpSVjKHsTwuvRVMEAdADq4Z1KoodcS4LaIqMzBTM0+Q572VRk1PIxtzaMtdiHlRPO6mH5iPdJoTV59mQ==}
 
-  '@shikijs/engine-javascript@2.1.0':
-    resolution: {integrity: sha512-cgIUdAliOsoaa0rJz/z+jvhrpRd+fVAoixVFEVxUq5FA+tHgBZAIfVJSgJNVRj2hs/wZ1+4hMe82eKAThVh0nQ==}
+  '@shikijs/engine-javascript@2.4.1':
+    resolution: {integrity: sha512-2DnVilsUCgA81lnxt67dEZf2C6hdRzDYIs7yG33yWQIjljAxlXi3MKt7n0BXKr6uT5sZ0JdtX/+Pq2FN31YVdQ==}
 
-  '@shikijs/engine-oniguruma@2.1.0':
-    resolution: {integrity: sha512-Ujik33wEDqgqY2WpjRDUBECGcKPv3eGGkoXPujIXvokLaRmGky8NisSk8lHUGeSFxo/Cz5sgFej9sJmA9yeepg==}
+  '@shikijs/engine-oniguruma@2.4.1':
+    resolution: {integrity: sha512-PvN76WM2HjmSbNQmLl8Jzm3h8Hsf/g9kKs3jPWKD6uMpCfk+M3HalWONz85zQF4lqrI3lamMTV5pHcOVSswpqg==}
 
-  '@shikijs/types@2.1.0':
-    resolution: {integrity: sha512-OFOdHA6VEVbiQvepJ8yqicC6VmBrKxFFhM2EsHHrZESqLVAXOSeRDiuSYV185lIgp15TVic5vYBYNhTsk1xHLg==}
+  '@shikijs/types@2.4.1':
+    resolution: {integrity: sha512-fE73tqCjiHIDUq7SYU8i4d9TyOcJh2u2J8aQGqQs0KkFg6FbBEQoDiBASMM5Vxqag1VS58y+MHLBuSQmwtB4Og==}
 
-  '@shikijs/vscode-textmate@10.0.1':
-    resolution: {integrity: sha512-fTIQwLF+Qhuws31iw7Ncl1R3HUDtGwIipiJ9iU+UsDUwMhegFcQKQHd51nZjb7CArq0MvON8rbgCGQYWHUKAdg==}
+  '@shikijs/vscode-textmate@10.0.2':
+    resolution: {integrity: sha512-83yeghZ2xxin3Nj8z1NMd/NCuca+gsYXswywDy5bHvwlWL8tpTQmzGeUuHd9FC3E/SBEMvzJRwWEOz5gGes9Qg==}
 
   '@types/hast@3.0.4':
     resolution: {integrity: sha512-WPs+bbQw5aCj+x6laNGWLH3wviHtoCv/P3+otBhbOhJgG8qtpdAMlTCxLtsTWA7LH1Oh/bFCHsBn0TPS5m30EQ==}
@@ -129,20 +129,20 @@ packages:
   monaco-editor-core@0.52.2:
     resolution: {integrity: sha512-5TOyTUymNx7jB24TGP4Qs5UEVrntDKSMzDUvW3ADaI1CFRO1t7FPhbT2u4m3iIKZf85zTM+mkCxiUSgj+v/YtA==}
 
-  oniguruma-to-es@2.3.0:
-    resolution: {integrity: sha512-bwALDxriqfKGfUufKGGepCzu9x7nJQuoRoAFp4AnwehhC2crqrDIAP/uN2qdlsAvSMpeRC3+Yzhqc7hLmle5+g==}
+  oniguruma-to-es@3.1.0:
+    resolution: {integrity: sha512-BJ3Jy22YlgejHSO7Fvmz1kKazlaPmRSUH+4adTDUS/dKQ4wLxI+gALZ8updbaux7/m7fIlpgOZ5fp/Inq5jUAw==}
 
   property-information@6.5.0:
     resolution: {integrity: sha512-PgTgs/BlvHxOu8QuEN7wi5A0OmXaBcHpmCSTehcs6Uuu9IkDIEo13Hy7n898RHfrQ49vKCoGeWZSaAK01nwVig==}
 
-  regex-recursion@5.1.1:
-    resolution: {integrity: sha512-ae7SBCbzVNrIjgSbh7wMznPcQel1DNlDtzensnFxpiNpXt1U2ju/bHugH422r+4LAVS1FpW1YCwilmnNsjum9w==}
+  regex-recursion@6.0.2:
+    resolution: {integrity: sha512-0YCaSCq2VRIebiaUviZNs0cBz1kg5kVS2UKUfNIx8YVs1cN3AV7NTctO5FOKBA+UT2BPJIWZauYHPqJODG50cg==}
 
   regex-utilities@2.3.0:
     resolution: {integrity: sha512-8VhliFJAWRaUiVvREIiW2NXXTmHs4vMNnSzuJVhscgmGav3g9VDxLrQndI3dZZVVdp0ZO/5v0xmX516/7M9cng==}
 
-  regex@5.1.1:
-    resolution: {integrity: sha512-dN5I359AVGPnwzJm2jN1k0W9LPZ+ePvoOeVMMfqIMFz53sSwXkxaJoxr50ptnsC771lK95BnTrVSZxq0b9yCGw==}
+  regex@6.0.1:
+    resolution: {integrity: sha512-uorlqlzAKjKQZ5P+kTJr3eeJGSVroLKoHmquUj4zHWuR+hEyNqlXsSKlYYF5F4NI6nl7tWCs0apKJ0lmfsXAPA==}
 
   space-separated-tokens@2.0.2:
     resolution: {integrity: sha512-PEGlAwrG8yXGXRjW32fGbg66JAlOAwbObuqVoJpv/mRgoWDQfgH1wDPvtzWyUSNAXBGSk8h755YDbbcEy3SH2Q==}
@@ -150,11 +150,11 @@ packages:
   stringify-entities@4.0.4:
     resolution: {integrity: sha512-IwfBptatlO+QCJUo19AqvrPNqlVMpW9YEL2LIVY+Rpv2qsjCGxaDLNRgeGsQWJhfItebuJhsGSLjaBbNSQ+ieg==}
 
-  tm-grammars@1.22.10:
-    resolution: {integrity: sha512-NCCAb30TjezKvh3Aw3faAJ2DlvFCdu7+NAa5yUl5trn8MaD6XX5MfiLCx7Po2Ccu/UgzxximAiaPDBX2dLpo/Q==}
+  tm-grammars@1.22.14:
+    resolution: {integrity: sha512-QGXOQg289A4Q0YMT3ResGMRzMVB4he1QhhfMsFk2oBN3BL27DBctJr6ak9gZ8x4NNnVDqx0aXaS3bxYI1R4u+A==}
 
-  tm-themes@1.9.8:
-    resolution: {integrity: sha512-XbsuHkBCRBAt/MYXYFDHLfBH70SHa55TwJ50Qsw5UE6w9s12RDNNFyA3wkljkJw/LTG1F672QaO3BOMcIGBfJQ==}
+  tm-themes@1.9.12:
+    resolution: {integrity: sha512-c90H53yHLrWtbNqOSVEBsvCrosfOg3AYAuIA5mi/alVvUiasQ0ARSXKlo+a0/oVAWxKGkzuWrCTUSUyvxkEnnA==}
 
   trim-lines@3.0.1:
     resolution: {integrity: sha512-kRj8B+YHZCc9kQYdWfJB2/oUl9rA99qbowYYBtr4ui4mZyAQ2JpvVBd/6U2YloATfqBhBTSMhTpgBHtU0Mf3Rg==}
@@ -208,32 +208,32 @@ packages:
 
 snapshots:
 
-  '@shikijs/core@2.1.0':
+  '@shikijs/core@2.4.1':
     dependencies:
-      '@shikijs/engine-javascript': 2.1.0
-      '@shikijs/engine-oniguruma': 2.1.0
-      '@shikijs/types': 2.1.0
-      '@shikijs/vscode-textmate': 10.0.1
+      '@shikijs/engine-javascript': 2.4.1
+      '@shikijs/engine-oniguruma': 2.4.1
+      '@shikijs/types': 2.4.1
+      '@shikijs/vscode-textmate': 10.0.2
       '@types/hast': 3.0.4
       hast-util-to-html: 9.0.4
 
-  '@shikijs/engine-javascript@2.1.0':
+  '@shikijs/engine-javascript@2.4.1':
     dependencies:
-      '@shikijs/types': 2.1.0
-      '@shikijs/vscode-textmate': 10.0.1
-      oniguruma-to-es: 2.3.0
+      '@shikijs/types': 2.4.1
+      '@shikijs/vscode-textmate': 10.0.2
+      oniguruma-to-es: 3.1.0
 
-  '@shikijs/engine-oniguruma@2.1.0':
+  '@shikijs/engine-oniguruma@2.4.1':
     dependencies:
-      '@shikijs/types': 2.1.0
-      '@shikijs/vscode-textmate': 10.0.1
+      '@shikijs/types': 2.4.1
+      '@shikijs/vscode-textmate': 10.0.2
 
-  '@shikijs/types@2.1.0':
+  '@shikijs/types@2.4.1':
     dependencies:
-      '@shikijs/vscode-textmate': 10.0.1
+      '@shikijs/vscode-textmate': 10.0.2
       '@types/hast': 3.0.4
 
-  '@shikijs/vscode-textmate@10.0.1': {}
+  '@shikijs/vscode-textmate@10.0.2': {}
 
   '@types/hast@3.0.4':
     dependencies:
@@ -318,22 +318,21 @@ snapshots:
 
   monaco-editor-core@0.52.2: {}
 
-  oniguruma-to-es@2.3.0:
+  oniguruma-to-es@3.1.0:
     dependencies:
       emoji-regex-xs: 1.0.0
-      regex: 5.1.1
-      regex-recursion: 5.1.1
+      regex: 6.0.1
+      regex-recursion: 6.0.2
 
   property-information@6.5.0: {}
 
-  regex-recursion@5.1.1:
+  regex-recursion@6.0.2:
     dependencies:
-      regex: 5.1.1
       regex-utilities: 2.3.0
 
   regex-utilities@2.3.0: {}
 
-  regex@5.1.1:
+  regex@6.0.1:
     dependencies:
       regex-utilities: 2.3.0
 
@@ -344,9 +343,9 @@ snapshots:
       character-entities-html4: 2.1.0
       character-entities-legacy: 3.0.0
 
-  tm-grammars@1.22.10: {}
+  tm-grammars@1.22.14: {}
 
-  tm-themes@1.9.8: {}
+  tm-themes@1.9.12: {}
 
   trim-lines@3.0.1: {}
 

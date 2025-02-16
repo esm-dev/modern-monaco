@@ -1,5 +1,4 @@
 import type { HighlighterCore, LanguageInput, RegexEngine, ThemeInput } from "@shikijs/core";
-import type { VFS } from "./vfs.ts";
 import { createHighlighterCore } from "@shikijs/core";
 import { createOnigurumaEngine, getDefaultWasmLoader, setDefaultWasmLoader } from "@shikijs/engine-oniguruma";
 import { version as tmGrammarsVersion } from "../node_modules/tm-grammars/package.json";
@@ -122,26 +121,6 @@ export function getGarmmarInfoFromPath(path: string): {
 export function getLanguageIdFromPath(path: string): string | undefined {
   return getGarmmarInfoFromPath(path)?.name;
 }
-
-/** Get all grammar IDs in the given VFS. */
-export const getLanguageIdsInVFS = async (vfs: VFS) => {
-  const grammars = new Set<string>();
-  try {
-    const list = await vfs.ls();
-    for (const path of list) {
-      const g = getGarmmarInfoFromPath(path);
-      if (g) {
-        grammars.add(g.name);
-        if (g.embedded) {
-          g.embedded.forEach((id) => grammars.add(id));
-        }
-      }
-    }
-  } catch {
-    // ignore vfs error
-  }
-  return Array.from(grammars);
-};
 
 export * from "./render.ts";
 export * from "./shiki-monaco.ts";

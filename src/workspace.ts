@@ -1,0 +1,671 @@
+import type monacoNS from "monaco-editor-core";
+import type {
+  FileStat,
+  FileSystem,
+  FileSystemWatchHandle,
+  Workspace as IWorkspace,
+  WorkspaceHistory,
+  WorkspaceHistoryState,
+  WorkspaceInit,
+  WorkspaceViewState,
+} from "../types/workspace.d.ts";
+
+// ! external modules, don't remove the `.js` extension
+import {
+  createPersistStateStorage,
+  createPersistTask,
+  decode,
+  encode,
+  filenameToURL,
+  openIDB,
+  openIDBCursor,
+  promiseWithResolvers,
+  promisifyIDBRequest,
+  supportLocalStorage,
+  toURL,
+} from "./util.js";
+
+/** class Workspace implements IWorkspace */
+export class Workspace implements IWorkspace {
+  private _monaco: { promise: Promise<typeof monacoNS>; resolve: (value: typeof monacoNS) => void; reject: (reason: any) => void };
+  private _history: WorkspaceHistory;
+  private _fs: FS;
+  private _viewState: WorkspaceViewState;
+  private _entryFile?: string;
+
+  constructor(options: WorkspaceInit = {}) {
+    const { name = "default", browserHistory, initialFiles, entryFile } = options;
+    const db = new WorkspaceDatabase(
+      name,
+      {
+        name: "fs/meta",
+        keyPath: "url",
+        onCreate: async (store) => {
+          if (initialFiles) {
+            const promises: Promise<void>[] = [];
+            const now = Date.now();
+            const reg: FileStat = { type: 1, version: 1, ctime: now, mtime: now, size: 0 };
+            const dir: FileStat = { type: 2, version: 1, ctime: now, mtime: now, size: 0 };
+            for (const [name, data] of Object.entries(initialFiles)) {
+              const { pathname, href: url } = filenameToURL(name);
+              let parent = pathname.slice(0, pathname.lastIndexOf("/"));
+              while (parent) {
+                promises.push(
+                  promisifyIDBRequest(
+                    store.put({ url: toURL(parent).href, ...dir }),
+                  ),
+                );
+                parent = parent.slice(0, parent.lastIndexOf("/"));
+              }
+              promises.push(
+                promisifyIDBRequest(
+                  store.put({ url, ...reg, size: encode(data).byteLength }),
+                ),
+              );
+            }
+            await Promise.all(promises);
+          }
+        },
+      },
+      {
+        name: "fs/blobs",
+        keyPath: "url",
+        onCreate: async (store) => {
+          if (initialFiles) {
+            const promises: Promise<void>[] = [];
+            for (const [name, data] of Object.entries(initialFiles)) {
+              promises.push(
+                promisifyIDBRequest(
+                  store.put({ url: filenameToURL(name).href, content: encode(data) }),
+                ),
+              );
+            }
+            await Promise.all(promises);
+          }
+        },
+      },
+      {
+        name: "viewState",
+        keyPath: "url",
+      },
+    );
+
+    this._monaco = promiseWithResolvers();
+    this._fs = new FS(db);
+    this._viewState = new WorkspaceStateStorage<monacoNS.editor.ICodeEditorViewState>(db, "viewState");
+    this._entryFile = entryFile;
+
+    if (browserHistory) {
+      if (!globalThis.history) {
+        throw new Error("Browser history is not supported.");
+      }
+      this._history = new BrowserHistory(browserHistory === true ? "/" : browserHistory.basePath);
+    } else {
+      this._history = new LocalStorageHistory(name);
+    }
+  }
+
+  init(monaco: typeof monacoNS) {
+    this._monaco.resolve(monaco);
+  }
+
+  get entryFile() {
+    return this._entryFile;
+  }
+
+  get fs() {
+    return this._fs;
+  }
+
+  get history() {
+    return this._history;
+  }
+
+  get viewState() {
+    return this._viewState;
+  }
+
+  async openTextDocument(uri: string | URL, content?: string): Promise<monacoNS.editor.ITextModel> {
+    const monaco = await this._monaco.promise;
+    return this._openTextDocument(uri, monaco.editor.getEditors()[0]);
+  }
+
+  // @internal
+  async _openTextDocument(
+    uri: string | URL,
+    editor?: monacoNS.editor.ICodeEditor,
+    selectionOrPosition?: monacoNS.IRange | monacoNS.IPosition,
+  ): Promise<monacoNS.editor.ITextModel> {
+    const monaco = await this._monaco.promise;
+    const fs = this._fs;
+    const url = toURL(uri);
+    const href = url.href;
+    const content = await fs.readTextFile(href);
+    const viewState = await this.viewState.get(href);
+    const model = monaco.editor.getModel(monaco.Uri.parse(href))
+      ?? monaco.editor.createModel(content, undefined, monaco.Uri.parse(href));
+    if (!Reflect.has(model, "__OB__")) {
+      const persist = createPersistTask(() => fs.writeFile(href, model.getValue(), { notify: false }));
+      const disposable = model.onDidChangeContent(persist);
+      const unwatch = fs.watch(href, (kind) => {
+        if (kind === "modify") {
+          fs.readTextFile(href).then((content) => {
+            if (model.getValue() !== content) {
+              model.setValue(content);
+              model.pushStackElement();
+            }
+          });
+        }
+      });
+      model.onWillDispose(() => {
+        Reflect.deleteProperty(model, "__OB__");
+        disposable.dispose();
+        unwatch();
+      });
+      Reflect.set(model, "__OB__", true);
+    }
+    if (editor) {
+      editor.setModel(model);
+      editor.updateOptions({ readOnly: false });
+      if (selectionOrPosition) {
+        if ("startLineNumber" in selectionOrPosition) {
+          editor.setSelection(selectionOrPosition);
+        } else {
+          editor.setPosition(selectionOrPosition);
+        }
+        const pos = editor.getPosition();
+        if (pos) {
+          const svp = editor.getScrolledVisiblePosition(new monaco.Position(pos.lineNumber - 7, pos.column));
+          if (svp) {
+            editor.setScrollTop(svp.top);
+          }
+        }
+      } else {
+        if (viewState) {
+          editor.restoreViewState(viewState);
+        }
+      }
+      if (this._history.state.current !== href) {
+        this._history.push(href);
+      }
+    }
+    return model;
+  }
+
+  async showInputBox(options: monacoNS.InputBoxOptions, token: monacoNS.CancellationToken) {
+    const monaco = await this._monaco.promise;
+    return monaco.showInputBox(options, token);
+  }
+
+  async showQuickPick(items: any, options: any, token: monacoNS.CancellationToken) {
+    const monaco = await this._monaco.promise;
+    return monaco.showQuickPick(items, options, token) as any;
+  }
+}
+
+type FileSystemWatcher = {
+  url: string;
+  recursive?: boolean;
+  handle: (kind: "create" | "modify" | "remove", filename: string, type?: number) => void;
+};
+
+/** workspace file system using IndexedDB. */
+class FS implements FileSystem {
+  private _watchers = new Set<FileSystemWatcher>();
+
+  constructor(private _db: WorkspaceDatabase) {}
+
+  private async _getIdbObjectStore(storeName: string, readwrite = false): Promise<IDBObjectStore> {
+    const db = await this._db.open();
+    return db.transaction(storeName, readwrite ? "readwrite" : "readonly").objectStore(storeName);
+  }
+
+  private async _getIdbObjectStores(readwrite = false): Promise<[IDBObjectStore, IDBObjectStore]> {
+    const transaction = (await this._db.open()).transaction(["fs/meta", "fs/blobs"], readwrite ? "readwrite" : "readonly");
+    return [transaction.objectStore("fs/meta"), transaction.objectStore("fs/blobs")];
+  }
+
+  // @internal
+  async entries(): Promise<[string, number][]> {
+    const entries: [string, number][] = [];
+    const metaStore = await this._getIdbObjectStore("fs/meta");
+    const items = await promisifyIDBRequest<Array<{ url: string } & FileStat>>(metaStore.getAll());
+    for (const item of items) {
+      entries.push([item.url, item.type]);
+    }
+    return entries;
+  }
+
+  async stat(name: string): Promise<FileStat> {
+    const url = filenameToURL(name).href;
+    if (url === "file:///") {
+      return { type: 2, version: 1, ctime: 0, mtime: 0, size: 0 };
+    }
+    const metaStore = await this._getIdbObjectStore("fs/meta");
+    const stat = await promisifyIDBRequest<FileStat | undefined>(metaStore.get(url));
+    if (!stat) {
+      throw new ErrorNotFound(url);
+    }
+    return stat;
+  }
+
+  async createDirectory(name: string): Promise<void> {
+    const now = Date.now();
+    const { pathname, href: url } = filenameToURL(name);
+    const metaStore = await this._getIdbObjectStore("fs/meta", true);
+    const promises: Promise<void>[] = [];
+    // ensure parent directories exist
+    let parent = pathname.slice(0, pathname.lastIndexOf("/"));
+    while (parent) {
+      try {
+        const stat: FileStat = { type: 2, version: 1, ctime: now, mtime: now, size: 0 };
+        promises.push(promisifyIDBRequest(metaStore.add({ url: filenameToURL(parent).href, ...stat })));
+      } catch (error) {
+        if (error.name !== "ConstraintError") {
+          throw error;
+        }
+      }
+      parent = parent.slice(0, parent.lastIndexOf("/"));
+    }
+    try {
+      const stat: FileStat = { type: 2, version: 1, ctime: now, mtime: now, size: 0 };
+      promises.push(promisifyIDBRequest(metaStore.add({ url, ...stat })));
+    } catch (error) {
+      if (error.name !== "ConstraintError") {
+        throw error;
+      }
+    }
+    await Promise.all(promises);
+  }
+
+  async readDirectory(name: string): Promise<[string, number][]> {
+    const { pathname } = filenameToURL(name);
+    const stat = await this.stat(name);
+    if (stat.type !== 2) {
+      throw new Error(`read ${pathname}: not a directory`);
+    }
+    const metaStore = await this._getIdbObjectStore("fs/meta");
+    const entries: [string, number][] = [];
+    const dir = "file://" + pathname + (pathname.endsWith("/") ? "" : "/");
+    await openIDBCursor(metaStore, IDBKeyRange.lowerBound(dir, true), (cursor) => {
+      const stat = cursor.value;
+      if (stat.url.startsWith(dir)) {
+        const name = stat.url.slice(dir.length);
+        if (name !== "" && name.indexOf("/") === -1) {
+          entries.push([name, stat.type]);
+        }
+        return true;
+      }
+      return false;
+    });
+    return entries;
+  }
+
+  async readFile(name: string): Promise<Uint8Array> {
+    const url = filenameToURL(name).href;
+    const blobStore = await this._getIdbObjectStore("fs/blobs");
+    const file = await promisifyIDBRequest<{ content: Uint8Array }>(blobStore.get(url));
+    if (!file) {
+      throw new ErrorNotFound(url);
+    }
+    return file.content;
+  }
+
+  async readTextFile(filename: string): Promise<string> {
+    return this.readFile(filename).then(decode);
+  }
+
+  async writeFile(name: string, content: string | Uint8Array, options?: { notify: boolean }): Promise<void> {
+    const { pathname, href: url } = filenameToURL(name);
+    const dir = pathname.slice(0, pathname.lastIndexOf("/"));
+    if (dir) {
+      try {
+        if ((await this.stat(dir)).type !== 2) {
+          throw new Error(`write ${pathname}: not a directory`);
+        }
+      } catch (error) {
+        if (error instanceof ErrorNotFound) {
+          throw new Error(`write ${pathname}: no such file or directory`);
+        }
+        throw error;
+      }
+    }
+    let old: FileStat | null = null;
+    try {
+      old = await this.stat(url);
+    } catch (error) {
+      if (!(error instanceof ErrorNotFound)) {
+        throw error;
+      }
+    }
+    if (old?.type === 2) {
+      throw new Error(`write ${pathname}: is a directory`);
+    }
+    content = typeof content === "string" ? encode(content) : content;
+    const now = Date.now();
+    const newStat: FileStat = {
+      type: 1,
+      version: (old?.version ?? 0) + 1,
+      ctime: old?.ctime ?? now,
+      mtime: now,
+      size: content.byteLength,
+    };
+    const [metaStore, blobStore] = await this._getIdbObjectStores(true);
+    await Promise.all([
+      promisifyIDBRequest(metaStore.put({ url, ...newStat })),
+      promisifyIDBRequest(blobStore.put({ url, content })),
+    ]);
+  }
+
+  async delete(name: string, options?: { recursive: boolean }): Promise<void> {
+    const url = filenameToURL(name).href;
+    const stat = await this.stat(url);
+    if (stat.type === 1 /* File */) {
+      const [metaStore, blobStore] = await this._getIdbObjectStores(true);
+      await Promise.all([
+        promisifyIDBRequest(metaStore.delete(url)),
+        promisifyIDBRequest(blobStore.delete(url)),
+      ]);
+    } else if (stat.type === 2 /* Directory */) {
+      if (options?.recursive) {
+        const promises: Promise<void>[] = [];
+        const [metaStore, blobStore] = await this._getIdbObjectStores(true);
+        promises.push(openIDBCursor(metaStore, IDBKeyRange.lowerBound(url), (cursor) => {
+          const stat = cursor.value;
+          if (stat.url.startsWith(url)) {
+            if (stat.type === 1) {
+              promises.push(promisifyIDBRequest(blobStore.delete(stat.url)));
+            }
+            promises.push(promisifyIDBRequest(cursor.delete()));
+            return true;
+          }
+          return false;
+        }));
+        await Promise.all(promises);
+      } else {
+        const entries = await this.readDirectory(url);
+        if (entries.length > 0) {
+          throw new Error(`delete ${url}: directory not empty`);
+        }
+        const metaStore = await this._getIdbObjectStore("fs/meta", true);
+        await promisifyIDBRequest(metaStore.delete(url));
+      }
+    } else {
+      const metaStore = await this._getIdbObjectStore("fs/meta", true);
+      await promisifyIDBRequest(metaStore.delete(url));
+    }
+  }
+
+  async copy(source: string, target: string, options?: { overwrite: boolean }): Promise<void> {
+    throw new Error("Method not implemented.");
+  }
+
+  async rename(oldName: string, newName: string, options?: { overwrite: boolean }): Promise<void> {
+    const { href: oldUrl } = filenameToURL(oldName);
+    const { href: newUrl, pathname: newPath } = filenameToURL(newName);
+    const oldStat = await this.stat(oldUrl);
+    try {
+      const stat = await this.stat(newUrl);
+      if (!options?.overwrite) {
+        throw new Error(`rename ${oldUrl} to ${newUrl}: file exists`);
+      }
+      await this.delete(newUrl, stat.type === 2 ? { recursive: true } : undefined);
+    } catch (error) {
+      if (!(error instanceof ErrorNotFound)) {
+        throw error;
+      }
+    }
+    const dir = newPath.slice(0, newPath.lastIndexOf("/"));
+    if (dir) {
+      try {
+        if ((await this.stat(dir)).type !== 2) {
+          throw new Error(`rename ${oldUrl} to ${newUrl}: Not a directory`);
+        }
+      } catch (error) {
+        if (error instanceof ErrorNotFound) {
+          throw new Error(`rename ${oldUrl} to ${newUrl}: No such file or directory`);
+        }
+        throw error;
+      }
+    }
+    const [metaStore, blobStore] = await this._getIdbObjectStores(true);
+    const promises: Promise<any>[] = [
+      promisifyIDBRequest(metaStore.delete(oldUrl)),
+      promisifyIDBRequest(metaStore.put({ ...oldStat, url: newUrl })),
+    ];
+    const renameBlob = (oldUrl: string, newUrl: string) =>
+      openIDBCursor(blobStore, IDBKeyRange.only(oldUrl), (cursor) => {
+        promises.push(promisifyIDBRequest(blobStore.put({ url: newUrl, content: cursor.value.content })));
+        promises.push(promisifyIDBRequest(cursor.delete()));
+      });
+    if (oldStat.type === 1) {
+      promises.push(renameBlob(oldUrl, newUrl));
+    } else if (oldStat.type === 2) {
+      let dirUrl = oldUrl;
+      if (!dirUrl.endsWith("/")) {
+        dirUrl += "/";
+      }
+      const renamingChildren = openIDBCursor(
+        metaStore,
+        IDBKeyRange.lowerBound(dirUrl, true),
+        (cursor) => {
+          const stat = cursor.value;
+          if (stat.url.startsWith(dirUrl)) {
+            const url = newUrl + stat.url.slice(dirUrl.length - 1);
+            if (stat.type === 1) {
+              promises.push(renameBlob(stat.url, url));
+            }
+            promises.push(promisifyIDBRequest(metaStore.put({ ...stat, url })));
+            promises.push(promisifyIDBRequest(cursor.delete()));
+            return true;
+          }
+          return false;
+        },
+      );
+      promises.push(renamingChildren);
+    }
+    await Promise.all(promises);
+  }
+
+  watch(filename: string, handle: FileSystemWatchHandle): () => void;
+  watch(filename: string, options: { recursive: boolean }, handle: FileSystemWatchHandle): () => void;
+  watch(filename: string, handleOrOptions: FileSystemWatchHandle | { recursive: boolean }, handle?: FileSystemWatchHandle): () => void {
+    const url = filenameToURL(filename).href;
+    const options = typeof handleOrOptions === "function" ? undefined : handleOrOptions;
+    handle = typeof handleOrOptions === "function" ? handleOrOptions : handle!;
+    const watcher: FileSystemWatcher = { url, recursive: options?.recursive ?? false, handle };
+    this._watchers.add(watcher);
+    return () => {
+      this._watchers.delete(watcher);
+    };
+  }
+}
+
+/** Error for file not found. */
+export class ErrorNotFound extends Error {
+  constructor(name: string) {
+    super("No such file or directory: " + name);
+  }
+}
+
+/** WorkspaceDatabase provides workspace database. */
+class WorkspaceDatabase {
+  private _db: Promise<IDBDatabase> | IDBDatabase;
+
+  constructor(
+    workspaceName: string,
+    ...stores: { name: string; keyPath: string; onCreate?: (store: IDBObjectStore) => Promise<void> }[]
+  ) {
+    const open = () =>
+      openIDB("monaco:workspace:" + workspaceName, 1, ...stores).then((db) => {
+        db.onclose = () => {
+          // reopen the db on 'close' event
+          this._db = open();
+        };
+        return this._db = db;
+      });
+    this._db = open();
+  }
+
+  async open(): Promise<IDBDatabase> {
+    return await this._db;
+  }
+}
+
+/** workspace state storage */
+class WorkspaceStateStorage<T> {
+  constructor(private _db: WorkspaceDatabase, private _stateName: string) {}
+
+  async get(uri: string | URL): Promise<T | undefined> {
+    const url = toURL(uri).href;
+    const store = (await this._db.open()).transaction(this._stateName, "readonly").objectStore(this._stateName);
+    return promisifyIDBRequest<{ state: T } | undefined>(store.get(url)).then((result) => result?.state);
+  }
+
+  async save(uri: string | URL, state: T): Promise<void> {
+    const url = toURL(uri).href;
+    const store = (await this._db.open()).transaction(this._stateName, "readwrite").objectStore(this._stateName);
+    await promisifyIDBRequest(store.put({ url, state }));
+  }
+}
+
+/** local storage workspace history */
+class LocalStorageHistory implements WorkspaceHistory {
+  private _state: { current: number; history: string[] };
+  private _maxHistory: number;
+  private _handlers = new Set<(state: WorkspaceHistoryState) => void>();
+
+  constructor(scope: string, maxHistory = 100) {
+    const defaultState = { "current": -1, "history": [] };
+    this._state = supportLocalStorage()
+      ? createPersistStateStorage(`monaco:workspace:${scope}:history`, defaultState)
+      : defaultState;
+    this._maxHistory = maxHistory;
+  }
+
+  private _onPopState() {
+    for (const handler of this._handlers) {
+      handler(this.state);
+    }
+  }
+
+  get state(): WorkspaceHistoryState {
+    return { current: this._state.history[this._state.current] ?? "" };
+  }
+
+  back(): void {
+    this._state.current--;
+    if (this._state.current < 0) {
+      this._state.current = 0;
+    }
+    this._onPopState();
+  }
+
+  forward(): void {
+    this._state.current++;
+    if (this._state.current >= this._state.history.length) {
+      this._state.current = this._state.history.length - 1;
+    }
+    this._onPopState();
+  }
+
+  push(name: string): void {
+    const url = filenameToURL(name);
+    const history = this._state.history.slice(0, this._state.current + 1);
+    history.push(url.href);
+    if (history.length > this._maxHistory) {
+      history.shift();
+    }
+    this._state.history = history;
+    this._state.current = history.length - 1;
+    this._onPopState();
+  }
+
+  replace(name: string): void {
+    const url = filenameToURL(name);
+    const history = [...this._state.history]; // copy the array
+    if (this._state.current === -1) {
+      this._state.current = 0;
+    }
+    history[this._state.current] = url.href;
+    this._state.history = history;
+    this._onPopState();
+  }
+
+  onChange(handler: (state: WorkspaceHistoryState) => void): () => void {
+    this._handlers.add(handler);
+    return () => {
+      this._handlers.delete(handler);
+    };
+  }
+}
+
+/** browser workspace history */
+class BrowserHistory implements WorkspaceHistory {
+  private _basePath = "";
+  private _current = "";
+  private _handlers = new Set<(state: WorkspaceHistoryState) => void>();
+
+  constructor(basePath = "") {
+    this._basePath = "/" + basePath.split("/").filter(Boolean).join("/");
+    this._current = this._trimBasePath(location.pathname);
+    window.addEventListener("popstate", () => {
+      this._current = this._trimBasePath(location.pathname);
+      this._onPopState();
+    });
+  }
+
+  private _trimBasePath(pathname: string) {
+    if (pathname != "/" && pathname.startsWith(this._basePath)) {
+      return new URL(pathname.slice(this._basePath.length), "file:///").href;
+    }
+    return "";
+  }
+
+  private _joinBasePath(url: URL) {
+    const basePath = this._basePath === "/" ? "" : this._basePath;
+    if (url.protocol === "file:") {
+      return basePath + url.pathname;
+    }
+    return basePath + "/" + url.href;
+  }
+
+  private _onPopState() {
+    for (const handler of this._handlers) {
+      handler(this.state);
+    }
+  }
+
+  get state(): WorkspaceHistoryState {
+    return { current: this._current };
+  }
+
+  back(): void {
+    history.back();
+  }
+
+  forward(): void {
+    history.forward();
+  }
+
+  push(name: string): void {
+    const url = filenameToURL(name);
+    history.pushState(null, "", this._joinBasePath(url));
+    this._current = url.href;
+    this._onPopState();
+  }
+
+  replace(name: string): void {
+    const url = filenameToURL(name);
+    history.replaceState(null, "", this._joinBasePath(url));
+    this._current = url.href;
+    this._onPopState();
+  }
+
+  onChange(handler: (state: WorkspaceHistoryState) => void): () => void {
+    this._handlers.add(handler);
+    return () => {
+      this._handlers.delete(handler);
+    };
+  }
+}

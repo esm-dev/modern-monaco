@@ -1,6 +1,5 @@
 import type Monaco from "monaco-editor-core";
-import type { VFS } from "~/vfs.ts";
-import type { WorkerVFS } from "./worker-base.ts";
+import type { Workspace } from "~/workspace.ts";
 import * as lst from "vscode-languageserver-types";
 
 // ! external modules, don't remove the `.js` extension
@@ -11,27 +10,21 @@ export function setup(monacoNS: typeof Monaco): void {
   monaco ??= monacoNS;
 }
 
-/** create a worker VFS from the given VFS */
-export function createWorkerVFS(vfs?: VFS): Promise<WorkerVFS | undefined> {
-  if (vfs) {
-    return vfs.ls().then(files => ({ files }));
-  }
-  return Promise.resolve(undefined);
-}
-
-/** create a worker host that reads content from the given VFS */
-export function createHost(vfs?: VFS) {
-  return vfs
+/** create a worker host with the given workspace. */
+export function createHost(workspace?: Workspace) {
+  return workspace
     ? {
-      vfs_stat: async (uri: string) => {
-        const { ctime, mtime, content } = await vfs.open(uri);
-        return { type: 1, ctime, mtime, size: content.length };
+      fs_readDirectory: (uri: string) => {
+        return workspace.fs.readDirectory(uri);
       },
-      vfs_readTextFile: async (uri: string, encoding?: string): Promise<string> => {
-        return vfs.readTextFile(uri);
+      fs_stat: (uri: string) => {
+        return workspace.fs.stat(uri);
+      },
+      fs_getContent: (uri: string): Promise<string> => {
+        return workspace.fs.readTextFile(uri);
       },
     }
-    : undefined;
+    : Object.create(null);
 }
 
 /** make a cancelable request to the language worker */
@@ -78,13 +71,14 @@ export function enableBasicFeatures<
     & ILanguageWorkerWithSelectionRanges
     & {
       removeDocumentCache(uri: string): Promise<void>;
-      updateVFS(evt: { kind: "create" | "remove"; path: string }): Promise<void>;
+      syncFSEntries(entries: [string, number][]): Promise<void>;
+      fsNotify(kind: "create" | "modify" | "remove", path: string, type?: number): Promise<void>;
     },
 >(
   languageId: string,
   worker: Monaco.editor.MonacoWebWorker<T>,
   completionTriggerCharacters: string[],
-  vfs?: VFS,
+  workspace?: Workspace,
 ) {
   const { editor, languages } = monaco;
 
@@ -135,13 +129,14 @@ export function enableBasicFeatures<
     }
   });
 
-  // sync VFS changes to the worker if the VFS is provided
-  vfs?.watch("*", async (e) => {
-    if (e.kind === "remove" || e.kind === "create") {
-      const proxy = await worker.getProxy();
-      await proxy.updateVFS({ kind: e.kind, path: e.path });
-    }
-  });
+  if (workspace) {
+    workspace.fs.watch("/", { recursive: true }, (kind, path, type) => {
+      worker.getProxy().then(proxy => proxy.fsNotify(kind, path, type));
+    });
+    workspace.fs.entries().then((entries) => {
+      worker.getProxy().then(proxy => proxy.syncFSEntries(entries));
+    });
+  }
 }
 
 // #endregion
@@ -379,17 +374,13 @@ export function convertRange(range: lst.Range): Monaco.Range {
   );
 }
 
-function isInsertReplaceEdit(
-  edit: lst.TextEdit | lst.InsertReplaceEdit,
-): edit is lst.InsertReplaceEdit {
+function isInsertReplaceEdit(edit: lst.TextEdit | lst.InsertReplaceEdit): edit is lst.InsertReplaceEdit {
   return (
     typeof (<lst.InsertReplaceEdit> edit).insert !== "undefined" && typeof (<lst.InsertReplaceEdit> edit).replace !== "undefined"
   );
 }
 
-function convertCompletionItemKind(
-  kind: lst.CompletionItemKind | undefined,
-): Monaco.languages.CompletionItemKind {
+function convertCompletionItemKind(kind: lst.CompletionItemKind | undefined): Monaco.languages.CompletionItemKind {
   const CompletionItemKind = monaco.languages.CompletionItemKind;
   switch (kind) {
     case lst.CompletionItemKind.Text:
@@ -955,19 +946,19 @@ export class DefinitionAdapter<T extends ILanguageWorkerWithDefinitions> impleme
 }
 
 function isLocationLink(location: lst.Location | lst.LocationLink): location is lst.LocationLink {
-  return "targetUri" in location;
+  return "targetUri" in location && "targetRange" in location;
 }
 
 function convertLocationLink(location: lst.Location | lst.LocationLink): Monaco.languages.LocationLink {
   let uri: string;
   let range: lst.Range;
-  let originSelectionRange: lst.Range | undefined;
   let targetSelectionRange: lst.Range | undefined;
+  let originSelectionRange: lst.Range | undefined;
   if (isLocationLink(location)) {
     uri = location.targetUri;
     range = location.targetRange;
-    originSelectionRange = location.originSelectionRange;
     targetSelectionRange = location.targetSelectionRange;
+    originSelectionRange = location.originSelectionRange;
   } else {
     uri = location.uri;
     range = location.range;
@@ -978,8 +969,8 @@ function convertLocationLink(location: lst.Location | lst.LocationLink): Monaco.
   return {
     uri: monaco.Uri.parse(uri),
     range: convertRange(range),
-    originSelectionRange: originSelectionRange ? convertRange(originSelectionRange) : undefined,
     targetSelectionRange: targetSelectionRange ? convertRange(targetSelectionRange) : undefined,
+    originSelectionRange: originSelectionRange ? convertRange(originSelectionRange) : undefined,
   };
 }
 

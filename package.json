@@ -25,9 +25,9 @@
       "import": "./dist/import-map.js",
       "types": "./types/import-map.d.ts"
     },
-    "./vfs": {
-      "import": "./dist/vfs.js",
-      "types": "./types/vfs.d.ts"
+    "./workspace": {
+      "import": "./dist/workspace.js",
+      "types": "./types/workspace.d.ts"
     },
     "./ssr": {
       "workerd": "./dist/ssr/workerd.js",
@@ -55,11 +55,11 @@
   },
   "sideEffects": false,
   "devDependencies": {
-    "@shikijs/core": "2.1.0",
-    "@shikijs/engine-oniguruma": "2.1.0",
+    "@shikijs/core": "2.4.1",
+    "@shikijs/engine-oniguruma": "2.4.1",
     "monaco-editor-core": "0.52.2",
-    "tm-grammars": "1.22.10",
-    "tm-themes": "1.9.8",
+    "tm-grammars": "1.22.14",
+    "tm-themes": "1.9.12",
     "typescript": "5.7.3",
     "vscode-css-languageservice": "6.3.2",
     "vscode-html-languageservice": "5.3.1",

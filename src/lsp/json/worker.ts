@@ -1,6 +1,6 @@
 import type monacoNS from "monaco-editor-core";
 import * as jsonService from "vscode-json-languageservice";
-import { WorkerBase, WorkerVFS } from "../worker-base.ts";
+import { WorkerBase } from "../worker-base.ts";
 
 // ! external modules, don't remove the `.js` extension
 import { cache } from "../../cache.js";
@@ -12,8 +12,6 @@ export interface CreateData {
   readonly settings?: jsonService.LanguageSettings & jsonService.DocumentLanguageSettings;
   /** Settings for the CSS formatter. */
   readonly format?: jsonService.FormattingOptions;
-  /** The virtual file system for the worker. */
-  vfs?: WorkerVFS;
 }
 
 export class JSONWorker extends WorkerBase<undefined, jsonService.JSONDocument> {
@@ -21,7 +19,7 @@ export class JSONWorker extends WorkerBase<undefined, jsonService.JSONDocument> 
   private _languageService: jsonService.LanguageService;
 
   constructor(ctx: monacoNS.worker.IWorkerContext, createData: CreateData) {
-    super(ctx, createData.vfs);
+    super(ctx, (document) => this._languageService.parseJSONDocument(document));
     this._formatSettings = createData.format;
     this._languageService = jsonService.getLanguageService({
       workspaceContext: {
@@ -33,9 +31,11 @@ export class JSONWorker extends WorkerBase<undefined, jsonService.JSONDocument> 
         const url = new URL(uri);
         if (url.protocol === "http:") {
           return cache.fetch(url).then((res) => res.text());
-        } else if (url.protocol === "file:" && this.hasVFS) {
+        } else if (url.protocol === "file:") {
           const fs = this.getFileSystemProvider();
-          return fs.getContent(uri);
+          if (fs) {
+            return fs.getContent(uri);
+          }
         }
         return Promise.reject(new Error("Schema not found"));
       },
@@ -45,7 +45,6 @@ export class JSONWorker extends WorkerBase<undefined, jsonService.JSONDocument> 
     if (createData.settings) {
       this._languageService.configure(createData.settings);
     }
-    this.createLanguageDocument = (document) => this._languageService.parseJSONDocument(document);
   }
 
   async doValidation(uri: string): Promise<jsonService.Diagnostic[] | null> {
@@ -121,6 +120,15 @@ export class JSONWorker extends WorkerBase<undefined, jsonService.JSONDocument> 
 
   async findReferences(uri: string, position: jsonService.Position): Promise<jsonService.Location[] | null> {
     return null;
+  }
+
+  async findDocumentLinks(uri: string): Promise<jsonService.DocumentLink[] | null> {
+    const document = this.getTextDocument(uri);
+    if (!document) {
+      return null;
+    }
+    const jsonDocument = this.getLanguageDocument(document);
+    return this._languageService.findLinks(document, jsonDocument);
   }
 
   async findDocumentHighlights(uri: string, position: jsonService.Position): Promise<jsonService.DocumentHighlight[] | null> {

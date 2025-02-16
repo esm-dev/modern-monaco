@@ -197,8 +197,8 @@
 </head>
 
 <body>
-  <monaco-editor padding="8 64" fontSize="16" fontFamily="Dank Mono" fontLigatures
-    multiCursorModifier="ctrlCmd" theme="Vesper"></monaco-editor>
+  <monaco-editor padding="8 64" fontSize="16" fontFamily="Dank Mono" fontLigatures multiCursorModifier="ctrlCmd"
+    theme="Vesper"></monaco-editor>
   <button class="folder"></button>
   <ul class="selector"></ul>
 
@@ -239,7 +239,7 @@
 
   <script type="module">
     import { lazy } from '/esm-monaco/index.js';
-    import { vfs } from '/vfs.js';
+    import { workspace } from '/workspace.js';
 
     const folderButton = document.querySelector('button.folder')
     const selector = document.querySelector('ul.selector')
@@ -261,8 +261,6 @@
       }
     }
     const sortFn = (a, b) => {
-      a = a.slice('file:///'.length)
-      b = b.slice('file:///'.length)
       const aLen = a.split('/').length
       const bLen = b.split('/').length
       if (aLen !== bLen) {
@@ -270,20 +268,31 @@
       }
       return a.localeCompare(b)
     }
-    const renderList = (list) => {
+    const readDirectory = async (path, list = []) => {
+      const entries = await workspace.fs.readDirectory(path)
+      for (const [name, type] of entries) {
+        if (type === 2) {
+          await readDirectory(path + name + '/', list)
+        } else {
+          list.push(path + name)
+        }
+      }
+      return list
+    }
+    const renderFolder = async () => {
+      const list = (await readDirectory('/')).sort(sortFn)
       selector.replaceChildren()
-      list.sort(sortFn).forEach(uri => {
+      list.forEach(filename => {
         const option = document.createElement('li')
         const em = document.createElement('em')
         const span = document.createElement('span')
         const deleteIcon = icons.querySelector('.file-icon-trash').cloneNode(true)
-        const isActive = uri === vfs.history.current
-        const filename = uri.slice('file:///'.length)
-        const dirname = filename.split('/').slice(0, -1).join('/')
+        const isActivated = 'file://' + filename === workspace.history.state.current
+        const dirname = filename.slice(1, filename.lastIndexOf('/'))
         const basename = filename.split('/').pop()
         span.textContent = basename
         if (dirname) {
-          em.textContent = dirname + "/"
+          em.textContent = dirname + '/'
           span.prepend(em)
         }
         option.append(icons.querySelector('.file-icon').cloneNode(true))
@@ -292,17 +301,17 @@
         option.append(deleteIcon)
         deleteIcon.addEventListener('click', async (e) => {
           e.stopPropagation()
-          vfs.remove(uri)
-          if (isActive) {
+          workspace.fs.remove(filename)
+          if (isActivated) {
             toggleFolder()
           }
         })
-        if (isActive) {
+        if (isActivated) {
           option.classList.add('selected')
         }
         option.addEventListener('click', () => {
           toggleFolder()
-          vfs.history.push(uri)
+          workspace.history.push(filename)
         })
         selector.appendChild(option)
       })
@@ -316,22 +325,22 @@
         if (e.key === 'Enter') {
           const name = input.value.trim()
           toggleFolder()
-          if (name && !(await vfs.exists(name))) {
-            vfs.writeFile(name, '').then(() => {
-              vfs.history.push(name)
+          if (name) {
+            workspace.fs.writeFile(name, '').then(() => {
+              workspace.history.push(name)
             })
           }
         }
       })
       selector.appendChild(add)
-      if (!list.includes(vfs.history.current)) {
+      if (!list.some((filename) => 'file://' + filename === workspace.history.state.current)) {
         deleteTag.style.display = 'inline-block'
       } else {
         deleteTag.style.display = 'none'
       }
     }
-    const renderButtonText = (currentFile) => {
-      const filename = currentFile.slice('file:///'.length)
+    const renderButtonText = ({ current }) => {
+      const filename = current.slice('file:///'.length)
       deleteTag.style.display = 'none'
       folderButton.childNodes[2].textContent = filename
       selector.querySelectorAll('li:not(.add)').forEach(li => {
@@ -348,20 +357,23 @@
     folderButton.prepend(...icons.querySelectorAll('.folder-icon, .folder-icon-open'), '', deleteTag)
     folderButton.addEventListener('click', toggleFolder)
 
-    // render button text
-    renderButtonText(vfs.history.current)
-    vfs.history.onChange(renderButtonText)
+    // for debugging
+    window.workspace = workspace
 
-    // render file list
-    vfs.watch('*', (evt) => {
+    // render button text
+    renderButtonText(workspace.history.state)
+    workspace.history.onChange(renderButtonText)
+
+    // render folder UI
+    renderFolder()
+    workspace.fs.watch('/', { recursive: true }, (evt) => {
       if (evt.kind === 'create' || evt.kind === 'remove') {
-        vfs.ls().then(renderList);
+        renderFolder()
       }
     });
-    vfs.ls().then(renderList);
 
     // initialize the editor
-    lazy({ vfs });
+    lazy({ workspace });
   </script>
 </body>
 

@@ -1,6 +1,6 @@
 import type monacoNS from "monaco-editor-core";
 import * as cssService from "vscode-css-languageservice";
-import { WorkerBase, type WorkerVFS } from "../worker-base.ts";
+import { WorkerBase } from "../worker-base.ts";
 
 // ! external modules, don't remove the `.js` extension
 import { initializeWorker } from "../../editor-worker.js";
@@ -29,10 +29,6 @@ export interface CreateData {
    * Settings for the CSS formatter.
    */
   readonly format?: cssService.CSSFormatConfiguration;
-  /**
-   * The VFS for the worker.
-   */
-  readonly vfs?: WorkerVFS;
 }
 
 export class CSSWorker extends WorkerBase<undefined, cssService.Stylesheet> {
@@ -40,7 +36,7 @@ export class CSSWorker extends WorkerBase<undefined, cssService.Stylesheet> {
   private _languageService: cssService.LanguageService;
 
   constructor(ctx: monacoNS.worker.IWorkerContext, createData: CreateData) {
-    super(ctx, createData.vfs);
+    super(ctx, (document) => this._languageService.parseStylesheet(document));
     const data = createData.data;
     const customDataProviders: cssService.ICSSDataProvider[] = [];
     if (data?.dataProviders) {
@@ -60,7 +56,6 @@ export class CSSWorker extends WorkerBase<undefined, cssService.Stylesheet> {
       : langauge === "scss"
       ? cssService.getSCSSLanguageService(languageServiceOptions)
       : cssService.getCSSLanguageService(languageServiceOptions);
-    this.createLanguageDocument = (document) => this._languageService.parseStylesheet(document);
   }
 
   async doValidation(uri: string): Promise<cssService.Diagnostic[] | null> {

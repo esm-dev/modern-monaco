@@ -1,14 +1,14 @@
 import type monacoNS from "monaco-editor-core";
 import type { FormattingOptions } from "vscode-languageserver-types";
-import type { VFS } from "../vfs.ts";
+import type { Workspace } from "~/workspace.ts";
 
 export interface LSP {
   setup: (
     monaco: typeof monacoNS,
     languageId: string,
+    workspace?: Workspace,
     langaugeSettings?: Record<string, unknown>,
     formattingOptions?: FormattingOptions,
-    vfs?: VFS,
   ) => void | Promise<void>;
   getWorkerUrl: () => URL;
 }
@@ -19,8 +19,8 @@ export interface LSPProvider {
 }
 
 export interface LSPConfig {
-  format?: FormattingOptions;
   providers?: Record<string, LSPProvider>;
+  formatting?: FormattingOptions;
   typescript?: { tsVersion?: string };
 }
 
@@ -49,12 +49,7 @@ export function createWebWorker(url: URL, name?: string): Worker {
   let workerUrl: URL | string = url;
   // create a blob url for cross-origin workers if the url is not same-origin
   if (url.origin !== location.origin) {
-    workerUrl = URL.createObjectURL(
-      new Blob(
-        [`import "${url.href}"`],
-        { type: "application/javascript" },
-      ),
-    );
+    workerUrl = URL.createObjectURL(new Blob([`import "${url.href}"`], { type: "application/javascript" }));
   }
   return new Worker(workerUrl, {
     type: "module",

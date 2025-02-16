@@ -3,13 +3,13 @@
 
 # esm-monaco
 
-A Web Code Editor powered by [monaco-editor-core](https://www.npmjs.com/package/monaco-editor-core) with radical ESM support. Core features include:
+A batteries-included web code editor powered by [monaco-editor-core](https://www.npmjs.com/package/monaco-editor-core) and [Shiki](https://shiki.style).
 
 - ESM only, load dependencies on demand, no `MonacoEnvironment` required.
 - Using [Shiki](https://shiki.style) for syntax highlighting with tons of grammars and themes.
 - Pre-highlighting code with Shiki while loading `monaco-editor-core` in background.
 - Support **server-side rendering(SSR)**.
-- Builtin Virtual File System(VFS) for multiple files editing.
+- Workspace (edit history, file system provider, etc).
 - Automatically loading `.d.ts` from [esm.sh](https://esm.sh) CDN for type checking.
 - Using [import maps](https://github.com/WICG/import-maps) for resolving **bare specifier** imports in JavaScript/TypeScript.
 - VSCode `window` APIs like `showInputBox`, `showQuickPick`, etc.
@@ -20,12 +20,11 @@ A Web Code Editor powered by [monaco-editor-core](https://www.npmjs.com/package/
 Planned features:
 
 - [ ] Show a loading indicator while loading the editor
-- [ ] Quick open menu (only if the VFS is provided)
-- [ ] Drag and drop file (only if the VFS is provided)
-- [ ] Display non-code files in VFS, like images, videos, etc.
+- [ ] Quick open menu (only if a workspace is provided)
+- [ ] Drag and drop file (only if a workspace is provided)
+- [ ] Display non-code files, like images, videos, etc
 - [ ] VSCode `winodow.show<XXX>Message` APIs
 - [ ] Emmet
-- [ ] LSP for inline `html` and `css` in JavaScript/TypeScript
 - [ ] Markdown language service
 - [ ] [Volar](https://github.com/volarjs/volar.js) integration
 - [ ] Support [Shiki JS RegExp Engine](https://shiki.style/guide/regex-engines#javascript-regexp-engine-experimental)
@@ -57,24 +56,25 @@ esm-monaco provides three modes to create a code editor:
 
 ### Lazy Mode
 
-[monaco-editor](https://www.npmjs.com/package/monaco-editor) is a large module with extra CSS/Worker dependencies, not mention the `MonacoEnvironment` setup. esm-monaco provides a lazy but smart way to load the editor on demand, and it pre-highlights code with Shiki while loading the `editor-core.js` in background.
+[monaco-editor](https://www.npmjs.com/package/monaco-editor) is a large package with extra CSS/Worker dependencies, not mention the `MonacoEnvironment` setup. esm-monaco provides a lazy but smart way to load the editor on demand, and it pre-highlights code with Shiki while loading the `editor-core.js` in background.
 
 ```html
 <monaco-editor></monaco-editor>
 
 <script type="module">
-  import { lazy, VFS } from "esm-monaco";
+  import { lazy, Workspace } from "esm-monaco";
 
-  // create a virtual file system
-  const vfs = new VFS({
-    initial: {
+  // create a workspace with initial files
+  const workspace = new Workspace({
+    initialFiles: {
       "index.html": `<html><head><title>Hello, world!</title></head><body><script src="main.js"></script></body></html>`,
       "main.js": `console.log("Hello, world!")`
-    }
+    },
+    entryFile: "index.html",
   });
 
   // initialize the editor lazily
-  lazy({ vfs });
+  lazy({ workspace });
 </script>
 ```
 
@@ -91,6 +91,7 @@ export default {
       filename: "main.js",
       code: `console.log("Hello, world!")`,
       userAgent: req.headers.get("user-agent"), // detecte default font for different platforms
+      theme: "theme-id",
     });
     return new Response(html`
       ${ssrOut}
@@ -106,7 +107,7 @@ export default {
 
 ### Manual Mode
 
-You can also create a monaco editor instance manually.
+You can also create a [monaco editor](https://microsoft.github.io/monaco-editor/docs.html) instance manually.
 
 ```html
 <div id="editor"></div>
@@ -114,7 +115,7 @@ You can also create a monaco editor instance manually.
 <script type="module">
   import { init } from "esm-monaco";
 
-  // load editor-core.js
+  // load monaco-editor-core.js
   const monaco = await init();
 
   // create a monaco editor instance
@@ -124,6 +125,90 @@ You can also create a monaco editor instance manually.
   editor.setModel(monaco.editor.createModel(`console.log("Hello, world!")`, "javascript"));
 </script>
 ```
+
+## Using Workspace
+
+esm-monaco provides vscode-like workspace features, like edit history, file system provider, etc.
+
+```js
+import { lazy, Workspace } from "esm-monaco";
+
+// 1. create a workspace with initial files
+const workspace = new Workspace({
+  /** the name of the workspace, used for project isolation, default is "default". */
+  name: "project-name",
+  /** initial files in the workspace. */
+  initialFiles: {
+    "index.html": `<html><head><title>Hello, world!</title></head><body><script src="main.js"></script></body></html>`,
+    "main.js": `console.log("Hello, world!")`,
+  },
+  /** file to open when the editor is loaded at first time. */
+  entryFile: "index.html",
+});
+
+// 2. use the workspace in lazy mode
+lazy({ workspace });
+
+// 3. open a file in the workspace
+workspace.openTextDocument("main.js")
+```
+
+### Adding `tsconfig.json`
+
+You can also add a `tsconfig.json` file to configure the TypeScript compiler options for the TypeScript language service worker.
+
+```js
+const tsconfig = {
+  "compilerOptions": {
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+  },
+};
+const workspace = new Workspace({
+  initialFiles: {
+    "tsconfig.json": JSON.stringify(tsconfig, null, 2),
+  },
+});
+```
+
+### Using Import Maps
+
+esm-monaco use [import maps](https://github.com/WICG/import-maps) to resolving **bare specifier** import in JavaScript/TypeScript.
+By default, esm-monaco dedetects the `importmap` script of root `index.html`.
+
+```js
+const indexHtml = html`<!DOCTYPE html>
+<html>
+  <head>
+    <script type="importmap">
+      {
+        "imports": {
+          "@jsxRuntime": "https://esm.sh/react@18",
+          "react": "https://esm.sh/react@18"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <script type="module">
+      import React from "react";
+    </script>
+  </body>
+</html>
+`;
+const workspace = new Workspace({
+  initialFiles: {
+    "index.html": indexHtml,
+  },
+});
+```
+
+> [!Note]
+> By default, esm-monaco uses `react` or `preact` in the `importmap` script as the `jsxImportSource` option for typescript worker.
+> To use a custom `jsxImportSource` option, add `@jsxRuntime` specifier in the `importmap` script. For example, [solid-js](https://esm.sh/solid-js/jsx-runtime).
+
 
 ## Editor Theme & Language Grammars
 
@@ -140,7 +225,9 @@ To set the theme of the editor, you can add a `theme` attribute to the `<monaco-
 or set it in the `lazy`, `init`, or `hydrate` function.
 
 ```js
-lazy({ theme: "theme-id" });
+lazy({
+  theme: "theme-id",
+});
 ```
 
 > [!Note]
@@ -175,139 +262,6 @@ lazy({
 });
 ```
 
-## Virtual File System(VFS)
-
-The Virtual File System(VFS) of esm-monaco provides a way of multiple files editing.
-
-- Editor navigation
-- File system provider for language service worker
-- Store files in indexedDB
-- Watch file changes
-
-```js
-import { VFS } from "esm-monaco";
-
-const vfs = new VFS({
-  /** scope of the VFS, used for project isolation, default is "default" */
-  scope: "my-project",
-  /** initial files in the VFS */
-  initial: {
-    "index.html": `<html><head><title>Hello, world!</title></head><body><script src="main.js"></script></body></html>`,
-    "main.js": `console.log("Hello, world!")`,
-  },
-  /** file to open when the editor is loaded at first time */
-  entryFile: "index.html",
-  /** editing history provider, default is "localStorage" */
-  history: "browserHistory",
-});
-```
-
-### Using the API of the VFS
-
-You can use the API of the VFS to read, write, and watch files in a VFS.
-
-```js
-// read all files in the VFS
-await vfs.ls();
-// check if main.js exists
-await vfs.exists("main.js");
-// open main.js
-await vfs.open("main.js");
-// read main.js as Uint8Array
-await vfs.readFile("main.js");
-// read main.js as text
-await vfs.readTextFile("main.js");
-// write content to main.js
-await vfs.writeFile("main.js", `console.log("Hello, world!")`);
-// remove main.js
-await vfs.remove("main.js");
-// watch main.js for changes
-const dispose = vfs.watch("main.js", (evt) => console.log(`main.js has been ${evt.kind}`));
-// watch all files for changes
-const dispose = vfs.watch("*", (evt) => console.log(`${evt.path} has been ${evt.kind}`));
-```
-
-### Adding `tsconfig.json`
-
-You can also add a `tsconfig.json` file in the VFS to configure the TypeScript compiler options for the TypeScript language service worker.
-
-```js
-const tsconfig = {
-  "compilerOptions": {
-    "strict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true,
-  },
-};
-const vfs = new VFS({
-  initial: {
-    "tsconfig.json": JSON.stringify(tsconfig, null, 2),
-  },
-});
-```
-
-### Dedetecting Import Maps
-
-esm-monaco use [import maps](https://github.com/WICG/import-maps) to resolving **bare specifier** import in JavaScript/TypeScript.
-By default, esm-monaco will dedetect the import maps in the `index.html` file in the VFS if it exists.
-
-```js
-const indexHtml = html`<!DOCTYPE html>
-<html>
-  <head>
-    <script type="importmap">
-      {
-        "imports": {
-          "@jsxRuntime": "https://esm.sh/react@18",
-          "react": "https://esm.sh/react@18"
-        }
-      }
-    </script>
-  </head>
-  <body>
-    <script type="module">
-      import React from "react";
-    </script>
-  </body>
-</html>
-`;
-const vfs = new VFS({
-  initial: {
-    "index.html": indexHtml,
-  },
-});
-```
-
-or you can add a `importmap.json` file in the VFS to configure the import maps.
-
-```js
-const importmap = {
-  "imports": {
-    "@jsxRuntime": "https://esm.sh/react@18",
-    "react": "https://esm.sh/react@18",
-  },
-};
-const vfs = new VFS({
-  initial: {
-    "importmap.json": JSON.stringify(importmap),
-  },
-});
-```
-
-> [!Note]
-> The `@jsxRuntime` is a special specifier for `jsxImportSource` option in TypeScript compiler options.
-
-### Editing History Provider
-
-By default, esm-monaco stores your last editing history in the `localStorage`. You can also use your own history provider, for example, use the browser history API that switches the editor content when you navigate back and forth.
-
-```js
-const vfs = new VFS({
-  history: "browserHistory",
-});
-```
-
 ## Editor Options
 
 You can set the editor options in the `<monaco-editor>` element as attributes. The editor options are the same as the [`editor.EditorOptions`](https://microsoft.github.io/monaco-editor/docs.html#variables/editor.EditorOptions.html).
@@ -315,7 +269,7 @@ You can set the editor options in the `<monaco-editor>` element as attributes. T
 ```html
 <monaco-editor
   theme="theme-id"
-  fontFamily="MONO-FONT"
+  fontFamily="Geist Mono"
   fontSize="16"
 ></monaco-editor>
 ```
@@ -330,36 +284,17 @@ const html = renderToWebComponent({
   filename: "main.js",
   code: `console.log("Hello, world!")`,
   userAgent: req.headers.get("user-agent"), // font detection for different platforms
+  // ...
 
   // editor options
   theme: "theme-id",
-  fontFamily: "MONO-FONT",
+  fontFamily: "Geist Mono",
   fontSize: 16,
   // ...
 });
 ```
 
 For manual mode, check [here](https://microsoft.github.io/monaco-editor/docs.html#functions/editor.create.html) for more details.
-
-## VSCode `window` APIs compatibility
-
-esm-monaco adds some of the `window` APIs from VSCode:
-
-- [`showInputBox`](https://code.visualstudio.com/api/references/vscode-api#window.showInputBox) - Show an input box to ask for user input.
-- [`showQuickPick`](https://code.visualstudio.com/api/references/vscode-api#window.showQuickPick) - Show a selection list to ask for user input.
-
-```js
-import { init } from "esm-monaco";
-const monaco = await init();
-
-monaco.showInputBox({
-  title: "What's your name?",
-  placeHolder: "Enter your name here",
-  value: "John Doe",
-}).then(name => {
-  console.log(`Hello, ${name}!`);
-});
-```
 
 ## Language Server Protocol(LSP)
 
@@ -372,21 +307,21 @@ esm-monaco by default supports full LSP features for following languages:
 
 Plus, esm-monaco also supports features like:
 
-- **Auto-closing HTML/JSX tags**
+- **File System Provider for import completions**
 - **Embedded languages in HTML**
-- **File System Provider by VFS**
+- **Auto-closing HTML/JSX tags**
 
 > [!Note]
 > You don't need to set the `MonacoEnvironment.getWorker` for LSP support.
-> esm-monaco will automatically load the LSP worker for you.
+> esm-monaco will automatically load required LSP workers.
 
 ### LSP language configuration
 
-You can configure the LSP languages in the `lazy`, `init`, or `hydrate` function.
+You can configure builtin LSPs in the `lazy`, `init`, or `hydrate` function.
 
 ```js
-// configure the LSP languages
 lazy({
+  // configure LSP for each language
   lsp: {
     html: {/* ... */},
     json: {/* ... */},
@@ -411,9 +346,9 @@ export interface LSPLanguageConfig {
   typescript?: {
     /** The compiler options. */
     compilerOptions?: ts.CompilerOptions;
-    /** The global import maps. */
+    /** The global import map. */
     importMap?: ImportMap;
-    /** The version of the typescript from CDN. Default: ">= 5.5.0" */
+    /** The version of the typescript from CDN. Default: ">= 5.0.0" */
     tsVersion?: string;
   };
 }

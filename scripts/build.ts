@@ -4,6 +4,7 @@ import { themes as tmThemes } from "../node_modules/tm-themes/index.js";
 import { wasmBinary } from "../node_modules/@shikijs/engine-oniguruma/dist/wasm-inlined.mjs";
 
 const build = (entryPoints: string[], define?: Record<string, string>) => {
+  const buildEditorCore = entryPoints.includes("src/editor-core.ts");
   return esbuild({
     target: "esnext",
     format: "esm",
@@ -17,7 +18,6 @@ const build = (entryPoints: string[], define?: Record<string, string>) => {
       ".ttf": "dataurl",
     },
     external: [
-      !entryPoints.includes("src/editor-core.ts") ? "*/cache.js" : "",
       "typescript",
       "*/editor-core.js",
       "*/editor-worker.js",
@@ -27,10 +27,11 @@ const build = (entryPoints: string[], define?: Record<string, string>) => {
       "*/setup.js",
       "*/shiki.js",
       "*/shiki-wasm.js",
-      "*/vfs.js",
       "*/util.js",
       "*/worker.js",
       "*/onig.wasm",
+      !buildEditorCore ? "*/cache.js" : "",
+      !buildEditorCore ? "*/workspace.js" : "",
     ],
     entryPoints,
   });
@@ -65,7 +66,7 @@ const modifyEditorCore = async () => {
   const css = ret.outputFiles[0].text;
   const addonCss =
     `.monaco-inputbox input{outline:1px solid var(--vscode-focusBorder)} .rename-box input{color:inherit;font-family:inherit;font-size:100%;}.monaco-editor .rename-box .rename-input-with-button{width:auto}`;
-  await Deno.writeTextFile("dist/editor-core.js", js + "\nexport const _CSS = " + JSON.stringify(css + addonCss));
+  await Deno.writeTextFile("dist/editor-core.js", js + "\nexport const CSS = " + JSON.stringify(css + addonCss));
 };
 const copyDts = (...files: [src: string, dest: string][]) => {
   return Promise.all(files.map(([src, dest]) => Deno.copyFile("node_modules/" + src, "types/" + dest)));
@@ -105,7 +106,7 @@ const buildDist = async () => {
     "src/import-map.ts",
     "src/shiki-wasm.ts",
     "src/util.ts",
-    "src/vfs.ts",
+    "src/workspace.ts",
     "src/ssr/index.ts",
     "src/ssr/workerd.ts",
     "src/lsp/css/setup.ts",

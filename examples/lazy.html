@@ -21,11 +21,11 @@
 </head>
 
 <body>
-  <monaco-editor file="App.tsx"></monaco-editor>
+  <monaco-editor file="src/App.tsx"></monaco-editor>
   <script type="module">
     import { lazy } from '/esm-monaco/index.js';
-    import { vfs } from '/vfs.js';
-    lazy({ vfs });
+    import { workspace } from '/workspace.js';
+    lazy({ workspace });
   </script>
 </body>
 

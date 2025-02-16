@@ -8,28 +8,17 @@ export enum FileType {
   Directory = 2,
 }
 
-export interface WorkerVFS {
-  files: string[];
-}
-
 export class WorkerBase<Host = undefined, LanguageDocument = undefined> {
-  private _ctx: monacoNS.worker.IWorkerContext<Host>;
-  private _vfs?: WorkerVFS;
   private _documentCache = new Map<string, [number, TextDocument, LanguageDocument | undefined]>();
+  private _fsEntries?: Map<string, number>;
 
-  createLanguageDocument?: (document: TextDocument) => LanguageDocument;
+  constructor(
+    private _ctx: monacoNS.worker.IWorkerContext<Host>,
+    private _createLanguageDocument?: (document: TextDocument) => LanguageDocument,
+  ) {}
 
-  constructor(ctx: monacoNS.worker.IWorkerContext<Host>, vfs?: WorkerVFS) {
-    this._ctx = ctx;
-    this._vfs = vfs;
-  }
-
-  get hasVFS(): boolean {
-    return !!this._vfs;
-  }
-
-  get vfs(): WorkerVFS | undefined {
-    return this._vfs;
+  get hasFileSystemProvider(): boolean {
+    return !!this._fsEntries;
   }
 
   get host() {
@@ -82,52 +71,27 @@ export class WorkerBase<Host = undefined, LanguageDocument = undefined> {
     if (cached && cached[0] === version && cached[2]) {
       return cached[2];
     }
-    if (!this.createLanguageDocument) {
-      throw new Error("createLanguageDocument is not implemented");
+    if (!this._createLanguageDocument) {
+      throw new Error("createLanguageDocument is not provided");
     }
-    const languageDocument = this.createLanguageDocument(document);
+    const languageDocument = this._createLanguageDocument(document);
     this._documentCache.set(uri, [version, document, languageDocument]);
     return languageDocument;
   }
 
-  async removeDocumentCache(uri: string): Promise<void> {
-    this._documentCache.delete(uri);
-  }
-
-  async updateVFS(evt: { kind: "create" | "remove"; path: string }): Promise<void> {
-    const { kind, path } = evt;
-    const url = new URL(path, "file:///").href;
-    if (!this._vfs) {
-      throw new Error("VFS not initialized");
-    }
-    const files = this._vfs.files;
-    if (kind === "create") {
-      files.push(url);
-    } else {
-      const index = files.indexOf(url);
-      if (index !== -1) {
-        files.splice(index, 1);
-      }
-      this.removeDocumentCache(url);
-    }
-  }
-
   readDir(uri: string, extensions?: readonly string[]): [string, FileType][] {
     const entries: [string, FileType][] = [];
-    const dirs = new Set<string>();
-    const files = this._vfs?.files;
-    if (files) {
-      for (const path of files) {
+    const fsTree = this._fsEntries;
+    if (fsTree) {
+      for (const [path, type] of fsTree) {
         if (path.startsWith(uri)) {
           const name = path.slice(uri.length);
-          if (name.includes("/")) {
-            const [dirName] = name.split("/");
-            if (!dirs.has(dirName)) {
-              dirs.add(dirName);
-              entries.push([dirName, FileType.Directory]);
+          if (!name.includes("/")) {
+            if (type === 2) {
+              entries.push([name, FileType.Directory]);
+            } else if (!extensions || extensions.some((ext) => name.endsWith(ext))) {
+              entries.push([name, FileType.File]);
             }
-          } else if (!extensions || extensions.some((ext) => name.endsWith(ext))) {
-            entries.push([name, FileType.File]);
           }
         }
       }
@@ -136,39 +100,64 @@ export class WorkerBase<Host = undefined, LanguageDocument = undefined> {
   }
 
   getFileSystemProvider() {
-    if (!this._vfs) {
-      throw new Error("VFS not initialized");
+    if (this.hasFileSystemProvider) {
+      const host = this._ctx.host;
+      return {
+        readDirectory: (uri: string): Promise<[string, FileType][]> => {
+          return Promise.resolve(this.readDir(uri));
+        },
+        stat: (uri: string): Promise<{ type: FileType; ctime: number; mtime: number; size: number }> => {
+          // @ts-expect-error `fs_stat` is defined in host
+          return host.fs_stat(uri);
+        },
+        getContent: (uri: string, encoding?: string): Promise<string> => {
+          // @ts-expect-error `fs_getContent` is defined in host
+          return host.fs_getContent(uri);
+        },
+      };
     }
-    return {
-      readDirectory: (uri: string): Promise<[string, FileType][]> => {
-        return Promise.resolve(this.readDir(uri));
-      },
-      stat: async (uri: string): Promise<{ type: FileType; ctime: number; mtime: number; size: number }> => {
-        // @ts-expect-error `vfs_stat` is defined in host
-        return this._ctx.host.vfs_stat(uri);
-      },
-      getContent: async (uri: string, encoding?: string): Promise<string> => {
-        // @ts-expect-error `vfs_readTextFile` is defined in host
-        return this._ctx.host.vfs_readTextFile(uri);
-      },
-    };
+    return undefined;
   }
 
   // resolveReference implementes the `DocumentContext` interface
   resolveReference(ref: string, baseUrl: string): string | undefined {
     const url = new URL(ref, baseUrl);
     const href = url.href;
-    if (url.protocol === "file:" && !url.pathname.endsWith("/")) {
-      if (this.vfs) {
-        const files = this.vfs.files;
-        const isDir = href.endsWith("/");
-        if ((isDir && !files.find((f) => f.startsWith(href))) || (!isDir && !files.includes(href))) {
-          return undefined;
-        }
+    if (url.protocol === "file:" && this._fsEntries) {
+      // check if the file exists
+      if (!this._fsEntries.has(href)) {
+        return undefined;
       }
     }
     return href;
   }
+
+  // #region methods used by the host
+
+  async removeDocumentCache(uri: string): Promise<void> {
+    this._documentCache.delete(uri);
+  }
+
+  async syncFSEntries(entries: [string, number][]): Promise<void> {
+    this._fsEntries = new Map(entries);
+  }
+
+  async fsNotify(kind: "create" | "modify" | "remove", path: string, type?: number): Promise<void> {
+    const url = "file://" + path;
+    const entries = this._fsEntries ?? (this._fsEntries = new Map());
+    if (kind === "create") {
+      if (type) {
+        entries.set(url, type);
+      }
+    } else if (kind === "remove") {
+      if (entries.get(url) === FileType.File) {
+        this._documentCache.delete(url);
+      }
+      entries.delete(url);
+    }
+  }
+
+  // #endregion
 }
 
 export { TextDocument };

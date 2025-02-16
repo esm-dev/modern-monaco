@@ -12,7 +12,7 @@ import {
   SelectionRange,
   SymbolKind,
 } from "vscode-languageserver-types";
-import { FileType, TextDocument, WorkerBase, type WorkerVFS } from "../worker-base.ts";
+import { FileType, TextDocument, WorkerBase } from "../worker-base.ts";
 
 // ! external modules, don't remove the `.js` extension
 // @ts-expect-error 'libs.js' is generated at build time
@@ -36,7 +36,6 @@ export interface CreateData {
   formatOptions: ts.FormatCodeSettings & Pick<ts.UserPreferences, "quotePreference">;
   importMap: ImportMap;
   types: Record<string, VersionedContent>;
-  vfs?: WorkerVFS;
 }
 
 /** TypeScriptWorker removes all but the `fileName` property to avoid serializing circular JSON structures. */
@@ -73,7 +72,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
   private _httpDocumentCache = new Map<string, TextDocument>();
 
   constructor(ctx: monacoNS.worker.IWorkerContext<Host>, createData: CreateData) {
-    super(ctx, createData.vfs);
+    super(ctx);
     this._compilerOptions = ts.convertCompilerOptionsFromJson(createData.compilerOptions, ".").options;
     this._importMap = createData.importMap;
     this._importMapVersion = 0;
@@ -90,7 +89,11 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
   }
 
   getDirectories(path: string): string[] {
+    if (path === "/node_modules/@types") {
+      return [];
+    }
     if (path.startsWith("file:///node_modules/")) {
+      // todo: use closest index.html(importmap)
       const dirname = path.slice("file:///node_modules/".length);
       return Object.keys(this._importMap.imports)
         .filter(key => key !== "@jsxRuntime" && (dirname.length === 0 || key.startsWith(dirname)))
@@ -109,6 +112,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     depth?: number,
   ): string[] {
     if (path.startsWith("file:///node_modules/")) {
+      // todo: use closest index.html(importmap)
       const dirname = path.slice("file:///node_modules/".length);
       return Object.keys(this._importMap.imports)
         .filter(key => key !== "@jsxRuntime" && (dirname.length === 0 || key.startsWith(dirname)))
@@ -244,7 +248,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
       }
       let moduleUrl: URL;
       try {
-        moduleUrl = new URL(specifier, toUrl(containingFile));
+        moduleUrl = new URL(specifier, pathToUrl(containingFile));
       } catch (error) {
         return undefined;
       }
@@ -276,7 +280,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
             };
           }
         }
-        if (!this.hasVFS) {
+        if (!this.hasFileSystemProvider) {
           return undefined;
         }
         if (!this._openPromises.has(moduleHref)) {
@@ -699,11 +703,10 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
       return result;
     };
     const root = this._languageService.getNavigationTree(uri);
-    console.log(root.childItems?.map((item) => toSymbol(item)));
     return root.childItems?.map((item) => toSymbol(item)) ?? null;
   }
 
-  async findDefinition(uri: string, position: lst.Position): Promise<(lst.Location & { originSelectionRange: lst.Range })[] | null> {
+  async findDefinition(uri: string, position: lst.Position): Promise<lst.LocationLink[] | null> {
     const document = this._getTextDocument(uri);
     if (!document) {
       return null;
@@ -713,13 +716,28 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
       const { definitions, textSpan } = res;
       if (definitions) {
         return definitions.map(d => {
-          const doc = d.fileName === uri ? document : this._getTextDocument(d.fileName);
-          if (doc) {
-            return {
-              uri: d.fileName,
-              range: createRangeFromDocumentSpan(doc, d.textSpan),
-              originSelectionRange: createRangeFromDocumentSpan(document, textSpan),
+          const targetDocument = d.fileName === uri ? document : this._getTextDocument(d.fileName);
+          if (targetDocument) {
+            const range = createRangeFromDocumentSpan(targetDocument, d.textSpan);
+            const link: lst.LocationLink = {
+              targetUri: d.fileName,
+              targetRange: range,
+              targetSelectionRange: undefined as unknown as lst.Range,
             };
+            if (d.contextSpan) {
+              link.targetRange = createRangeFromDocumentSpan(targetDocument, d.contextSpan);
+              link.targetSelectionRange = range;
+            }
+            if (d.kind === "script" || d.kind === "module") {
+              // strip quotes
+              link.originSelectionRange = createRangeFromDocumentSpan(document, {
+                start: textSpan.start + 1,
+                length: textSpan.length - 2,
+              });
+            } else {
+              link.originSelectionRange = createRangeFromDocumentSpan(document, textSpan);
+            }
+            return link;
           }
           return undefined;
         }).filter(d => d !== undefined);
@@ -1215,7 +1233,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
 
   private _getJsxImportSource(): string | undefined {
     const { imports } = this._importMap;
-    for (const specifier of ["@jsxRuntime", "preact", "react"]) {
+    for (const specifier of ["@jsxRuntime", "@jsxImportSource", "preact", "react"]) {
       if (specifier in imports) {
         return imports[specifier];
       }
@@ -1249,7 +1267,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
 }
 
 function getScriptExtension(url: URL | string): string | null {
-  const pathname = typeof url === "string" ? toUrl(url).pathname : url.pathname;
+  const pathname = typeof url === "string" ? pathToUrl(url).pathname : url.pathname;
   const basename = pathname.substring(pathname.lastIndexOf("/") + 1);
   const dotIndex = basename.lastIndexOf(".");
   if (dotIndex === -1) {
@@ -1302,7 +1320,7 @@ function isDts(fileName: string): boolean {
   return fileName.endsWith(".d.ts") || fileName.endsWith(".d.mts") || fileName.endsWith(".d.cts");
 }
 
-function toUrl(path: string): URL {
+function pathToUrl(path: string): URL {
   return new URL(path, "file:///");
 }
 
@@ -1312,7 +1330,7 @@ function createRangeFromDocumentSpan(document: TextDocument, span: { start?: num
     return Range.create(pos, pos);
   }
   const start = document.positionAt(span.start);
-  const end = document.positionAt(span.start + (span.length || 0));
+  const end = document.positionAt(span.start + (span.length ?? 0));
   return Range.create(start, end);
 }
 

@@ -2,12 +2,13 @@ import type monacoNS from "monaco-editor-core";
 import type ts from "typescript";
 import type { FormattingOptions } from "vscode-languageserver-types";
 import type { ImportMap } from "~/import-map";
-import type { VFS } from "~/vfs";
+import type { Workspace } from "~/workspace";
 import type { CreateData, Host, TypeScriptWorker, VersionedContent } from "./worker";
 
 // ! external modules, don't remove the `.js` extension
 import { cache } from "../../cache.js";
 import { createBlankImportMap, importMapFrom, isBlankImportMap, parseImportMapFromJson } from "../../import-map.js";
+import { ErrorNotFound } from "../../workspace.js";
 import * as ls from "../language-service.js";
 
 type TSWorker = monacoNS.editor.MonacoWebWorker<TypeScriptWorker>;
@@ -19,12 +20,12 @@ let worker: TSWorker | Promise<TSWorker> | null = null;
 export async function setup(
   monaco: typeof monacoNS,
   languageId: string,
+  workspace?: Workspace,
   languageSettings?: Record<string, unknown>,
   formattingOptions?: FormattingOptions & { semicolon?: "ignore" | "insert" | "remove" },
-  vfs?: VFS,
 ) {
   if (!worker) {
-    worker = createWorker(monaco, languageSettings, formattingOptions, vfs);
+    worker = createWorker(monaco, workspace, languageSettings, formattingOptions);
   }
   if (worker instanceof Promise) {
     worker = await worker;
@@ -32,7 +33,7 @@ export async function setup(
 
   // set monacoNS and register language features
   ls.setup(monaco);
-  ls.enableBasicFeatures(languageId, worker, [".", "/", "\"", "'", "<"], vfs);
+  ls.enableBasicFeatures(languageId, worker, [".", "/", "\"", "'", "<"], workspace);
   ls.enableAutoComplete(languageId, worker, [">", "/"]);
   ls.enableSignatureHelp(languageId, worker, ["(", ","]);
   ls.enableCodeAction(languageId, worker);
@@ -53,10 +54,11 @@ export function getWorkerUrl() {
 /** Create the typescript worker. */
 async function createWorker(
   monaco: typeof monacoNS,
+  workspace?: Workspace,
   languageSettings?: Record<string, unknown>,
   formattingOptions?: FormattingOptions & { semicolon?: "ignore" | "insert" | "remove" },
-  vfs?: VFS,
 ) {
+  const fs = workspace?.fs;
   const defaultCompilerOptions: CompilerOptions = {
     // set allowJs to true to support embedded javascript in html
     allowJs: true,
@@ -71,7 +73,7 @@ async function createWorker(
     useDefineForClassFields: true,
     ...(languageSettings?.compilerOptions as CompilerOptions),
   };
-  const typesStore = new TypesStore();
+  const typesStore = new TypesSet();
   const defaultImportMap = importMapFrom(languageSettings?.importMap);
   const remixImportMap = (im: ImportMap): ImportMap => {
     if (isBlankImportMap(defaultImportMap)) {
@@ -87,19 +89,19 @@ async function createWorker(
   let compilerOptions: CompilerOptions = { ...defaultCompilerOptions };
   let importMap = { ...defaultImportMap };
 
-  if (vfs) {
+  if (workspace) {
     await Promise.all([
-      loadCompilerOptions(vfs).then((options) => {
+      loadCompilerOptions(workspace).then((options) => {
         compilerOptions = { ...defaultCompilerOptions, ...options };
       }),
-      loadImportMap(vfs, remixImportMap).then((im) => {
+      loadImportMap(workspace, remixImportMap).then((im) => {
         importMap = im;
       }),
     ]);
   }
 
   // resolve types of the default compiler options
-  await typesStore.load(compilerOptions, vfs);
+  await typesStore.load(compilerOptions, workspace);
 
   const { tabSize = 4, trimTrailingWhitespace = true, insertSpaces = true, semicolon = "insert" } = formattingOptions ?? {};
   const createData: CreateData = {
@@ -118,7 +120,6 @@ async function createWorker(
     },
     importMap,
     types: typesStore.types,
-    vfs: await ls.createWorkerVFS(vfs),
   };
   const worker = monaco.editor.createWebWorker<TypeScriptWorker>({
     moduleId: "lsp/typescript/worker",
@@ -127,13 +128,13 @@ async function createWorker(
     createData,
     host: {
       openModel: async (uri: string): Promise<boolean> => {
-        if (!vfs) {
-          throw new Error("VFS is not available");
+        if (!workspace) {
+          throw new Error("Workspace is undefined.");
         }
         try {
-          await vfs.openModel(uri);
+          await workspace._openTextDocument(uri);
         } catch (error) {
-          if (error instanceof vfs.ErrorNotFound) {
+          if (error instanceof ErrorNotFound) {
             return false;
           }
           throw error;
@@ -152,7 +153,7 @@ async function createWorker(
     } satisfies Host,
   });
 
-  if (vfs) {
+  if (fs) {
     const updateCompilerOptions: TypeScriptWorker["updateCompilerOptions"] = async (options) => {
       const proxy = await worker.getProxy();
       await proxy.updateCompilerOptions(options);
@@ -165,11 +166,11 @@ async function createWorker(
     };
     const watchTypes = () =>
       (compilerOptions.$types as string[] ?? []).map((url) =>
-        vfs.watch(url, async (e) => {
-          if (e.kind === "remove") {
+        fs.watch(url, async (kind) => {
+          if (kind === "remove") {
             typesStore.remove(url);
           } else {
-            const content = await vfs.readTextFile(url);
+            const content = await fs.readTextFile(url);
             typesStore.add(content, url);
           }
           updateCompilerOptions({ types: typesStore.types });
@@ -178,12 +179,12 @@ async function createWorker(
     const watchImportMapJSON = () => {
       const { $src } = importMap;
       if ($src && $src.endsWith(".json")) {
-        return vfs.watch($src, async (e) => {
-          if (e.kind === "remove") {
+        return fs.watch($src, async (kind) => {
+          if (kind === "remove") {
             importMap = { ...defaultImportMap };
           } else {
             try {
-              const content = await vfs.readTextFile($src);
+              const content = await fs.readTextFile($src);
               const im = parseImportMapFromJson(content);
               im.$src = $src;
               importMap = remixImportMap(im);
@@ -199,13 +200,13 @@ async function createWorker(
     let unwatchTypes = watchTypes();
     let unwatchImportMap = watchImportMapJSON();
 
-    vfs.watch("tsconfig.json", async (e) => {
+    fs.watch("tsconfig.json", async (e) => {
       unwatchTypes.forEach((dispose) => dispose());
-      loadCompilerOptions(vfs).then((options) => {
+      loadCompilerOptions(workspace).then((options) => {
         const newOptions = { ...defaultCompilerOptions, ...options };
         if (JSON.stringify(newOptions) !== JSON.stringify(compilerOptions)) {
           compilerOptions = newOptions;
-          typesStore.load(compilerOptions, vfs).then(() => {
+          typesStore.load(compilerOptions, workspace).then(() => {
             updateCompilerOptions({ compilerOptions, types: typesStore.types });
           });
         }
@@ -213,9 +214,9 @@ async function createWorker(
       });
     });
 
-    vfs.watch("index.html", async (e) => {
+    fs.watch("index.html", async (e) => {
       unwatchImportMap?.();
-      loadImportMap(vfs, remixImportMap).then((im) => {
+      loadImportMap(workspace, remixImportMap).then((im) => {
         if (JSON.stringify(im) !== JSON.stringify(importMap)) {
           importMap = im;
           updateCompilerOptions({ importMap });
@@ -236,7 +237,7 @@ async function createWorker(
   return worker;
 }
 
-class TypesStore {
+class TypesSet {
   private _types: Record<string, VersionedContent> = {};
   private _removedtypes: Record<string, number> = {};
 
@@ -244,7 +245,7 @@ class TypesStore {
     return this._types;
   }
 
-  public setTypes(types: Record<string, string>) {
+  public reset(types: Record<string, string>) {
     const toRemove = Object.keys(this._types).filter(
       (key) => !types[key],
     );
@@ -285,7 +286,7 @@ class TypesStore {
   }
 
   /** load types defined in tsconfig.json */
-  async load(compilerOptions: CompilerOptions, vfs?: VFS) {
+  async load(compilerOptions: CompilerOptions, workspace?: Workspace): Promise<void> {
     const types = compilerOptions.types;
     if (Array.isArray(types)) {
       delete compilerOptions.types;
@@ -310,36 +311,36 @@ class TypesStore {
               `Failed to fetch "${dtsUrl}": ` + await res.text(),
             );
           }
-        } else if (typeof type === "string" && vfs) {
-          const dtsUrl = new URL(type.replace(/\.d\.ts$/, "") + ".d.ts", "file:///");
+        } else if (typeof type === "string" && workspace) {
+          const dtsUrl = new URL(type.replace(/\.d\.ts$/, "") + ".d.ts", "file:///").href;
           try {
-            return [dtsUrl.href, await vfs.readTextFile(dtsUrl)];
+            return [dtsUrl, await workspace.fs.readTextFile(dtsUrl)];
           } catch (error) {
-            console.error(`Failed to read "${dtsUrl.href}": ` + error.message);
+            console.error(`Failed to read "${dtsUrl}": ` + error.message);
           }
         }
         return null;
       })).then((e) => {
         const entries = e.filter(Boolean) as [string, string][];
-        if (vfs) {
+        if (workspace) {
           compilerOptions.$types = entries.map(([url]) => url).filter((url) => url.startsWith("file://"));
         }
-        this.setTypes(Object.fromEntries(entries));
+        this.reset(Object.fromEntries(entries));
       });
     }
   }
 }
 
-/** Load compiler options from tsconfig.json in VFS if exists. */
-async function loadCompilerOptions(vfs: VFS) {
+/** Load compiler options from `tsconfig.json` in the workspace if exists. */
+async function loadCompilerOptions(workspace: Workspace) {
   const compilerOptions: CompilerOptions = {};
   try {
-    const tsconfigjson = await vfs.readTextFile("tsconfig.json");
-    const tsconfig = parseJsonc(tsconfigjson);
+    const tsconfigJson = await workspace.fs.readTextFile("tsconfig.json");
+    const tsconfig = parseJsonc(tsconfigJson);
     compilerOptions.$src = "file:///tsconfig.json";
     Object.assign(compilerOptions, tsconfig.compilerOptions);
   } catch (error) {
-    if (error instanceof vfs.ErrorNotFound) {
+    if (error instanceof ErrorNotFound) {
       // ignore
     } else {
       console.error(error);
@@ -348,37 +349,27 @@ async function loadCompilerOptions(vfs: VFS) {
   return compilerOptions;
 }
 
-/** Load import maps from the root index.html or external json file in the VFS. */
-export async function loadImportMap(vfs: VFS, validate: (im: ImportMap) => ImportMap) {
+/** Load import maps from the root index.html or external json file in the workspace. */
+export async function loadImportMap(workspace: Workspace, validate: (im: ImportMap) => ImportMap) {
   let src: string | undefined;
   try {
-    if (await vfs.exists("index.html")) {
-      let indexHtml = await vfs.readTextFile("index.html");
-      let tplEl = document.createElement("template");
-      let scriptEl: HTMLScriptElement | null;
-      tplEl.innerHTML = indexHtml;
-      scriptEl = tplEl.content.querySelector("script[type=\"importmap\"]");
-      if (scriptEl) {
-        src = scriptEl.src ? new URL(scriptEl.src, "file:///").href : "file:///index.html";
-        const importMap = parseImportMapFromJson(
-          scriptEl.src ? await vfs.readTextFile(scriptEl.src) : scriptEl.textContent!,
-        );
-        importMap.$src = src;
-        return validate(importMap);
-      }
-    } else {
-      for (const imJson of ["importmap.json", "importMap.json", "import-map.json", "import_map.json"]) {
-        if (await vfs.exists(imJson)) {
-          src = new URL(imJson, "file:///").href;
-          const importMap = parseImportMapFromJson(await vfs.readTextFile(imJson));
-          importMap.$src = src;
-          return validate(importMap);
-        }
-      }
+    let indexHtml = await workspace.fs.readTextFile("index.html");
+    let tplEl = document.createElement("template");
+    let scriptEl: HTMLScriptElement | null;
+    tplEl.innerHTML = indexHtml;
+    scriptEl = tplEl.content.querySelector("script[type=\"importmap\"]");
+    if (scriptEl) {
+      src = scriptEl.src ? new URL(scriptEl.src, "file:///").href : "file:///index.html";
+      const importMap = parseImportMapFromJson(scriptEl.src ? await workspace.fs.readTextFile(scriptEl.src) : scriptEl.textContent!);
+      importMap.$src = src;
+      return validate(importMap);
     }
   } catch (error) {
-    // ignore error, and use a blank import map instead
-    console.error(`Failed to load import map from "${src}":`, error.message);
+    if (error instanceof ErrorNotFound) {
+      // ignore
+    } else {
+      console.error("Failed to parse import map from index.html:", error.message);
+    }
   }
   const importMap = createBlankImportMap();
   return validate(importMap);

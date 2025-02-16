@@ -1,6 +1,5 @@
 // ! external modules, don't remove the `.js` extension
-import { defineProperty, promisifyIDBRequest, toUrl } from "./util.js";
-import { VFS } from "./vfs.js";
+import { defineProperty, openIDB, promisifyIDBRequest, toURL } from "./util.js";
 
 interface CacheFile {
   url: string;
@@ -13,14 +12,28 @@ interface CacheFile {
 class Cache {
   private _db: Promise<IDBDatabase> | IDBDatabase | null = null;
 
-  constructor(cacheName = "monaco-cache") {
+  constructor(name: string) {
     if (globalThis.indexedDB) {
-      this._db = VFS.openIDB(cacheName).then((db) => this._db = db);
+      this._db = this._openDB(name);
     }
   }
 
+  private _openDB(name: string): Promise<IDBDatabase> {
+    return openIDB(
+      name,
+      1,
+      { name: "store", keyPath: "url" },
+    ).then((db) => {
+      db.onclose = () => {
+        // reopen the db on 'close' event
+        this._db = this._openDB(name);
+      };
+      return this._db = db;
+    });
+  }
+
   async fetch(url: string | URL): Promise<Response> {
-    url = toUrl(url);
+    url = toURL(url);
     const storedRes = await this.query(url);
     if (storedRes) {
       return storedRes;
@@ -34,7 +47,7 @@ class Cache {
         ctime: Date.now(),
       };
       if (res.redirected) {
-        const tx = db.transaction("files", "readwrite").objectStore("files");
+        const tx = db.transaction("store", "readwrite").objectStore("store");
         file.headers = [["location", res.url]];
         await promisifyIDBRequest<CacheFile>(tx.put(file));
       }
@@ -58,9 +71,9 @@ class Cache {
     if (!this._db) {
       return null;
     }
-    const url = toUrl(key).href;
+    const url = toURL(key).href;
     const db = await this._db;
-    const tx = db.transaction("files", "readonly").objectStore("files");
+    const tx = db.transaction("store", "readonly").objectStore("store");
     const ret = await promisifyIDBRequest<CacheFile>(tx.get(url));
     if (ret && ret.headers) {
       const headers = new Headers(ret.headers);
@@ -84,10 +97,10 @@ class Cache {
       return;
     }
     const db = await this._db;
-    const tx = db.transaction("files", "readwrite").objectStore("files");
+    const tx = db.transaction("store", "readwrite").objectStore("store");
     await promisifyIDBRequest<CacheFile>(tx.put(file));
   }
 }
 
-export const cache = new Cache();
+export const cache = new Cache("monaco:cache");
 export default cache;

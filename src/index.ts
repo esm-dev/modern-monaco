@@ -1,6 +1,5 @@
 import type monacoNS from "monaco-editor-core";
 import type { Highlighter, RenderOptions, ShikiInitOptions } from "./shiki.ts";
-import type { VFS } from "./vfs.ts";
 import type { LSPConfig, LSPProvider } from "./lsp/index.ts";
 import { createWebWorker, margeProviders } from "./lsp/index.ts";
 import syntaxes from "./syntaxes/index.ts";
@@ -10,7 +9,11 @@ import { getLanguageIdFromPath, initShiki, setDefaultWasmLoader, tmGrammars } fr
 import { initShikiMonacoTokenizer, registerShikiMonacoTokenizer } from "./shiki.js";
 import { render } from "./shiki.js";
 import { getWasmInstance } from "./shiki-wasm.js";
-export { VFS, VFSBrowserHistory } from "./vfs.js";
+import { ErrorNotFound, Workspace } from "./workspace.js";
+import { debunce, decode } from "./util.ts";
+
+// set the shiki wasm default loader
+setDefaultWasmLoader(getWasmInstance);
 
 const editorProps = [
   "autoDetectHighContrast",
@@ -50,28 +53,37 @@ const preloadGrammars = [
   "json",
 ];
 
-export interface InitOption extends ShikiInitOptions {
-  vfs?: VFS;
+export interface InitOptions extends ShikiInitOptions {
+  /**
+   * Virtual file system to be used by the editor.
+   */
+  workspace?: Workspace;
+  /**
+   * Language server protocol configuration.
+   */
   lsp?: LSPConfig;
 }
 
-/** Load the monaco editor and use shiki as the tokenizer. */
-async function loadMonaco(highlighter: Highlighter, options?: InitOption, onEditorWorkerReady?: () => void) {
+/** Load monaco editor core. */
+async function loadMonaco(
+  highlighter: Highlighter,
+  workspace?: Workspace,
+  lsp?: LSPConfig,
+  onDidEditorWorkerReady?: () => void,
+): Promise<typeof monacoNS> {
   const monaco = await import("./editor-core.js");
-  const vfs = options?.vfs;
-  const lspProviders = margeProviders(options?.lsp);
+  const lspProviders = margeProviders(lsp);
 
-  if (vfs) {
-    vfs.setup(monaco);
-  }
+  // initialize the workspace with the monaco namespace
+  workspace?.init(monaco);
 
   // insert the monaco editor core css
   if (!document.getElementById("monaco-editor-core-css")) {
     const styleEl = document.createElement("style");
     styleEl.id = "monaco-editor-core-css";
     styleEl.media = "screen";
-    // @ts-expect-error `_CSS` is defined at build time
-    styleEl.textContent = monaco._CSS;
+    // @ts-expect-error `monaco.CSS` is injected at build time
+    styleEl.textContent = monaco.CSS;
     document.head.appendChild(styleEl);
   }
 
@@ -84,7 +96,7 @@ async function loadMonaco(highlighter: Highlighter, options?: InitOption, onEdit
       }
       const url = provider ? (await provider.import()).getWorkerUrl() : monaco.getWorkerUrl();
       if (label === "typescript") {
-        const tsVersion = options?.lsp?.typescript?.tsVersion;
+        const tsVersion = lsp?.typescript?.tsVersion;
         if (tsVersion && (url.hostname === "esm.sh" || url.hostname.endsWith(".esm.sh"))) {
           url.searchParams.set("deps", `typescript@${tsVersion}`);
         }
@@ -92,7 +104,7 @@ async function loadMonaco(highlighter: Highlighter, options?: InitOption, onEdit
       const worker = createWebWorker(url, undefined);
       if (!provider) {
         const onMessage = (e: MessageEvent) => {
-          onEditorWorkerReady?.();
+          onDidEditorWorkerReady?.();
           worker.removeEventListener("message", onMessage);
         };
         worker.addEventListener("message", onMessage);
@@ -115,12 +127,12 @@ async function loadMonaco(highlighter: Highlighter, options?: InitOption, onEdit
   // register the editor opener for the monaco editor
   monaco.editor.registerEditorOpener({
     openCodeEditor: async (editor, resource, selectionOrPosition) => {
-      if (vfs && resource.scheme === "file") {
+      if (workspace && resource.scheme === "file") {
         try {
-          await vfs.openModel(resource.toString(), editor, selectionOrPosition);
+          await workspace._openTextDocument(resource.toString(), editor, selectionOrPosition);
           return true;
         } catch (err) {
-          if (err instanceof vfs.ErrorNotFound) {
+          if (err instanceof ErrorNotFound) {
             return false;
           }
           throw err;
@@ -190,7 +202,7 @@ async function loadMonaco(highlighter: Highlighter, options?: InitOption, onEdit
         }
       }
       if (lspProvider) {
-        lspProvider.import().then(({ setup }) => setup(monaco, id, options?.[lspLabel], options?.lsp?.format, vfs));
+        lspProvider.import().then(({ setup }) => setup(monaco, id, workspace, lsp?.[lspLabel], lsp?.formatting));
       }
     });
   });
@@ -202,27 +214,27 @@ async function loadMonaco(highlighter: Highlighter, options?: InitOption, onEdit
 }
 
 /* Initialize and return the monaco editor namespace. */
-export async function init(options?: Omit<InitOption, "vfs">): Promise<typeof monacoNS> {
+export async function init(options?: InitOptions): Promise<typeof monacoNS> {
   const langs = (options?.langs ?? []).concat(preloadGrammars, syntaxes as any[]);
   const hightlighter = await initShiki({ ...options, langs });
-  return loadMonaco(hightlighter, options);
+  return loadMonaco(hightlighter, options?.workspace, options?.lsp);
 }
 
 /** Render a mock editor, then load the monaco editor in background. */
-export function lazy(options?: InitOption, hydrate?: boolean) {
-  let vfs = options?.vfs;
-  let monacoCore: typeof monacoNS | Promise<typeof monacoNS> | null = null;
-  let editorWorkerPromise: Promise<void> | null = null;
+export async function lazy(options?: InitOptions, hydrate?: boolean) {
+  const workspace = options?.workspace;
 
-  function loadMonacoCore(highlighter: Highlighter) {
+  let monacoCore: typeof monacoNS | Promise<typeof monacoNS> | null = null;
+  let onDidEditorWorkerReady: (() => void) | undefined;
+  let editorWorkerPromise = new Promise<void>((resolve) => {
+    onDidEditorWorkerReady = resolve;
+  });
+
+  function load(highlighter: Highlighter) {
     if (monacoCore) {
       return monacoCore;
     }
-    let onEditorWorkerReady: (() => void) | undefined;
-    editorWorkerPromise = new Promise<void>((resolve) => {
-      onEditorWorkerReady = resolve;
-    });
-    return monacoCore = loadMonaco(highlighter, options, onEditorWorkerReady).then((m) => monacoCore = m);
+    return monacoCore = loadMonaco(highlighter, workspace, options?.lsp, onDidEditorWorkerReady).then((m) => monacoCore = m);
   }
 
   function setStyle(el: HTMLElement, style: Partial<CSSStyleDeclaration>) {
@@ -317,16 +329,18 @@ export function lazy(options?: InitOption, hydrate?: boolean) {
         this.appendChild(containerEl);
 
         let filename = renderOptions.filename ?? this.getAttribute("file");
-        if (!filename && vfs) {
-          if (vfs.history.current) {
-            filename = vfs.history.current;
-          } else if (vfs.entryFile) {
-            filename = vfs.entryFile;
-            vfs.history.replace(filename);
+        if (!filename && workspace) {
+          if (workspace.history.state.current) {
+            filename = workspace.history.state.current;
+          } else if (workspace.entryFile) {
+            filename = workspace.entryFile;
+            workspace.history.replace(filename);
           } else {
-            const list = await vfs.ls();
-            filename = list.includes("index.html") ? "index.html" : list[0];
-            vfs.history.replace(filename);
+            const rootFiles = (await workspace.fs.readDirectory("/")).filter(([name, type]) => type === 1).map(([name]) => name);
+            filename = rootFiles.includes("index.html") ? "index.html" : rootFiles[0];
+            if (filename) {
+              workspace.history.replace(filename);
+            }
           }
         }
 
@@ -347,19 +361,19 @@ export function lazy(options?: InitOption, hydrate?: boolean) {
 
         // check the pre-rendered editor(mock), if not exists, render one
         let prerenderEl = hydrate ? this.querySelector<HTMLElement>(".monaco-editor-prerender") : undefined;
-        if (!prerenderEl && filename && vfs) {
+        if (!prerenderEl && filename && workspace) {
           try {
-            const code = await vfs.readTextFile(filename);
+            const code = await workspace.fs.readFile(filename);
             const language = getLanguageIdFromPath(filename);
             prerenderEl = containerEl.cloneNode(true) as HTMLElement;
             prerenderEl.className = "monaco-editor-prerender";
             prerenderEl.innerHTML = render(highlighter, {
               ...renderOptions,
-              code,
+              code: decode(code),
               language,
             });
           } catch (error) {
-            if (error instanceof vfs.ErrorNotFound) {
+            if (error instanceof ErrorNotFound) {
               // ignore
             } else {
               throw error;
@@ -370,8 +384,9 @@ export function lazy(options?: InitOption, hydrate?: boolean) {
         if (prerenderEl) {
           setStyle(prerenderEl, { position: "absolute", top: "0", left: "0" });
           this.appendChild(prerenderEl);
-          if (filename) {
-            const scrollTop = vfs?.viewState[new URL(filename, "file:///").href]?.viewState?.scrollTop ?? 0;
+          if (filename && workspace) {
+            const viewState = await workspace.viewState.get(filename);
+            const scrollTop = viewState?.viewState.scrollTop ?? 0;
             if (scrollTop) {
               const mockEl = prerenderEl.querySelector(".mock-monaco-editor");
               if (mockEl) {
@@ -383,42 +398,30 @@ export function lazy(options?: InitOption, hydrate?: boolean) {
 
         // load and rander the monaco editor
         async function createMonaco() {
-          const monaco = await loadMonacoCore(highlighter);
+          const monaco = await load(highlighter);
           const editor = monaco.editor.create(containerEl, renderOptions);
-          if (vfs) {
-            const saveViewState = () => {
+          if (workspace) {
+            const storeViewState = () => {
               const currentModel = editor.getModel();
               if (currentModel?.uri.scheme === "file") {
                 const state = editor.saveViewState();
                 if (state) {
                   state.viewState.scrollTop ??= editor.getScrollTop();
-                  vfs!.viewState[currentModel.uri.toString()] = Object.freeze(state);
+                  workspace.viewState.save(currentModel.uri.toString(), Object.freeze(state));
                 }
               }
             };
-            const debunce = (fn: () => void, delay = 500) => {
-              let timer: number | null = null;
-              return () => {
-                if (timer !== null) {
-                  clearTimeout(timer);
-                }
-                timer = setTimeout(() => {
-                  timer = null;
-                  fn();
-                }, delay);
-              };
-            };
-            editor.onDidChangeCursorSelection(debunce(saveViewState));
-            editor.onDidScrollChange(debunce(saveViewState));
-            vfs.history.onChange((uri) => {
-              if (editor.getModel()?.uri.toString() !== uri) {
-                vfs.openModel(uri, editor);
+            editor.onDidChangeCursorSelection(debunce(storeViewState));
+            editor.onDidScrollChange(debunce(storeViewState));
+            workspace.history.onChange((state) => {
+              if (editor.getModel()?.uri.toString() !== state.current) {
+                workspace._openTextDocument(state.current, editor);
               }
             });
           }
-          if (vfs && filename) {
+          if (filename && workspace) {
             try {
-              const model = await vfs.openModel(filename, editor);
+              const model = await workspace._openTextDocument(filename, editor);
               // update the model value with the SSR `code` if exists
               if (
                 renderOptions.filename === filename
@@ -428,16 +431,16 @@ export function lazy(options?: InitOption, hydrate?: boolean) {
                 model.setValue(renderOptions.code);
               }
             } catch (error) {
-              if (error instanceof vfs.ErrorNotFound) {
+              if (error instanceof ErrorNotFound) {
                 if ((renderOptions.code && renderOptions.filename)) {
-                  await vfs.writeFile(renderOptions.filename, renderOptions.code);
-                  vfs.openModel(renderOptions.filename, editor);
+                  await workspace.fs.writeFile(renderOptions.filename, renderOptions.code);
+                  workspace._openTextDocument(renderOptions.filename, editor);
                 } else {
                   // open an empty model
                   editor.setModel(monaco.editor.createModel(""));
                 }
               } else {
-                throw new Error(`[vfs] Failed to open file: ` + error.message);
+                throw error;
               }
             }
           } else if ((renderOptions.code && (renderOptions.language || renderOptions.filename))) {
@@ -452,7 +455,7 @@ export function lazy(options?: InitOption, hydrate?: boolean) {
             editor.setModel(monaco.editor.createModel(""));
           }
           // hide the prerender element if exists
-          if (prerenderEl && editorWorkerPromise) {
+          if (prerenderEl) {
             editorWorkerPromise.then(() => {
               setTimeout(() => {
                 const animate = prerenderEl.animate?.([{ opacity: 1 }, { opacity: 0 }], { duration: 150 });
@@ -470,12 +473,17 @@ export function lazy(options?: InitOption, hydrate?: boolean) {
       }
     },
   );
+
+  await editorWorkerPromise;
+
+  return {
+    workspace,
+  };
 }
 
 /** Hydrate the monaco editor in the browser. */
-export function hydrate(options?: InitOption) {
+export function hydrate(options?: InitOptions) {
   return lazy(options, true);
 }
 
-// set the shiki wasm default loader
-setDefaultWasmLoader(getWasmInstance);
+export { Workspace };

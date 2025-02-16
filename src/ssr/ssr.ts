@@ -15,13 +15,13 @@ async function initRenderHighlighter(options: RenderOptions): Promise<Highlighte
   if (language || filename) {
     const languageId = language ?? getLanguageIdFromPath(filename!);
     if (languageId && !highlighter.getLoadedLanguages().includes(languageId)) {
-      console.info(`[esm-monaco] Loading garmmar '${languageId}' from ${options.shiki?.downloadCDN ?? "https://esm.sh"} ...`);
+      console.info(`[esm-monaco] Loading garmmar '${languageId}' from ${options.shiki?.downloadCDN ?? "https://esm.sh"}/tm-grammars ...`);
       promises.push(highlighter.loadGrammarFromCDN(languageId));
     }
   }
   if (theme) {
     if (!highlighter.getLoadedThemes().includes(theme)) {
-      console.info(`[esm-monaco] Loading theme '${theme}' from ${options.shiki?.downloadCDN ?? "https://esm.sh"} ...`);
+      console.info(`[esm-monaco] Loading theme '${theme}' from ${options.shiki?.downloadCDN ?? "https://esm.sh"}/tm-themes ...`);
       promises.push(highlighter.loadThemeFromCDN(theme));
     }
   }

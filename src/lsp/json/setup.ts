@@ -1,6 +1,6 @@
 import type monacoNS from "monaco-editor-core";
 import type { FormattingOptions } from "vscode-languageserver-types";
-import type { VFS } from "~/vfs.ts";
+import type { Workspace } from "~/workspace.ts";
 import type { CreateData, JSONWorker } from "./worker.ts";
 import { schemas } from "./schemas.ts";
 
@@ -11,9 +11,9 @@ import * as ls from "../language-service.js";
 export async function setup(
   monaco: typeof monacoNS,
   languageId: string,
+  workspace?: Workspace,
   languageSettings?: Record<string, unknown>,
   formattingOptions?: FormattingOptions,
-  vfs?: VFS,
 ) {
   const { editor, languages } = monaco;
   const createData: CreateData = {
@@ -34,13 +34,12 @@ export async function setup(
       trimFinalNewlines: true,
       ...formattingOptions,
     },
-    vfs: await ls.createWorkerVFS(vfs),
   };
   const worker = editor.createWebWorker<JSONWorker>({
     moduleId: "lsp/json/worker",
     label: languageId,
     createData,
-    host: ls.createHost(vfs),
+    host: ls.createHost(workspace),
   });
 
   // reset schema on model change
@@ -60,8 +59,9 @@ export async function setup(
 
   // set monacoNS and register language features
   ls.setup(monaco);
-  ls.enableBasicFeatures(languageId, worker, [" ", ":", "\""]);
+  ls.enableBasicFeatures(languageId, worker, [" ", ":", "\""], workspace);
   ls.enableColorPresentation(languageId, worker);
+  ls.enableDocumentLinks(languageId, worker);
 
   // register code lens provider for import maps
   languages.registerCodeLensProvider(languageId, {

@@ -13,6 +13,7 @@
       height: 100vh;
       overflow: hidden;
     }
+
     #editor {
       width: 100%;
       height: 100%;
@@ -24,12 +25,12 @@
   <div id="editor"></div>
   <script type="module">
     import { init } from '/esm-monaco/index.js';
-    import { vfs } from '/vfs.js';
-    const monaco = await init({ vfs });
-    const editor = monaco.editor.create(editor, {
+    import { workspace } from '/workspace.js';
+    const monaco = await init({ workspace });
+    const editor = monaco.editor.create(document.getElementById("editor"), {
       padding: { top: 8, bottom: 8 },
     });
-    await vfs.openModel("App.tsx", editor)
+    await workspace.openTextDocument("src/App.tsx")
   </script>
 </body>
 

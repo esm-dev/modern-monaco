@@ -1,7 +1,7 @@
 import type monacoNS from "monaco-editor-core";
 import * as htmlService from "vscode-html-languageservice";
 import { getDocumentRegions } from "./embedded-support.ts";
-import { WorkerBase, type WorkerVFS } from "../worker-base.ts";
+import { WorkerBase } from "../worker-base.ts";
 
 // ! external modules, don't remove the `.js` extension
 import { initializeWorker } from "../../editor-worker.js";
@@ -27,7 +27,6 @@ export interface CreateData {
    */
   readonly suggest?: htmlService.CompletionConfiguration;
   readonly data?: HTMLDataConfiguration;
-  readonly vfs?: WorkerVFS;
 }
 
 export class HTMLWorker extends WorkerBase<undefined, htmlService.HTMLDocument> {
@@ -36,7 +35,7 @@ export class HTMLWorker extends WorkerBase<undefined, htmlService.HTMLDocument> 
   private _languageService: htmlService.LanguageService;
 
   constructor(ctx: monacoNS.worker.IWorkerContext, createData: CreateData) {
-    super(ctx, createData.vfs);
+    super(ctx, (document) => this._languageService.parseHTMLDocument(document));
     const data = createData.data;
     const useDefaultDataProvider = data?.useDefaultDataProvider;
     const fileSystemProvider = this.getFileSystemProvider();
@@ -51,7 +50,6 @@ export class HTMLWorker extends WorkerBase<undefined, htmlService.HTMLDocument> 
     this._formatSettings = createData.format ?? {};
     this._suggestSettings = createData.suggest ?? {};
     this._languageService = htmlService.getLanguageService({ customDataProviders, useDefaultDataProvider, fileSystemProvider });
-    this.createLanguageDocument = (document) => this._languageService.parseHTMLDocument(document);
   }
 
   async doValidation(uri: string): Promise<htmlService.Diagnostic[] | null> {

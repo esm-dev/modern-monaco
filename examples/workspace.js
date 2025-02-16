@@ -1,4 +1,4 @@
-import { VFS } from "/esm-monaco/vfs.js";
+import { Workspace } from "/esm-monaco/workspace.js";
 
 const importMap = {
   imports: {
@@ -42,14 +42,13 @@ export const files = {
     "  <script type=\"module\">",
     "    import { createElement } from \"react\"",
     "    import { createRoot } from \"react-dom/client\"",
-    "    import App from \"./App.tsx\"",
+    "    import App from \"./src/App.tsx\"",
     "    const root = createRoot(document.getElementById(\"root\"))",
     "    root.render(createElement(App))",
     "  </script>",
     "</body>",
     "</html>",
   ].join("\n"),
-  "import_map.json": JSON.stringify(importMap, null, 2),
   "tsconfig.json": JSON.stringify(
     {
       compilerOptions: {
@@ -64,9 +63,9 @@ export const files = {
   ),
 };
 
-export const vfs = new VFS({
-  scope: "test",
-  initial: files,
+export const workspace = new Workspace({
+  name: "test",
+  initialFiles: files,
   entryFile: "index.html",
-  history: "browserHistory"
+  browserHistory: false,
 });

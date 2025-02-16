@@ -1,11 +1,4 @@
-/** The import maps follow the spec at https://wicg.github.io/import-maps/. */
-export interface ImportMap {
-  $baseURL: string;
-  $src?: string;
-  $support?: boolean;
-  imports: Record<string, string>;
-  scopes: Record<string, Record<string, string>>;
-}
+import type { ImportMap } from "../types/import-map.d.ts";
 
 /** Create a blank import map. */
 export function createBlankImportMap(baseURL?: string): ImportMap {
@@ -148,3 +141,5 @@ function validateScopes(imports: Record<string, unknown>) {
 function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
+
+export type { ImportMap };

@@ -2,7 +2,7 @@ import type ts from "typescript";
 import type monacoNS from "./monaco.d.ts";
 import type { ImportMap } from "./import-map.d.ts";
 import type { JSONSchema } from "./jsonSchema.d.ts";
-import type { VFS } from "./vfs.d.ts";
+import type { Workspace } from "./workspace.d.ts";
 
 export interface FormatOptions {
   /** Size of a tab in spaces. Default: 4. */
@@ -67,7 +67,7 @@ export interface LSP {
     languageId: string,
     langaugeSettings?: Record<string, unknown>,
     formattingOptions?: Record<string, unknown>,
-    vfs?: VFS,
+    workspace?: Workspace,
   ) => Promise<void>;
   getWorkerUrl: () => URL;
 }
@@ -80,7 +80,7 @@ export interface LSPProvider {
 
 export interface LSPConfig extends LSPLanguageConfig {
   providers?: Record<string, LSPProvider>;
-  format?: FormatOptions;
+  formatting?: FormatOptions;
 }
 
 declare global {
@@ -99,7 +99,7 @@ declare global {
       compilerOptions?: ts.CompilerOptions;
       /** The global import maps. */
       importMap?: ImportMap;
-      /** The version of the typescript from CDN. Default: ">= 5.5.0" */
+      /** The version of the typescript imported from esm.sh CDN. Default: ">= 5.5.0" */
       tsVersion?: string;
     };
   }
