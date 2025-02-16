@@ -1,9 +1,8 @@
 const importMap = {
   imports: {
-    "@jsxRuntime": "https://esm.sh/react@18.3.1",
+    "lodash": "https://esm.sh/lodash@4.17.21",
     "react": "https://esm.sh/react@18.3.1",
     "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
-    "lodash": "https://esm.sh/lodash@4.17.21",
   },
 };
 
@@ -15,8 +14,9 @@ import { message } from "./greeting.ts";
 export default function App() {
   useEffect(() => {
     confetti();
-    log(message);
+    _.times(3, () => console.log(message));
   }, []);
+
   return (
     <h1>{message}</h1>
   );

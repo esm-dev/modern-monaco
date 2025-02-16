@@ -1,4 +1,4 @@
-import { ssr } from "../examples/ssr.js";
+import { ssr } from "../examples/js/ssr.js";
 
 async function serveDist(url: URL, req: Request) {
   try {
@@ -110,8 +110,8 @@ cmd.spawn();
 Deno.serve(async (req) => {
   let url = new URL(req.url);
   let pathname = url.pathname;
-  if (pathname === "/workspace.js" || pathname === "/shared.js") {
-    const file = await Deno.open(new URL("../examples" + pathname, import.meta.url));
+  if (pathname === "/workspace.js" || pathname === "/files.js") {
+    const file = await Deno.open(new URL("../examples/js" + pathname, import.meta.url));
     return new Response(
       file.readable,
       {

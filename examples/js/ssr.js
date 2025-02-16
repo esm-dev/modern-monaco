@@ -1,5 +1,5 @@
-import { renderToWebComponent } from "../dist/ssr/index.js";
-import { files } from "./shared.js";
+import { renderToWebComponent } from "../../dist/ssr/index.js";
+import { files } from "./files.js";
 
 export async function ssr(req, filename) {
   return await renderToWebComponent({

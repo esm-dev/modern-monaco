@@ -1,5 +1,5 @@
 import { Workspace } from "esm-monaco";
-import { files } from "./shared.js";
+import { files } from "./files.js";
 
 export const workspace = new Workspace({
   name: "test",
