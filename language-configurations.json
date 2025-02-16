@@ -279,7 +279,21 @@
         "start": "^\\s*//\\s*#?region\\b",
         "end": "^\\s*//\\s*#?endregion\\b"
       }
-    }
+    },
+    "onEnterRules": [
+      {
+        "beforeText": {
+          "pattern": "//.*"
+        },
+        "afterText": {
+          "pattern": "^(?!\\s*$).+"
+        },
+        "action": {
+          "indent": "none",
+          "appendText": "// "
+        }
+      }
+    ]
   },
   "python": {
     "comments": {
@@ -763,7 +777,21 @@
       "increaseIndentPattern": "(^.*\\{[^}]*$)",
       "decreaseIndentPattern": "^\\s*\\}"
     },
-    "wordPattern": "(#?-?\\d*\\.\\d\\w*%?)|(::?[\\w-]+(?=[^,{;]*[,{]))|(([@#.!])?[\\w-?]+%?|[@#!.])"
+    "wordPattern": "(#?-?\\d*\\.\\d\\w*%?)|(::?[\\w-]+(?=[^,{;]*[,{]))|(([@#.!])?[\\w-?]+%?|[@#!.])",
+    "onEnterRules": [
+      {
+        "beforeText": {
+          "pattern": "//.*"
+        },
+        "afterText": {
+          "pattern": "^(?!\\s*$).+"
+        },
+        "action": {
+          "indent": "none",
+          "appendText": "// "
+        }
+      }
+    ]
   },
   "dart": {
     "comments": {
@@ -1445,7 +1473,21 @@
         "start": "^\\s*//\\s*#?region\\b",
         "end": "^\\s*//\\s*#?endregion\\b"
       }
-    }
+    },
+    "onEnterRules": [
+      {
+        "beforeText": {
+          "pattern": "//.*"
+        },
+        "afterText": {
+          "pattern": "^(?!\\s*$).+"
+        },
+        "action": {
+          "indent": "none",
+          "appendText": "// "
+        }
+      }
+    ]
   },
   "pug": {
     "comments": {
@@ -1829,6 +1871,18 @@
         "action": {
           "indent": "indent"
         }
+      },
+      {
+        "beforeText": {
+          "pattern": "//.*"
+        },
+        "afterText": {
+          "pattern": "^(?!\\s*$).+"
+        },
+        "action": {
+          "indent": "none",
+          "appendText": "// "
+        }
       }
     ]
   },
@@ -2116,6 +2170,18 @@
         "beforeText": "^\\s+([^{i\\s]|i(?!f\\b))",
         "action": {
           "indent": "outdent"
+        }
+      },
+      {
+        "beforeText": {
+          "pattern": "//.*"
+        },
+        "afterText": {
+          "pattern": "^(?!\\s*$).+"
+        },
+        "action": {
+          "indent": "none",
+          "appendText": "// "
         }
       }
     ]
@@ -2600,6 +2666,18 @@
           "indent": "indentOutdent",
           "appendText": "\t"
         }
+      },
+      {
+        "beforeText": {
+          "pattern": "//.*"
+        },
+        "afterText": {
+          "pattern": "^(?!\\s*$).+"
+        },
+        "action": {
+          "indent": "none",
+          "appendText": "// "
+        }
       }
     ]
   },
@@ -2670,7 +2748,21 @@
     "indentationRules": {
       "increaseIndentPattern": "({+(?=((\\\\.|[^\"\\\\])*\"(\\\\.|[^\"\\\\])*\")*[^\"}]*)$)|(\\[+(?=((\\\\.|[^\"\\\\])*\"(\\\\.|[^\"\\\\])*\")*[^\"\\]]*)$)",
       "decreaseIndentPattern": "^\\s*[}\\]],?\\s*$"
-    }
+    },
+    "onEnterRules": [
+      {
+        "beforeText": {
+          "pattern": "//.*"
+        },
+        "afterText": {
+          "pattern": "^(?!\\s*$).+"
+        },
+        "action": {
+          "indent": "none",
+          "appendText": "// "
+        }
+      }
+    ]
   },
   "handlebars": {
     "comments": {
@@ -2870,12 +2962,32 @@
         "end": "^\\s*#pragma\\s+endregion\\b"
       }
     },
+    "indentationRules": {
+      "decreaseIndentPattern": {
+        "pattern": "^\\s*[\\}\\]\\)].*$"
+      },
+      "increaseIndentPattern": {
+        "pattern": "^.*(\\{[^}]*|\\([^)]*|\\[[^\\]]*)$"
+      }
+    },
     "onEnterRules": [
       {
         "previousLineText": "^\\s*(((else ?)?if|for|while)\\s*\\(.*\\)\\s*|else\\s*)$",
         "beforeText": "^\\s+([^{i\\s]|i(?!f\\b))",
         "action": {
           "indent": "outdent"
+        }
+      },
+      {
+        "beforeText": {
+          "pattern": "//.*"
+        },
+        "afterText": {
+          "pattern": "^(?!\\s*$).+"
+        },
+        "action": {
+          "indent": "none",
+          "appendText": "// "
         }
       }
     ]
@@ -2962,6 +3074,20 @@
         "`",
         "`"
       ]
+    ],
+    "onEnterRules": [
+      {
+        "beforeText": {
+          "pattern": "//.*"
+        },
+        "afterText": {
+          "pattern": "^(?!\\s*$).+"
+        },
+        "action": {
+          "indent": "none",
+          "appendText": "// "
+        }
+      }
     ]
   },
   "make": {
@@ -3182,6 +3308,10 @@
       [
         "~",
         "~"
+      ],
+      [
+        "$",
+        "$"
       ]
     ],
     "folding": {
@@ -3353,7 +3483,21 @@
         "start": "^\\s*#region\\b",
         "end": "^\\s*#endregion\\b"
       }
-    }
+    },
+    "onEnterRules": [
+      {
+        "beforeText": {
+          "pattern": "//.*"
+        },
+        "afterText": {
+          "pattern": "^(?!\\s*$).+"
+        },
+        "action": {
+          "indent": "none",
+          "appendText": "// "
+        }
+      }
+    ]
   },
   "julia": {
     "comments": {
@@ -3575,6 +3719,20 @@
         "'",
         "'"
       ]
+    ],
+    "onEnterRules": [
+      {
+        "beforeText": {
+          "pattern": "//.*"
+        },
+        "afterText": {
+          "pattern": "^(?!\\s*$).+"
+        },
+        "action": {
+          "indent": "none",
+          "appendText": "// "
+        }
+      }
     ]
   },
   "coffeescript": {
@@ -3878,6 +4036,18 @@
           "indent": "indentOutdent",
           "appendText": "\t"
         }
+      },
+      {
+        "beforeText": {
+          "pattern": "//.*"
+        },
+        "afterText": {
+          "pattern": "^(?!\\s*$).+"
+        },
+        "action": {
+          "indent": "none",
+          "appendText": "// "
+        }
       }
     ]
   },
@@ -4095,6 +4265,20 @@
         "'",
         "'"
       ]
+    ],
+    "onEnterRules": [
+      {
+        "beforeText": {
+          "pattern": "//.*"
+        },
+        "afterText": {
+          "pattern": "^(?!\\s*$).+"
+        },
+        "action": {
+          "indent": "none",
+          "appendText": "// "
+        }
+      }
     ]
   },
   "ruby": {
