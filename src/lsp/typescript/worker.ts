@@ -192,9 +192,10 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
 
   getScriptSnapshot(fileName: string): ts.IScriptSnapshot | undefined {
     const text = this._getScriptText(fileName);
-    if (text) {
-      return ts.ScriptSnapshot.fromString(text);
+    if (text === undefined) {
+      return undefined;
     }
+    return ts.ScriptSnapshot.fromString(text);
   }
 
   getCompilationSettings(): ts.CompilerOptions {
