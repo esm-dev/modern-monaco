@@ -138,12 +138,11 @@ export class Workspace implements IWorkspace {
   ): Promise<monacoNS.editor.ITextModel> {
     const monaco = await this._monaco.promise;
     const fs = this._fs;
-    const url = toURL(uri);
-    const href = url.href;
+    const href = toURL(uri).href;
     const content = await fs.readTextFile(href);
     const viewState = await this.viewState.get(href);
-    const model = monaco.editor.getModel(monaco.Uri.parse(href))
-      ?? monaco.editor.createModel(content, undefined, monaco.Uri.parse(href));
+    const modelUri = monaco.Uri.parse(href);
+    const model = monaco.editor.getModel(modelUri) ?? monaco.editor.createModel(content, undefined, modelUri);
     if (!Reflect.has(model, "__OB__")) {
       const persist = createPersistTask(() => fs.writeFile(href, model.getValue(), { notify: false }));
       const disposable = model.onDidChangeContent(persist);
@@ -180,10 +179,8 @@ export class Workspace implements IWorkspace {
             editor.setScrollTop(svp.top);
           }
         }
-      } else {
-        if (viewState) {
-          editor.restoreViewState(viewState);
-        }
+      } else if (viewState) {
+        editor.restoreViewState(viewState);
       }
       if (this._history.state.current !== href) {
         this._history.push(href);
@@ -204,7 +201,7 @@ export class Workspace implements IWorkspace {
 }
 
 type FileSystemWatcher = {
-  url: string;
+  pathname: string;
   recursive?: boolean;
   handle: (kind: "create" | "modify" | "remove", filename: string, type?: number) => void;
 };
@@ -225,15 +222,14 @@ class FS implements FileSystem {
     return [transaction.objectStore("fs/meta"), transaction.objectStore("fs/blobs")];
   }
 
-  // @internal
+  /**
+   * read the fs entries
+   * @internal
+   */
   async entries(): Promise<[string, number][]> {
-    const entries: [string, number][] = [];
     const metaStore = await this._getIdbObjectStore("fs/meta");
-    const items = await promisifyIDBRequest<Array<{ url: string } & FileStat>>(metaStore.getAll());
-    for (const item of items) {
-      entries.push([item.url, item.type]);
-    }
-    return entries;
+    const entries = await promisifyIDBRequest<Array<{ url: string } & FileStat>>(metaStore.getAll());
+    return entries.map(({ url, type }) => [url, type]);
   }
 
   async stat(name: string): Promise<FileStat> {
@@ -254,28 +250,34 @@ class FS implements FileSystem {
     const { pathname, href: url } = filenameToURL(name);
     const metaStore = await this._getIdbObjectStore("fs/meta", true);
     const promises: Promise<void>[] = [];
+    const newDirs: string[] = [];
     // ensure parent directories exist
     let parent = pathname.slice(0, pathname.lastIndexOf("/"));
     while (parent) {
-      try {
-        const stat: FileStat = { type: 2, version: 1, ctime: now, mtime: now, size: 0 };
-        promises.push(promisifyIDBRequest(metaStore.add({ url: filenameToURL(parent).href, ...stat })));
-      } catch (error) {
+      const stat: FileStat = { type: 2, version: 1, ctime: now, mtime: now, size: 0 };
+      promises.push(
+        promisifyIDBRequest<void>(metaStore.add({ url: filenameToURL(parent).href, ...stat })).catch((error) => {
+          if (error.name !== "ConstraintError") {
+            throw error;
+          }
+        }),
+      );
+      newDirs.push(parent);
+      parent = parent.slice(0, parent.lastIndexOf("/"));
+    }
+    const stat: FileStat = { type: 2, version: 1, ctime: now, mtime: now, size: 0 };
+    promises.push(
+      promisifyIDBRequest<void>(metaStore.add({ url, ...stat })).catch((error) => {
         if (error.name !== "ConstraintError") {
           throw error;
         }
-      }
-      parent = parent.slice(0, parent.lastIndexOf("/"));
-    }
-    try {
-      const stat: FileStat = { type: 2, version: 1, ctime: now, mtime: now, size: 0 };
-      promises.push(promisifyIDBRequest(metaStore.add({ url, ...stat })));
-    } catch (error) {
-      if (error.name !== "ConstraintError") {
-        throw error;
-      }
-    }
+      }),
+    );
+    newDirs.push(pathname);
     await Promise.all(promises);
+    for (const dir of newDirs) {
+      this._notify("create", dir, 2);
+    }
   }
 
   async readDirectory(name: string): Promise<[string, number][]> {
@@ -330,23 +332,23 @@ class FS implements FileSystem {
         throw error;
       }
     }
-    let old: FileStat | null = null;
+    let oldStat: FileStat | null = null;
     try {
-      old = await this.stat(url);
+      oldStat = await this.stat(url);
     } catch (error) {
       if (!(error instanceof ErrorNotFound)) {
         throw error;
       }
     }
-    if (old?.type === 2) {
+    if (oldStat?.type === 2) {
       throw new Error(`write ${pathname}: is a directory`);
     }
     content = typeof content === "string" ? encode(content) : content;
     const now = Date.now();
     const newStat: FileStat = {
       type: 1,
-      version: (old?.version ?? 0) + 1,
-      ctime: old?.ctime ?? now,
+      version: (oldStat?.version ?? 0) + 1,
+      ctime: oldStat?.ctime ?? now,
       mtime: now,
       size: content.byteLength,
     };
@@ -355,10 +357,13 @@ class FS implements FileSystem {
       promisifyIDBRequest(metaStore.put({ url, ...newStat })),
       promisifyIDBRequest(blobStore.put({ url, content })),
     ]);
+    if (options?.notify !== false) {
+      this._notify(oldStat ? "modify" : "create", pathname, 1);
+    }
   }
 
   async delete(name: string, options?: { recursive: boolean }): Promise<void> {
-    const url = filenameToURL(name).href;
+    const { pathname, href: url } = filenameToURL(name);
     const stat = await this.stat(url);
     if (stat.type === 1 /* File */) {
       const [metaStore, blobStore] = await this._getIdbObjectStores(true);
@@ -366,10 +371,12 @@ class FS implements FileSystem {
         promisifyIDBRequest(metaStore.delete(url)),
         promisifyIDBRequest(blobStore.delete(url)),
       ]);
+      this._notify("remove", pathname, 1);
     } else if (stat.type === 2 /* Directory */) {
       if (options?.recursive) {
         const promises: Promise<void>[] = [];
         const [metaStore, blobStore] = await this._getIdbObjectStores(true);
+        const deleted: [string, number][] = [];
         promises.push(openIDBCursor(metaStore, IDBKeyRange.lowerBound(url), (cursor) => {
           const stat = cursor.value;
           if (stat.url.startsWith(url)) {
@@ -377,11 +384,15 @@ class FS implements FileSystem {
               promises.push(promisifyIDBRequest(blobStore.delete(stat.url)));
             }
             promises.push(promisifyIDBRequest(cursor.delete()));
+            deleted.push([stat.url, stat.type]);
             return true;
           }
           return false;
         }));
         await Promise.all(promises);
+        for (const [url, type] of deleted) {
+          this._notify("remove", new URL(url).pathname, type);
+        }
       } else {
         const entries = await this.readDirectory(url);
         if (entries.length > 0) {
@@ -389,10 +400,12 @@ class FS implements FileSystem {
         }
         const metaStore = await this._getIdbObjectStore("fs/meta", true);
         await promisifyIDBRequest(metaStore.delete(url));
+        this._notify("remove", pathname, 2);
       }
     } else {
       const metaStore = await this._getIdbObjectStore("fs/meta", true);
       await promisifyIDBRequest(metaStore.delete(url));
+      this._notify("remove", pathname, stat.type);
     }
   }
 
@@ -401,7 +414,7 @@ class FS implements FileSystem {
   }
 
   async rename(oldName: string, newName: string, options?: { overwrite: boolean }): Promise<void> {
-    const { href: oldUrl } = filenameToURL(oldName);
+    const { href: oldUrl, pathname: oldPath } = filenameToURL(oldName);
     const { href: newUrl, pathname: newPath } = filenameToURL(newName);
     const oldStat = await this.stat(oldUrl);
     try {
@@ -415,10 +428,10 @@ class FS implements FileSystem {
         throw error;
       }
     }
-    const dir = newPath.slice(0, newPath.lastIndexOf("/"));
-    if (dir) {
+    const newPathDirname = newPath.slice(0, newPath.lastIndexOf("/"));
+    if (newPathDirname) {
       try {
-        if ((await this.stat(dir)).type !== 2) {
+        if ((await this.stat(newPathDirname)).type !== 2) {
           throw new Error(`rename ${oldUrl} to ${newUrl}: Not a directory`);
         }
       } catch (error) {
@@ -438,6 +451,7 @@ class FS implements FileSystem {
         promises.push(promisifyIDBRequest(blobStore.put({ url: newUrl, content: cursor.value.content })));
         promises.push(promisifyIDBRequest(cursor.delete()));
       });
+    const moved: [string, string, number][] = [[oldPath, newPath, oldStat.type]];
     if (oldStat.type === 1) {
       promises.push(renameBlob(oldUrl, newUrl));
     } else if (oldStat.type === 2) {
@@ -457,6 +471,7 @@ class FS implements FileSystem {
             }
             promises.push(promisifyIDBRequest(metaStore.put({ ...stat, url })));
             promises.push(promisifyIDBRequest(cursor.delete()));
+            moved.push([new URL(stat.url).pathname, new URL(url).pathname, stat.type]);
             return true;
           }
           return false;
@@ -465,19 +480,35 @@ class FS implements FileSystem {
       promises.push(renamingChildren);
     }
     await Promise.all(promises);
+    for (const [oldPath, newPath, type] of moved) {
+      this._notify("remove", oldPath, type);
+      this._notify("create", newPath, type);
+    }
   }
 
   watch(filename: string, handle: FileSystemWatchHandle): () => void;
   watch(filename: string, options: { recursive: boolean }, handle: FileSystemWatchHandle): () => void;
   watch(filename: string, handleOrOptions: FileSystemWatchHandle | { recursive: boolean }, handle?: FileSystemWatchHandle): () => void {
-    const url = filenameToURL(filename).href;
     const options = typeof handleOrOptions === "function" ? undefined : handleOrOptions;
     handle = typeof handleOrOptions === "function" ? handleOrOptions : handle!;
-    const watcher: FileSystemWatcher = { url, recursive: options?.recursive ?? false, handle };
+    if (typeof handle !== "function") {
+      throw new TypeError("handle must be a function");
+    }
+    const watcher: FileSystemWatcher = { pathname: filenameToURL(filename).pathname, recursive: options?.recursive ?? false, handle };
     this._watchers.add(watcher);
     return () => {
       this._watchers.delete(watcher);
     };
+  }
+
+  private async _notify(kind: "create" | "modify" | "remove", pathname: string, type?: number) {
+    for (const watcher of this._watchers) {
+      if (
+        watcher.pathname === pathname || (watcher.recursive && (watcher.pathname === "/" || pathname.startsWith(watcher.pathname + "/")))
+      ) {
+        watcher.handle(kind, pathname, type);
+      }
+    }
   }
 }
 

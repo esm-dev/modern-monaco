@@ -308,7 +308,7 @@
         option.append(deleteIcon)
         deleteIcon.addEventListener('click', async (e) => {
           e.stopPropagation()
-          workspace.fs.remove(filename)
+          workspace.fs.delete(filename)
           if (isActivated) {
             toggleFolder()
           }
@@ -373,8 +373,8 @@
 
     // render folder UI
     renderFolder()
-    workspace.fs.watch('/', { recursive: true }, (evt) => {
-      if (evt.kind === 'create' || evt.kind === 'remove') {
+    workspace.fs.watch('/', { recursive: true }, (kind) => {
+      if (kind === 'create' || kind === 'remove') {
         renderFolder()
       }
     });
