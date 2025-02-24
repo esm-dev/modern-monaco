@@ -1,13 +1,19 @@
 import type monacoNS from "monaco-editor-core";
 import type ts from "typescript";
 import type { FormattingOptions } from "vscode-languageserver-types";
-import type { ImportMap } from "~/import-map";
 import type { Workspace } from "~/workspace";
 import type { CreateData, Host, TypeScriptWorker, VersionedContent } from "./worker";
+import {
+  createBlankImportMap,
+  type ImportMap,
+  importMapFrom,
+  isBlankImportMap,
+  isSameImportMap,
+  parseImportMapFromJson,
+} from "@esm.sh/import-map";
 
 // ! external modules, don't remove the `.js` extension
 import { cache } from "../../cache.js";
-import { createBlankImportMap, importMapFrom, isBlankImportMap, parseImportMapFromJson } from "../../import-map.js";
 import { ErrorNotFound } from "../../workspace.js";
 import * as ls from "../language-service.js";
 
@@ -200,7 +206,7 @@ async function createWorker(
     let unwatchTypes = watchTypes();
     let unwatchImportMap = watchImportMapJSON();
 
-    fs.watch("tsconfig.json", async (e) => {
+    fs.watch("tsconfig.json", () => {
       unwatchTypes.forEach((dispose) => dispose());
       loadCompilerOptions(workspace).then((options) => {
         const newOptions = { ...defaultCompilerOptions, ...options };
@@ -214,10 +220,10 @@ async function createWorker(
       });
     });
 
-    fs.watch("index.html", async (e) => {
+    fs.watch("index.html", () => {
       unwatchImportMap?.();
       loadImportMap(workspace, remixImportMap).then((im) => {
-        if (JSON.stringify(im) !== JSON.stringify(importMap)) {
+        if (!isSameImportMap(importMap, im)) {
           importMap = im;
           updateCompilerOptions({ importMap });
         }

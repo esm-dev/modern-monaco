@@ -8,6 +8,9 @@ importers:
 
   .:
     devDependencies:
+      '@esm.sh/import-map':
+        specifier: 0.1.1
+        version: 0.1.1
       '@shikijs/core':
         specifier: 2.4.1
         version: 2.4.1
@@ -43,6 +46,9 @@ importers:
         version: 3.17.5
 
 packages:
+
+  '@esm.sh/import-map@0.1.1':
+    resolution: {integrity: sha512-fwng22cW5vf8EVyuYVhd08Yud62bHgjMHrTx1XWuNyV3TcTYpG5uKrmj6/HhjHweY0G4ahpUWVsizz1B5FmxCg==}
 
   '@shikijs/core@2.4.1':
     resolution: {integrity: sha512-c7AkRsCpSVjKHsTwuvRVMEAdADq4Z1KoodcS4LaIqMzBTM0+Q572VRk1PIxtzaMtdiHlRPO6mH5iPdJoTV59mQ==}
@@ -207,6 +213,8 @@ packages:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==}
 
 snapshots:
+
+  '@esm.sh/import-map@0.1.1': {}
 
   '@shikijs/core@2.4.1':
     dependencies:

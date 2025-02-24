@@ -62,7 +62,7 @@ export interface FileSystem {
   readTextFile(filename: string): Promise<string>;
   rename(oldName: string, newName: string, options?: { overwrite: boolean }): Promise<void>;
   stat(filename: string): Promise<FileStat>;
-  writeFile(filename: string, content: string | Uint8Array, options?: { notify: boolean }): Promise<void>;
+  writeFile(filename: string, content: string | Uint8Array): Promise<void>;
   watch(filename: string, options: { recursive: boolean }, handle: FileSystemWatchHandle): () => void;
   watch(filename: string, handle: FileSystemWatchHandle): () => void;
 }

@@ -21,10 +21,6 @@
       "import": "./dist/cache.js",
       "types": "./types/cache.d.ts"
     },
-    "./import-map": {
-      "import": "./dist/import-map.js",
-      "types": "./types/import-map.d.ts"
-    },
     "./workspace": {
       "import": "./dist/workspace.js",
       "types": "./types/workspace.d.ts"
@@ -55,6 +51,7 @@
   },
   "sideEffects": false,
   "devDependencies": {
+    "@esm.sh/import-map": "0.1.1",
     "@shikijs/core": "2.4.1",
     "@shikijs/engine-oniguruma": "2.4.1",
     "monaco-editor-core": "0.52.2",

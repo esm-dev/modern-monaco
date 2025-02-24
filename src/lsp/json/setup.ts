@@ -2,10 +2,10 @@ import type monacoNS from "monaco-editor-core";
 import type { FormattingOptions } from "vscode-languageserver-types";
 import type { Workspace } from "~/workspace.ts";
 import type { CreateData, JSONWorker } from "./worker.ts";
+import { parseImportMapFromHtml, parseImportMapFromJson } from "@esm.sh/import-map";
 import { schemas } from "./schemas.ts";
 
 // ! external modules, don't remove the `.js` extension
-import { parseImportMapFromHtml, parseImportMapFromJson } from "../../import-map.js";
 import * as ls from "../language-service.js";
 
 export async function setup(

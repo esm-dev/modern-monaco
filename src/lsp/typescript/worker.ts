@@ -1,5 +1,6 @@
 import type monacoNS from "monaco-editor-core";
 import type * as lst from "vscode-languageserver-types";
+import { type ImportMap, isBlankImportMap, resolve } from "@esm.sh/import-map";
 import ts from "typescript";
 import {
   CompletionItemKind,
@@ -19,7 +20,6 @@ import { FileType, TextDocument, WorkerBase } from "../worker-base.ts";
 import libs from "./libs.js";
 import { cache } from "../../cache.js";
 import { initializeWorker } from "../../editor-worker.js";
-import { type ImportMap, isBlankImportMap, resolve } from "../../import-map.js";
 
 export interface Host {
   openModel(uri: string): Promise<boolean>;

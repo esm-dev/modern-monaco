@@ -131,7 +131,9 @@ export function enableBasicFeatures<
 
   if (workspace) {
     workspace.fs.watch("/", { recursive: true }, (kind, path, type) => {
-      worker.getProxy().then(proxy => proxy.fsNotify(kind, path, type));
+      if (kind !== "modify") {
+        worker.getProxy().then(proxy => proxy.fsNotify(kind, path, type));
+      }
     });
     workspace.fs.entries().then((entries) => {
       worker.getProxy().then(proxy => proxy.syncFSEntries(entries));

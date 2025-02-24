@@ -144,10 +144,10 @@ export class Workspace implements IWorkspace {
     const modelUri = monaco.Uri.parse(href);
     const model = monaco.editor.getModel(modelUri) ?? monaco.editor.createModel(content, undefined, modelUri);
     if (!Reflect.has(model, "__OB__")) {
-      const persist = createPersistTask(() => fs.writeFile(href, model.getValue(), { notify: false }));
+      const persist = createPersistTask(() => fs.writeFile(href, model.getValue(), { isModelContentChange: true }));
       const disposable = model.onDidChangeContent(persist);
-      const unwatch = fs.watch(href, (kind) => {
-        if (kind === "modify") {
+      const unwatch = fs.watch(href, (kind, _, __, context) => {
+        if (kind === "modify" && (!context || !context.isModelContentChange)) {
           fs.readTextFile(href).then((content) => {
             if (model.getValue() !== content) {
               model.setValue(content);
@@ -203,7 +203,7 @@ export class Workspace implements IWorkspace {
 type FileSystemWatcher = {
   pathname: string;
   recursive?: boolean;
-  handle: (kind: "create" | "modify" | "remove", filename: string, type?: number) => void;
+  handle: (kind: "create" | "modify" | "remove", filename: string, type?: number, context?: any) => void;
 };
 
 /** workspace file system using IndexedDB. */
@@ -317,7 +317,7 @@ class FS implements FileSystem {
     return this.readFile(filename).then(decode);
   }
 
-  async writeFile(name: string, content: string | Uint8Array, options?: { notify: boolean }): Promise<void> {
+  async writeFile(name: string, content: string | Uint8Array, context?: any): Promise<void> {
     const { pathname, href: url } = filenameToURL(name);
     const dir = pathname.slice(0, pathname.lastIndexOf("/"));
     if (dir) {
@@ -357,9 +357,7 @@ class FS implements FileSystem {
       promisifyIDBRequest(metaStore.put({ url, ...newStat })),
       promisifyIDBRequest(blobStore.put({ url, content })),
     ]);
-    if (options?.notify !== false) {
-      this._notify(oldStat ? "modify" : "create", pathname, 1);
-    }
+    this._notify(oldStat ? "modify" : "create", pathname, 1, context);
   }
 
   async delete(name: string, options?: { recursive: boolean }): Promise<void> {
@@ -486,9 +484,13 @@ class FS implements FileSystem {
     }
   }
 
-  watch(filename: string, handle: FileSystemWatchHandle): () => void;
-  watch(filename: string, options: { recursive: boolean }, handle: FileSystemWatchHandle): () => void;
-  watch(filename: string, handleOrOptions: FileSystemWatchHandle | { recursive: boolean }, handle?: FileSystemWatchHandle): () => void {
+  watch(filename: string, handle: FileSystemWatcher["handle"]): () => void;
+  watch(filename: string, options: { recursive: boolean }, handle: FileSystemWatcher["handle"]): () => void;
+  watch(
+    filename: string,
+    handleOrOptions: FileSystemWatcher["handle"] | { recursive: boolean },
+    handle?: FileSystemWatcher["handle"],
+  ): () => void {
     const options = typeof handleOrOptions === "function" ? undefined : handleOrOptions;
     handle = typeof handleOrOptions === "function" ? handleOrOptions : handle!;
     if (typeof handle !== "function") {
@@ -501,12 +503,12 @@ class FS implements FileSystem {
     };
   }
 
-  private async _notify(kind: "create" | "modify" | "remove", pathname: string, type?: number) {
+  private async _notify(kind: "create" | "modify" | "remove", pathname: string, type?: number, context?: any) {
     for (const watcher of this._watchers) {
       if (
         watcher.pathname === pathname || (watcher.recursive && (watcher.pathname === "/" || pathname.startsWith(watcher.pathname + "/")))
       ) {
-        watcher.handle(kind, pathname, type);
+        watcher.handle(kind, pathname, type, context);
       }
     }
   }
