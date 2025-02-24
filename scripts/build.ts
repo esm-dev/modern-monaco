@@ -1,4 +1,4 @@
-import { build as esbuild } from "https://deno.land/x/esbuild@v0.24.0/mod.js";
+import { build as esbuild } from "https://deno.land/x/esbuild@v0.25.0/mod.js";
 import { grammars as tmGrammars } from "../node_modules/tm-grammars/index.js";
 import { themes as tmThemes } from "../node_modules/tm-themes/index.js";
 import { wasmBinary } from "../node_modules/@shikijs/engine-oniguruma/dist/wasm-inlined.mjs";
@@ -21,7 +21,6 @@ const build = (entryPoints: string[], define?: Record<string, string>) => {
       "typescript",
       "*/editor-core.js",
       "*/editor-worker.js",
-      "*/import-map.js",
       "*/language-service.js",
       "*/libs.js",
       "*/setup.js",
@@ -103,7 +102,6 @@ const buildDist = async () => {
   await build([
     "src/cache.ts",
     "src/index.ts",
-    "src/import-map.ts",
     "src/shiki-wasm.ts",
     "src/util.ts",
     "src/workspace.ts",

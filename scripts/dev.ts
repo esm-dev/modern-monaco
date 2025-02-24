@@ -1,5 +1,3 @@
-import ssr from "../examples/js/ssr.js";
-
 async function serveDist(url: URL, req: Request) {
   try {
     const fileUrl = new URL("../dist" + url.pathname, import.meta.url);
@@ -7,7 +5,7 @@ async function serveDist(url: URL, req: Request) {
     if (url.pathname === "/lsp/typescript/worker.js") {
       let replaced = false;
       body = body.pipeThrough(
-        new TransformStream({
+        new TransformStream<Uint8Array>({
           transform: (chunk, controller) => {
             if (replaced) {
               controller.enqueue(chunk);
@@ -49,6 +47,7 @@ async function servePages(url: URL, req: Request) {
   try {
     const fileUrl = new URL("../examples/" + filename, import.meta.url);
     if (filename === "ssr.html") {
+      const { default: ssr } = await import("../examples/js/ssr.js");
       return ssr.fetch(req);
     }
     const headers = new Headers({
