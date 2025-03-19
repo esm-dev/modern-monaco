@@ -209,10 +209,9 @@ const workspace = new Workspace({
 > By default, `modern-monaco` uses `react` or `preact` in the `importmap` script as the `jsxImportSource` option for typescript worker.
 > To use a custom `jsxImportSource` option, add `@jsxRuntime` specifier in the `importmap` script. For example, [solid-js](https://esm.sh/solid-js/jsx-runtime).
 
-
 ## Editor Theme & Language Grammars
 
-`modern-monaco` uses [Shiki](https://shiki.style) for syntax highlighting with tons of grammars and themes. It loads themes and grammars from esm.sh on demand.
+`modern-monaco` uses [Shiki](https://shiki.style) for syntax highlighting with tons of grammars and themes. By default, it loads themes and grammars from esm.sh on demand.
 
 ### Setting the Editor Theme
 
@@ -233,32 +232,40 @@ lazy({
 > [!Note]
 > The theme ID should be one of the [Shiki Themes](https://shiki.style/themes).
 
-### Pre-loading Language Grammars
-
-By default, `modern-monaco` loads language grammars when a specific language mode is attached in the editor. You can also pre-load language grammars by adding the `langs` option to the `lazy`, `init`, or `hydrate` function.
+`modern-monaco` loads themes from CDN when a theme ID is provided. You can also load themes `tm-themes` package.
 
 ```js
+import OneDark "tm-themes/themes/OneDark-Pro.json" with { type: "json" };
+
 lazy({
-  langs: ["javascript", "typescript", "css", "html", "json", "markdown"],
+  theme: OneDark
 });
 ```
 
-### Custom Language Grammars
+### Pre-loading Language Grammars
 
-You can also add custom language grammars to the editor.
+By default, `modern-monaco` loads language grammars when a specific language mode is attached in the editor. You can also pre-load language grammars by adding the `langs` option to the `lazy`, `init`, or `hydrate` function. The `langs` option can be a language grammar object, a language ID, a URL, or an array of them.
 
 ```js
+import markdown from "tm-grammars/markdown.json" with { type: "json" };
+
 lazy({
   langs: [
+    // use `tm-grammars` package without extra http requests, but increase the bundle size
+    markdown,
+    // loading grammars from CDN
+    "html", "css", "javascript", "json",
+    // loading the grammar from a URL
+    "https://example.com/grammars/mylang.json",
     // hand-crafted language grammar
     {
       name: "mylang",
       scopeName: "source.mylang",
       patterns: [/* ... */],
     },
-    // or load a grammar from URL
-    "https://example.com/grammars/mylang.json",
   ],
+  // the CDN for loading language grammars and themes, default is "https://esm.sh"
+  tmDownloadCDN: "https://esm.sh",
 });
 ```
 
