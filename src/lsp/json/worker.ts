@@ -29,7 +29,7 @@ export class JSONWorker extends WorkerBase<undefined, jsonService.JSONDocument> 
       },
       schemaRequestService: (uri) => {
         const url = new URL(uri);
-        if (url.protocol === "http:") {
+        if (url.protocol === "https:" || url.protocol === "http:") {
           return cache.fetch(url).then((res) => res.text());
         } else if (url.protocol === "file:") {
           const fs = this.getFileSystemProvider();
