@@ -1,5 +1,5 @@
 // [path-1] replace the default command history storage (which is in-memory) of Monaco Editor with a browser localStorage-based one
-const commandHistoryStorage = `{
+const commandHistoryStorageJs = `{
   get: (key, _scope, defaultValue) => localStorage.getItem('monaco:' + key) ?? defaultValue,
   getNumber: (key, _scope, defaultValue) => Number(localStorage.getItem('monaco:' + key) ?? defaultValue) || defaultValue,
   store: (key, value) => localStorage.setItem('monaco:' + key, String(value)),
@@ -15,13 +15,13 @@ const commandHistoryStorage = `{
   const js = await Deno.readTextFile(path);
   const arr = js.split("this.storageService = storageService;");
   if (arr.length === 2) {
-    await Deno.writeTextFile(path, arr[0] + "// Added by esm-monaco\nthis.storageService = " + commandHistoryStorage + arr[1]);
+    await Deno.writeTextFile(path, arr[0] + "// Added by esm-monaco\nthis.storageService = " + commandHistoryStorageJs + arr[1]);
     console.log("Patched", path.slice("node_modules/".length));
   }
 }
 
 // [patch-4] add keybindings for quick pick navigation on macOS
-const registerQuickPickCommandAndKeybindingRules = `
+const registerQuickPickCommandAndKeybindingRulesJS = `
 // Added by esm-monaco
 if (isMacintosh) {
   registerQuickPickCommandAndKeybindingRule({ id: 'quickInput.Next', primary: 256 /* KeyMod.WinCtrl */ + 44 /* KeyCode.N */, handler: focusHandler(QuickPickFocus.Next) });
@@ -31,8 +31,8 @@ if (isMacintosh) {
 {
   const path = "node_modules/monaco-editor-core/esm/vs/platform/quickinput/browser/quickInputActions.js";
   const js = await Deno.readTextFile(path);
-  if (!js.includes(registerQuickPickCommandAndKeybindingRules)) {
-    await Deno.writeTextFile(path, js + registerQuickPickCommandAndKeybindingRules);
+  if (!js.includes(registerQuickPickCommandAndKeybindingRulesJS)) {
+    await Deno.writeTextFile(path, js + registerQuickPickCommandAndKeybindingRulesJS);
     console.log("Patched", path.slice("node_modules/".length));
   }
 }
@@ -40,7 +40,7 @@ if (isMacintosh) {
 // [path-3] fix type definitions for createModel and getModel to accept `string | URL | Uri` type for the `uri` parameter
 {
   const path = "node_modules/monaco-editor-core/esm/vs/editor/editor.api.d.ts";
-  const changes = [
+  const diffs = [
     [
       "export function createModel(value: string, language?: string, uri?: Uri): ITextModel;",
       "export function createModel(value: string, language?: string, uri?: string | URL | Uri): ITextModel;",
@@ -50,35 +50,29 @@ if (isMacintosh) {
       "export function getModel(uri: string | URL | Uri): ITextModel | null;",
     ],
   ];
+  const addon = "\nexport * from './vscode';\n";
   let dts = await Deno.readTextFile(path);
-  let replaced = false;
-  for (const [search, replace] of changes) {
+  let patched = false;
+  for (const [search, replace] of diffs) {
     if (!dts.includes(replace)) {
       dts = dts.replace(search, replace);
-      replaced = true;
+      patched = true;
     }
   }
-  if (replaced) {
+  if (!dts.includes(addon)) {
+    const pathOrgi = "types/vscode.d.ts";
+    const pathDest = "node_modules/monaco-editor-core/esm/vs/editor/vscode.d.ts";
+    await Deno.writeTextFile(pathDest, (await Deno.readTextFile(pathOrgi)).replace("./monaco.d.ts", "./editor.api.d.ts"));
+    dts += addon;
+    patched = true;
+  }
+  if (patched) {
     await Deno.writeTextFile(path, dts);
     console.log("Patched", path.slice("node_modules/".length));
   }
 }
 
-// [path-4] fix type definitions for createModel and getModel to accept `string | URL | Uri` type for the `uri` parameter
-{
-  const path = "node_modules/monaco-editor-core/esm/vs/editor/editor.api.d.ts";
-  const dts = await Deno.readTextFile(path);
-  const appendTS = "\nexport * from './vscode';\n";
-  if (!dts.includes(appendTS)) {
-    await Deno.writeTextFile(path, dts + appendTS);
-    const pathOrgi = "types/vscode.d.ts";
-    const pathDest = "node_modules/monaco-editor-core/esm/vs/editor/vscode.d.ts";
-    await Deno.writeTextFile(pathDest, (await Deno.readTextFile(pathOrgi)).replace("./monaco.d.ts", "./editor.api.d.ts"));
-    console.log("Patched", pathDest.slice("node_modules/".length));
-  }
-}
-
-// [path-5] fix the issue of `maxDigitWidth` not being set correctly in SSR mode
+// [path-4] fix the issue of `maxDigitWidth` not being set correctly in SSR mode
 {
   const path = "node_modules/monaco-editor-core/esm/vs/editor/common/config/editorOptions.js";
   const js = await Deno.readTextFile(path);
@@ -90,7 +84,7 @@ if (isMacintosh) {
   }
 }
 
-// [path-6] fix folding icon size
+// [path-5] fix folding icon size
 {
   const path = "node_modules/monaco-editor-core/esm/vs/editor/contrib/folding/browser/folding.css";
   const css = await Deno.readTextFile(path);
