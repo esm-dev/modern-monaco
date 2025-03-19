@@ -26,7 +26,7 @@ export interface ShikiInitOptions {
   /**
    * The CDN base URL to download themes and languages from. Default: "https://esm.sh".
    */
-  downloadCDN?: string;
+  tmDownloadCDN?: string;
 }
 
 export interface InitOptions extends ShikiInitOptions {

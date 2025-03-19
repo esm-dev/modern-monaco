@@ -18,7 +18,7 @@ const vitesseDark = "vitesse-dark";
 export interface ShikiInitOptions {
   langs?: (string | URL | LanguageInput)[];
   theme?: string | URL | ThemeInput;
-  downloadCDN?: string;
+  tmDownloadCDN?: string;
   engine?: RegexEngine | Promise<RegexEngine>;
 }
 
@@ -31,7 +31,7 @@ export interface Highlighter extends HighlighterCore {
 export async function initShiki({
   theme = vitesseDark,
   langs: languages,
-  downloadCDN,
+  tmDownloadCDN,
   engine = createOnigurumaEngine(getDefaultWasmLoader()),
 }: ShikiInitOptions = {}): Promise<Highlighter> {
   const langs: LanguageInput[] = [];
@@ -44,9 +44,9 @@ export async function initShiki({
         if (!set.has(l.toString())) {
           const g = tmGrammars.find((g) => g.name === l);
           if (g?.embedded) {
-            langs.push(...g.embedded.map((id) => loadTMGrammar(id, downloadCDN)));
+            langs.push(...g.embedded.map((id) => loadTMGrammar(id, tmDownloadCDN)));
           }
-          langs.push(loadTMGrammar(l, downloadCDN));
+          langs.push(loadTMGrammar(l, tmDownloadCDN));
           set.add(l.toString());
         }
       } else if (isPlainObject(l)) {
@@ -56,15 +56,15 @@ export async function initShiki({
   }
 
   if (typeof theme === "string" || theme instanceof URL) {
-    themes.push(await loadTMTheme(theme, downloadCDN));
+    themes.push(await loadTMTheme(theme, tmDownloadCDN));
   } else if (isPlainObject(theme)) {
     themes.push(theme);
   }
 
   const highlighterCore = await createHighlighterCore({ langs, themes, engine });
   Object.assign(highlighterCore, {
-    loadThemeFromCDN: (themeName: string) => highlighterCore.loadTheme(loadTMTheme(themeName, downloadCDN)),
-    loadGrammarFromCDN: (...ids: string[]) => highlighterCore.loadLanguage(...ids.map(id => loadTMGrammar(id, downloadCDN))),
+    loadThemeFromCDN: (themeName: string) => highlighterCore.loadTheme(loadTMTheme(themeName, tmDownloadCDN)),
+    loadGrammarFromCDN: (...ids: string[]) => highlighterCore.loadLanguage(...ids.map(id => loadTMGrammar(id, tmDownloadCDN))),
   });
   return highlighterCore as unknown as Highlighter;
 }
@@ -90,15 +90,11 @@ function loadTMTheme(src: string | URL, cdn = "https://esm.sh") {
 function loadTMGrammar(src: string | URL, cdn = "https://esm.sh") {
   if (typeof src === "string") {
     const g = tmGrammars.find(g => g.name === src);
-    if (!g) {
-      if (src.startsWith("http://") || src.startsWith("https://")) {
-        return cache.fetch(src).then((res) => res.json());
-      } else {
-        throw new Error(`Grammar "${src}" not found`);
-      }
+    if (g) {
+      const url = new URL(`/tm-grammars@${tmGrammarsVersion}/grammars/${g.name}.json`, cdn);
+      return cache.fetch(url).then((res) => res.json());
     }
-    const url = new URL(`/tm-grammars@${tmGrammarsVersion}/grammars/${g.name}.json`, cdn);
-    return cache.fetch(url).then((res) => res.json());
+    return cache.fetch(src).then((res) => res.json());
   }
   return cache.fetch(src).then((res) => res.json());
 }
