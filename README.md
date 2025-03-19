@@ -86,23 +86,28 @@ SSR mode returns a instant rendered editor in server side, and hydrate it in cli
 import { renderToWebComponent } from "modern-monaco/ssr";
 
 export default {
-  fetch(req) => {
-    const ssrOut = renderToWebComponent({
-      filename: "main.js",
-      code: `console.log("Hello, world!")`,
-      userAgent: req.headers.get("user-agent"), // detecte default font for different platforms
-      theme: "theme-id",
-    });
-    return new Response(html`
+  async fetch(req) {
+    const ssrOut = await renderToWebComponent(
+      `console.log("Hello, world!")`,
+      {
+        theme: "OneDark-Pro",
+        language: "javascript",
+        userAgent: req.headers.get("user-agent"), // detecte default font for different platforms
+      },
+    );
+    return new Response(
+      html`
       ${ssrOut}
       <script type="module">
         import { hydrate } from "https://esm.sh/modern-monaco";
         // hydrate the editor
         hydrate();
       </script>
-    `, { headers: { "Content-Type": "text/html" }});
-  }
-}
+    `,
+      { headers: { "Content-Type": "text/html" } },
+    );
+  },
+};
 ```
 
 ### Manual Mode
@@ -150,7 +155,7 @@ const workspace = new Workspace({
 lazy({ workspace });
 
 // 3. open a file in the workspace
-workspace.openTextDocument("main.js")
+workspace.openTextDocument("main.js");
 ```
 
 ### Adding `tsconfig.json`
@@ -218,14 +223,14 @@ const workspace = new Workspace({
 To set the theme of the editor, you can add a `theme` attribute to the `<monaco-editor>` element.
 
 ```html
-<monaco-editor theme="theme-id"></monaco-editor>
+<monaco-editor theme="OneDark-Pro"></monaco-editor>
 ```
 
 or set it in the `lazy`, `init`, or `hydrate` function.
 
 ```js
 lazy({
-  theme: "theme-id",
+  theme: "OneDark-Pro",
 });
 ```
 
@@ -254,7 +259,10 @@ lazy({
     // use `tm-grammars` package without extra http requests, but increase the bundle size
     markdown,
     // loading grammars from CDN
-    "html", "css", "javascript", "json",
+    "html",
+    "css",
+    "javascript",
+    "json",
     // loading the grammar from a URL
     "https://example.com/grammars/mylang.json",
     // hand-crafted language grammar
@@ -275,7 +283,7 @@ You can set the editor options in the `<monaco-editor>` element as attributes. T
 
 ```html
 <monaco-editor
-  theme="theme-id"
+  theme="OneDark-Pro"
   fontFamily="Geist Mono"
   fontSize="16"
 ></monaco-editor>
@@ -286,19 +294,15 @@ For SSR mode, you can set the editor options in the `renderToWebComponent` funct
 ```js
 import { renderToWebComponent } from "modern-monaco/ssr";
 
-const html = renderToWebComponent({
-  // render options
-  filename: "main.js",
-  code: `console.log("Hello, world!")`,
-  userAgent: req.headers.get("user-agent"), // font detection for different platforms
-  // ...
-
-  // editor options
-  theme: "theme-id",
-  fontFamily: "Geist Mono",
-  fontSize: 16,
-  // ...
-});
+const html = await renderToWebComponent(
+  `console.log("Hello, world!")`,
+  {
+    theme: "OneDark-Pro",
+    language: "javascript",
+    fontFamily: "Geist Mono",
+    fontSize: 16,
+  },
+);
 ```
 
 For manual mode, check [here](https://microsoft.github.io/monaco-editor/docs.html#functions/editor.create.html) for more details.

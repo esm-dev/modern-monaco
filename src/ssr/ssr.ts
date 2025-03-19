@@ -7,45 +7,38 @@ import { render } from "../shiki.js";
 
 let ssrHighlighter: Highlighter | Promise<Highlighter> | undefined;
 
-/** Initialize a highlighter instance for rendering. */
-async function initRenderHighlighter(options: RenderOptions): Promise<Highlighter> {
-  const highlighter = await (ssrHighlighter ?? (ssrHighlighter = initShiki(options.shiki)));
-  const { filename, language, theme } = options;
+/** Render a read-only(mock) editor in HTML string. */
+export async function renderToString(input: string | { code: string; filename: string }, options?: RenderOptions): Promise<string> {
+  const { language, theme, shiki } = options ?? {};
+  const filename = typeof input === "string" ? undefined : input.filename;
+  const highlighter = await (ssrHighlighter ?? (ssrHighlighter = initShiki(shiki)));
   const promises: Promise<void>[] = [];
+  if (theme && !highlighter.getLoadedThemes().includes(theme)) {
+    console.info(`[modern-monaco] Loading theme '${theme}' from ${shiki?.tmDownloadCDN ?? "https://esm.sh"}/tm-themes ...`);
+    promises.push(highlighter.loadThemeFromCDN(theme));
+  }
   if (language || filename) {
     const languageId = language ?? getLanguageIdFromPath(filename!);
     if (languageId && !highlighter.getLoadedLanguages().includes(languageId)) {
       console.info(
-        `[modern-monaco] Loading garmmar '${languageId}' from ${options.shiki?.tmDownloadCDN ?? "https://esm.sh"}/tm-grammars ...`,
+        `[modern-monaco] Loading garmmar '${languageId}' from ${shiki?.tmDownloadCDN ?? "https://esm.sh"}/tm-grammars ...`,
       );
       promises.push(highlighter.loadGrammarFromCDN(languageId));
-    }
-  }
-  if (theme) {
-    if (!highlighter.getLoadedThemes().includes(theme)) {
-      console.info(`[modern-monaco] Loading theme '${theme}' from ${options.shiki?.tmDownloadCDN ?? "https://esm.sh"}/tm-themes ...`);
-      promises.push(highlighter.loadThemeFromCDN(theme));
     }
   }
   if (promises.length > 0) {
     await Promise.all(promises);
   }
-  return highlighter;
-}
-
-/** Render a read-only(mock) editor in HTML string. */
-export async function renderToString(options: RenderOptions): Promise<string> {
-  const highlighter = await initRenderHighlighter(options);
-  return render(highlighter, options);
+  return render(highlighter, input, options);
 }
 
 /** Render a `<monaco-editor>` component in HTML string. */
-export async function renderToWebComponent(options: RenderOptions): Promise<string> {
-  const prerender = await renderToString(options);
+export async function renderToWebComponent(input: string | { code: string; filename: string }, options?: RenderOptions): Promise<string> {
+  const prerender = await renderToString(input, options);
   return (
     "<monaco-editor>"
     + "<script type=\"application/json\" class=\"monaco-editor-options\">"
-    + JSON.stringify(options)
+    + JSON.stringify([input, options])
     + "</script>"
     + "<div class=\"monaco-editor-prerender\" style=\"width:100%;height:100%;\">"
     + prerender

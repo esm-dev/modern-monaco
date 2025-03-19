@@ -24,7 +24,7 @@ export interface LSPConfig {
   typescript?: { tsVersion?: string };
 }
 
-export const builtinProviders: Record<string, LSPProvider> = {
+export const builtinLSPProviders: Record<string, LSPProvider> = {
   html: {
     // @ts-expect-error 'setup.js' is generated at build time
     import: () => import("./lsp/html/setup.js"),
@@ -55,8 +55,4 @@ export function createWebWorker(url: URL, name?: string): Worker {
     type: "module",
     name: name ?? url.pathname.slice(1).split("/").slice(-2).join("/"),
   });
-}
-
-export function margeProviders(config?: LSPConfig) {
-  return { ...builtinProviders, ...config?.providers };
 }

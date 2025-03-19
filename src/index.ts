@@ -1,7 +1,7 @@
 import type monacoNS from "monaco-editor-core";
 import type { Highlighter, RenderOptions, ShikiInitOptions } from "./shiki.ts";
 import type { LSPConfig, LSPProvider } from "./lsp/index.ts";
-import { createWebWorker, margeProviders } from "./lsp/index.ts";
+import { builtinLSPProviders, createWebWorker } from "./lsp/index.ts";
 
 // ! external modules, don't remove the `.js` extension
 import { getLanguageIdFromPath, initShiki, setDefaultWasmLoader, tmGrammars } from "./shiki.js";
@@ -87,7 +87,7 @@ export async function lazy(options?: InitOptions, hydrate?: boolean) {
     "monaco-editor",
     class extends HTMLElement {
       async connectedCallback() {
-        const renderOptions: Partial<RenderOptions> = {};
+        const renderOptions: RenderOptions = {};
 
         // parse editor/render options from attributes
         for (const attrName of this.getAttributeNames()) {
@@ -135,18 +135,34 @@ export async function lazy(options?: InitOptions, hydrate?: boolean) {
           }
         }
 
-        // get editor options of the SSR rendering if exists
+        let filename: string | undefined;
+        let code: string | undefined;
+
+        // get editor optios from SSR rendered script element
         if (hydrate) {
-          const optionsScript = this.children[0] as HTMLScriptElement | null;
-          if (optionsScript && optionsScript.tagName === "SCRIPT" && optionsScript.className === "monaco-editor-options") {
-            const opts = JSON.parse(optionsScript.textContent!);
-            // we save the `fontDigitWidth` as a global variable, this is used for keeping the line numbers
-            // layout consistent between the SSR render and the client pre-render.
-            if (opts.fontDigitWidth) {
-              Reflect.set(globalThis, "__monaco_maxDigitWidth", opts.fontDigitWidth);
+          const optionsEl = this.children[0];
+          if (optionsEl && optionsEl.tagName === "SCRIPT" && optionsEl.className === "monaco-editor-options") {
+            try {
+              const v = JSON.parse(optionsEl.textContent!);
+              if (Array.isArray(v) && v.length === 2) {
+                const [input, opts] = v;
+                Object.assign(renderOptions, opts);
+                // we save the `fontDigitWidth` as a global variable, this is used for keeping the line numbers
+                // layout consistent between the SSR render and the client pre-render.
+                if (opts.fontDigitWidth) {
+                  Reflect.set(globalThis, "__monaco_maxDigitWidth", opts.fontDigitWidth);
+                }
+                if (typeof input === "string") {
+                  code = input;
+                } else {
+                  filename = input.filename;
+                  code = input.code;
+                }
+              }
+            } catch {
+              // ignore
             }
-            Object.assign(renderOptions, opts);
-            optionsScript.remove();
+            optionsEl.remove();
           }
         }
 
@@ -170,7 +186,6 @@ export async function lazy(options?: InitOptions, hydrate?: boolean) {
         containerEl.style.height = "100%";
         this.appendChild(containerEl);
 
-        let filename = renderOptions.filename ?? this.getAttribute("file");
         if (!filename && workspace) {
           if (workspace.history.state.current) {
             filename = workspace.history.state.current;
@@ -188,7 +203,10 @@ export async function lazy(options?: InitOptions, hydrate?: boolean) {
 
         const langs = (options?.langs ?? []).concat(syntaxes as any[]);
         if (renderOptions.language || filename) {
-          langs.push(renderOptions.language ?? getLanguageIdFromPath(filename!) ?? "plaintext");
+          const lang = renderOptions.language ?? getLanguageIdFromPath(filename!) ?? "plaintext";
+          if (!syntaxes.find((s) => s.name === lang)) {
+            langs.push(lang);
+          }
         }
         if (renderOptions.theme) {
           renderOptions.theme = renderOptions.theme.toLowerCase().replace(/ +/g, "-");
@@ -196,8 +214,8 @@ export async function lazy(options?: InitOptions, hydrate?: boolean) {
 
         // create a shiki instance for the renderer/editor
         const highlighter = await initShiki({
-          theme: renderOptions.theme,
           ...options,
+          theme: renderOptions.theme ?? options?.theme,
           langs,
         });
 
@@ -209,11 +227,7 @@ export async function lazy(options?: InitOptions, hydrate?: boolean) {
             const language = getLanguageIdFromPath(filename);
             prerenderEl = containerEl.cloneNode(true) as HTMLElement;
             prerenderEl.className = "monaco-editor-prerender";
-            prerenderEl.innerHTML = render(highlighter, {
-              ...renderOptions,
-              code: decode(code),
-              language,
-            });
+            prerenderEl.innerHTML = render(highlighter, decode(code), { ...renderOptions, language });
           } catch (error) {
             if (error instanceof ErrorNotFound) {
               // ignore
@@ -265,18 +279,14 @@ export async function lazy(options?: InitOptions, hydrate?: boolean) {
             try {
               const model = await workspace._openTextDocument(filename, editor);
               // update the model value with the SSR `code` if exists
-              if (
-                renderOptions.filename === filename
-                && renderOptions.code
-                && renderOptions.code !== model.getValue()
-              ) {
-                model.setValue(renderOptions.code);
+              if (code && code !== model.getValue()) {
+                model.setValue(code);
               }
             } catch (error) {
               if (error instanceof ErrorNotFound) {
-                if ((renderOptions.code && renderOptions.filename)) {
-                  await workspace.fs.writeFile(renderOptions.filename, renderOptions.code);
-                  workspace._openTextDocument(renderOptions.filename, editor);
+                if (code) {
+                  await workspace.fs.writeFile(filename, code);
+                  workspace._openTextDocument(filename, editor);
                 } else {
                   // open an empty model
                   editor.setModel(monaco.editor.createModel(""));
@@ -285,12 +295,8 @@ export async function lazy(options?: InitOptions, hydrate?: boolean) {
                 throw error;
               }
             }
-          } else if ((renderOptions.code && (renderOptions.language || renderOptions.filename))) {
-            const model = monaco.editor.createModel(
-              renderOptions.code,
-              renderOptions.language,
-              renderOptions.filename,
-            );
+          } else if ((code && (renderOptions.language || filename))) {
+            const model = monaco.editor.createModel(code, renderOptions.language, filename);
             editor.setModel(model);
           } else {
             // open an empty model
@@ -336,7 +342,7 @@ async function loadMonaco(
   onDidEditorWorkerReady?: () => void,
 ): Promise<typeof monacoNS> {
   const monaco = await import("./editor-core.js");
-  const lspProviders = margeProviders(lsp);
+  const lspProviders = { ...builtinLSPProviders, ...lsp?.providers };
 
   // initialize the workspace with the monaco namespace
   workspace?.init(monaco);

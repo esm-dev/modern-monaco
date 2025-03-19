@@ -73,15 +73,11 @@ function loadTMTheme(src: string | URL, cdn = "https://esm.sh") {
     // @ts-expect-error `VITESSE_DARK` is defined at build time
     return VITESSE_DARK;
   }
-  const hasTheme = typeof src === "string" && tmThemes.has(src);
-  if (!hasTheme) {
-    const s = src as string;
-    if (!s.startsWith("http://") && !s.startsWith("https://")) {
-      throw new Error(`Theme "${src}" not found`);
-    }
+  if (typeof src === "string" && tmThemes.has(src)) {
+    const url = new URL(`/tm-themes@${tmThemesVersion}/themes/${src}.json`, cdn);
+    return cache.fetch(url).then((res) => res.json());
   }
-  const url = hasTheme ? new URL(`/tm-themes@${tmThemesVersion}/themes/${src}.json`, cdn) : src;
-  return cache.fetch(url).then((res) => res.json());
+  return cache.fetch(src).then((res) => res.json());
 }
 
 /** Load a TextMate grammar from the given source. */
@@ -92,7 +88,6 @@ function loadTMGrammar(src: string | URL, cdn = "https://esm.sh") {
       const url = new URL(`/tm-grammars@${tmGrammarsVersion}/grammars/${g.name}.json`, cdn);
       return cache.fetch(url).then((res) => res.json());
     }
-    return cache.fetch(src).then((res) => res.json());
   }
   return cache.fetch(src).then((res) => res.json());
 }
