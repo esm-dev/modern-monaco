@@ -1,7 +1,7 @@
 {
-  "name": "esm-monaco",
-  "description": "An improved Monaco Editor for Deno",
-  "version": "0.0.0-beta.40",
+  "name": "modern-monaco",
+  "description": "A modern version of Monaco Editor",
+  "version": "0.0.0-beta.0",
   "type": "module",
   "module": "dist/index.js",
   "types": "types/index.d.ts",
@@ -61,7 +61,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/esm-dev/esm-monaco.git"
+    "url": "git+https://github.com/esm-dev/modern-monaco.git"
   },
   "license": "MIT"
 }

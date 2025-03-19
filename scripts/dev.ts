@@ -98,8 +98,8 @@ Deno.serve(async (req) => {
       },
     );
   }
-  if (pathname === "/esm-monaco" || pathname.startsWith("/esm-monaco/")) {
-    url = new URL(pathname.slice("/esm-monaco".length) || "/index.js", url);
+  if (pathname === "/modern-monaco" || pathname.startsWith("/modern-monaco/")) {
+    url = new URL(pathname.slice("/modern-monaco".length) || "/index.js", url);
     return serveDist(url, req);
   }
   return servePages(url, req);

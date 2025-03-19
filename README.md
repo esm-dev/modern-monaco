@@ -1,13 +1,13 @@
 > [!WARNING]
 > **This project is currently under active development and is not ready for production use.**
 
-# esm-monaco
+# Modern Monaco
 
-A batteries-included web code editor powered by [monaco-editor-core](https://www.npmjs.com/package/monaco-editor-core) and [Shiki](https://shiki.style).
+Meeting the modern version of [Monaco Editor](https://www.npmjs.com/package/monaco-editor):
 
-- ESM only, load dependencies on demand, no `MonacoEnvironment` required.
+- Easy to use, no `MonacoEnvironment` setup and web-worker/css loader
 - Using [Shiki](https://shiki.style) for syntax highlighting with tons of grammars and themes.
-- Pre-highlighting code with Shiki while loading `monaco-editor-core` in background.
+- Lazy loading: pre-highlighting code with Shiki while loading `monaco-editor-core` in background.
 - Support **server-side rendering(SSR)**.
 - Workspace (edit history, file system provider, etc).
 - Automatically loading `.d.ts` from [esm.sh](https://esm.sh) CDN for type checking.
@@ -34,7 +34,7 @@ Planned features:
 You can install the package from NPM in your node project with a bundler like [vite](http://vitejs.dev).
 
 ```bash
-npm i esm-monaco typescript
+npm i modern-monaco typescript
 ```
 
 > [!Note]
@@ -43,12 +43,12 @@ npm i esm-monaco typescript
 or import it from [esm.sh](https://esm.sh/) in browser without build step:
 
 ```js
-import * from "https://esm.sh/esm-monaco"
+import * from "https://esm.sh/modern-monaco"
 ```
 
 ## Usage
 
-esm-monaco provides three modes to create a code editor:
+`modern-monaco` provides three modes to create a browser based code editor:
 
 - **Lazy**: pre-hightlight code with Shiki while loading the `editor-core.js` in background.
 - **SSR**: render the editor in server side, and hydrate it in client side.
@@ -56,13 +56,13 @@ esm-monaco provides three modes to create a code editor:
 
 ### Lazy Mode
 
-[monaco-editor](https://www.npmjs.com/package/monaco-editor) is a large package with extra CSS/Worker dependencies, not mention the `MonacoEnvironment` setup. esm-monaco provides a lazy but smart way to load the editor on demand, and it pre-highlights code with Shiki while loading the `editor-core.js` in background.
+[monaco-editor](https://www.npmjs.com/package/monaco-editor) is a large package with extra CSS/Worker dependencies, not mention the `MonacoEnvironment` setup. `modern-monaco` provides a lazy but smart way to load the editor on demand, and it pre-highlights code with Shiki while loading the `editor-core.js` in background.
 
 ```html
 <monaco-editor></monaco-editor>
 
 <script type="module">
-  import { lazy, Workspace } from "esm-monaco";
+  import { lazy, Workspace } from "modern-monaco";
 
   // create a workspace with initial files
   const workspace = new Workspace({
@@ -83,7 +83,7 @@ esm-monaco provides three modes to create a code editor:
 SSR mode returns a instant rendered editor in server side, and hydrate it in client side.
 
 ```js
-import { renderToWebComponent } from "esm-monaco/ssr";
+import { renderToWebComponent } from "modern-monaco/ssr";
 
 export default {
   fetch(req) => {
@@ -96,7 +96,7 @@ export default {
     return new Response(html`
       ${ssrOut}
       <script type="module">
-        import { hydrate } from "https://esm.sh/esm-monaco";
+        import { hydrate } from "https://esm.sh/modern-monaco";
         // hydrate the editor
         hydrate();
       </script>
@@ -113,7 +113,7 @@ You can also create a [monaco editor](https://microsoft.github.io/monaco-editor/
 <div id="editor"></div>
 
 <script type="module">
-  import { init } from "esm-monaco";
+  import { init } from "modern-monaco";
 
   // load monaco-editor-core.js
   const monaco = await init();
@@ -128,10 +128,10 @@ You can also create a [monaco editor](https://microsoft.github.io/monaco-editor/
 
 ## Using Workspace
 
-esm-monaco provides vscode-like workspace features, like edit history, file system provider, etc.
+`modern-monaco` provides vscode-like workspace features, like edit history, file system provider, etc.
 
 ```js
-import { lazy, Workspace } from "esm-monaco";
+import { lazy, Workspace } from "modern-monaco";
 
 // 1. create a workspace with initial files
 const workspace = new Workspace({
@@ -175,8 +175,8 @@ const workspace = new Workspace({
 
 ### Using Import Maps
 
-esm-monaco use [import maps](https://github.com/WICG/import-maps) to resolving **bare specifier** import in JavaScript/TypeScript.
-By default, esm-monaco dedetects the `importmap` script of root `index.html`.
+`modern-monaco` uses [import maps](https://github.com/WICG/import-maps) to resolving **bare specifier** import in JavaScript/TypeScript.
+By default, `modern-monaco` dedetects the `importmap` script of root `index.html`.
 
 ```js
 const indexHtml = html`<!DOCTYPE html>
@@ -206,13 +206,13 @@ const workspace = new Workspace({
 ```
 
 > [!Note]
-> By default, esm-monaco uses `react` or `preact` in the `importmap` script as the `jsxImportSource` option for typescript worker.
+> By default, `modern-monaco` uses `react` or `preact` in the `importmap` script as the `jsxImportSource` option for typescript worker.
 > To use a custom `jsxImportSource` option, add `@jsxRuntime` specifier in the `importmap` script. For example, [solid-js](https://esm.sh/solid-js/jsx-runtime).
 
 
 ## Editor Theme & Language Grammars
 
-esm-monaco uses [Shiki](https://shiki.style) for syntax highlighting with tons of grammars and themes. It loads themes and grammars from esm.sh on demand.
+`modern-monaco` uses [Shiki](https://shiki.style) for syntax highlighting with tons of grammars and themes. It loads themes and grammars from esm.sh on demand.
 
 ### Setting the Editor Theme
 
@@ -235,7 +235,7 @@ lazy({
 
 ### Pre-loading Language Grammars
 
-By default, esm-monaco loads language grammars when a specific language mode is attached in the editor. You can also pre-load language grammars by adding the `langs` option to the `lazy`, `init`, or `hydrate` function.
+By default, `modern-monaco` loads language grammars when a specific language mode is attached in the editor. You can also pre-load language grammars by adding the `langs` option to the `lazy`, `init`, or `hydrate` function.
 
 ```js
 lazy({
@@ -277,7 +277,7 @@ You can set the editor options in the `<monaco-editor>` element as attributes. T
 For SSR mode, you can set the editor options in the `renderToWebComponent` function.
 
 ```js
-import { renderToWebComponent } from "esm-monaco/ssr";
+import { renderToWebComponent } from "modern-monaco/ssr";
 
 const html = renderToWebComponent({
   // render options
@@ -298,14 +298,14 @@ For manual mode, check [here](https://microsoft.github.io/monaco-editor/docs.htm
 
 ## Language Server Protocol(LSP)
 
-esm-monaco by default supports full LSP features for following languages:
+`modern-monaco` by default supports full LSP features for following languages:
 
 - **HTML**
 - **CSS/SCSS/LESS**
 - **JavaScript/TypeScript**
 - **JSON**
 
-Plus, esm-monaco also supports features like:
+Plus, `modern-monaco` also supports features like:
 
 - **File System Provider for import completions**
 - **Embedded languages in HTML**
@@ -313,7 +313,7 @@ Plus, esm-monaco also supports features like:
 
 > [!Note]
 > You don't need to set the `MonacoEnvironment.getWorker` for LSP support.
-> esm-monaco will automatically load required LSP workers.
+> `modern-monaco` will automatically load required LSP workers.
 
 ### LSP language configuration
 

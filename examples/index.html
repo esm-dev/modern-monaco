@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ESM&gt;Monaco</title>
+  <title>Modern Monaco</title>
   <style>
     html,
     body {
@@ -197,7 +197,7 @@
   <script type="importmap">
     {
       "imports": {
-        "esm-monaco": "/esm-monaco/index.js"
+        "modern-monaco": "/modern-monaco/index.js"
       }
     }
   </script>
@@ -245,7 +245,7 @@
   </template>
 
   <script type="module">
-    import { lazy } from 'esm-monaco';
+    import { lazy } from 'modern-monaco';
     import { workspaceWithBrowserHistory as workspace } from '/js/workspace.js';
 
     const folderButton = document.querySelector('button.folder')

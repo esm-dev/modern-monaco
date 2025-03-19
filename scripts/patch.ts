@@ -15,14 +15,14 @@ const commandHistoryStorageJs = `{
   const js = await Deno.readTextFile(path);
   const arr = js.split("this.storageService = storageService;");
   if (arr.length === 2) {
-    await Deno.writeTextFile(path, arr[0] + "// Added by esm-monaco\nthis.storageService = " + commandHistoryStorageJs + arr[1]);
+    await Deno.writeTextFile(path, arr[0] + "// Added by modern-monaco\nthis.storageService = " + commandHistoryStorageJs + arr[1]);
     console.log("Patched", path.slice("node_modules/".length));
   }
 }
 
 // [patch-4] add keybindings for quick pick navigation on macOS
 const registerQuickPickCommandAndKeybindingRulesJS = `
-// Added by esm-monaco
+// Added by modern-monaco
 if (isMacintosh) {
   registerQuickPickCommandAndKeybindingRule({ id: 'quickInput.Next', primary: 256 /* KeyMod.WinCtrl */ + 44 /* KeyCode.N */, handler: focusHandler(QuickPickFocus.Next) });
   registerQuickPickCommandAndKeybindingRule({ id: 'quickInput.Previous', primary: 256 /* KeyMod.WinCtrl */ + 46 /* KeyCode.P */, handler: focusHandler(QuickPickFocus.Previous) });
