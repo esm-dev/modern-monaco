@@ -244,7 +244,7 @@ lazy({
 
 ### Pre-loading Language Grammars
 
-By default, `modern-monaco` loads language grammars when a specific language mode is attached in the editor. You can also pre-load language grammars by adding the `langs` option to the `lazy`, `init`, or `hydrate` function. The `langs` option can be a language grammar object, a language ID, a URL, or an array of them.
+By default, `modern-monaco` loads language grammars when a specific language mode is attached in the editor. You can also pre-load language grammars by adding the `langs` option to the `lazy`, `init`, or `hydrate` function. The `langs` option is an array of language grammars, which can be a language grammar object, a language ID, or a URL to the language grammar.
 
 ```js
 import markdown from "tm-grammars/markdown.json" with { type: "json" };
@@ -348,6 +348,7 @@ export interface LSPLanguageConfig {
   };
   css?: {};
   json?: {
+    /** JSON schemas for JSON language service. */
     schemas?: JSONSchemaSource[];
   };
   typescript?: {

@@ -1,8 +1,13 @@
 import type ts from "typescript";
 import type monacoNS from "./monaco.d.ts";
-import type { ImportMap } from "./import-map.d.ts";
 import type { JSONSchema } from "./jsonSchema.d.ts";
 import type { Workspace } from "./workspace.d.ts";
+
+/** The import maps follow the spec at https://wicg.github.io/import-maps/. */
+export interface ImportMap {
+  imports: Record<string, string>;
+  scopes: Record<string, Record<string, string>>;
+}
 
 export interface FormatOptions {
   /** Size of a tab in spaces. Default: 4. */
@@ -92,6 +97,7 @@ declare global {
     };
     css?: {};
     json?: {
+      /** JSON schemas for JSON language service. */
       schemas?: JSONSchemaSource[];
     };
     typescript?: {
