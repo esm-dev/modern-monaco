@@ -1,6 +1,6 @@
 {
   "name": "esm-monaco",
-  "description": "A Code Editor powered by monaco-editor-core with radical ESM support",
+  "description": "An improved Monaco Editor for Deno",
   "version": "0.0.0-beta.40",
   "type": "module",
   "module": "dist/index.js",
@@ -16,14 +16,6 @@
     },
     "./editor-worker": {
       "import": "./dist/editor-worker.js"
-    },
-    "./cache": {
-      "import": "./dist/cache.js",
-      "types": "./types/cache.d.ts"
-    },
-    "./workspace": {
-      "import": "./dist/workspace.js",
-      "types": "./types/workspace.d.ts"
     },
     "./ssr": {
       "workerd": "./dist/ssr/workerd.js",
@@ -52,12 +44,12 @@
   "sideEffects": false,
   "devDependencies": {
     "@esm.sh/import-map": "0.1.1",
-    "@shikijs/core": "2.4.1",
-    "@shikijs/engine-oniguruma": "2.4.1",
+    "@shikijs/core": "3.2.1",
+    "@shikijs/engine-oniguruma": "3.2.1",
     "monaco-editor-core": "0.52.2",
-    "tm-grammars": "1.22.14",
-    "tm-themes": "1.9.12",
-    "typescript": "5.7.3",
+    "tm-grammars": "1.23.5",
+    "tm-themes": "1.10.1",
+    "typescript": "5.8.2",
     "vscode-css-languageservice": "6.3.2",
     "vscode-html-languageservice": "5.3.1",
     "vscode-json-languageservice": "5.4.3",
