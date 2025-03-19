@@ -1,5 +1,5 @@
-const enc = new TextEncoder();
-const dec = new TextDecoder();
+const enc = /* @__PURE__ */ new TextEncoder();
+const dec = /* @__PURE__ */ new TextDecoder();
 
 /** Convert string to Uint8Array. */
 export function encode(data: string | Uint8Array): Uint8Array {

@@ -1,6 +1,6 @@
 {
-  "name": "JSON Script Tag in HTML",
-  "scopeName": "text.html.json-script-tag",
+  "name": "json-script",
+  "scopeName": "text.html.json-script",
   "injectTo": [
     "text.html.basic"
   ],

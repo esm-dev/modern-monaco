@@ -13,8 +13,6 @@ const tmGrammars: { name: string; aliases?: string[]; embedded?: string[]; injec
 // @ts-expect-error `TM_THEMES` is defined at build time
 const tmThemes: Set<string> = new Set(TM_THEMES);
 
-const vitesseDark = "vitesse-dark";
-
 export interface ShikiInitOptions {
   langs?: (string | URL | LanguageInput)[];
   theme?: string | URL | ThemeInput;
@@ -29,7 +27,7 @@ export interface Highlighter extends HighlighterCore {
 
 /** Initialize shiki with the given options. */
 export async function initShiki({
-  theme = vitesseDark,
+  theme = "vitesse-dark",
   langs: languages,
   tmDownloadCDN,
   engine = createOnigurumaEngine(getDefaultWasmLoader()),
@@ -71,7 +69,7 @@ export async function initShiki({
 
 /** Load a TextMate theme from the given source. */
 function loadTMTheme(src: string | URL, cdn = "https://esm.sh") {
-  if (src === vitesseDark) {
+  if (src === "vitesse-dark") {
     // @ts-expect-error `VITESSE_DARK` is defined at build time
     return VITESSE_DARK;
   }

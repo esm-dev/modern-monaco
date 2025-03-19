@@ -2,18 +2,15 @@ import type monacoNS from "monaco-editor-core";
 import type { Highlighter, RenderOptions, ShikiInitOptions } from "./shiki.ts";
 import type { LSPConfig, LSPProvider } from "./lsp/index.ts";
 import { createWebWorker, margeProviders } from "./lsp/index.ts";
-import syntaxes from "./syntaxes/index.ts";
 
 // ! external modules, don't remove the `.js` extension
 import { getLanguageIdFromPath, initShiki, setDefaultWasmLoader, tmGrammars } from "./shiki.js";
 import { initShikiMonacoTokenizer, registerShikiMonacoTokenizer } from "./shiki.js";
 import { render } from "./shiki.js";
+import { syntaxes } from "./syntaxes/index.js";
 import { getWasmInstance } from "./shiki-wasm.js";
 import { ErrorNotFound, Workspace } from "./workspace.js";
 import { debunce, decode } from "./util.ts";
-
-// set the shiki wasm default loader
-setDefaultWasmLoader(getWasmInstance);
 
 const editorProps = [
   "autoDetectHighContrast",
@@ -46,12 +43,6 @@ const editorProps = [
   "theme",
   "wordWrap",
 ];
-const preloadGrammars = [
-  "html",
-  "css",
-  "javascript",
-  "json",
-];
 
 export interface InitOptions extends ShikiInitOptions {
   /**
@@ -62,6 +53,279 @@ export interface InitOptions extends ShikiInitOptions {
    * Language server protocol configuration.
    */
   lsp?: LSPConfig;
+}
+
+/* Initialize and return the monaco editor namespace. */
+export async function init(options?: InitOptions): Promise<typeof monacoNS> {
+  const langs = (options?.langs ?? []).concat(syntaxes as any[]);
+  const hightlighter = await initShiki({ ...options, langs });
+  return loadMonaco(hightlighter, options?.workspace, options?.lsp);
+}
+
+/** Render a mock editor, then load the monaco editor in background. */
+export async function lazy(options?: InitOptions, hydrate?: boolean) {
+  const workspace = options?.workspace;
+
+  let monacoCore: typeof monacoNS | Promise<typeof monacoNS> | null = null;
+  let onDidEditorWorkerReady: (() => void) | undefined;
+  let editorWorkerPromise = new Promise<void>((resolve) => {
+    onDidEditorWorkerReady = resolve;
+  });
+
+  function load(highlighter: Highlighter) {
+    if (monacoCore) {
+      return monacoCore;
+    }
+    return monacoCore = loadMonaco(highlighter, workspace, options?.lsp, onDidEditorWorkerReady).then((m) => monacoCore = m);
+  }
+
+  function setStyle(el: HTMLElement, style: Partial<CSSStyleDeclaration>) {
+    Object.assign(el.style, style);
+  }
+
+  customElements.define(
+    "monaco-editor",
+    class extends HTMLElement {
+      async connectedCallback() {
+        const renderOptions: Partial<RenderOptions> = {};
+
+        // parse editor/render options from attributes
+        for (const attrName of this.getAttributeNames()) {
+          const key = editorProps.find((k) => k.toLowerCase() === attrName);
+          if (key) {
+            let value: any = this.getAttribute(attrName);
+            if (value === "") {
+              value = key === "minimap" || key === "stickyScroll" ? { enabled: true } : true;
+            } else {
+              value = value.trim();
+              if (value === "true") {
+                value = true;
+              } else if (value === "false") {
+                value = false;
+              } else if (value === "null") {
+                value = null;
+              } else if (/^\d+$/.test(value)) {
+                value = Number(value);
+              } else if (/^\{.+\}$/.test(value)) {
+                try {
+                  value = JSON.parse(value);
+                } catch (error) {
+                  value = undefined;
+                }
+              }
+            }
+            if (key === "padding") {
+              if (typeof value === "number") {
+                value = { top: value, bottom: value };
+              } else if (/^\d+\s+\d+$/.test(value)) {
+                const [top, bottom] = value.split(/\s+/);
+                if (top && bottom) {
+                  value = { top: Number(top), bottom: Number(bottom) };
+                }
+              } else {
+                value = undefined;
+              }
+            }
+            if (key === "wordWrap" && (value === "on" || value === true)) {
+              value = "on";
+            }
+            if (value !== undefined) {
+              renderOptions[key] = value;
+            }
+          }
+        }
+
+        // get editor options of the SSR rendering if exists
+        if (hydrate) {
+          const optionsScript = this.children[0] as HTMLScriptElement | null;
+          if (optionsScript && optionsScript.tagName === "SCRIPT" && optionsScript.className === "monaco-editor-options") {
+            const opts = JSON.parse(optionsScript.textContent!);
+            // we save the `fontDigitWidth` as a global variable, this is used for keeping the line numbers
+            // layout consistent between the SSR render and the client pre-render.
+            if (opts.fontDigitWidth) {
+              Reflect.set(globalThis, "__monaco_maxDigitWidth", opts.fontDigitWidth);
+            }
+            Object.assign(renderOptions, opts);
+            optionsScript.remove();
+          }
+        }
+
+        // set the base style of the container element
+        setStyle(this, { display: "block", position: "relative" });
+
+        // set dimension from width and height attributes
+        const width = Number(this.getAttribute("width"));
+        const height = Number(this.getAttribute("height"));
+        if (width > 0 && height > 0) {
+          setStyle(this, { width: `${width}px`, height: `${height}px` });
+          renderOptions.dimension = { width, height };
+        } else {
+          setStyle(this, { width: "100%", height: "100%" });
+        }
+
+        // the container element for monaco editor instance
+        const containerEl = document.createElement("div");
+        containerEl.className = "monaco-editor-container";
+        containerEl.style.width = "100%";
+        containerEl.style.height = "100%";
+        this.appendChild(containerEl);
+
+        let filename = renderOptions.filename ?? this.getAttribute("file");
+        if (!filename && workspace) {
+          if (workspace.history.state.current) {
+            filename = workspace.history.state.current;
+          } else if (workspace.entryFile) {
+            filename = workspace.entryFile;
+            workspace.history.replace(filename);
+          } else {
+            const rootFiles = (await workspace.fs.readDirectory("/")).filter(([name, type]) => type === 1).map(([name]) => name);
+            filename = rootFiles.includes("index.html") ? "index.html" : rootFiles[0];
+            if (filename) {
+              workspace.history.replace(filename);
+            }
+          }
+        }
+
+        const langs = (options?.langs ?? []).concat(syntaxes as any[]);
+        if (renderOptions.language || filename) {
+          langs.push(renderOptions.language ?? getLanguageIdFromPath(filename!) ?? "plaintext");
+        }
+        if (renderOptions.theme) {
+          renderOptions.theme = renderOptions.theme.toLowerCase().replace(/ +/g, "-");
+        }
+
+        // create a shiki instance for the renderer/editor
+        const highlighter = await initShiki({
+          theme: renderOptions.theme,
+          ...options,
+          langs,
+        });
+
+        // check the pre-rendered editor(mock), if not exists, render one
+        let prerenderEl = hydrate ? this.querySelector<HTMLElement>(".monaco-editor-prerender") : undefined;
+        if (!prerenderEl && filename && workspace) {
+          try {
+            const code = await workspace.fs.readFile(filename);
+            const language = getLanguageIdFromPath(filename);
+            prerenderEl = containerEl.cloneNode(true) as HTMLElement;
+            prerenderEl.className = "monaco-editor-prerender";
+            prerenderEl.innerHTML = render(highlighter, {
+              ...renderOptions,
+              code: decode(code),
+              language,
+            });
+          } catch (error) {
+            if (error instanceof ErrorNotFound) {
+              // ignore
+            } else {
+              throw error;
+            }
+          }
+        }
+
+        if (prerenderEl) {
+          setStyle(prerenderEl, { position: "absolute", top: "0", left: "0" });
+          this.appendChild(prerenderEl);
+          if (filename && workspace) {
+            const viewState = await workspace.viewState.get(filename);
+            const scrollTop = viewState?.viewState.scrollTop ?? 0;
+            if (scrollTop) {
+              const mockEl = prerenderEl.querySelector(".mock-monaco-editor");
+              if (mockEl) {
+                mockEl.scrollTop = scrollTop;
+              }
+            }
+          }
+        }
+
+        // load and rander the monaco editor
+        async function createMonaco() {
+          const monaco = await load(highlighter);
+          const editor = monaco.editor.create(containerEl, renderOptions);
+          if (workspace) {
+            const storeViewState = () => {
+              const currentModel = editor.getModel();
+              if (currentModel?.uri.scheme === "file") {
+                const state = editor.saveViewState();
+                if (state) {
+                  state.viewState.scrollTop ??= editor.getScrollTop();
+                  workspace.viewState.save(currentModel.uri.toString(), Object.freeze(state));
+                }
+              }
+            };
+            editor.onDidChangeCursorSelection(debunce(storeViewState));
+            editor.onDidScrollChange(debunce(storeViewState));
+            workspace.history.onChange((state) => {
+              if (editor.getModel()?.uri.toString() !== state.current) {
+                workspace._openTextDocument(state.current, editor);
+              }
+            });
+          }
+          if (filename && workspace) {
+            try {
+              const model = await workspace._openTextDocument(filename, editor);
+              // update the model value with the SSR `code` if exists
+              if (
+                renderOptions.filename === filename
+                && renderOptions.code
+                && renderOptions.code !== model.getValue()
+              ) {
+                model.setValue(renderOptions.code);
+              }
+            } catch (error) {
+              if (error instanceof ErrorNotFound) {
+                if ((renderOptions.code && renderOptions.filename)) {
+                  await workspace.fs.writeFile(renderOptions.filename, renderOptions.code);
+                  workspace._openTextDocument(renderOptions.filename, editor);
+                } else {
+                  // open an empty model
+                  editor.setModel(monaco.editor.createModel(""));
+                }
+              } else {
+                throw error;
+              }
+            }
+          } else if ((renderOptions.code && (renderOptions.language || renderOptions.filename))) {
+            const model = monaco.editor.createModel(
+              renderOptions.code,
+              renderOptions.language,
+              renderOptions.filename,
+            );
+            editor.setModel(model);
+          } else {
+            // open an empty model
+            editor.setModel(monaco.editor.createModel(""));
+          }
+          // hide the prerender element if exists
+          if (prerenderEl) {
+            editorWorkerPromise.then(() => {
+              setTimeout(() => {
+                const animate = prerenderEl.animate?.([{ opacity: 1 }, { opacity: 0 }], { duration: 150 });
+                if (animate) {
+                  animate.finished.then(() => prerenderEl.remove());
+                } else {
+                  // animation API is not supported
+                  setTimeout(() => prerenderEl.remove(), 150);
+                }
+              }, 100);
+            });
+          }
+        }
+        await createMonaco();
+      }
+    },
+  );
+
+  await editorWorkerPromise;
+
+  return {
+    workspace,
+  };
+}
+
+/** Hydrate the monaco editor in the browser. */
+export function hydrate(options?: InitOptions) {
+  return lazy(options, true);
 }
 
 /** Load monaco editor core. */
@@ -213,277 +477,7 @@ async function loadMonaco(
   return monaco;
 }
 
-/* Initialize and return the monaco editor namespace. */
-export async function init(options?: InitOptions): Promise<typeof monacoNS> {
-  const langs = (options?.langs ?? []).concat(preloadGrammars, syntaxes as any[]);
-  const hightlighter = await initShiki({ ...options, langs });
-  return loadMonaco(hightlighter, options?.workspace, options?.lsp);
-}
-
-/** Render a mock editor, then load the monaco editor in background. */
-export async function lazy(options?: InitOptions, hydrate?: boolean) {
-  const workspace = options?.workspace;
-
-  let monacoCore: typeof monacoNS | Promise<typeof monacoNS> | null = null;
-  let onDidEditorWorkerReady: (() => void) | undefined;
-  let editorWorkerPromise = new Promise<void>((resolve) => {
-    onDidEditorWorkerReady = resolve;
-  });
-
-  function load(highlighter: Highlighter) {
-    if (monacoCore) {
-      return monacoCore;
-    }
-    return monacoCore = loadMonaco(highlighter, workspace, options?.lsp, onDidEditorWorkerReady).then((m) => monacoCore = m);
-  }
-
-  function setStyle(el: HTMLElement, style: Partial<CSSStyleDeclaration>) {
-    Object.assign(el.style, style);
-  }
-
-  customElements.define(
-    "monaco-editor",
-    class extends HTMLElement {
-      async connectedCallback() {
-        const renderOptions: Partial<RenderOptions> = {};
-
-        // parse editor/render options from attributes
-        for (const attrName of this.getAttributeNames()) {
-          const key = editorProps.find((k) => k.toLowerCase() === attrName);
-          if (key) {
-            let value: any = this.getAttribute(attrName);
-            if (value === "") {
-              value = key === "minimap" || key === "stickyScroll" ? { enabled: true } : true;
-            } else {
-              value = value.trim();
-              if (value === "true") {
-                value = true;
-              } else if (value === "false") {
-                value = false;
-              } else if (value === "null") {
-                value = null;
-              } else if (/^\d+$/.test(value)) {
-                value = Number(value);
-              } else if (/^\{.+\}$/.test(value)) {
-                try {
-                  value = JSON.parse(value);
-                } catch (error) {
-                  value = undefined;
-                }
-              }
-            }
-            if (key === "padding") {
-              if (typeof value === "number") {
-                value = { top: value, bottom: value };
-              } else if (/^\d+\s+\d+$/.test(value)) {
-                const [top, bottom] = value.split(/\s+/);
-                if (top && bottom) {
-                  value = { top: Number(top), bottom: Number(bottom) };
-                }
-              } else {
-                value = undefined;
-              }
-            }
-            if (key === "wordWrap" && (value === "on" || value === true)) {
-              value = "on";
-            }
-            if (value !== undefined) {
-              renderOptions[key] = value;
-            }
-          }
-        }
-
-        // get editor options of the SSR rendering if exists
-        if (hydrate) {
-          const optionsScript = this.children[0] as HTMLScriptElement | null;
-          if (optionsScript && optionsScript.tagName === "SCRIPT" && optionsScript.className === "monaco-editor-options") {
-            const opts = JSON.parse(optionsScript.textContent!);
-            // we save the `fontDigitWidth` as a global variable, this is used for keeping the line numbers
-            // layout consistent between the SSR render and the client pre-render.
-            if (opts.fontDigitWidth) {
-              Reflect.set(globalThis, "__monaco_maxDigitWidth", opts.fontDigitWidth);
-            }
-            Object.assign(renderOptions, opts);
-            optionsScript.remove();
-          }
-        }
-
-        // set the base style of the container element
-        setStyle(this, { display: "block", position: "relative" });
-
-        // set dimension from width and height attributes
-        const width = Number(this.getAttribute("width"));
-        const height = Number(this.getAttribute("height"));
-        if (width > 0 && height > 0) {
-          setStyle(this, { width: `${width}px`, height: `${height}px` });
-          renderOptions.dimension = { width, height };
-        } else {
-          setStyle(this, { width: "100%", height: "100%" });
-        }
-
-        // the container element for monaco editor instance
-        const containerEl = document.createElement("div");
-        containerEl.className = "monaco-editor-container";
-        containerEl.style.width = "100%";
-        containerEl.style.height = "100%";
-        this.appendChild(containerEl);
-
-        let filename = renderOptions.filename ?? this.getAttribute("file");
-        if (!filename && workspace) {
-          if (workspace.history.state.current) {
-            filename = workspace.history.state.current;
-          } else if (workspace.entryFile) {
-            filename = workspace.entryFile;
-            workspace.history.replace(filename);
-          } else {
-            const rootFiles = (await workspace.fs.readDirectory("/")).filter(([name, type]) => type === 1).map(([name]) => name);
-            filename = rootFiles.includes("index.html") ? "index.html" : rootFiles[0];
-            if (filename) {
-              workspace.history.replace(filename);
-            }
-          }
-        }
-
-        const langs = (options?.langs ?? []).concat(preloadGrammars, syntaxes as any[]);
-        if (renderOptions.language || filename) {
-          langs.push(renderOptions.language ?? getLanguageIdFromPath(filename!) ?? "plaintext");
-        }
-        if (renderOptions.theme) {
-          renderOptions.theme = renderOptions.theme.toLowerCase().replace(/ +/g, "-");
-        }
-
-        // create a highlighter instance for the renderer/editor
-        const highlighter = await initShiki({
-          theme: renderOptions.theme,
-          ...options,
-          langs,
-        });
-
-        // check the pre-rendered editor(mock), if not exists, render one
-        let prerenderEl = hydrate ? this.querySelector<HTMLElement>(".monaco-editor-prerender") : undefined;
-        if (!prerenderEl && filename && workspace) {
-          try {
-            const code = await workspace.fs.readFile(filename);
-            const language = getLanguageIdFromPath(filename);
-            prerenderEl = containerEl.cloneNode(true) as HTMLElement;
-            prerenderEl.className = "monaco-editor-prerender";
-            prerenderEl.innerHTML = render(highlighter, {
-              ...renderOptions,
-              code: decode(code),
-              language,
-            });
-          } catch (error) {
-            if (error instanceof ErrorNotFound) {
-              // ignore
-            } else {
-              throw error;
-            }
-          }
-        }
-
-        if (prerenderEl) {
-          setStyle(prerenderEl, { position: "absolute", top: "0", left: "0" });
-          this.appendChild(prerenderEl);
-          if (filename && workspace) {
-            const viewState = await workspace.viewState.get(filename);
-            const scrollTop = viewState?.viewState.scrollTop ?? 0;
-            if (scrollTop) {
-              const mockEl = prerenderEl.querySelector(".mock-monaco-editor");
-              if (mockEl) {
-                mockEl.scrollTop = scrollTop;
-              }
-            }
-          }
-        }
-
-        // load and rander the monaco editor
-        async function createMonaco() {
-          const monaco = await load(highlighter);
-          const editor = monaco.editor.create(containerEl, renderOptions);
-          if (workspace) {
-            const storeViewState = () => {
-              const currentModel = editor.getModel();
-              if (currentModel?.uri.scheme === "file") {
-                const state = editor.saveViewState();
-                if (state) {
-                  state.viewState.scrollTop ??= editor.getScrollTop();
-                  workspace.viewState.save(currentModel.uri.toString(), Object.freeze(state));
-                }
-              }
-            };
-            editor.onDidChangeCursorSelection(debunce(storeViewState));
-            editor.onDidScrollChange(debunce(storeViewState));
-            workspace.history.onChange((state) => {
-              if (editor.getModel()?.uri.toString() !== state.current) {
-                workspace._openTextDocument(state.current, editor);
-              }
-            });
-          }
-          if (filename && workspace) {
-            try {
-              const model = await workspace._openTextDocument(filename, editor);
-              // update the model value with the SSR `code` if exists
-              if (
-                renderOptions.filename === filename
-                && renderOptions.code
-                && renderOptions.code !== model.getValue()
-              ) {
-                model.setValue(renderOptions.code);
-              }
-            } catch (error) {
-              if (error instanceof ErrorNotFound) {
-                if ((renderOptions.code && renderOptions.filename)) {
-                  await workspace.fs.writeFile(renderOptions.filename, renderOptions.code);
-                  workspace._openTextDocument(renderOptions.filename, editor);
-                } else {
-                  // open an empty model
-                  editor.setModel(monaco.editor.createModel(""));
-                }
-              } else {
-                throw error;
-              }
-            }
-          } else if ((renderOptions.code && (renderOptions.language || renderOptions.filename))) {
-            const model = monaco.editor.createModel(
-              renderOptions.code,
-              renderOptions.language,
-              renderOptions.filename,
-            );
-            editor.setModel(model);
-          } else {
-            // open an empty model
-            editor.setModel(monaco.editor.createModel(""));
-          }
-          // hide the prerender element if exists
-          if (prerenderEl) {
-            editorWorkerPromise.then(() => {
-              setTimeout(() => {
-                const animate = prerenderEl.animate?.([{ opacity: 1 }, { opacity: 0 }], { duration: 150 });
-                if (animate) {
-                  animate.finished.then(() => prerenderEl.remove());
-                } else {
-                  // animation API is not supported
-                  setTimeout(() => prerenderEl.remove(), 150);
-                }
-              }, 100);
-            });
-          }
-        }
-        await createMonaco();
-      }
-    },
-  );
-
-  await editorWorkerPromise;
-
-  return {
-    workspace,
-  };
-}
-
-/** Hydrate the monaco editor in the browser. */
-export function hydrate(options?: InitOptions) {
-  return lazy(options, true);
-}
+// set the shiki wasm default loader
+setDefaultWasmLoader(getWasmInstance);
 
 export { Workspace };

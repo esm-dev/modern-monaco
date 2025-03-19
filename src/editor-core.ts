@@ -13,8 +13,9 @@ const defaultEditorOptions: editor.IStandaloneEditorConstructionOptions = {
   theme: "vitesse-dark",
 };
 
-// override monoaco editor APIs.
 const { create, createModel, getModel } = editor;
+
+// override monoaco editor APIs.
 Object.assign(editor, {
   create: (
     container: HTMLElement,
