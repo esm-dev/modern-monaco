@@ -50,7 +50,7 @@ if (isMacintosh) {
       "export function getModel(uri: string | URL | Uri): ITextModel | null;",
     ],
   ];
-  const addon = "\nexport type * from './vscode.d.ts';\n";
+  const addon = "\nexport * from './vscode';\n";
   let dts = await Deno.readTextFile(path);
   let patched = false;
   for (const [search, replace] of diffs) {
