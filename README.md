@@ -5,13 +5,13 @@
 
 Meeting the modern version of [Monaco Editor](https://www.npmjs.com/package/monaco-editor):
 
-- Easy to use, no `MonacoEnvironment` setup and web-worker/css loader
+- Easy to use, no `MonacoEnvironment` setup and web-worker/css loader needed.
 - Using [Shiki](https://shiki.style) for syntax highlighting with tons of grammars and themes.
 - Lazy loading: pre-highlighting code with Shiki while loading `monaco-editor-core` in background.
 - Support **server-side rendering(SSR)**.
-- Workspace (edit history, file system provider, etc).
+- Workspace (edit history, file system provider, persist protocol, etc).
 - Automatically loading `.d.ts` from [esm.sh](https://esm.sh) CDN for type checking.
-- Using [import maps](https://github.com/WICG/import-maps) for resolving **bare specifier** imports in JavaScript/TypeScript.
+- Using [import maps](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/script/type/importmap) for resolving **bare specifier** imports in JavaScript/TypeScript.
 - VSCode `window` APIs like `showInputBox`, `showQuickPick`, etc.
 - Embedded languages(importmap/CSS/JavaScript) in HTML.
 - Inline `html` and `css` in JavaScript/TypeScript.
@@ -51,12 +51,14 @@ import * from "https://esm.sh/modern-monaco"
 `modern-monaco` provides three modes to create a browser based code editor:
 
 - **Lazy**: pre-hightlight code with Shiki while loading the `editor-core.js` in background.
-- **SSR**: render the editor in server side, and hydrate it in client side.
+- **SSR**: render a mock editor in server side, and hydrate it in client side.
 - **Manual**: create a monaco editor instance manually.
 
 ### Lazy Mode
 
-[monaco-editor](https://www.npmjs.com/package/monaco-editor) is a large package with extra CSS/Worker dependencies, not mention the `MonacoEnvironment` setup. `modern-monaco` provides a lazy but smart way to load the editor on demand, and it pre-highlights code with Shiki while loading the `editor-core.js` in background.
+[monaco-editor](https://www.npmjs.com/package/monaco-editor) is a large package with extra CSS/Worker modules, and needs the `MonacoEnvironment` setup for language service support. `modern-monaco` provides a lazy but smart way to load the editor modules on demand.
+
+By pre-highlighting code with Shiki while loading editor modules in background, `modern-monaco` can reduce the loading screen time.
 
 ```html
 <monaco-editor></monaco-editor>
@@ -80,7 +82,7 @@ import * from "https://esm.sh/modern-monaco"
 
 ### SSR Mode
 
-SSR mode returns a instant rendered editor in server side, and hydrate it in client side.
+SSR mode returns a instant rendered(mock) editor in server side, and hydrate it in client side.
 
 ```js
 import { renderToWebComponent } from "modern-monaco/ssr";
@@ -160,7 +162,7 @@ workspace.openTextDocument("main.js");
 
 ### Adding `tsconfig.json`
 
-You can also add a `tsconfig.json` file to configure the TypeScript compiler options for the TypeScript language service worker.
+You can add a `tsconfig.json` file to configure the TypeScript compiler options for the TypeScript language service.
 
 ```js
 const tsconfig = {
@@ -180,8 +182,7 @@ const workspace = new Workspace({
 
 ### Using Import Maps
 
-`modern-monaco` uses [import maps](https://github.com/WICG/import-maps) to resolving **bare specifier** import in JavaScript/TypeScript.
-By default, `modern-monaco` dedetects the `importmap` script of root `index.html`.
+`modern-monaco` uses [import maps](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/script/type/importmap) to resolve **bare specifier** import in JavaScript/TypeScript. By default, `modern-monaco` dedetects the `importmap` from the root `index.html` in workspace.
 
 ```js
 const indexHtml = html`<!DOCTYPE html>
@@ -190,22 +191,42 @@ const indexHtml = html`<!DOCTYPE html>
     <script type="importmap">
       {
         "imports": {
-          "@jsxRuntime": "https://esm.sh/react@18",
-          "react": "https://esm.sh/react@18"
+          "react": "https://esm.sh/react@18",
+          "react-dom/": "https://esm.sh/react-dom@18/"
         }
       }
     </script>
   </head>
-  <body>
-    <script type="module">
-      import React from "react";
-    </script>
+  <body
+    <div id="root"></div>
+    <script type="module" src="app.tsx"></script>
   </body>
 </html>
 `;
+const appTsx = `import { createRoot } from "react-dom/client";
+
+createRoot(document.getElementById("root")).render(<div>Hello, world!</div>);
+`;
+
 const workspace = new Workspace({
   initialFiles: {
     "index.html": indexHtml,
+    "app.tsx": appTsx,
+  },
+});
+```
+
+You can also provide an impormap object as the `lsp.typescript.importMap` option in the `lazy`, `init`, or `hydrate` function.
+
+```js
+lazy({
+  lsp: {
+    typescript: {
+      importMap: {
+        "react": "https://esm.sh/react@18",
+        "react-dom/": "https://esm.sh/react-dom@18/",
+      },
+    },
   },
 });
 ```
@@ -320,6 +341,7 @@ Plus, `modern-monaco` also supports features like:
 
 - **File System Provider for import completions**
 - **Embedded languages in HTML**
+- **Inline `html` and `css` in JavaScript/TypeScript.**
 - **Auto-closing HTML/JSX tags**
 
 > [!Note]
