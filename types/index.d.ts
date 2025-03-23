@@ -12,6 +12,7 @@ type ThemeInput = MaybeGetter<NamedObject>;
 
 interface NamedObject {
   name: string;
+  scopeName: string;
 }
 
 export interface ShikiInitOptions {

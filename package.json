@@ -10,6 +10,10 @@
       "import": "./dist/index.js",
       "types": "./types/index.d.ts"
     },
+    "./lite": {
+      "import": "./dist/lite.js",
+      "types": "./types/lite.d.ts"
+    },
     "./editor-core": {
       "import": "./dist/editor-core.js",
       "types": "./types/monaco.d.ts"
