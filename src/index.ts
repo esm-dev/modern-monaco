@@ -44,6 +44,10 @@ const editorProps = [
   "wordWrap",
 ];
 
+const errors = {
+  NotFound: ErrorNotFound,
+};
+
 export interface InitOptions extends ShikiInitOptions {
   /**
    * Virtual file system to be used by the editor.
@@ -486,4 +490,4 @@ async function loadMonaco(
 // set the shiki wasm default loader
 setDefaultWasmLoader(getWasmInstance);
 
-export { Workspace };
+export { errors, Workspace };

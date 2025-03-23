@@ -1,7 +1,7 @@
 import type monacoNS from "./monaco.d.ts";
 import type { LSPConfig } from "./lsp.d.ts";
 import type { TextmateGrammarName, TextmateThemeName } from "./textmate.d.ts";
-import type { Workspace } from "./workspace.d.ts";
+import type { ErrorNotFound, Workspace } from "./workspace.d.ts";
 
 type Awaitable<T> = T | Promise<T>;
 type MaybeGetter<T> = Awaitable<MaybeModule<T>> | (() => Awaitable<MaybeModule<T>>);
@@ -43,5 +43,9 @@ export interface InitOptions extends ShikiInitOptions {
 export function init(options?: InitOptions): Promise<typeof monacoNS>;
 export function lazy(options?: InitOptions): void;
 export function hydrate(options?: InitOptions): void;
+
+export const errors: {
+  NotFound: ErrorNotFound;
+};
 
 export { Workspace };
