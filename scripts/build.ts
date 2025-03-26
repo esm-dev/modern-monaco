@@ -127,10 +127,6 @@ const buildTypes = async () => {
     ["vscode-json-languageservice/lib/esm/jsonSchema.d.ts", "jsonSchema.d.ts"],
   );
   await Deno.writeTextFile(
-    "types/monaco.d.ts",
-    (await Deno.readTextFile("types/monaco.d.ts")).replace(/\s+declare global\s+{[^}]+}/, "").replace(/\s+interface Window\s+{[^}]+}/, ""),
-  );
-  await Deno.writeTextFile(
     "types/textmate.d.ts",
     [
       "export type TextmateThemeName = " + tmThemes.map((v) => JSON.stringify(v.name)).join(" | ") + ";",

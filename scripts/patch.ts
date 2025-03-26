@@ -20,7 +20,7 @@ const commandHistoryStorageJs = `{
   }
 }
 
-// [patch-4] add keybindings for quick pick navigation on macOS
+// [patch-2] add keybindings for the quick pick navigation on macOS
 const registerQuickPickCommandAndKeybindingRulesJS = `
 // Added by modern-monaco
 if (isMacintosh) {
