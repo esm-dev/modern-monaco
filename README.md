@@ -392,9 +392,9 @@ export interface LSPLanguageConfig {
 
 [TODO]
 
-### Lite Mode
+### Lite Module
 
-The `lite` sub-module of `modern-monaco` allows you to use a lightweight version of the library without the built-in grammars and LSP providers for HTML, CSS, JavaScript/TypeScript, and JSON.
+The `modern-monaco/lite` sub-module allows you to use a lightweight version of the library without the built-in grammars and LSP providers for HTML, CSS, JavaScript/TypeScript, and JSON.
 
 ```js
 import { lazy } from "modern-monaco/lite";
