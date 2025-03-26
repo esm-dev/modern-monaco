@@ -29,7 +29,7 @@ export async function setup(
       indentInnerHtml: false,
       indentHandlebars: false,
       unformatted:
-        "default\": \"a, abbr, acronym, b, bdo, big, br, button, cite, code, dfn, em, i, img, input, kbd, label, map, object, q, samp, select, small, span, strong, sub, sup, textarea, tt, var",
+        'default": "a, abbr, acronym, b, bdo, big, br, button, cite, code, dfn, em, i, img, input, kbd, label, map, object, q, samp, select, small, span, strong, sub, sup, textarea, tt, var',
       contentUnformatted: "pre",
       // extraLiners: "head, body, /html",
       extraLiners: "",
@@ -50,13 +50,12 @@ export async function setup(
   });
   const workerWithEmbeddedLanguages = ls.createWorkerWithEmbeddedLanguages(htmlWorker);
 
-  // set monacoNS and register language features
-  ls.setup(monaco);
-  ls.attachEmbeddedLanguages(languageId, workerWithEmbeddedLanguages, ["css", "javascript", "importmap"]);
-  ls.enableBasicFeatures(languageId, workerWithEmbeddedLanguages, ["<", "/", "=", "\""], workspace);
-  ls.enableAutoComplete(languageId, workerWithEmbeddedLanguages, [">", "/", "="]);
-  ls.enableColorPresentation(languageId, workerWithEmbeddedLanguages); // css color presentation
-  ls.enableDocumentLinks(languageId, workerWithEmbeddedLanguages);
+  // register language features
+  ls.registerEmbedded(languageId, workerWithEmbeddedLanguages, ["css", "javascript", "importmap"]);
+  ls.registerBasicFeatures(languageId, workerWithEmbeddedLanguages, ["<", "/", "=", '"'], workspace);
+  ls.registerAutoComplete(languageId, workerWithEmbeddedLanguages, [">", "/", "="]);
+  ls.registerColorPresentation(languageId, workerWithEmbeddedLanguages); // css color presentation
+  ls.registerDocumentLinks(languageId, workerWithEmbeddedLanguages);
 
   // register code lens provider for import maps
   languages.registerCodeLensProvider(languageId, {

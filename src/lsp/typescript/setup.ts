@@ -37,12 +37,11 @@ export async function setup(
     worker = await worker;
   }
 
-  // set monacoNS and register language features
-  ls.setup(monaco);
-  ls.enableBasicFeatures(languageId, worker, [".", "/", "\"", "'", "<"], workspace);
-  ls.enableAutoComplete(languageId, worker, [">", "/"]);
-  ls.enableSignatureHelp(languageId, worker, ["(", ","]);
-  ls.enableCodeAction(languageId, worker);
+  // register language features
+  ls.registerBasicFeatures(languageId, worker, [".", "/", '"', "'", "<"], workspace);
+  ls.registerAutoComplete(languageId, worker, [">", "/"]);
+  ls.registerSignatureHelp(languageId, worker, ["(", ","]);
+  ls.registerCodeAction(languageId, worker);
 
   // unimplemented features
   // languages.registerOnTypeFormattingEditProvider(languageId, new lfs.FormatOnTypeAdapter(worker));
@@ -363,7 +362,7 @@ export async function loadImportMap(workspace: Workspace, validate: (im: ImportM
     let tplEl = document.createElement("template");
     let scriptEl: HTMLScriptElement | null;
     tplEl.innerHTML = indexHtml;
-    scriptEl = tplEl.content.querySelector("script[type=\"importmap\"]");
+    scriptEl = tplEl.content.querySelector('script[type="importmap"]');
     if (scriptEl) {
       src = scriptEl.src ? new URL(scriptEl.src, "file:///").href : "file:///index.html";
       const importMap = parseImportMapFromJson(scriptEl.src ? await workspace.fs.readTextFile(scriptEl.src) : scriptEl.textContent!);

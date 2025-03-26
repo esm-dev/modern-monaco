@@ -38,12 +38,11 @@ export async function setup(
     host: ls.createHost(workspace),
   });
 
-  // set monacoNS and register language features
-  ls.setup(monaco);
-  ls.enableBasicFeatures(languageId, worker, ["/", "-", ":", "("], workspace);
-  ls.enableCodeAction(languageId, worker);
-  ls.enableColorPresentation(languageId, worker);
-  ls.enableDocumentLinks(languageId, worker);
+  // register language features
+  ls.registerBasicFeatures(languageId, worker, ["/", "-", ":", "("], workspace);
+  ls.registerCodeAction(languageId, worker);
+  ls.registerColorPresentation(languageId, worker);
+  ls.registerDocumentLinks(languageId, worker);
 }
 
 export function getWorkerUrl() {

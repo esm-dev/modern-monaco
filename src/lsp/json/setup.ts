@@ -57,11 +57,10 @@ export async function setup(
     }
   });
 
-  // set monacoNS and register language features
-  ls.setup(monaco);
-  ls.enableBasicFeatures(languageId, worker, [" ", ":", "\""], workspace);
-  ls.enableColorPresentation(languageId, worker);
-  ls.enableDocumentLinks(languageId, worker);
+  // register language features
+  ls.registerBasicFeatures(languageId, worker, [" ", ":", '"'], workspace);
+  ls.registerColorPresentation(languageId, worker);
+  ls.registerDocumentLinks(languageId, worker);
 
   // register code lens provider for import maps
   languages.registerCodeLensProvider(languageId, {
@@ -125,7 +124,7 @@ export async function setup(
       const html = model.getValue();
       const newHtml = html.replace(
         /<script[^>]*? type="importmap"[^>]*?>[^]*?<\/script>/,
-        ["<script type=\"importmap\">", ...json.split("\n").map((l) => "  " + l), "</script>"].join("\n  "),
+        ['<script type="importmap">', ...json.split("\n").map((l) => "  " + l), "</script>"].join("\n  "),
       );
       const viewState = editor?.saveViewState();
       model.setValue(model.normalizeIndentation(newHtml));

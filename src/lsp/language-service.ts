@@ -6,8 +6,10 @@ import * as lst from "vscode-languageserver-types";
 import { cache } from "../cache.js";
 
 let monaco: typeof Monaco;
-export function setup(monacoNS: typeof Monaco): void {
-  monaco ??= monacoNS;
+
+/** @internal */
+export function init(monacoNS: typeof Monaco): void {
+  monaco = monacoNS;
 }
 
 /** create a worker host with the given workspace. */
@@ -56,7 +58,7 @@ function lspRequest<Result>(
 
 const registry: Map<string, Monaco.editor.MonacoWebWorker<any>> = new Map();
 
-export function enableBasicFeatures<
+export function registerBasicFeatures<
   T extends
     & ILanguageWorkerWithValidation
     & ILanguageWorkerWithCompletions
@@ -99,7 +101,7 @@ export function enableBasicFeatures<
   });
 
   // enable diagnostics
-  enableDiagnostics(languageId, worker);
+  registerDiagnostics(languageId, worker);
 
   // register language features
   languages.registerCompletionItemProvider(languageId, new CompletionAdapter(worker, completionTriggerCharacters));
@@ -149,7 +151,7 @@ export interface ILanguageWorkerWithValidation {
   doValidation(uri: string): Promise<lst.Diagnostic[] | null>;
 }
 
-function enableDiagnostics<T extends ILanguageWorkerWithValidation>(
+function registerDiagnostics<T extends ILanguageWorkerWithValidation>(
   languageId: string,
   worker: Monaco.editor.MonacoWebWorker<T>,
 ) {
@@ -504,7 +506,7 @@ interface ILanguageWorkerWithSignatureHelp {
   ): Promise<lst.SignatureHelp | null>;
 }
 
-export function enableSignatureHelp<T extends ILanguageWorkerWithSignatureHelp>(
+export function registerSignatureHelp<T extends ILanguageWorkerWithSignatureHelp>(
   languageId: string,
   worker: Monaco.editor.MonacoWebWorker<T>,
   triggerCharacters: string[],
@@ -561,7 +563,7 @@ export interface ILanguageWorkerWithCodeAction {
   ): Promise<lst.CodeAction[] | null>;
 }
 
-export function enableCodeAction<T extends ILanguageWorkerWithCodeAction>(
+export function registerCodeAction<T extends ILanguageWorkerWithCodeAction>(
   languageId: string,
   worker: Monaco.editor.MonacoWebWorker<T>,
 ) {
@@ -749,7 +751,7 @@ export interface ILanguageWorkerWithAutoComplete {
   doAutoComplete(uri: string, position: lst.Position, ch: string): Promise<string | null>;
 }
 
-export function enableAutoComplete<T extends ILanguageWorkerWithAutoComplete>(
+export function registerAutoComplete<T extends ILanguageWorkerWithAutoComplete>(
   langaugeId: string,
   worker: Monaco.editor.MonacoWebWorker<T>,
   triggerCharacters: string[],
@@ -1018,7 +1020,7 @@ export interface ILanguageWorkerWithDocumentLinks {
   findDocumentLinks(uri: string): Promise<lst.DocumentLink[] | null>;
 }
 
-export function enableDocumentLinks<T extends ILanguageWorkerWithDocumentLinks>(
+export function registerDocumentLinks<T extends ILanguageWorkerWithDocumentLinks>(
   langaugeId: string,
   worker: Monaco.editor.MonacoWebWorker<T>,
 ) {
@@ -1055,7 +1057,7 @@ export interface ILanguageWorkerWithDocumentColors {
   getColorPresentations(uri: string, color: lst.Color, range: lst.Range): Promise<lst.ColorPresentation[] | null>;
 }
 
-export function enableColorPresentation<T extends ILanguageWorkerWithDocumentColors>(
+export function registerColorPresentation<T extends ILanguageWorkerWithDocumentColors>(
   langaugeId: string,
   worker: Monaco.editor.MonacoWebWorker<T>,
 ) {
@@ -1330,10 +1332,10 @@ export interface ILanguageWorkerWithEmbeddedSupport {
   getEmbeddedDocument(uri: string, langaugeId: string): Promise<{ content: string } | null>;
 }
 
-export function attachEmbeddedLanguages<T extends ILanguageWorkerWithEmbeddedSupport>(
+export function registerEmbedded<T extends ILanguageWorkerWithEmbeddedSupport>(
   languageId: string,
   mainWorker: Monaco.editor.MonacoWebWorker<T>,
-  embeddedLanguages: string[],
+  languages: string[],
 ) {
   const { editor, Uri } = monaco;
   const listeners = new Map<string, Monaco.IDisposable>();
@@ -1364,7 +1366,7 @@ export function attachEmbeddedLanguages<T extends ILanguageWorkerWithEmbeddedSup
         }
       }
     };
-    const attachAll = () => embeddedLanguages.forEach(attachEmbeddedLanguage);
+    const attachAll = () => languages.forEach(attachEmbeddedLanguage);
     listeners.set(modelUri, model.onDidChangeContent(attachAll));
     attachAll();
   };
@@ -1374,7 +1376,7 @@ export function attachEmbeddedLanguages<T extends ILanguageWorkerWithEmbeddedSup
       listeners.get(uri)!.dispose();
       listeners.delete(uri);
     }
-    embeddedLanguages.forEach((languageId) => {
+    languages.forEach((languageId) => {
       const uri = Uri.parse(model.uri.path + getEmbeddedExtname(languageId));
       editor.getModel(uri)?.dispose();
     });
