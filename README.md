@@ -19,6 +19,9 @@ Meeting the modern version of [Monaco Editor](https://www.npmjs.com/package/mona
 
 Planned features:
 
+- [ ] Built-in sidebar
+  - [ ] file explorer
+  - [ ] vibe chat
 - [ ] Show a loading indicator while loading the editor
 - [ ] Quick open menu (only if a workspace is provided)
 - [ ] Drag and drop file (only if a workspace is provided)
