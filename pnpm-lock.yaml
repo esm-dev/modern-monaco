@@ -21,11 +21,11 @@ importers:
         specifier: 0.52.2
         version: 0.52.2
       tm-grammars:
-        specifier: 1.23.10
-        version: 1.23.10
+        specifier: 1.23.15
+        version: 1.23.15
       tm-themes:
-        specifier: 1.10.3
-        version: 1.10.3
+        specifier: 1.10.5
+        version: 1.10.5
       typescript:
         specifier: 5.8.3
         version: 5.8.3
@@ -138,11 +138,11 @@ packages:
   stringify-entities@4.0.4:
     resolution: {integrity: sha512-IwfBptatlO+QCJUo19AqvrPNqlVMpW9YEL2LIVY+Rpv2qsjCGxaDLNRgeGsQWJhfItebuJhsGSLjaBbNSQ+ieg==}
 
-  tm-grammars@1.23.10:
-    resolution: {integrity: sha512-hbasHeYuOPrA+quanJYjTanMkwrU2NyCRbFpQJZmLVUw9zJSzZkA1HGrsuAPjQ/KoXwdNuYkT9IyaeoG4vp6gA==}
+  tm-grammars@1.23.15:
+    resolution: {integrity: sha512-UU9qfvfWa1I/SJe5rVW+YIqlZUBeN83ERx1esl6XedDaapDo1nOASClBSk6g8WESIke0wNNQWaT01a+uMBrSng==}
 
-  tm-themes@1.10.3:
-    resolution: {integrity: sha512-R19bF/9nxmCtw7upTkl5hq37YJFZkLgO/i+jgwMCTeAE6HVdnwjG3CgeAwXloB/5VhFhOwvuO81qkCdd1s4f0A==}
+  tm-themes@1.10.5:
+    resolution: {integrity: sha512-/2auLAWQK4LDB61o1+N0/YXtY/3KLCoGV0xX7ZLKuWSc5Z4si3N/BZIqRp+oXOR4SnZsD51OkdOmi/NoUcGvpg==}
 
   trim-lines@3.0.1:
     resolution: {integrity: sha512-kRj8B+YHZCc9kQYdWfJB2/oUl9rA99qbowYYBtr4ui4mZyAQ2JpvVBd/6U2YloATfqBhBTSMhTpgBHtU0Mf3Rg==}
@@ -307,9 +307,9 @@ snapshots:
       character-entities-html4: 2.1.0
       character-entities-legacy: 3.0.0
 
-  tm-grammars@1.23.10: {}
+  tm-grammars@1.23.15: {}
 
-  tm-themes@1.10.3: {}
+  tm-themes@1.10.5: {}
 
   trim-lines@3.0.1: {}
 
