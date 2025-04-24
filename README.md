@@ -21,7 +21,7 @@ Planned features:
 
 - [ ] Built-in sidebar
   - [ ] file explorer
-  - [ ] vibe chat
+  - [ ] chat
 - [ ] Show a loading indicator while loading the editor
 - [ ] Quick open menu (only if a workspace is provided)
 - [ ] Drag and drop file (only if a workspace is provided)
@@ -261,7 +261,7 @@ lazy({
 > [!Note]
 > The theme ID should be one of the [Shiki Themes](https://shiki.style/themes).
 
-`modern-monaco` loads themes from CDN when a theme ID is provided. You can also load themes `tm-themes` package.
+`modern-monaco` loads the theme data from CDN when a theme ID is provided. You can also use a theme in `tm-themes` package:
 
 ```js
 import OneDark "tm-themes/themes/OneDark-Pro.json" with { type: "json" };
@@ -280,15 +280,24 @@ import markdown from "tm-grammars/markdown.json" with { type: "json" };
 
 lazy({
   langs: [
-    // use `tm-grammars` package without extra http requests, but increase the bundle size
-    markdown,
-    // loading grammars from CDN
+    // load language grammars from CDN
     "html",
     "css",
     "javascript",
     "json",
-    // loading the grammar from a URL
+
+    // load language grammar from a URL
     "https://example.com/grammars/mylang.json",
+
+    // load language grammar from a local file
+    "/assets/mylang.json",
+
+    // use `tm-grammars` package without extra http requests, but increase the bundle size
+    markdown,
+
+    // dynamically import
+    () => import("tm-grammars/markdown.json", { with: { type: "json" } }),
+
     // hand-crafted language grammar
     {
       name: "mylang",
@@ -297,7 +306,7 @@ lazy({
     },
   ],
   // the CDN for loading language grammars and themes, default is "https://esm.sh"
-  tmDownloadCDN: "https://esm.sh",
+  tmDownloadCDN: "https://unpkg.com",
 });
 ```
 
@@ -395,12 +404,12 @@ export interface LSPLanguageConfig {
 
 [TODO]
 
-### Lite Module
+### Lite Mode
 
-The `modern-monaco/lite` sub-module allows you to use a lightweight version of the library without the built-in grammars and LSP providers for HTML, CSS, JavaScript/TypeScript, and JSON.
+`modern-monaco` includes built-in grammars and LSP providers for HTML, CSS, JavaScript/TypeScript, and JSON. If you don't need these features, you can use the `modern-monaco/core` sub-module to reduce the bundle size.
 
 ```js
-import { lazy } from "modern-monaco/lite";
+import { lazy } from "modern-monaco/core";
 
 lazy();
 ```
