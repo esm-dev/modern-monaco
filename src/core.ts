@@ -4,7 +4,7 @@ import type { LSPConfig, LSPProvider } from "./lsp/index.ts";
 import { createWebWorker } from "./lsp/index.ts";
 
 // ! external modules, don't remove the `.js` extension
-import { getLanguageIdFromPath, initShiki, setDefaultWasmLoader, tmGrammars } from "./shiki.js";
+import { getLanguageIdFromPath, initShiki, setDefaultWasmLoader, tmGrammars, tmThemes } from "./shiki.js";
 import { initShikiMonacoTokenizer, registerShikiMonacoTokenizer } from "./shiki.js";
 import { render } from "./shiki.js";
 import { getWasmInstance } from "./shiki-wasm.js";
@@ -50,16 +50,6 @@ const errors = {
 
 const builtinLSPProviders: Record<string, LSPProvider> = {};
 const builtinSyntaxes: { name: string; scopeName: string }[] = [];
-
-/** Register a language server protocol provider. */
-export function registerLSPProvider(lang: string, provider: LSPProvider) {
-  builtinLSPProviders[lang] = provider;
-}
-
-/** Register a custom language syntax. */
-export function registerSyntax(...syntaxes: { name: string; scopeName: string }[]) {
-  builtinSyntaxes.push(...syntaxes);
-}
 
 export interface InitOptions extends ShikiInitOptions {
   /**
@@ -503,6 +493,23 @@ async function loadMonaco(
   initShikiMonacoTokenizer(monaco, highlighter);
 
   return monaco;
+}
+
+/** Register a language server protocol provider. */
+export function registerLSPProvider(lang: string, provider: LSPProvider) {
+  builtinLSPProviders[lang] = provider;
+}
+
+/** Register a custom language syntax. */
+export function registerSyntax(...syntaxes: { name: string; scopeName: string }[]) {
+  builtinSyntaxes.push(...syntaxes);
+}
+
+/** Register a custom theme. */
+export function registerTheme(theme: Record<string, any>) {
+  if (theme.name) {
+    tmThemes.set(theme.name, theme);
+  }
 }
 
 // set the shiki wasm default loader

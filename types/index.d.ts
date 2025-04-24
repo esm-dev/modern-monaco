@@ -7,23 +7,41 @@ type Awaitable<T> = T | Promise<T>;
 type MaybeGetter<T> = Awaitable<MaybeModule<T>> | (() => Awaitable<MaybeModule<T>>);
 type MaybeModule<T> = T | { default: T };
 type MaybeArray<T> = T | T[];
-type LanguageInput = MaybeGetter<MaybeArray<NamedObject>>;
-type ThemeInput = MaybeGetter<NamedObject>;
+type LanguageInput = MaybeGetter<MaybeArray<TextmateGrammar>>;
+type ThemeInput = MaybeGetter<TextmateTheme>;
 
-interface NamedObject {
+export type TextmateGrammar = {
   name: string;
   scopeName: string;
-}
+  displayName?: string;
+  foldingStartMarker?: string;
+  foldingStopMarker?: string;
+  injectionSelector?: string;
+  injectTo?: string[];
+  injections?: Record<string, any>;
+  patterns: any[];
+  repository?: Record<string, any>;
+};
+
+export type TextmateTheme = {
+  type?: "dark" | "light";
+  name: string;
+  displayName?: string;
+  colors?: Record<string, string>;
+  tokenColors?: any[];
+  semanticTokenColors?: Record<string, string>;
+  semanticHighlighting?: boolean;
+};
 
 export interface ShikiInitOptions {
   /**
    * Theme names, or theme registration objects to be loaded upfront.
    */
-  theme?: TextmateThemeName | URL | ThemeInput;
+  theme?: TextmateThemeName | (string & {}) | URL | ThemeInput;
   /**
    * Language names, or language registration objects to be loaded upfront.
    */
-  langs?: (TextmateGrammarName | URL | LanguageInput)[];
+  langs?: (TextmateGrammarName | (string & {}) | URL | LanguageInput)[];
   /**
    * The CDN base URL to download themes and languages from. Default: "https://esm.sh".
    */

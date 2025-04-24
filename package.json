@@ -10,9 +10,9 @@
       "import": "./dist/index.js",
       "types": "./types/index.d.ts"
     },
-    "./lite": {
-      "import": "./dist/lite.js",
-      "types": "./types/lite.d.ts"
+    "./core": {
+      "import": "./dist/core.js",
+      "types": "./types/core.d.ts"
     },
     "./editor-core": {
       "import": "./dist/editor-core.js",

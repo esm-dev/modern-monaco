@@ -1,4 +1,4 @@
-import type { HighlighterCore, LanguageInput, RegexEngine, ThemeInput } from "@shikijs/core";
+import type { HighlighterCore, LanguageInput, RegexEngine, ThemeInput, ThemeRegistration } from "@shikijs/core";
 import { createHighlighterCore } from "@shikijs/core";
 import { createOnigurumaEngine, getDefaultWasmLoader, setDefaultWasmLoader } from "@shikijs/engine-oniguruma";
 import { version as tmGrammarsVersion } from "../node_modules/tm-grammars/package.json";
@@ -11,7 +11,7 @@ import { isPlainObject } from "./util.js";
 // @ts-expect-error `TM_GRAMMARS` is defined at build time
 const tmGrammars: { name: string; aliases?: string[]; embedded?: string[]; injectTo?: string[] }[] = TM_GRAMMARS;
 // @ts-expect-error `TM_THEMES` is defined at build time
-const tmThemes: Set<string> = new Set(TM_THEMES);
+const tmThemes: Map<string, ThemeRegistration | null> = new Map(TM_THEMES.map((t) => [t, null]));
 
 export interface ShikiInitOptions {
   langs?: (string | URL | LanguageInput)[];
@@ -47,7 +47,7 @@ export async function initShiki({
           langs.push(loadTMGrammar(l, tmDownloadCDN));
           set.add(l.toString());
         }
-      } else if (isPlainObject(l)) {
+      } else if (isPlainObject(l) || typeof l === "function") {
         langs.push(l);
       }
     });
@@ -55,7 +55,7 @@ export async function initShiki({
 
   if (typeof theme === "string" || theme instanceof URL) {
     themes.push(await loadTMTheme(theme, tmDownloadCDN));
-  } else if (isPlainObject(theme)) {
+  } else if (isPlainObject(theme) || typeof theme === "function") {
     themes.push(theme);
   }
 
@@ -69,13 +69,18 @@ export async function initShiki({
 
 /** Load a TextMate theme from the given source. */
 function loadTMTheme(src: string | URL, cdn = "https://esm.sh") {
-  if (src === "vitesse-dark") {
-    // @ts-expect-error `VITESSE_DARK` is defined at build time
-    return VITESSE_DARK;
-  }
   if (typeof src === "string" && tmThemes.has(src)) {
+    const theme = tmThemes.get(src);
+    if (theme) {
+      return theme;
+    }
     const url = new URL(`/tm-themes@${tmThemesVersion}/themes/${src}.json`, cdn);
-    return cache.fetch(url).then((res) => res.json());
+    return cache.fetch(url).then((res) =>
+      res.json().then((theme) => {
+        tmThemes.set(src, theme);
+        return theme;
+      })
+    );
   }
   return cache.fetch(src).then((res) => res.json());
 }

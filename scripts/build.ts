@@ -26,12 +26,12 @@ const build = (entryPoints: string[], define?: Record<string, string>) => {
       "*/setup.js",
       "*/shiki.js",
       "*/shiki-wasm.js",
-      "*/lite.js",
-      "*/util.js",
       "*/worker.js",
       "*/onig.wasm",
-      !buildEditorCore ? "*/cache.js" : "",
-      !buildEditorCore ? "*/workspace.js" : "",
+      "*/src/cache.js",
+      "*/src/core.js",
+      "*/src/util.js",
+      "*/src/workspace.js",
     ],
     entryPoints,
   });
@@ -87,7 +87,6 @@ const tmDefine = () => {
   return {
     TM_THEMES: JSON.stringify(tmThemes.map((v) => v.name)),
     TM_GRAMMARS: JSON.stringify(tmGrammars.map((v) => Object.fromEntries(keys.map((k) => [k, v[k as keyof typeof v]])))),
-    VITESSE_DARK: Deno.readTextFileSync("node_modules/tm-themes/themes/vitesse-dark.json"),
   };
 };
 const buildEditorCore = async () => {
@@ -103,7 +102,7 @@ const buildDist = async () => {
   await build([
     "src/cache.ts",
     "src/index.ts",
-    "src/lite.ts",
+    "src/core.ts",
     "src/shiki-wasm.ts",
     "src/util.ts",
     "src/workspace.ts",
