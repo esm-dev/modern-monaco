@@ -404,7 +404,7 @@ export interface LSPLanguageConfig {
 
 [TODO]
 
-### Lite Mode
+### Using `core` module
 
 `modern-monaco` includes built-in grammars and LSP providers for HTML, CSS, JavaScript/TypeScript, and JSON. If you don't need these features, you can use the `modern-monaco/core` sub-module to reduce the bundle size.
 
