@@ -5,6 +5,7 @@ import { wasmBinary } from "../node_modules/@shikijs/engine-oniguruma/dist/wasm-
 
 const build = (entryPoints: string[], define?: Record<string, string>) => {
   const buildEditorCore = entryPoints.includes("src/editor-core.ts");
+  const buildShiki = entryPoints.includes("src/shiki.ts");
   return esbuild({
     target: "esnext",
     format: "esm",
@@ -23,15 +24,15 @@ const build = (entryPoints: string[], define?: Record<string, string>) => {
       "*/editor-worker.js",
       "*/language-service.js",
       "*/libs.js",
-      "*/setup.js",
-      "*/shiki.js",
-      "*/shiki-wasm.js",
-      "*/worker.js",
       "*/onig.wasm",
-      "*/src/cache.js",
-      "*/src/core.js",
-      "*/src/util.js",
-      "*/src/workspace.js",
+      "*/setup.js",
+      "*/shiki-wasm.js",
+      "*/shiki.js",
+      "*/util.js",
+      "*/worker.js",
+      buildShiki ? "" : "*/core.js",
+      buildEditorCore ? "" : "*/workspace.js",
+      buildEditorCore ? "" : "*/cache.js",
     ],
     entryPoints,
   });
