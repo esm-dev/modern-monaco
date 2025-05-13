@@ -54,9 +54,9 @@
     "tm-grammars": "1.23.15",
     "tm-themes": "1.10.5",
     "typescript": "5.8.3",
-    "vscode-css-languageservice": "6.3.4",
-    "vscode-html-languageservice": "5.3.3",
-    "vscode-json-languageservice": "5.4.4",
+    "vscode-css-languageservice": "6.3.5",
+    "vscode-html-languageservice": "5.4.0",
+    "vscode-json-languageservice": "5.5.0",
     "vscode-languageserver-textdocument": "1.0.12",
     "vscode-languageserver-types": "3.17.5"
   },
