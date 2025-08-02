@@ -37,7 +37,7 @@ export class Workspace implements IWorkspace {
     const db = new WorkspaceDatabase(
       name,
       {
-        name: "fs/meta",
+        name: "fs-meta",
         keyPath: "url",
         onCreate: async (store) => {
           if (initialFiles) {
@@ -67,7 +67,7 @@ export class Workspace implements IWorkspace {
         },
       },
       {
-        name: "fs/blobs",
+        name: "fs-blob",
         keyPath: "url",
         onCreate: async (store) => {
           if (initialFiles) {
@@ -84,14 +84,14 @@ export class Workspace implements IWorkspace {
         },
       },
       {
-        name: "viewState",
+        name: "viewstate",
         keyPath: "url",
       },
     );
 
     this._monaco = promiseWithResolvers();
     this._fs = new FS(db);
-    this._viewState = new WorkspaceStateStorage<monacoNS.editor.ICodeEditorViewState>(db, "viewState");
+    this._viewState = new WorkspaceStateStorage<monacoNS.editor.ICodeEditorViewState>(db, "viewstate");
     this._entryFile = entryFile;
 
     if (browserHistory) {
@@ -217,8 +217,8 @@ class FS implements FileSystem {
   }
 
   private async _getIdbObjectStores(readwrite = false): Promise<[IDBObjectStore, IDBObjectStore]> {
-    const transaction = (await this._db.open()).transaction(["fs/meta", "fs/blobs"], readwrite ? "readwrite" : "readonly");
-    return [transaction.objectStore("fs/meta"), transaction.objectStore("fs/blobs")];
+    const transaction = (await this._db.open()).transaction(["fs-meta", "fs-blob"], readwrite ? "readwrite" : "readonly");
+    return [transaction.objectStore("fs-meta"), transaction.objectStore("fs-blob")];
   }
 
   /**
@@ -226,7 +226,7 @@ class FS implements FileSystem {
    * @internal
    */
   async entries(): Promise<[string, number][]> {
-    const metaStore = await this._getIdbObjectStore("fs/meta");
+    const metaStore = await this._getIdbObjectStore("fs-meta");
     const entries = await promisifyIDBRequest<Array<{ url: string } & FileStat>>(metaStore.getAll());
     return entries.map(({ url, type }) => [url, type]);
   }
@@ -236,7 +236,7 @@ class FS implements FileSystem {
     if (url === "file:///") {
       return { type: 2, version: 1, ctime: 0, mtime: 0, size: 0 };
     }
-    const metaStore = await this._getIdbObjectStore("fs/meta");
+    const metaStore = await this._getIdbObjectStore("fs-meta");
     const stat = await promisifyIDBRequest<FileStat | undefined>(metaStore.get(url));
     if (!stat) {
       throw new ErrorNotFound(url);
@@ -247,7 +247,7 @@ class FS implements FileSystem {
   async createDirectory(name: string): Promise<void> {
     const now = Date.now();
     const { pathname, href: url } = filenameToURL(name);
-    const metaStore = await this._getIdbObjectStore("fs/meta", true);
+    const metaStore = await this._getIdbObjectStore("fs-meta", true);
     const promises: Promise<void>[] = [];
     const newDirs: string[] = [];
     // ensure parent directories exist
@@ -285,7 +285,7 @@ class FS implements FileSystem {
     if (stat.type !== 2) {
       throw new Error(`read ${pathname}: not a directory`);
     }
-    const metaStore = await this._getIdbObjectStore("fs/meta");
+    const metaStore = await this._getIdbObjectStore("fs-meta");
     const entries: [string, number][] = [];
     const dir = "file://" + pathname + (pathname.endsWith("/") ? "" : "/");
     await openIDBCursor(metaStore, IDBKeyRange.lowerBound(dir, true), (cursor) => {
@@ -304,7 +304,7 @@ class FS implements FileSystem {
 
   async readFile(name: string): Promise<Uint8Array> {
     const url = filenameToURL(name).href;
-    const blobStore = await this._getIdbObjectStore("fs/blobs");
+    const blobStore = await this._getIdbObjectStore("fs-blob");
     const file = await promisifyIDBRequest<{ content: Uint8Array }>(blobStore.get(url));
     if (!file) {
       throw new ErrorNotFound(url);
@@ -395,12 +395,12 @@ class FS implements FileSystem {
         if (entries.length > 0) {
           throw new Error(`delete ${url}: directory not empty`);
         }
-        const metaStore = await this._getIdbObjectStore("fs/meta", true);
+        const metaStore = await this._getIdbObjectStore("fs-meta", true);
         await promisifyIDBRequest(metaStore.delete(url));
         this._notify("remove", pathname, 2);
       }
     } else {
-      const metaStore = await this._getIdbObjectStore("fs/meta", true);
+      const metaStore = await this._getIdbObjectStore("fs-meta", true);
       await promisifyIDBRequest(metaStore.delete(url));
       this._notify("remove", pathname, stat.type);
     }
@@ -529,7 +529,7 @@ class WorkspaceDatabase {
     ...stores: { name: string; keyPath: string; onCreate?: (store: IDBObjectStore) => Promise<void> }[]
   ) {
     const open = () =>
-      openIDB("monaco:workspace:" + workspaceName, 1, ...stores).then((db) => {
+      openIDB("mm-workspace/" + workspaceName, 1, ...stores).then((db) => {
         db.onclose = () => {
           // reopen the db on 'close' event
           this._db = open();
@@ -570,7 +570,7 @@ class LocalStorageHistory implements WorkspaceHistory {
   constructor(scope: string, maxHistory = 100) {
     const defaultState = { "current": -1, "history": [] };
     this._state = supportLocalStorage()
-      ? createPersistStateStorage(`monaco:workspace:${scope}:history`, defaultState)
+      ? createPersistStateStorage("mm-workspace-history:" + scope, defaultState)
       : defaultState;
     this._maxHistory = maxHistory;
   }

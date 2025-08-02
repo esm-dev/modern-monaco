@@ -102,5 +102,5 @@ class Cache {
   }
 }
 
-export const cache = new Cache("monaco:cache");
+export const cache = new Cache("mm-cache");
 export default cache;
