@@ -19,23 +19,21 @@ Meeting the modern version of [Monaco Editor](https://www.npmjs.com/package/mona
 
 Planned features:
 
-- [ ] Built-in sidebar
-  - [ ] file explorer
-  - [ ] chat
-- [ ] Workspace persist API
-- [ ] Show a loading indicator while loading the editor
+- [ ] Workspace server sync API
+- [ ] Built-in file tree (only if a workspace is provided)
 - [ ] Quick open menu (only if a workspace is provided)
 - [ ] Drag and drop file (only if a workspace is provided)
 - [ ] Display non-code files, like images, videos, etc
+- [ ] Show a loading indicator while loading the editor
 - [ ] VSCode `window.show<XXX>Message` APIs
 - [ ] Emmet
 - [ ] Markdown language service
 - [ ] [Volar](https://github.com/volarjs/volar.js) integration
-- [ ] Support [Shiki JS RegExp Engine](https://shiki.style/guide/regex-engines#javascript-regexp-engine-experimental)
+- [ ] Support [Shiki JS RegExp Engine](https://shiki.style/guide/regex-engines#javascript-regexp-engine)
 
 ## Installation
 
-You can install the package from NPM in your node project with a bundler like [vite](http://vitejs.dev).
+You can install `modern-monaco` from NPM:
 
 ```bash
 npm i modern-monaco typescript
@@ -44,7 +42,7 @@ npm i modern-monaco typescript
 > [!Note]
 > The `typescript` package is required by JavaScript/TypeScript LSP worker. We recommend `typescript@5.5.x` or later.
 
-or import it from [esm.sh](https://esm.sh/) in browser without build step:
+or import it from [esm.sh](https://esm.sh/) CDN in browser without build step:
 
 ```js
 import * from "https://esm.sh/modern-monaco"
