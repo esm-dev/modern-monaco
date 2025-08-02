@@ -9,7 +9,7 @@ Meeting the modern version of [Monaco Editor](https://www.npmjs.com/package/mona
 - Easy to use, no `MonacoEnvironment` setup and web-worker/css loader needed.
 - Using [Shiki](https://shiki.style) for syntax highlighting with tons of grammars and themes.
 - Lazy loading: pre-highlighting code with Shiki while loading `monaco-editor-core` in background.
-- Support **server-side rendering(SSR)**.
+- Support server-side rendering(SSR).
 - Workspace (edit history, file system provider, persist protocol, etc).
 - Automatically loading `.d.ts` from [esm.sh](https://esm.sh) CDN for type checking.
 - Using [import maps](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/script/type/importmap) for resolving **bare specifier** imports in JavaScript/TypeScript.
@@ -330,17 +330,17 @@ For manual mode, check [here](https://microsoft.github.io/monaco-editor/docs.htm
 
 `modern-monaco` by default supports full LSP features for the following languages:
 
-- **HTML**
-- **CSS/SCSS/LESS**
-- **JavaScript/TypeScript**
-- **JSON**
+- HTML
+- CSS/SCSS/LESS
+- JavaScript/TypeScript
+- JSON
 
 Plus, `modern-monaco` also supports features like:
 
-- **File System Provider for import completions**
-- **Embedded languages in HTML**
-- **Inline `html` and `css` in JavaScript/TypeScript.**
-- **Auto-closing HTML/JSX tags**
+- File System Provider for import completions
+- Embedded languages in HTML
+- Inline `html` and `css` in JavaScript/TypeScript.
+- Auto-closing HTML/JSX tags
 
 > [!Note]
 > You don't need to set the `MonacoEnvironment.getWorker` for LSP support.
