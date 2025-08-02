@@ -26,7 +26,7 @@ Planned features:
 - [ ] Quick open menu (only if a workspace is provided)
 - [ ] Drag and drop file (only if a workspace is provided)
 - [ ] Display non-code files, like images, videos, etc
-- [ ] VSCode `winodow.show<XXX>Message` APIs
+- [ ] VSCode `window.show<XXX>Message` APIs
 - [ ] Emmet
 - [ ] Markdown language service
 - [ ] [Volar](https://github.com/volarjs/volar.js) integration
@@ -51,17 +51,17 @@ import * from "https://esm.sh/modern-monaco"
 
 ## Usage
 
-`modern-monaco` provides three modes to create a browser based code editor:
+`modern-monaco` provides three modes to create a browser-based code editor:
 
-- **Lazy**: pre-hightlight code with Shiki while loading the `editor-core.js` in background.
-- **SSR**: render a mock editor in server side, and hydrate it in client side.
+- **Lazy**: pre-highlight code with Shiki while loading the `editor-core.js` in the background.
+- **SSR**: render a mock editor on the server side, and hydrate it on the client side.
 - **Manual**: create a monaco editor instance manually.
 
 ### Lazy Mode
 
 [monaco-editor](https://www.npmjs.com/package/monaco-editor) is a large package with extra CSS/Worker modules, and needs the `MonacoEnvironment` setup for language service support. `modern-monaco` provides a lazy but smart way to load the editor modules on demand.
 
-By pre-highlighting code with Shiki while loading editor modules in background, `modern-monaco` can reduce the loading screen time.
+By pre-highlighting code with Shiki while loading editor modules in the background, `modern-monaco` can reduce the loading screen time.
 
 ```html
 <monaco-editor></monaco-editor>
@@ -85,7 +85,7 @@ By pre-highlighting code with Shiki while loading editor modules in background, 
 
 ### SSR Mode
 
-SSR mode returns a instant rendered(mock) editor in server side, and hydrate it in client side.
+SSR mode returns an instant pre-rendered editor on the server side, and hydrate it on the client side.
 
 ```js
 import { renderToWebComponent } from "modern-monaco/ssr";
@@ -97,7 +97,7 @@ export default {
       {
         theme: "OneDark-Pro",
         language: "javascript",
-        userAgent: req.headers.get("user-agent"), // detecte default font for different platforms
+        userAgent: req.headers.get("user-agent"), // detect default font for different platforms
       },
     );
     return new Response(
@@ -138,7 +138,7 @@ You can also create a [monaco editor](https://microsoft.github.io/monaco-editor/
 
 ## Using Workspace
 
-`modern-monaco` provides vscode-like workspace features, like edit history, file system provider, etc.
+`modern-monaco` provides VSCode-like workspace features, like edit history, file system provider, etc.
 
 ```js
 import { lazy, Workspace } from "modern-monaco";
@@ -152,7 +152,7 @@ const workspace = new Workspace({
     "index.html": `<html><head><title>Hello, world!</title></head><body><script src="main.js"></script></body></html>`,
     "main.js": `console.log("Hello, world!")`,
   },
-  /** file to open when the editor is loaded at first time. */
+  /** file to open when the editor is loaded for the first time. */
   entryFile: "index.html",
 });
 
@@ -185,7 +185,7 @@ const workspace = new Workspace({
 
 ### Using Import Maps
 
-`modern-monaco` uses [import maps](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/script/type/importmap) to resolve **bare specifier** import in JavaScript/TypeScript. By default, `modern-monaco` dedetects the `importmap` from the root `index.html` in workspace.
+`modern-monaco` uses [import maps](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/script/type/importmap) to resolve **bare specifier** imports in JavaScript/TypeScript. By default, `modern-monaco` detects the `importmap` from the root `index.html` in the workspace.
 
 ```js
 const indexHtml = html`<!DOCTYPE html>
@@ -200,7 +200,7 @@ const indexHtml = html`<!DOCTYPE html>
       }
     </script>
   </head>
-  <body
+  <body>
     <div id="root"></div>
     <script type="module" src="app.tsx"></script>
   </body>
@@ -219,7 +219,7 @@ const workspace = new Workspace({
 });
 ```
 
-You can also provide an impormap object as the `lsp.typescript.importMap` option in the `lazy`, `init`, or `hydrate` function.
+You can also provide an importmap object as the `lsp.typescript.importMap` option in the `lazy`, `init`, or `hydrate` function.
 
 ```js
 lazy({
@@ -261,10 +261,10 @@ lazy({
 > [!Note]
 > The theme ID should be one of the [Shiki Themes](https://shiki.style/themes).
 
-`modern-monaco` loads the theme data from CDN when a theme ID is provided. You can also use a theme in `tm-themes` package:
+`modern-monaco` loads the theme data from the CDN when a theme ID is provided. You can also use a theme from the `tm-themes` package:
 
 ```js
-import OneDark "tm-themes/themes/OneDark-Pro.json" with { type: "json" };
+import OneDark from "tm-themes/themes/OneDark-Pro.json" with { type: "json" };
 
 lazy({
   theme: OneDark
@@ -292,7 +292,7 @@ lazy({
     // load language grammar from a local file
     "/assets/mylang.json",
 
-    // use `tm-grammars` package without extra http requests, but increase the bundle size
+    // use `tm-grammars` package without extra http requests, but increases the bundle size
     markdown,
 
     // dynamically import
@@ -340,9 +340,9 @@ const html = await renderToWebComponent(
 
 For manual mode, check [here](https://microsoft.github.io/monaco-editor/docs.html#functions/editor.create.html) for more details.
 
-## Language Server Protocol(LSP)
+## Language Server Protocol (LSP)
 
-`modern-monaco` by default supports full LSP features for following languages:
+`modern-monaco` by default supports full LSP features for the following languages:
 
 - **HTML**
 - **CSS/SCSS/LESS**
@@ -358,11 +358,11 @@ Plus, `modern-monaco` also supports features like:
 
 > [!Note]
 > You don't need to set the `MonacoEnvironment.getWorker` for LSP support.
-> `modern-monaco` will automatically load required LSP workers.
+> `modern-monaco` will automatically load the required LSP workers.
 
 ### LSP language configuration
 
-You can configure builtin LSPs in the `lazy`, `init`, or `hydrate` function.
+You can configure built-in LSPs in the `lazy`, `init`, or `hydrate` function.
 
 ```js
 lazy({
@@ -394,7 +394,7 @@ export interface LSPLanguageConfig {
     compilerOptions?: ts.CompilerOptions;
     /** The global import map. */
     importMap?: ImportMap;
-    /** The version of the typescript from CDN. Default: ">= 5.0.0" */
+    /** The version of TypeScript from the CDN. Default: ">= 5.0.0" */
     tsVersion?: string;
   };
 }
