@@ -352,7 +352,7 @@ async function loadMonaco(
   const lspProviders = { ...builtinLSPProviders, ...lsp?.providers };
 
   // initialize the workspace with the monaco namespace
-  workspace?.init(monaco);
+  workspace?.setupMonaco(monaco);
 
   // setup Monaco NS for the language service module
   if (Object.keys(lspProviders).length > 0) {

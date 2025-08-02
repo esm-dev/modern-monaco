@@ -104,7 +104,7 @@ export class Workspace implements IWorkspace {
     }
   }
 
-  init(monaco: typeof monacoNS) {
+  setupMonaco(monaco: typeof monacoNS) {
     this._monaco.resolve(monaco);
   }
 
@@ -529,7 +529,7 @@ class WorkspaceDatabase {
     ...stores: { name: string; keyPath: string; onCreate?: (store: IDBObjectStore) => Promise<void> }[]
   ) {
     const open = () =>
-      openIDB("mm-workspace/" + workspaceName, 1, ...stores).then((db) => {
+      openIDB("modern-monaco-workspace/" + workspaceName, 1, ...stores).then((db) => {
         db.onclose = () => {
           // reopen the db on 'close' event
           this._db = open();
@@ -570,7 +570,7 @@ class LocalStorageHistory implements WorkspaceHistory {
   constructor(scope: string, maxHistory = 100) {
     const defaultState = { "current": -1, "history": [] };
     this._state = supportLocalStorage()
-      ? createPersistStateStorage("mm-workspace-history:" + scope, defaultState)
+      ? createPersistStateStorage("modern-monaco-workspace-history:" + scope, defaultState)
       : defaultState;
     this._maxHistory = maxHistory;
   }
