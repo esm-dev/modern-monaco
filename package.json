@@ -14,17 +14,21 @@
       "import": "./dist/core.js",
       "types": "./types/core.d.ts"
     },
+    "./workspace": {
+      "import": "./dist/workspace/index.js",
+      "types": "./types/workspace.d.ts"
+    },
+    "./ssr": {
+      "workerd": "./dist/ssr/workerd.js",
+      "import": "./dist/ssr/index.js",
+      "types": "./types/ssr.d.ts"
+    },
     "./editor-core": {
       "import": "./dist/editor-core.js",
       "types": "./types/monaco.d.ts"
     },
     "./editor-worker": {
       "import": "./dist/editor-worker.js"
-    },
-    "./ssr": {
-      "workerd": "./dist/ssr/workerd.js",
-      "import": "./dist/ssr/index.js",
-      "types": "./types/ssr.d.ts"
     },
     "./lsp/*": {
       "import": "./dist/lsp/*.js"
