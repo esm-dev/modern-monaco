@@ -386,7 +386,7 @@ export interface LSPLanguageConfig {
 }
 ```
 
-### Using `core` module
+## Using `core` module
 
 `modern-monaco` includes built-in grammars and LSP providers for HTML, CSS, JavaScript/TypeScript, and JSON. If you don't need these features, you can use the `modern-monaco/core` sub-module to reduce the bundle size.
 
@@ -395,3 +395,7 @@ import { lazy } from "modern-monaco/core";
 
 lazy();
 ```
+
+## License
+
+[MIT License](https://opensource.org/licenses/MIT)
