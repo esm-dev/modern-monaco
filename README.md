@@ -1,6 +1,6 @@
 > [!WARNING]
 > **This project is currently under active development, the API may change at any time. Use at your own risk.**
-> Please report any issues or feature requests on the [GitHub repository](https://github.com/esm-dev/modern-monaco/issues).
+> Please report any issues or feature requests on the [issues](https://github.com/esm-dev/modern-monaco/issues) page.
 
 # Modern Monaco
 
@@ -222,7 +222,7 @@ lazy({
 
 > [!Note]
 > By default, `modern-monaco` uses `react` or `preact` in the `importmap` script as the `jsxImportSource` option for typescript worker.
-> To use a custom `jsxImportSource` option, add `@jsxRuntime` specifier in the `importmap` script. For example, [solid-js](https://esm.sh/solid-js/jsx-runtime).
+> To use a custom `jsxImportSource` option, add `@jsxRuntime` specifier in the `importmap` script.
 
 ## Editor Theme & Language Grammars
 
@@ -385,10 +385,6 @@ export interface LSPLanguageConfig {
   };
 }
 ```
-
-### Custom LSP
-
-[TODO]
 
 ### Using `core` module
 
