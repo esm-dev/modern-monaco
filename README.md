@@ -1,5 +1,6 @@
 > [!WARNING]
-> **This project is currently under active development and is not ready for production use.**
+> **This project is currently under active development, the API may change at any time. Use at your own risk.**
+> Please report any issues or feature requests on the [GitHub repository](https://github.com/esm-dev/modern-monaco/issues).
 
 # Modern Monaco
 
@@ -16,20 +17,6 @@ Meeting the modern version of [Monaco Editor](https://www.npmjs.com/package/mona
 - Embedded languages(importmap/CSS/JavaScript) in HTML.
 - Inline `html` and `css` in JavaScript/TypeScript.
 - Auto-closing HTML/JSX tags.
-
-Planned features:
-
-- [ ] Workspace server sync API
-- [ ] Built-in file tree (only if a workspace is provided)
-- [ ] Quick open menu (only if a workspace is provided)
-- [ ] Drag and drop file (only if a workspace is provided)
-- [ ] Display non-code files, like images, videos, etc
-- [ ] Show a loading indicator while loading the editor
-- [ ] VSCode `window.show<XXX>Message` APIs
-- [ ] Emmet
-- [ ] Markdown language service
-- [ ] [Volar](https://github.com/volarjs/volar.js) integration
-- [ ] Support [Shiki JS RegExp Engine](https://shiki.style/guide/regex-engines#javascript-regexp-engine)
 
 ## Installation
 
