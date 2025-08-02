@@ -3,6 +3,7 @@
   "description": "A modern version of Monaco Editor",
   "version": "0.0.0-beta.0",
   "type": "module",
+  "main": "dist/index.js",
   "module": "dist/index.js",
   "types": "types/index.d.ts",
   "exports": {
@@ -15,7 +16,7 @@
       "types": "./types/core.d.ts"
     },
     "./workspace": {
-      "import": "./dist/workspace/index.js",
+      "import": "./dist/workspace.js",
       "types": "./types/workspace.d.ts"
     },
     "./ssr": {
@@ -29,6 +30,15 @@
     },
     "./editor-worker": {
       "import": "./dist/editor-worker.js"
+    },
+    "./cache": {
+      "import": "./dist/cache.js"
+    },
+    "./shiki": {
+      "import": "./dist/shiki.js"
+    },
+    "./utils": {
+      "import": "./dist/utils.js"
     },
     "./lsp/*": {
       "import": "./dist/lsp/*.js"
