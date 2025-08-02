@@ -22,6 +22,7 @@ Planned features:
 - [ ] Built-in sidebar
   - [ ] file explorer
   - [ ] chat
+- [ ] Workspace persist API
 - [ ] Show a loading indicator while loading the editor
 - [ ] Quick open menu (only if a workspace is provided)
 - [ ] Drag and drop file (only if a workspace is provided)
