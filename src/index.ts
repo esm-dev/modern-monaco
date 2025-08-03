@@ -4,7 +4,7 @@ import { syntaxes } from "./syntaxes/index.ts";
 
 // ! external modules, don't remove the `.js` extension
 import { registerLSPProvider, registerSyntax, registerTheme } from "./core.js";
-export * from "./core.js";
+export { errors, hydrate, init, lazy, Workspace } from "./core.js";
 
 // register built-in LSP providers
 for (const [lang, provider] of Object.entries(builtinLSPProviders)) {
