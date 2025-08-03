@@ -9,7 +9,7 @@ import { initShikiMonacoTokenizer, registerShikiMonacoTokenizer } from "./shiki.
 import { render } from "./shiki.js";
 import { getWasmInstance } from "./shiki-wasm.js";
 import { ErrorNotFound, Workspace } from "./workspace.js";
-import { debunce, decode } from "./util.ts";
+import { debunce, decode, isDigital, promiseWithResolvers } from "./util.ts";
 import { init as initLS } from "./lsp/language-service.js";
 
 const editorProps = [
@@ -72,22 +72,23 @@ export async function init(options?: InitOptions): Promise<typeof monacoNS> {
 /** Render a mock editor, then load the monaco editor in background. */
 export async function lazy(options?: InitOptions, hydrate?: boolean) {
   const workspace = options?.workspace;
+  const { promise: editorWorkerPromise, resolve: onDidEditorWorkerResolve } = promiseWithResolvers<void>();
 
   let monacoCore: typeof monacoNS | Promise<typeof monacoNS> | null = null;
-  let onDidEditorWorkerReady: (() => void) | undefined;
-  let editorWorkerPromise = new Promise<void>((resolve) => {
-    onDidEditorWorkerReady = resolve;
-  });
 
   function load(highlighter: Highlighter) {
     if (monacoCore) {
       return monacoCore;
     }
-    return monacoCore = loadMonaco(highlighter, workspace, options?.lsp, onDidEditorWorkerReady).then((m) => monacoCore = m);
+    return monacoCore = loadMonaco(highlighter, workspace, options?.lsp, onDidEditorWorkerResolve).then((m) => monacoCore = m);
   }
 
   function setStyle(el: HTMLElement, style: Partial<CSSStyleDeclaration>) {
     Object.assign(el.style, style);
+  }
+
+  function getAttr(el: HTMLElement, name: string): string | null {
+    return el.getAttribute(name);
   }
 
   customElements.define(
@@ -100,7 +101,7 @@ export async function lazy(options?: InitOptions, hydrate?: boolean) {
         for (const attrName of this.getAttributeNames()) {
           const key = editorProps.find((k) => k.toLowerCase() === attrName);
           if (key) {
-            let value: any = this.getAttribute(attrName);
+            let value: any = getAttr(this, attrName);
             if (value === "") {
               value = key === "minimap" || key === "stickyScroll" ? { enabled: true } : true;
             } else {
@@ -177,20 +178,29 @@ export async function lazy(options?: InitOptions, hydrate?: boolean) {
         setStyle(this, { display: "block", position: "relative" });
 
         // set dimension from width and height attributes
-        const width = Number(this.getAttribute("width"));
-        const height = Number(this.getAttribute("height"));
-        if (width > 0 && height > 0) {
-          setStyle(this, { width: `${width}px`, height: `${height}px` });
+        let widthAttr = getAttr(this, "width");
+        let heightAttr = getAttr(this, "height");
+        if (isDigital(widthAttr) && isDigital(heightAttr)) {
+          const width = Number(widthAttr);
+          const height = Number(heightAttr);
+          setStyle(this, { width: width + "px", height: height + "px" });
           renderOptions.dimension = { width, height };
         } else {
-          setStyle(this, { width: "100%", height: "100%" });
+          if (isDigital(widthAttr)) {
+            widthAttr += "px";
+          }
+          if (isDigital(heightAttr)) {
+            heightAttr += "px";
+          }
+          // set the default width and height if not set
+          this.style.width ||= widthAttr ?? "100%";
+          this.style.height ||= heightAttr ?? "100%";
         }
 
         // the container element for monaco editor instance
         const containerEl = document.createElement("div");
         containerEl.className = "monaco-editor-container";
-        containerEl.style.width = "100%";
-        containerEl.style.height = "100%";
+        setStyle(containerEl, { width: "100%", height: "100%" });
         this.appendChild(containerEl);
 
         if (!filename && workspace) {
@@ -259,8 +269,7 @@ export async function lazy(options?: InitOptions, hydrate?: boolean) {
           }
         }
 
-        // load and rander the monaco editor
-        async function createMonaco() {
+        async function createEditor() {
           const monaco = await load(highlighter);
           const editor = monaco.editor.create(containerEl, renderOptions);
           if (workspace) {
@@ -274,8 +283,8 @@ export async function lazy(options?: InitOptions, hydrate?: boolean) {
                 }
               }
             };
-            editor.onDidChangeCursorSelection(debunce(storeViewState));
-            editor.onDidScrollChange(debunce(storeViewState));
+            editor.onDidChangeCursorSelection(debunce(storeViewState, 500));
+            editor.onDidScrollChange(debunce(storeViewState, 500));
             workspace.history.onChange((state) => {
               if (editor.getModel()?.uri.toString() !== state.current) {
                 workspace._openTextDocument(state.current, editor);
@@ -324,7 +333,9 @@ export async function lazy(options?: InitOptions, hydrate?: boolean) {
             });
           }
         }
-        await createMonaco();
+
+        // load and render editor
+        await createEditor();
       }
     },
   );
@@ -346,7 +357,7 @@ async function loadMonaco(
   highlighter: Highlighter,
   workspace?: Workspace,
   lsp?: LSPConfig,
-  onDidEditorWorkerReady?: () => void,
+  onDidEditorWorkerResolve?: () => void,
 ): Promise<typeof monacoNS> {
   const monaco = await import("./editor-core.js");
   const lspProviders = { ...builtinLSPProviders, ...lsp?.providers };
@@ -386,7 +397,7 @@ async function loadMonaco(
       const worker = createWebWorker(url, undefined);
       if (!provider) {
         const onMessage = (e: MessageEvent) => {
-          onDidEditorWorkerReady?.();
+          onDidEditorWorkerResolve?.();
           worker.removeEventListener("message", onMessage);
         };
         worker.addEventListener("message", onMessage);

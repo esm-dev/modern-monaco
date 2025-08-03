@@ -40,8 +40,13 @@ export function isPlainObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && v.constructor === Object;
 }
 
+/** Check if the value is a digital value. */
+export function isDigital(v: unknown): v is number | string {
+  return typeof v === "number" || (typeof v === "string" && /^\d+$/.test(v));
+}
+
 /** Debounce the function call. */
-export function debunce(fn: () => void, delay = 500) {
+export function debunce(fn: () => void, delay: number) {
   let timer: number | null = null;
   return () => {
     if (timer !== null) {
