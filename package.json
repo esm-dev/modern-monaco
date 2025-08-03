@@ -37,8 +37,8 @@
     "./shiki": {
       "import": "./dist/shiki.js"
     },
-    "./utils": {
-      "import": "./dist/utils.js"
+    "./util": {
+      "import": "./dist/util.js"
     },
     "./lsp/*": {
       "import": "./dist/lsp/*.js"
