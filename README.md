@@ -1,18 +1,18 @@
 > [!WARNING]
-> **This project is currently under active development, the API may change at any time. Use at your own risk.**
+> **This project is currently under active development. The API may change at any time. Use at your own risk.**
 > Please report any issues or feature requests on the [issues](https://github.com/esm-dev/modern-monaco/issues) page.
 
 # Modern Monaco
 
 Meet the modern version of [Monaco Editor](https://www.npmjs.com/package/monaco-editor):
 
-- Easy to use, no `MonacoEnvironment` setup and web-worker/css loader needed.
-- Using [Shiki](https://shiki.style) for syntax highlighting with tons of grammars and themes.
-- Lazy loading: pre-highlighting code with Shiki while loading `monaco-editor-core` in background.
-- Support server-side rendering (SSR).
-- Workspace (edit history, file system provider, persist protocol, etc.).
-- Automatically loading `.d.ts` from [esm.sh](https://esm.sh) CDN for type checking.
-- Using [import maps](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/script/type/importmap) for resolving **bare specifier** imports in JavaScript/TypeScript.
+- Easy to use, no `MonacoEnvironment` setup, web workers, or CSS loaders required.
+- Uses [Shiki](https://shiki.style) for syntax highlighting with extensive grammars and themes.
+- Lazy loading: pre-highlight code with Shiki while loading `monaco-editor-core` in the background.
+- Supports server-side rendering (SSR).
+- Workspace features (edit history, file system provider, persist protocol, etc.).
+- Automatically loads `.d.ts` files from [esm.sh](https://esm.sh) CDN for type checking.
+- Uses [import maps](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/script/type/importmap) for resolving **bare specifier** imports in JavaScript/TypeScript.
 - VSCode `window` APIs like `showInputBox`, `showQuickPick`, etc.
 - Embedded languages (importmap/CSS/JavaScript) in HTML.
 - Inline `html` and `css` in JavaScript/TypeScript.
@@ -27,9 +27,9 @@ npm i modern-monaco typescript
 ```
 
 > [!Note]
-> The `typescript` package is required by JavaScript/TypeScript LSP worker. We recommend `typescript@5.5.x` or later.
+> The `typescript` package is required by the JavaScript/TypeScript LSP worker. We recommend `typescript@5.5.x` or later.
 
-or import it from [esm.sh](https://esm.sh/) CDN in browser without build step:
+Or import it from [esm.sh](https://esm.sh/) CDN in the browser without a build step:
 
 ```js
 import * from "https://esm.sh/modern-monaco"
@@ -40,16 +40,16 @@ import * from "https://esm.sh/modern-monaco"
 `modern-monaco` provides three modes to create a browser-based code editor:
 
 - **Lazy**: pre-highlight code with Shiki while loading the `editor-core.js` in the background.
-- **SSR**: render a mock editor on the server side, and hydrate it on the client side.
-- **Manual**: create a monaco editor instance manually.
+- **SSR**: render a mock editor on the server side and hydrates it on the client side.
+- **Manual**: create a Monaco editor instance manually.
 
 ### Lazy Mode
 
-[monaco-editor](https://www.npmjs.com/package/monaco-editor) is a large package with extra CSS/Worker modules, and needs the `MonacoEnvironment` setup for language service support. `modern-monaco` provides a simple but smart way to load the editor modules on demand.
+[monaco-editor](https://www.npmjs.com/package/monaco-editor) is a large package with additional CSS/Worker modules that requires `MonacoEnvironment` setup for language service support. `modern-monaco` provides a simple yet smart way to load editor modules on demand.
 
-By pre-highlighting code with Shiki while loading editor modules in the background, `modern-monaco` can reduce the loading screen time.
+By pre-highlighting code with Shiki while loading editor modules in the background, `modern-monaco` can significantly reduce loading screen time.
 
-To create a monaco editor lazily, you need to add a `<monaco-editor>` custom element in the html of your app, then call the `lazy` function of modern-monaco. You also need to provide a workspace object to manage files for the editor
+To create a Monaco editor lazily, you need to add a `<monaco-editor>` custom element in your app's HTML, then call the `lazy` function from modern-monaco. You also need to provide a workspace object to manage files for the editor.
 
 ```html
 <!-- index.html -->
@@ -79,7 +79,7 @@ workspace.openTextDocument("main.js");
 
 ### SSR Mode
 
-SSR mode returns an instant pre-rendered editor on the server side, and hydrate it on the client side.
+SSR mode returns an instant pre-rendered editor on the server side and hydrates it on the client side.
 
 ```js
 import { renderToWebComponent } from "modern-monaco/ssr";
@@ -111,7 +111,7 @@ export default {
 
 ### Manual Mode
 
-You can also create a [monaco editor](https://microsoft.github.io/monaco-editor/docs.html) instance manually. It loads theme and language grammars automatically.
+You can also create a [Monaco editor](https://microsoft.github.io/monaco-editor/docs.html) instance manually. It loads themes and language grammars automatically.
 
 ```html
 <div id="editor"></div>
@@ -122,7 +122,7 @@ You can also create a [monaco editor](https://microsoft.github.io/monaco-editor/
   // load monaco-editor-core.js
   const monaco = await init();
 
-  // create a monaco editor instance
+  // create a Monaco editor instance
   const editor = monaco.editor.create(document.getElementById("editor"));
 
   // create and attach a model to the editor
@@ -132,14 +132,14 @@ You can also create a [monaco editor](https://microsoft.github.io/monaco-editor/
 
 ## Using Workspace
 
-`modern-monaco` provides VSCode-like workspace features, such as edit history, file system provider, etc.
+`modern-monaco` provides VSCode-like workspace features, such as edit history, file system provider, and more.
 
 ```js
 import { lazy, Workspace } from "modern-monaco";
 
 // 1. create a workspace with initial files
 const workspace = new Workspace({
-  /** The name of the workspace, used for project isolation, default is "default". */
+  /** The name of the workspace, used for project isolation. Default is "default". */
   name: "project-name",
   /** Initial files in the workspace. */
   initialFiles: {
@@ -213,7 +213,7 @@ const workspace = new Workspace({
 });
 ```
 
-You can also provide an importmap object as the `lsp.typescript.importMap` option in the `lazy`, `init`, or `hydrate` functions.
+You can also provide an import map object as the `lsp.typescript.importMap` option in the `lazy`, `init`, or `hydrate` functions.
 
 ```js
 lazy({
@@ -230,21 +230,21 @@ lazy({
 
 > [!Note]
 > By default, `modern-monaco` uses `react` or `preact` in the `importmap` script as the `jsxImportSource` option for the TypeScript worker.
-> To use a custom `jsxImportSource` option, add `@jsxRuntime` specifier in the `importmap` script.
+> To use a custom `jsxImportSource` option, add the `@jsxRuntime` specifier in the `importmap` script.
 
 ## Editor Theme & Language Grammars
 
-`modern-monaco` uses [Shiki](https://shiki.style) for syntax highlighting with tons of grammars and themes. By default, it loads themes and grammars from esm.sh on demand.
+`modern-monaco` uses [Shiki](https://shiki.style) for syntax highlighting with extensive grammars and themes. By default, it loads themes and grammars from esm.sh on demand.
 
 ### Setting the Editor Theme
 
-To set the theme of the editor, you can add a `theme` attribute to the `<monaco-editor>` element.
+To set the editor theme, you can add a `theme` attribute to the `<monaco-editor>` element.
 
 ```html
 <monaco-editor theme="OneDark-Pro"></monaco-editor>
 ```
 
-or set it in the `lazy`, `init`, or `hydrate` function.
+Or set it in the `lazy`, `init`, or `hydrate` function.
 
 ```js
 lazy({
@@ -267,7 +267,7 @@ lazy({
 
 ### Pre-loading Language Grammars
 
-By default, `modern-monaco` loads language grammars when a specific language mode is attached in the editor. You can also pre-load language grammars by adding the `langs` option to the `lazy`, `init`, or `hydrate` functions. The `langs` option is an array of language grammars, which can be a language grammar object, a language ID, or a URL to the language grammar.
+By default, `modern-monaco` loads language grammars when a specific language mode is attached to the editor. You can also pre-load language grammars by adding the `langs` option to the `lazy`, `init`, or `hydrate` functions. The `langs` option is an array of language grammars, which can be a language grammar object, a language ID, or a URL to the language grammar.
 
 ```js
 import markdown from "tm-grammars/markdown.json" with { type: "json" };
@@ -299,14 +299,14 @@ lazy({
       patterns: [/* ... */],
     },
   ],
-  // The CDN for loading language grammars and themes, default is "https://esm.sh"
+  // The CDN for loading language grammars and themes. Default is "https://esm.sh"
   tmDownloadCDN: "https://esm.sh",
 });
 ```
 
 ## Editor Options
 
-You can set the editor options in the `<monaco-editor>` element as attributes. The editor options are the same as the [`editor.EditorOptions`](https://microsoft.github.io/monaco-editor/docs.html#variables/editor.EditorOptions.html).
+You can set editor options as attributes in the `<monaco-editor>` element. The editor options are the same as [`editor.EditorOptions`](https://microsoft.github.io/monaco-editor/docs.html#variables/editor.EditorOptions.html).
 
 ```html
 <monaco-editor
@@ -316,7 +316,7 @@ You can set the editor options in the `<monaco-editor>` element as attributes. T
 ></monaco-editor>
 ```
 
-For SSR mode, you can set the editor options in the `renderToWebComponent` function.
+For SSR mode, you can set editor options in the `renderToWebComponent` function.
 
 ```js
 import { renderToWebComponent } from "modern-monaco/ssr";
@@ -343,18 +343,18 @@ For manual mode, check [here](https://microsoft.github.io/monaco-editor/docs.htm
 - JavaScript/TypeScript
 - JSON
 
-Plus, `modern-monaco` also supports features like:
+Additionally, `modern-monaco` supports features like:
 
 - File System Provider for import completions
 - Embedded languages in HTML
-- Inline `html` and `css` in JavaScript/TypeScript.
+- Inline `html` and `css` in JavaScript/TypeScript
 - Auto-closing HTML/JSX tags
 
 > [!Note]
-> You don't need to set the `MonacoEnvironment.getWorker` for LSP support.
-> `modern-monaco` will automatically load the required LSP workers.
+> You don't need to set `MonacoEnvironment.getWorker` for LSP support.
+> `modern-monaco` automatically loads the required LSP workers.
 
-### LSP language configuration
+### LSP Language Configuration
 
 You can configure built-in LSPs in the `lazy`, `init`, or `hydrate` functions.
 
@@ -394,7 +394,7 @@ export interface LSPLanguageConfig {
 }
 ```
 
-## Using `core` module
+## Using the `core` Module
 
 `modern-monaco` includes built-in grammars and LSP providers for HTML, CSS, JavaScript/TypeScript, and JSON. If you don't need these features, you can use the `modern-monaco/core` sub-module to reduce the bundle size.
 
