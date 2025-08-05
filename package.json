@@ -65,8 +65,8 @@
   "sideEffects": false,
   "devDependencies": {
     "@esm.sh/import-map": "0.1.1",
-    "@shikijs/core": "3.9.1",
-    "@shikijs/engine-oniguruma": "3.9.1",
+    "@shikijs/core": "3.9.2",
+    "@shikijs/engine-oniguruma": "3.9.2",
     "monaco-editor-core": "0.52.2",
     "tm-grammars": "1.24.1",
     "tm-themes": "1.10.7",
