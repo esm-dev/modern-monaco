@@ -253,7 +253,7 @@ lazy({
 import OneDark from "tm-themes/themes/OneDark-Pro.json" with { type: "json" };
 
 lazy({
-  theme: OneDark
+  theme: OneDark,
 });
 ```
 

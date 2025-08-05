@@ -965,7 +965,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     if (kind === ts.ScriptElementKind.moduleElement && displayParts?.length === 3) {
       const moduleName = displayParts[2].text;
       // show pathname for `file:` specifiers
-      if (moduleName.startsWith("\"file:") && fileName.startsWith("file:")) {
+      if (moduleName.startsWith('"file:') && fileName.startsWith("file:")) {
         const literalText = this.getModel(fileName)?.getValue().substring(
           textSpan.start,
           textSpan.start + textSpan.length,
@@ -973,19 +973,19 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
         if (literalText) {
           try {
             const specifier = JSON.parse(literalText);
-            displayParts[2].text = "\"" + new URL(specifier, fileName).pathname + "\"";
+            displayParts[2].text = '"' + new URL(specifier, fileName).pathname + '"';
           } catch (error) {
             // ignore
           }
         }
       } else if (
         // show module url for `http:` specifiers instead of the types url
-        kindModifiers === "declare" && moduleName.startsWith("\"http")
+        kindModifiers === "declare" && moduleName.startsWith('"http')
       ) {
         const specifier = JSON.parse(moduleName);
         for (const [url, dts] of this._typesMappings) {
           if (specifier + ".d.ts" === dts) {
-            displayParts[2].text = "\"" + url + "\"";
+            displayParts[2].text = '"' + url + '"';
             info.tags = [{
               name: "types",
               text: [{ kind: "text", text: dts }],

@@ -37,10 +37,10 @@ export async function renderToWebComponent(input: string | { code: string; filen
   const prerender = await renderToString(input, options);
   return (
     "<monaco-editor>"
-    + "<script type=\"application/json\" class=\"monaco-editor-options\">"
+    + '<script type="application/json" class="monaco-editor-options">'
     + JSON.stringify([input, options])
     + "</script>"
-    + "<div class=\"monaco-editor-prerender\" style=\"width:100%;height:100%;\">"
+    + '<div class="monaco-editor-prerender" style="width:100%;height:100%;">'
     + prerender
     + "</div>"
     + "</monaco-editor>"

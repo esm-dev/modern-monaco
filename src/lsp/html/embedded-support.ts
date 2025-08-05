@@ -71,7 +71,7 @@ export function getDocumentRegions(languageService: LanguageService, document: T
         case TokenType.AttributeValue:
           if (lastAttributeName === "src" && lastTagName.toLowerCase() === "script") {
             let src = scanner.getTokenText();
-            if (src[0] === "'" || src[0] === "\"") {
+            if (src[0] === "'" || src[0] === '"') {
               src = src.slice(1, -1);
             }
             importedScripts.push({
@@ -94,7 +94,7 @@ export function getDocumentRegions(languageService: LanguageService, document: T
               let start = scanner.getTokenOffset();
               let end = scanner.getTokenEnd();
               const firstChar = document.getText()[start];
-              if (firstChar === "'" || firstChar === "\"") {
+              if (firstChar === "'" || firstChar === '"') {
                 start++;
                 end--;
               }
