@@ -1,7 +1,7 @@
 import type monacoNS from "./monaco.d.ts";
 import type { LSPConfig } from "./lsp.d.ts";
 import type { TextmateGrammarName, TextmateThemeName } from "./textmate.d.ts";
-import type { ErrorNotFound, Workspace } from "./workspace.d.ts";
+import type { ErrorNotFound, FileSystem, Workspace } from "./workspace.d.ts";
 
 type Awaitable<T> = T | Promise<T>;
 type MaybeGetter<T> = Awaitable<MaybeModule<T>> | (() => Awaitable<MaybeModule<T>>);
@@ -67,4 +67,4 @@ export const errors: {
   NotFound: ErrorNotFound;
 };
 
-export { Workspace };
+export { Workspace, FileSystem };

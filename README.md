@@ -232,6 +232,26 @@ lazy({
 > By default, `modern-monaco` uses `react` or `preact` in the `importmap` script as the `jsxImportSource` option for the TypeScript worker.
 > To use a custom `jsxImportSource` option, add the `@jsxRuntime` specifier in the `importmap` script.
 
+### Using Custom FileSystem
+
+You can provide a custom filesystem implementation to override the default IndexedDB filesystem.
+
+```ts
+import { lazy, type FileSystem, Workspace } from "modern-monaco";
+
+class CustomFileSystem implements FileSystem {
+  // Custom FileSystem implementation
+}
+
+const workspace = new Workspace({
+  initialFiles: {
+    "index.html": indexHtml,
+    "app.tsx": appTsx,
+  },
+  customFs: new CustomFileSystem(),
+});
+```
+
 ## Editor Theme & Language Grammars
 
 `modern-monaco` uses [Shiki](https://shiki.style) for syntax highlighting with extensive grammars and themes. By default, it loads themes and grammars from esm.sh on demand.

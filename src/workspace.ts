@@ -28,18 +28,19 @@ import {
 export class Workspace implements IWorkspace {
   private _monaco: { promise: Promise<typeof monacoNS>; resolve: (value: typeof monacoNS) => void; reject: (reason: any) => void };
   private _history: WorkspaceHistory;
-  private _fs: FS;
+  private _fs: FileSystem;
   private _viewState: WorkspaceViewState;
   private _entryFile?: string;
 
   constructor(options: WorkspaceInit = {}) {
-    const { name = "default", browserHistory, initialFiles, entryFile } = options;
-    const db = new WorkspaceDatabase(
-      name,
+    const { name = "default", browserHistory, initialFiles, entryFile, customFs } = options;
+    
+    // Create database stores - viewstate store only needed when using default FS
+    const dbStores = [
       {
         name: "fs-meta",
         keyPath: "url",
-        onCreate: async (store) => {
+        onCreate: async (store: IDBObjectStore) => {
           if (initialFiles) {
             const promises: Promise<void>[] = [];
             const now = Date.now();
@@ -69,7 +70,7 @@ export class Workspace implements IWorkspace {
       {
         name: "fs-blob",
         keyPath: "url",
-        onCreate: async (store) => {
+        onCreate: async (store: IDBObjectStore) => {
           if (initialFiles) {
             const promises: Promise<void>[] = [];
             for (const [name, data] of Object.entries(initialFiles)) {
@@ -83,15 +84,24 @@ export class Workspace implements IWorkspace {
           }
         },
       },
-      {
+    ];
+    
+    // Only add viewstate store if using default filesystem (for backward compatibility)
+    if (!customFs) {
+      dbStores.push({
         name: "viewstate",
         keyPath: "url",
-      },
-    );
+        onCreate: async (_store: IDBObjectStore) => {
+          // No initial setup needed for viewstate store
+        },
+      });
+    }
+    
+    const db = new WorkspaceDatabase(name, ...dbStores);
 
     this._monaco = promiseWithResolvers();
-    this._fs = new FS(db);
-    this._viewState = new WorkspaceStateStorage<monacoNS.editor.ICodeEditorViewState>(db, "viewstate");
+    this._fs = customFs ?? new FS(db);
+    this._viewState = new WorkspaceStateStorage<monacoNS.editor.ICodeEditorViewState>(this._fs, "viewstate");
     this._entryFile = entryFile;
 
     if (browserHistory) {
@@ -546,18 +556,40 @@ class WorkspaceDatabase {
 
 /** workspace state storage */
 class WorkspaceStateStorage<T> {
-  constructor(private _db: WorkspaceDatabase, private _stateName: string) {}
+  constructor(private _fs: FileSystem, private _stateName: string) {}
+
+  private _getStateFilePath(uri: string | URL): string {
+    const url = toURL(uri).href;
+    // Create a safe filename from the URL by encoding it
+    const encodedUrl = encodeURIComponent(url).replace(/%/g, '_');
+    return `/.tmp/${this._stateName}/${encodedUrl}.json`;
+  }
 
   async get(uri: string | URL): Promise<T | undefined> {
-    const url = toURL(uri).href;
-    const store = (await this._db.open()).transaction(this._stateName, "readonly").objectStore(this._stateName);
-    return promisifyIDBRequest<{ state: T } | undefined>(store.get(url)).then((result) => result?.state);
+    try {
+      const stateFilePath = this._getStateFilePath(uri);
+      const content = await this._fs.readTextFile(stateFilePath);
+      const parsed = JSON.parse(content);
+      return parsed.state;
+    } catch (_error) {
+      // File doesn't exist or parsing failed, return undefined
+      return undefined;
+    }
   }
 
   async save(uri: string | URL, state: T): Promise<void> {
-    const url = toURL(uri).href;
-    const store = (await this._db.open()).transaction(this._stateName, "readwrite").objectStore(this._stateName);
-    await promisifyIDBRequest(store.put({ url, state }));
+    const stateFilePath = this._getStateFilePath(uri);
+    const stateDir = `/.tmp/${this._stateName}`;
+    
+    // Ensure the state directory exists
+    try {
+      await this._fs.createDirectory(stateDir);
+    } catch (_error) {
+      // Directory might already exist, ignore the error
+    }
+    
+    const stateData = { url: toURL(uri).href, state };
+    await this._fs.writeFile(stateFilePath, JSON.stringify(stateData));
   }
 }
 
