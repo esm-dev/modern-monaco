@@ -28,12 +28,12 @@ import {
 export class Workspace implements IWorkspace {
   private _monaco: { promise: Promise<typeof monacoNS>; resolve: (value: typeof monacoNS) => void; reject: (reason: any) => void };
   private _history: WorkspaceHistory;
-  private _fs: FS;
+  private _fs: FileSystem;
   private _viewState: WorkspaceViewState;
   private _entryFile?: string;
 
   constructor(options: WorkspaceInit = {}) {
-    const { name = "default", browserHistory, initialFiles, entryFile } = options;
+    const { name = "default", browserHistory, initialFiles, entryFile, customFs } = options;
     const db = new WorkspaceDatabase(
       name,
       {
@@ -90,7 +90,7 @@ export class Workspace implements IWorkspace {
     );
 
     this._monaco = promiseWithResolvers();
-    this._fs = new FS(db);
+    this._fs = customFs ?? new FS(db);
     this._viewState = new WorkspaceStateStorage<monacoNS.editor.ICodeEditorViewState>(db, "viewstate");
     this._entryFile = entryFile;
 
