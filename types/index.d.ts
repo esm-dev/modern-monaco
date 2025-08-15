@@ -60,8 +60,8 @@ export interface InitOptions extends ShikiInitOptions {
 }
 
 export function init(options?: InitOptions): Promise<typeof monacoNS>;
-export function lazy(options?: InitOptions): void;
-export function hydrate(options?: InitOptions): void;
+export function lazy(options?: InitOptions): Promise<void>;
+export function hydrate(options?: InitOptions): Promise<void>;
 
 export const errors: {
   NotFound: ErrorNotFound;

@@ -71,30 +71,17 @@ export async function init(options?: InitOptions): Promise<typeof monacoNS> {
 
 /** Render a mock editor, then load the monaco editor in background. */
 export async function lazy(options?: InitOptions, hydrate?: boolean) {
-  const workspace = options?.workspace;
   const { promise: editorWorkerPromise, resolve: onDidEditorWorkerResolve } = promiseWithResolvers<void>();
+  const getAttr = (el: HTMLElement, name: string): string | null => el.getAttribute(name);
+  const setStyle = (el: HTMLElement, style: Partial<CSSStyleDeclaration>) => Object.assign(el.style, style);
 
-  let monacoCore: typeof monacoNS | Promise<typeof monacoNS> | null = null;
-
-  function load(highlighter: Highlighter) {
-    if (monacoCore) {
-      return monacoCore;
-    }
-    return monacoCore = loadMonaco(highlighter, workspace, options?.lsp, onDidEditorWorkerResolve).then((m) => monacoCore = m);
-  }
-
-  function setStyle(el: HTMLElement, style: Partial<CSSStyleDeclaration>) {
-    Object.assign(el.style, style);
-  }
-
-  function getAttr(el: HTMLElement, name: string): string | null {
-    return el.getAttribute(name);
-  }
+  let monacoPromise: Promise<typeof monacoNS> | null = null;
 
   customElements.define(
     "monaco-editor",
     class extends HTMLElement {
       async connectedCallback() {
+        const workspace = options?.workspace;
         const renderOptions: RenderOptions = {};
 
         // parse editor/render options from attributes
@@ -270,7 +257,8 @@ export async function lazy(options?: InitOptions, hydrate?: boolean) {
         }
 
         async function createEditor() {
-          const monaco = await load(highlighter);
+          const monaco =
+            await (monacoPromise ?? (monacoPromise = loadMonaco(highlighter, workspace, options?.lsp, onDidEditorWorkerResolve)));
           const editor = monaco.editor.create(containerEl, renderOptions);
           if (workspace) {
             const storeViewState = () => {
@@ -341,10 +329,6 @@ export async function lazy(options?: InitOptions, hydrate?: boolean) {
   );
 
   await editorWorkerPromise;
-
-  return {
-    workspace,
-  };
 }
 
 /** Hydrate the monaco editor in the browser. */
