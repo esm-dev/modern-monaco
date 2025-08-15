@@ -34,74 +34,10 @@ export class Workspace implements IWorkspace {
 
   constructor(options: WorkspaceInit = {}) {
     const { name = "default", browserHistory, initialFiles, entryFile, customFs } = options;
-    
-    // Create database stores - viewstate store only needed when using default FS
-    const dbStores = [
-      {
-        name: "fs-meta",
-        keyPath: "url",
-        onCreate: async (store: IDBObjectStore) => {
-          if (initialFiles) {
-            const promises: Promise<void>[] = [];
-            const now = Date.now();
-            const reg: FileStat = { type: 1, version: 1, ctime: now, mtime: now, size: 0 };
-            const dir: FileStat = { type: 2, version: 1, ctime: now, mtime: now, size: 0 };
-            for (const [name, data] of Object.entries(initialFiles)) {
-              const { pathname, href: url } = filenameToURL(name);
-              let parent = pathname.slice(0, pathname.lastIndexOf("/"));
-              while (parent) {
-                promises.push(
-                  promisifyIDBRequest(
-                    store.put({ url: toURL(parent).href, ...dir }),
-                  ),
-                );
-                parent = parent.slice(0, parent.lastIndexOf("/"));
-              }
-              promises.push(
-                promisifyIDBRequest(
-                  store.put({ url, ...reg, size: encode(data).byteLength }),
-                ),
-              );
-            }
-            await Promise.all(promises);
-          }
-        },
-      },
-      {
-        name: "fs-blob",
-        keyPath: "url",
-        onCreate: async (store: IDBObjectStore) => {
-          if (initialFiles) {
-            const promises: Promise<void>[] = [];
-            for (const [name, data] of Object.entries(initialFiles)) {
-              promises.push(
-                promisifyIDBRequest(
-                  store.put({ url: filenameToURL(name).href, content: encode(data) }),
-                ),
-              );
-            }
-            await Promise.all(promises);
-          }
-        },
-      },
-    ];
-    
-    // Only add viewstate store if using default filesystem (for backward compatibility)
-    if (!customFs) {
-      dbStores.push({
-        name: "viewstate",
-        keyPath: "url",
-        onCreate: async (_store: IDBObjectStore) => {
-          // No initial setup needed for viewstate store
-        },
-      });
-    }
-    
-    const db = new WorkspaceDatabase(name, ...dbStores);
 
     this._monaco = promiseWithResolvers();
-    this._fs = customFs ?? new FS(db);
-    this._viewState = new WorkspaceStateStorage<monacoNS.editor.ICodeEditorViewState>(this._fs, "viewstate");
+    this._fs = customFs ?? new FS("modern-monaco-workspace:" + name, initialFiles);
+    this._viewState = new WorkspaceStateStorage<monacoNS.editor.ICodeEditorViewState>("modern-monaco-viewstate:" + name);
     this._entryFile = entryFile;
 
     if (browserHistory) {
@@ -218,8 +154,56 @@ type FileSystemWatcher = {
 /** workspace file system using IndexedDB. */
 class FS implements FileSystem {
   private _watchers = new Set<FileSystemWatcher>();
+  private _db: WorkspaceDatabase;
 
-  constructor(private _db: WorkspaceDatabase) {}
+  constructor(scope: string, initialFiles?: Record<string, string | Uint8Array>) {
+    this._db = new WorkspaceDatabase(scope, {
+      name: "fs-meta",
+      keyPath: "url",
+      onCreate: async (store: IDBObjectStore) => {
+        if (initialFiles) {
+          const promises: Promise<void>[] = [];
+          const now = Date.now();
+          const reg: FileStat = { type: 1, version: 1, ctime: now, mtime: now, size: 0 };
+          const dir: FileStat = { type: 2, version: 1, ctime: now, mtime: now, size: 0 };
+          for (const [name, data] of Object.entries(initialFiles)) {
+            const { pathname, href: url } = filenameToURL(name);
+            let parent = pathname.slice(0, pathname.lastIndexOf("/"));
+            while (parent) {
+              promises.push(
+                promisifyIDBRequest(
+                  store.put({ url: toURL(parent).href, ...dir }),
+                ),
+              );
+              parent = parent.slice(0, parent.lastIndexOf("/"));
+            }
+            promises.push(
+              promisifyIDBRequest(
+                store.put({ url, ...reg, size: encode(data).byteLength }),
+              ),
+            );
+          }
+          await Promise.all(promises);
+        }
+      },
+    }, {
+      name: "fs-blob",
+      keyPath: "url",
+      onCreate: async (store: IDBObjectStore) => {
+        if (initialFiles) {
+          const promises: Promise<void>[] = [];
+          for (const [name, data] of Object.entries(initialFiles)) {
+            promises.push(
+              promisifyIDBRequest(
+                store.put({ url: filenameToURL(name).href, content: encode(data) }),
+              ),
+            );
+          }
+          await Promise.all(promises);
+        }
+      },
+    });
+  }
 
   private async _getIdbObjectStore(storeName: string, readwrite = false): Promise<IDBObjectStore> {
     const db = await this._db.open();
@@ -535,11 +519,11 @@ class WorkspaceDatabase {
   private _db: Promise<IDBDatabase> | IDBDatabase;
 
   constructor(
-    workspaceName: string,
+    name: string,
     ...stores: { name: string; keyPath: string; onCreate?: (store: IDBObjectStore) => Promise<void> }[]
   ) {
     const open = () =>
-      openIDB("modern-monaco-workspace/" + workspaceName, 1, ...stores).then((db) => {
+      openIDB(name, 1, ...stores).then((db) => {
         db.onclose = () => {
           // reopen the db on 'close' event
           this._db = open();
@@ -555,41 +539,31 @@ class WorkspaceDatabase {
 }
 
 /** workspace state storage */
-class WorkspaceStateStorage<T> {
-  constructor(private _fs: FileSystem, private _stateName: string) {}
 
-  private _getStateFilePath(uri: string | URL): string {
-    const url = toURL(uri).href;
-    // Create a safe filename from the URL by encoding it
-    const encodedUrl = encodeURIComponent(url).replace(/%/g, '_');
-    return `/.tmp/${this._stateName}/${encodedUrl}.json`;
+/** workspace state storage */
+class WorkspaceStateStorage<T> {
+  #db: WorkspaceDatabase;
+
+  constructor(dbName: string) {
+    this.#db = new WorkspaceDatabase(
+      dbName,
+      {
+        name: "store",
+        keyPath: "url",
+      },
+    );
   }
 
   async get(uri: string | URL): Promise<T | undefined> {
-    try {
-      const stateFilePath = this._getStateFilePath(uri);
-      const content = await this._fs.readTextFile(stateFilePath);
-      const parsed = JSON.parse(content);
-      return parsed.state;
-    } catch (_error) {
-      // File doesn't exist or parsing failed, return undefined
-      return undefined;
-    }
+    const url = toURL(uri).href;
+    const store = (await this.#db.open()).transaction("store", "readonly").objectStore("store");
+    return promisifyIDBRequest<{ state: T } | undefined>(store.get(url)).then((result) => result?.state);
   }
 
   async save(uri: string | URL, state: T): Promise<void> {
-    const stateFilePath = this._getStateFilePath(uri);
-    const stateDir = `/.tmp/${this._stateName}`;
-    
-    // Ensure the state directory exists
-    try {
-      await this._fs.createDirectory(stateDir);
-    } catch (_error) {
-      // Directory might already exist, ignore the error
-    }
-    
-    const stateData = { url: toURL(uri).href, state };
-    await this._fs.writeFile(stateFilePath, JSON.stringify(stateData));
+    const url = toURL(uri).href;
+    const store = (await this.#db.open()).transaction("store", "readwrite").objectStore("store");
+    await promisifyIDBRequest(store.put({ url, state }));
   }
 }
 

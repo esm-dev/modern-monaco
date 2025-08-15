@@ -64,13 +64,13 @@ export interface FileSystem {
   readTextFile(filename: string): Promise<string>;
   rename(oldName: string, newName: string, options?: { overwrite: boolean }): Promise<void>;
   stat(filename: string): Promise<FileStat>;
-  writeFile(filename: string, content: string | Uint8Array): Promise<void>;
+  writeFile(filename: string, content: string | Uint8Array, context?: { isModelContentChange: boolean }): Promise<void>;
   watch(filename: string, options: { recursive: boolean }, handle: FileSystemWatchHandle): () => void;
   watch(filename: string, handle: FileSystemWatchHandle): () => void;
 }
 
 export interface FileSystemWatchHandle {
-  (kind: "create" | "modify" | "remove", filename: string, type?: number): void;
+  (kind: "create" | "modify" | "remove", filename: string, type?: number, context?: { isModelContentChange: boolean }): void;
 }
 
 export class ErrorNotFound extends Error {}
