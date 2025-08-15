@@ -1,7 +1,7 @@
 {
   "name": "modern-monaco",
   "description": "A modern version of Monaco Editor",
-  "version": "0.0.0-beta.5",
+  "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -68,7 +68,7 @@
     "@shikijs/core": "3.9.2",
     "@shikijs/engine-oniguruma": "3.9.2",
     "monaco-editor-core": "0.52.2",
-    "tm-grammars": "1.24.1",
+    "tm-grammars": "1.24.3",
     "tm-themes": "1.10.7",
     "typescript": "5.9.2",
     "vscode-css-languageservice": "6.3.7",
