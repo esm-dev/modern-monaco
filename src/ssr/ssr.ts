@@ -1,4 +1,4 @@
-import type { RenderOptions } from "../render.ts";
+import type { RenderInput, RenderOptions } from "../render.ts";
 import type { Highlighter } from "../shiki.ts";
 
 // ! external modules, don't remove the `.js` extension
@@ -8,7 +8,7 @@ import { render } from "../shiki.js";
 let ssrHighlighter: Highlighter | Promise<Highlighter> | undefined;
 
 /** Render a read-only(mock) editor in HTML string. */
-export async function renderToString(input: string | { code: string; filename: string }, options?: RenderOptions): Promise<string> {
+export async function renderToString(input: RenderInput, options?: RenderOptions): Promise<string> {
   const { language, theme, shiki } = options ?? {};
   const filename = typeof input === "string" ? undefined : input.filename;
   const highlighter = await (ssrHighlighter ?? (ssrHighlighter = initShiki(shiki)));
@@ -33,12 +33,12 @@ export async function renderToString(input: string | { code: string; filename: s
 }
 
 /** Render a `<monaco-editor>` component in HTML string. */
-export async function renderToWebComponent(input: string | { code: string; filename: string }, options?: RenderOptions): Promise<string> {
+export async function renderToWebComponent(input: RenderInput, options?: RenderOptions): Promise<string> {
   const prerender = await renderToString(input, options);
   return (
     "<monaco-editor>"
     + '<script type="application/json" class="monaco-editor-options">'
-    + JSON.stringify([input, options])
+    + JSON.stringify([input, options]).replaceAll("/", "\\/")
     + "</script>"
     + '<div class="monaco-editor-prerender" style="width:100%;height:100%;">'
     + prerender

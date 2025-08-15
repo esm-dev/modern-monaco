@@ -10,6 +10,7 @@ const LINE_NUMBERS_COLOR = "rgba(222, 220, 213, 0.31)";
 const MINIMUM_LINE_HEIGHT = 8;
 const MINIMUM_MAX_DIGIT_WIDTH = 5;
 
+export type RenderInput = string | { filename: string; code: string; version?: number };
 export interface RenderOptions extends editor.IStandaloneEditorConstructionOptions {
   fontDigitWidth?: number;
   userAgent?: string;
@@ -17,11 +18,7 @@ export interface RenderOptions extends editor.IStandaloneEditorConstructionOptio
 }
 
 /** Renders a mock monaco editor. */
-export function render(
-  highlighter: HighlighterCore,
-  input: string | { filename: string; code: string },
-  options: RenderOptions = {},
-): string {
+export function render(highlighter: HighlighterCore, input: RenderInput, options: RenderOptions = {}): string {
   const isBrowser = typeof globalThis.document?.querySelector === "function";
   if (!options.userAgent && !isBrowser) {
     throw new Error("`userAgent` option is required in non-browser environment");
