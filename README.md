@@ -248,7 +248,7 @@ const workspace = new Workspace({
     "index.html": indexHtml,
     "app.tsx": appTsx,
   },
-  customFs: new CustomFileSystem(),
+  customFS: new CustomFileSystem(),
 });
 ```
 
