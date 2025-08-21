@@ -65,10 +65,10 @@
   "sideEffects": false,
   "devDependencies": {
     "@esm.sh/import-map": "0.1.1",
-    "@shikijs/core": "3.9.2",
-    "@shikijs/engine-oniguruma": "3.9.2",
+    "@shikijs/core": "3.11.0",
+    "@shikijs/engine-oniguruma": "3.11.0",
     "monaco-editor-core": "0.52.2",
-    "tm-grammars": "1.24.3",
+    "tm-grammars": "1.24.6",
     "tm-themes": "1.10.7",
     "typescript": "5.9.2",
     "vscode-css-languageservice": "6.3.7",
