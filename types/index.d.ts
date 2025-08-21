@@ -1,4 +1,4 @@
-import type monacoNS from "./monaco.d.ts";
+import type * as monacoNS from "./monaco.d.ts";
 import type { LSPConfig } from "./lsp.d.ts";
 import type { TextmateGrammarName, TextmateThemeName } from "./textmate.d.ts";
 import type { ErrorNotFound, FileSystem, Workspace } from "./workspace.d.ts";
@@ -67,4 +67,4 @@ export const errors: {
   NotFound: ErrorNotFound;
 };
 
-export { Workspace, FileSystem };
+export { FileSystem, Workspace };

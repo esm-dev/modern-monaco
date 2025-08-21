@@ -1,5 +1,5 @@
 import type ts from "typescript";
-import type monacoNS from "./monaco.d.ts";
+import type * as monacoNS from "./monaco.d.ts";
 import type { JSONSchema } from "./jsonSchema.d.ts";
 import type { Workspace } from "./workspace.d.ts";
 
