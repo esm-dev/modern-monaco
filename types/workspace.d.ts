@@ -10,10 +10,6 @@ export interface WorkspaceInit {
   entryFile?: string;
   /** whether to use browser history for navigation. */
   browserHistory?: boolean | { basePath: string };
-  /** whether to use a server for the workspace. */
-  server?: {
-    url: string | URL;
-  };
   /** custom filesystem implementation to override the default IndexedDB filesystem */
   customFS?: FileSystem;
 }
