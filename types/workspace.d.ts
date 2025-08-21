@@ -15,7 +15,7 @@ export interface WorkspaceInit {
     url: string | URL;
   };
   /** custom filesystem implementation to override the default IndexedDB filesystem */
-  customFs?: FileSystem;
+  customFS?: FileSystem;
 }
 
 export class Workspace {

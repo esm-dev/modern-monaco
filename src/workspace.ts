@@ -33,10 +33,10 @@ export class Workspace implements IWorkspace {
   private _entryFile?: string;
 
   constructor(options: WorkspaceInit = {}) {
-    const { name = "default", browserHistory, initialFiles, entryFile, customFs } = options;
+    const { name = "default", browserHistory, initialFiles, entryFile, customFS } = options;
 
     this._monaco = promiseWithResolvers();
-    this._fs = customFs ?? new FS("modern-monaco-workspace(" + name + ")");
+    this._fs = customFS ?? new FS("modern-monaco-workspace(" + name + ")");
     this._viewState = new WorkspaceStateStorage<monacoNS.editor.ICodeEditorViewState>("modern-monaco-state(" + name + ")");
     this._entryFile = entryFile;
 
