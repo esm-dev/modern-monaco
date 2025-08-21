@@ -20,8 +20,8 @@ export interface RenderOptions extends editor.IStandaloneEditorConstructionOptio
 /** Renders a mock monaco editor. */
 export function render(highlighter: HighlighterCore, input: RenderInput, options: RenderOptions = {}): string {
   const isBrowser = typeof globalThis.document?.querySelector === "function";
-  if (!options.userAgent && !isBrowser) {
-    throw new Error("`userAgent` option is required in non-browser environment");
+  if (!options.userAgent && !options.fontFamily && !isBrowser) {
+    throw new Error("`userAgent` or `fontFamily` option is required in non-browser environment");
   }
 
   const code = typeof input === "string" ? input : input.code;
