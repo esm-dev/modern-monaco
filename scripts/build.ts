@@ -1,4 +1,4 @@
-import { build as esbuild } from "https://deno.land/x/esbuild@v0.25.0/mod.js";
+import { build as esbuild } from "https://deno.land/x/esbuild@v0.25.9/mod.js";
 import { grammars as tmGrammars } from "../node_modules/tm-grammars/index.js";
 import { themes as tmThemes } from "../node_modules/tm-themes/index.js";
 import { wasmBinary } from "../node_modules/@shikijs/engine-oniguruma/dist/wasm-inlined.mjs";
