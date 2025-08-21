@@ -36,9 +36,26 @@ export class Workspace implements IWorkspace {
     const { name = "default", browserHistory, initialFiles, entryFile, customFs } = options;
 
     this._monaco = promiseWithResolvers();
-    this._fs = customFs ?? new FS("modern-monaco-workspace:" + name, initialFiles);
-    this._viewState = new WorkspaceStateStorage<monacoNS.editor.ICodeEditorViewState>("modern-monaco-viewstate:" + name);
+    this._fs = customFs ?? new FS("modern-monaco-workspace(" + name + ")");
+    this._viewState = new WorkspaceStateStorage<monacoNS.editor.ICodeEditorViewState>("modern-monaco-state(" + name + ")");
     this._entryFile = entryFile;
+
+    if (initialFiles) {
+      for (const [name, data] of Object.entries(initialFiles)) {
+        void this._fs.stat(name).catch(async (err) => {
+          if (err instanceof ErrorNotFound) {
+            const { pathname, href: url } = filenameToURL(name);
+            const dir = pathname.slice(0, pathname.lastIndexOf("/"));
+            if (dir) {
+              await this._fs.createDirectory(dir);
+            }
+            await this._fs.writeFile(name, data);
+          } else {
+            throw err;
+          }
+        });
+      }
+    }
 
     if (browserHistory) {
       if (!globalThis.history) {
@@ -156,53 +173,12 @@ class FS implements FileSystem {
   private _watchers = new Set<FileSystemWatcher>();
   private _db: WorkspaceDatabase;
 
-  constructor(scope: string, initialFiles?: Record<string, string | Uint8Array>) {
-    this._db = new WorkspaceDatabase(scope, {
-      name: "fs-meta",
-      keyPath: "url",
-      onCreate: async (store: IDBObjectStore) => {
-        if (initialFiles) {
-          const promises: Promise<void>[] = [];
-          const now = Date.now();
-          const reg: FileStat = { type: 1, version: 1, ctime: now, mtime: now, size: 0 };
-          const dir: FileStat = { type: 2, version: 1, ctime: now, mtime: now, size: 0 };
-          for (const [name, data] of Object.entries(initialFiles)) {
-            const { pathname, href: url } = filenameToURL(name);
-            let parent = pathname.slice(0, pathname.lastIndexOf("/"));
-            while (parent) {
-              promises.push(
-                promisifyIDBRequest(
-                  store.put({ url: toURL(parent).href, ...dir }),
-                ),
-              );
-              parent = parent.slice(0, parent.lastIndexOf("/"));
-            }
-            promises.push(
-              promisifyIDBRequest(
-                store.put({ url, ...reg, size: encode(data).byteLength }),
-              ),
-            );
-          }
-          await Promise.all(promises);
-        }
-      },
-    }, {
-      name: "fs-blob",
-      keyPath: "url",
-      onCreate: async (store: IDBObjectStore) => {
-        if (initialFiles) {
-          const promises: Promise<void>[] = [];
-          for (const [name, data] of Object.entries(initialFiles)) {
-            promises.push(
-              promisifyIDBRequest(
-                store.put({ url: filenameToURL(name).href, content: encode(data) }),
-              ),
-            );
-          }
-          await Promise.all(promises);
-        }
-      },
-    });
+  constructor(scope: string) {
+    this._db = new WorkspaceDatabase(
+      scope,
+      { name: "fs-meta", keyPath: "url" },
+      { name: "fs-blob", keyPath: "url" },
+    );
   }
 
   private async _getIdbObjectStore(storeName: string, readwrite = false): Promise<IDBObjectStore> {
