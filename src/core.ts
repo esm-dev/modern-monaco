@@ -289,6 +289,10 @@ export async function lazy(options?: InitOptions, hydrate?: boolean) {
             } catch (error) {
               if (error instanceof ErrorNotFound) {
                 if (code) {
+                  const dirname = filename.split("/").slice(0, -1).join("/");
+                  if (dirname) {
+                    await workspace.fs.createDirectory(dirname);
+                  }
                   await workspace.fs.writeFile(filename, code);
                   workspace._openTextDocument(filename, editor);
                 } else {
