@@ -4,7 +4,7 @@ import type { LSPConfig, LSPProvider } from "./lsp/index.ts";
 import { createWebWorker } from "./lsp/index.ts";
 
 // ! external modules, don't remove the `.js` extension
-import { getLanguageIdFromPath, initShiki, setDefaultWasmLoader, tmGrammars, tmThemes } from "./shiki.js";
+import { getExtnameFromLanguageId, getLanguageIdFromPath, initShiki, setDefaultWasmLoader, tmGrammars, tmThemes } from "./shiki.js";
 import { initShikiMonacoTokenizer, registerShikiMonacoTokenizer } from "./shiki.js";
 import { render } from "./shiki.js";
 import { getWasmInstance } from "./shiki-wasm.js";
@@ -358,7 +358,7 @@ async function loadMonaco(
     initLS(monaco);
   }
 
-  // insert the monaco editor core css
+  // insert the monaco editor core CSS
   if (!document.getElementById("monaco-editor-core-css")) {
     const styleEl = document.createElement("style");
     styleEl.id = "monaco-editor-core-css";
@@ -393,6 +393,7 @@ async function loadMonaco(
       return worker;
     },
     getLanguageIdFromUri: (uri: monacoNS.Uri) => getLanguageIdFromPath(uri.path),
+    getExtnameFromLanguageId: getExtnameFromLanguageId,
   });
 
   // prevent to open a http link which is a model

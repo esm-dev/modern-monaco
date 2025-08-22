@@ -116,6 +116,15 @@ export function getLanguageIdFromPath(path: string): string | undefined {
   return getGarmmarInfoFromPath(path)?.name;
 }
 
+/** Get the extension name from the given language ID. */
+export function getExtnameFromLanguageId(language: string): string | undefined {
+  const g = tmGrammars.find((g) => g.name === language);
+  if (g) {
+    return g.aliases?.[0] ?? g.name;
+  }
+  return undefined;
+}
+
 export * from "./render.ts";
 export * from "./shiki-monaco.ts";
 export { setDefaultWasmLoader, tmGrammars, tmThemes };

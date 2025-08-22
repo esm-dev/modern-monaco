@@ -39,6 +39,12 @@ Object.assign(editor, {
       // @ts-expect-error `getLanguageIdFromUri` is injected by modern-monaco
       language = MonacoEnvironment.getLanguageIdFromUri?.(uri);
     }
+    if (!uri) {
+      // @ts-expect-error `getExtnameFromLanguageId` is injected by modern-monaco
+      const extname = MonacoEnvironment.getExtnameFromLanguageId?.(language) ?? "txt";
+      const uuid = Math.round((Date.now() + Math.random()) * 1000).toString(36);
+      uri = "file:///.inmemory/" + uuid + "." + extname;
+    }
     return createModel(value, language, uri);
   },
   getModel: (uri: string | URL | Uri) => {
