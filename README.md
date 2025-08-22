@@ -107,6 +107,8 @@ export default {
 };
 ```
 
+SSR Demo: https://modern-monaco-demo.vercel.app ([Source](https://github.com/pi0/modern-monaco-demo) by [@pi0](https://github.com/pi0))
+
 ### Manual Mode
 
 You can also create a [Monaco editor](https://microsoft.github.io/monaco-editor/docs.html) instance manually. It loads themes and language grammars automatically.
