@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Modern Monaco</title>
+  <style>
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    #editor {
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "modern-monaco": "/modern-monaco/index.js"
+      }
+    }
+  </script>
+</head>
+
+<body>
+  <div id="editor"></div>
+  <script type="module">
+    import { init } from 'modern-monaco';
+    const monaco = await init();
+    const editor = monaco.editor.create(document.getElementById("editor"), {
+      padding: { top: 8, bottom: 8 },
+    });
+    const model = monaco.editor.createModel("console.log('Hello, world!');", "javascript");
+    editor.setModel(model);
+  </script>
+</body>
+
+</html>

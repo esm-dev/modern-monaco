@@ -41,7 +41,9 @@ async function serveDist(url: URL, req: Request) {
 async function servePages(url: URL, req: Request) {
   const { pathname } = url;
   let filename = "index.html";
-  if (pathname === "/ssr" || pathname === "/lazy" || pathname === "/manual" || pathname === "/compare") {
+  if (
+    pathname === "/ssr" || pathname === "/lazy" || pathname === "/manual" || pathname === "/manual-no-workspace" || pathname === "/compare"
+  ) {
     filename = pathname.slice(1) + ".html";
   }
   try {
