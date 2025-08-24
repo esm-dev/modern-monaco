@@ -8,28 +8,62 @@ interface CacheFile {
   headers?: [string, string][];
 }
 
+interface CacheDB {
+  get(url: string): Promise<CacheFile | null>;
+  put(file: CacheFile): Promise<void>;
+}
+
+class IndexedDB implements CacheDB {
+  #db: Promise<IDBDatabase> | IDBDatabase;
+  constructor(name: string) {
+    this.#db = this.#openDB(name);
+  }
+
+  #openDB(name: string): Promise<IDBDatabase> {
+    return openIDB(name, 1, { name: "store", keyPath: "url" }).then((db) => {
+      db.onclose = () => {
+        this.#db = this.#openDB(name);
+      };
+      return this.#db = db;
+    });
+  }
+
+  async get(url: string): Promise<CacheFile | null> {
+    const db = await this.#db;
+    const tx = db.transaction("store", "readonly").objectStore("store");
+    return promisifyIDBRequest<CacheFile>(tx.get(url));
+  }
+
+  async put(file: CacheFile): Promise<void> {
+    const db = await this.#db;
+    const tx = db.transaction("store", "readwrite").objectStore("store");
+    await promisifyIDBRequest<CacheFile>(tx.put(file));
+  }
+}
+
+class MemoryCache implements CacheDB {
+  #cache: Map<string, CacheFile> = new Map();
+
+  async get(url: string): Promise<CacheFile | null> {
+    return this.#cache.get(url) ?? null;
+  }
+
+  async put(file: CacheFile): Promise<void> {
+    this.#cache.set(file.url, file);
+  }
+}
+
 /** A cache that stores responses in IndexedDB. */
 class Cache {
-  private _db: Promise<IDBDatabase> | IDBDatabase | null = null;
+  private _db: CacheDB;
 
   constructor(name: string) {
     if (globalThis.indexedDB) {
-      this._db = this._openDB(name);
+      this._db = new IndexedDB(name);
+    } else {
+      // todo: use fs cache for nodejs/bun/deno
+      this._db = new MemoryCache();
     }
-  }
-
-  private _openDB(name: string): Promise<IDBDatabase> {
-    return openIDB(
-      name,
-      1,
-      { name: "store", keyPath: "url" },
-    ).then((db) => {
-      db.onclose = () => {
-        // reopen the db on 'close' event
-        this._db = this._openDB(name);
-      };
-      return this._db = db;
-    });
   }
 
   async fetch(url: string | URL): Promise<Response> {
@@ -39,17 +73,15 @@ class Cache {
       return storedRes;
     }
     const res = await fetch(url);
-    if (res.ok && this._db) {
-      const db = await this._db;
+    if (res.ok) {
       const file: CacheFile = {
         url: url.href,
         content: null,
         ctime: Date.now(),
       };
       if (res.redirected) {
-        const tx = db.transaction("store", "readwrite").objectStore("store");
         file.headers = [["location", res.url]];
-        await promisifyIDBRequest<CacheFile>(tx.put(file));
+        this._db.put(file);
       }
       const content = await res.arrayBuffer();
       const headers = [...res.headers.entries()].filter(([k]) =>
@@ -58,7 +90,7 @@ class Cache {
       file.url = res.url;
       file.headers = headers;
       file.content = content;
-      await this.store(file);
+      this._db.put(file);
       const resp = new Response(content, { headers });
       defineProperty(resp, "url", res.url);
       defineProperty(resp, "redirected", res.redirected);
@@ -68,15 +100,10 @@ class Cache {
   }
 
   async query(key: string | URL): Promise<Response | null> {
-    if (!this._db) {
-      return null;
-    }
     const url = toURL(key).href;
-    const db = await this._db;
-    const tx = db.transaction("store", "readonly").objectStore("store");
-    const ret = await promisifyIDBRequest<CacheFile>(tx.get(url));
-    if (ret && ret.headers) {
-      const headers = new Headers(ret.headers);
+    const file = await this._db.get(url);
+    if (file && file.headers) {
+      const headers = new Headers(file.headers);
       if (headers.has("location")) {
         const redirectedUrl = headers.get("location")!;
         const res = await this.query(redirectedUrl);
@@ -85,20 +112,11 @@ class Cache {
         }
         return res;
       }
-      const res = new Response(ret.content, { headers });
+      const res = new Response(file.content, { headers });
       defineProperty(res, "url", url);
       return res;
     }
     return null;
-  }
-
-  async store(file: CacheFile): Promise<void> {
-    if (!this._db) {
-      return;
-    }
-    const db = await this._db;
-    const tx = db.transaction("store", "readwrite").objectStore("store");
-    await promisifyIDBRequest<CacheFile>(tx.put(file));
   }
 }
 
