@@ -88,12 +88,12 @@ export default {
       `console.log("Hello, world!")`,
       {
         language: "javascript",
-        theme: "OneDark-Pro",
+        theme: "vitesse-dark",
         userAgent: req.headers.get("user-agent"), // detect default font for different platforms
       },
     );
     return new Response(
-      html`
+      /* html */`
         ${editorHTML}
         <script type="module">
           import { hydrate } from "https://esm.sh/modern-monaco";
@@ -190,14 +190,14 @@ modern-monaco uses [Shiki](https://shiki.style) for syntax highlighting with ext
 To set the editor theme, you can add a `theme` attribute to the `<monaco-editor>` element.
 
 ```html
-<monaco-editor theme="OneDark-Pro"></monaco-editor>
+<monaco-editor theme="vitesse-dark"></monaco-editor>
 ```
 
 Or set it in the `lazy`, `init`, or `hydrate` function.
 
 ```js
 lazy({
-  theme: "OneDark-Pro",
+  theme: "vitesse-dark",
 });
 ```
 
@@ -207,7 +207,7 @@ lazy({
 modern-monaco loads the theme data from the CDN when a theme ID is provided. You can also use a theme from the `tm-themes` package:
 
 ```js
-import OneDark from "tm-themes/themes/OneDark-Pro.json" with { type: "json" };
+import OneDark from "tm-themes/themes/vitesse-dark.json" with { type: "json" };
 
 lazy({
   theme: OneDark,
@@ -259,7 +259,7 @@ You can set editor options as attributes in the `<monaco-editor>` element. The e
 
 ```html
 <monaco-editor
-  theme="OneDark-Pro"
+  theme="vitesse-dark"
   fontFamily="Geist Mono"
   fontSize="16"
 ></monaco-editor>
@@ -273,7 +273,7 @@ import { renderToWebComponent } from "modern-monaco/ssr";
 const html = await renderToWebComponent(
   `console.log("Hello, world!")`,
   {
-    theme: "OneDark-Pro",
+    theme: "vitesse-dark",
     language: "javascript",
     fontFamily: "Geist Mono",
     fontSize: 16,
@@ -348,7 +348,7 @@ export interface LSPLanguageConfig {
 modern-monaco uses [import maps](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/script/type/importmap) to resolve **bare specifier** imports in JavaScript/TypeScript. By default, modern-monaco detects the `importmap` from the root `index.html` in the workspace.
 
 ```js
-const indexHtml = html`<!DOCTYPE html>
+const indexHtml = /* html */`<!DOCTYPE html>
 <html>
   <head>
     <script type="importmap">
