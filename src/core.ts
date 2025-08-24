@@ -51,6 +51,9 @@ const errors = {
 const builtinLSPProviders: Record<string, LSPProvider> = {};
 const builtinSyntaxes: { name: string; scopeName: string }[] = [];
 
+// Track if custom element is already defined to prevent duplicate registration
+let isCustomElementDefined = false;
+
 export interface InitOptions extends ShikiInitOptions {
   /**
    * Virtual file system to be used by the editor.
@@ -76,6 +79,13 @@ export async function lazy(options?: InitOptions, hydrate?: boolean) {
   const setStyle = (el: HTMLElement, style: Partial<CSSStyleDeclaration>) => Object.assign(el.style, style);
 
   let monacoPromise: Promise<typeof monacoNS> | null = null;
+
+  // Prevent duplicate custom element definition
+  if (isCustomElementDefined) {
+    await editorWorkerPromise;
+    return;
+  }
+  isCustomElementDefined = true;
 
   customElements.define(
     "monaco-editor",
@@ -304,7 +314,15 @@ export async function lazy(options?: InitOptions, hydrate?: boolean) {
               }
             }
           } else if ((code && (renderOptions.language || filename))) {
-            const model = monaco.editor.createModel(code, renderOptions.language, filename);
+            // Check if model already exists to prevent duplicate creation
+            const modelUri = filename ? monaco.Uri.file(filename) : undefined;
+            let model = modelUri ? monaco.editor.getModel(modelUri) : null;
+            if (!model) {
+              model = monaco.editor.createModel(code, renderOptions.language, modelUri);
+            } else if (code !== model.getValue()) {
+              // Update existing model with new code
+              model.setValue(code);
+            }
             editor.setModel(model);
           } else {
             // open an empty model
