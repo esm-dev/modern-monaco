@@ -1,6 +1,6 @@
 import { build as esbuild } from "https://deno.land/x/esbuild@v0.25.9/mod.js";
-import { grammars as tmGrammars } from "../node_modules/tm-grammars/index.js";
-import { themes as tmThemes } from "../node_modules/tm-themes/index.js";
+import { grammars as shikiGrammars } from "../node_modules/tm-grammars/index.js";
+import { themes as shikiThemes } from "../node_modules/tm-themes/index.js";
 import { wasmBinary } from "../node_modules/@shikijs/engine-oniguruma/dist/wasm-inlined.mjs";
 
 const build = (entryPoints: string[], define?: Record<string, string>) => {
@@ -76,18 +76,18 @@ const tmDefine = () => {
   const keys = ["name", "scopeName", "aliases", "embedded", "embeddedIn", "injectTo"];
 
   // add aliases for javascript and typescript
-  tmGrammars.find((g) => g.name === "javascript")!.aliases = ["js", "mjs", "cjs"];
-  tmGrammars.find((g) => g.name === "typescript")!.aliases = ["ts", "mts", "cts"];
+  shikiGrammars.find((g) => g.name === "javascript")!.aliases = ["js", "mjs", "cjs"];
+  shikiGrammars.find((g) => g.name === "typescript")!.aliases = ["ts", "mts", "cts"];
 
   // update embedded grammars
-  tmGrammars.find((g) => g.name === "html")!.embedded = ["json", "css", "javascript"];
+  shikiGrammars.find((g) => g.name === "html")!.embedded = ["json", "css", "javascript"];
   for (const id of ["javascript", "typescript", "jsx", "tsx"]) {
-    tmGrammars.find((v) => v.name === id)!.embedded = ["html", "css"];
+    shikiGrammars.find((v) => v.name === id)!.embedded = ["html", "css"];
   }
 
   return {
-    TM_THEMES: JSON.stringify(tmThemes.map((v) => v.name)),
-    TM_GRAMMARS: JSON.stringify(tmGrammars.map((v) => Object.fromEntries(keys.map((k) => [k, v[k as keyof typeof v]])))),
+    SHIKI_THEMES: JSON.stringify(shikiThemes.map((v) => v.name)),
+    SHIKI_GRAMMARS: JSON.stringify(shikiGrammars.map((v) => Object.fromEntries(keys.map((k) => [k, v[k as keyof typeof v]])))),
   };
 };
 const buildEditorCore = async () => {
@@ -129,8 +129,8 @@ const buildTypes = async () => {
   await Deno.writeTextFile(
     "types/textmate.d.ts",
     [
-      "export type TextmateThemeName = " + tmThemes.map((v) => JSON.stringify(v.name)).join(" | ") + ";",
-      "export type TextmateGrammarName = " + tmGrammars.map((v) => JSON.stringify(v.name)).join(" | ") + ";",
+      "export type TextmateThemeName = " + shikiThemes.map((v) => JSON.stringify(v.name)).join(" | ") + ";",
+      "export type TextmateGrammarName = " + shikiGrammars.map((v) => JSON.stringify(v.name)).join(" | ") + ";",
     ].join("\n"),
   );
 };

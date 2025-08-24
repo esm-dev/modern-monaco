@@ -8,10 +8,9 @@ import { version as tmThemesVersion } from "../node_modules/tm-themes/package.js
 import { cache } from "./cache.js";
 import { isPlainObject } from "./util.js";
 
-// @ts-expect-error `TM_GRAMMARS` is defined at build time
-const tmGrammars: { name: string; aliases?: string[]; embedded?: string[]; injectTo?: string[] }[] = TM_GRAMMARS;
-// @ts-expect-error `TM_THEMES` is defined at build time
-const tmThemes: Map<string, ThemeRegistration | null> = new Map(TM_THEMES.map((t) => [t, null]));
+const grammars = SHIKI_GRAMMARS;
+const themes: Map<string, ThemeRegistration> = new Map();
+const shikiThemeIds = new Set(SHIKI_THEMES);
 
 export interface ShikiInitOptions {
   langs?: (string | URL | LanguageInput)[];
@@ -40,7 +39,7 @@ export async function initShiki({
     languages.forEach((l) => {
       if (typeof l === "string" || l instanceof URL) {
         if (!set.has(l.toString())) {
-          const g = tmGrammars.find((g) => g.name === l);
+          const g = grammars.find((g) => g.name === l);
           if (g?.embedded) {
             langs.push(...g.embedded.map((id) => loadTMGrammar(id, tmDownloadCDN)));
           }
@@ -69,24 +68,23 @@ export async function initShiki({
 
 /** Load a TextMate theme from the given source. */
 function loadTMTheme(src: string | URL, cdn = "https://esm.sh") {
+  if (typeof src === "string" && themes.has(src)) {
+    return themes.get(src)!;
+  }
   // fix theme id
   if (typeof src === "string" && /^[a-zA-Z]/.test(src)) {
     src = src.replace(/\s+/g, "-").replace(/([a-z])([A-Z])/g, "$1-$2").toLowerCase();
-  }
-  if (typeof src === "string" && tmThemes.has(src)) {
-    const theme = tmThemes.get(src);
-    if (theme) {
-      return theme;
+    if (!shikiThemeIds.has(src)) {
+      throw new Error(
+        `Invalid theme ID: ${src}, please ensure the theme ID is one of the following: ${Array.from(shikiThemeIds.keys()).join(", ")}`,
+      );
     }
-    const url = new URL(`/tm-themes@${tmThemesVersion}/themes/${src}.json`, cdn);
-    return cache.fetch(url).then((res) =>
-      res.json().then((theme) => {
-        tmThemes.set(src, theme);
-        return theme;
-      })
-    );
   }
-  const url = typeof src === "string" ? new URL(src) : src;
+  if (typeof src === "string" && shikiThemeIds.has(src)) {
+    const url = new URL(`/tm-themes@${tmThemesVersion}/themes/${src}.json`, cdn);
+    return cache.fetch(url).then((res) => res.json());
+  }
+  const url = typeof src === "string" ? new URL(src, globalThis.location?.href) : src;
   if (url.protocol === "http" || url.protocol === "https") {
     return cache.fetch(url).then((res) => res.json());
   }
@@ -96,13 +94,13 @@ function loadTMTheme(src: string | URL, cdn = "https://esm.sh") {
 /** Load a TextMate grammar from the given source. */
 function loadTMGrammar(src: string | URL, cdn = "https://esm.sh") {
   if (typeof src === "string") {
-    const g = tmGrammars.find(g => g.name === src);
+    const g = grammars.find(g => g.name === src);
     if (g) {
       const url = new URL(`/tm-grammars@${tmGrammarsVersion}/grammars/${g.name}.json`, cdn);
       return cache.fetch(url).then((res) => res.json());
     }
   }
-  const url = typeof src === "string" ? new URL(src) : src;
+  const url = typeof src === "string" ? new URL(src, globalThis.location?.href) : src;
   if (url.protocol === "http" || url.protocol === "https") {
     return cache.fetch(url).then((res) => res.json());
   }
@@ -119,7 +117,7 @@ export function getGarmmarInfoFromPath(path: string): {
   const idx = path.lastIndexOf(".");
   if (idx > 0) {
     const ext = path.slice(idx + 1);
-    return tmGrammars.find((g) => g.name === ext || g.aliases?.includes(ext));
+    return grammars.find((g) => g.name === ext || g.aliases?.includes(ext));
   }
 }
 
@@ -130,13 +128,17 @@ export function getLanguageIdFromPath(path: string): string | undefined {
 
 /** Get the extension name from the given language ID. */
 export function getExtnameFromLanguageId(language: string): string | undefined {
-  const g = tmGrammars.find((g) => g.name === language);
+  const g = grammars.find((g) => g.name === language);
   if (g) {
     return g.aliases?.[0] ?? g.name;
   }
   return undefined;
 }
 
+// `SHIKI_GRAMMARS` and `SHIKI_THEMES` are defined at build time
+declare const SHIKI_GRAMMARS: { name: string; aliases?: string[]; embedded?: string[]; injectTo?: string[] }[];
+declare const SHIKI_THEMES: string[];
+
 export * from "./render.ts";
 export * from "./shiki-monaco.ts";
-export { setDefaultWasmLoader, tmGrammars, tmThemes };
+export { grammars, setDefaultWasmLoader, themes };

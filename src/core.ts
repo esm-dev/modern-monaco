@@ -4,7 +4,7 @@ import type { LSPConfig, LSPProvider } from "./lsp/index.ts";
 import { createWebWorker } from "./lsp/index.ts";
 
 // ! external modules, don't remove the `.js` extension
-import { getExtnameFromLanguageId, getLanguageIdFromPath, initShiki, setDefaultWasmLoader, tmGrammars, tmThemes } from "./shiki.js";
+import { getExtnameFromLanguageId, getLanguageIdFromPath, grammars, initShiki, setDefaultWasmLoader, themes } from "./shiki.js";
 import { initShikiMonacoTokenizer, registerShikiMonacoTokenizer } from "./shiki.js";
 import { render } from "./shiki.js";
 import { getWasmInstance } from "./shiki-wasm.js";
@@ -456,14 +456,14 @@ async function loadMonaco(
   }
 
   // use the shiki as the tokenizer for the monaco editor
-  const allLanguages = new Set(tmGrammars.filter(g => !g.injectTo).map(g => g.name));
+  const allLanguages = new Set(grammars.filter(g => !g.injectTo).map(g => g.name));
   allLanguages.forEach((id) => {
     const languages = monaco.languages;
-    languages.register({ id, aliases: tmGrammars.find(g => g.name === id)?.aliases });
+    languages.register({ id, aliases: grammars.find(g => g.name === id)?.aliases });
     languages.onLanguage(id, async () => {
       const config = monaco.languageConfigurations[monaco.languageConfigurationAliases[id] ?? id];
       const loadedGrammars = new Set(highlighter.getLoadedLanguages());
-      const reqiredGrammars = [id].concat(tmGrammars.find(g => g.name === id)?.embedded ?? []).filter((id) => !loadedGrammars.has(id));
+      const reqiredGrammars = [id].concat(grammars.find(g => g.name === id)?.embedded ?? []).filter((id) => !loadedGrammars.has(id));
       if (config) {
         languages.setLanguageConfiguration(id, monaco.convertVscodeLanguageConfiguration(config));
       }
@@ -508,7 +508,7 @@ export function registerSyntax(...syntaxes: { name: string; scopeName: string }[
 /** Register a custom theme. */
 export function registerTheme(theme: Record<string, any>) {
   if (theme.name) {
-    tmThemes.set(theme.name, theme);
+    themes.set(theme.name, theme);
   }
 }
 
