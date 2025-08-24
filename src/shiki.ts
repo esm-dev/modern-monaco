@@ -69,6 +69,10 @@ export async function initShiki({
 
 /** Load a TextMate theme from the given source. */
 function loadTMTheme(src: string | URL, cdn = "https://esm.sh") {
+  // fix theme id
+  if (typeof src === "string" && /^[a-zA-Z]/.test(src)) {
+    src = src.replace(/\s+/g, "-").replace(/([a-z])([A-Z])/g, "$1-$2").toLowerCase();
+  }
   if (typeof src === "string" && tmThemes.has(src)) {
     const theme = tmThemes.get(src);
     if (theme) {
@@ -82,7 +86,11 @@ function loadTMTheme(src: string | URL, cdn = "https://esm.sh") {
       })
     );
   }
-  return cache.fetch(src).then((res) => res.json());
+  const url = typeof src === "string" ? new URL(src) : src;
+  if (url.protocol === "http" || url.protocol === "https") {
+    return cache.fetch(url).then((res) => res.json());
+  }
+  throw new Error(`Unsupported theme source: ${src}`);
 }
 
 /** Load a TextMate grammar from the given source. */
@@ -94,7 +102,11 @@ function loadTMGrammar(src: string | URL, cdn = "https://esm.sh") {
       return cache.fetch(url).then((res) => res.json());
     }
   }
-  return cache.fetch(src).then((res) => res.json());
+  const url = typeof src === "string" ? new URL(src) : src;
+  if (url.protocol === "http" || url.protocol === "https") {
+    return cache.fetch(url).then((res) => res.json());
+  }
+  throw new Error(`Unsupported grammar source: ${src}`);
 }
 
 /** Get grammar Info from the given path. */

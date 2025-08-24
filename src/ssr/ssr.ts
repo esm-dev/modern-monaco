@@ -14,14 +14,14 @@ export async function renderToString(input: RenderInput, options?: RenderOptions
   const highlighter = await (ssrHighlighter ?? (ssrHighlighter = initShiki(shiki)));
   const promises: Promise<void>[] = [];
   if (theme && !highlighter.getLoadedThemes().includes(theme)) {
-    console.info(`[modern-monaco] Loading theme '${theme}' from ${shiki?.tmDownloadCDN ?? "https://esm.sh"}/tm-themes ...`);
+    console.info(`[modern-monaco] Loading theme '${theme}' from CDN...`);
     promises.push(highlighter.loadThemeFromCDN(theme));
   }
   if (language || filename) {
     const languageId = language ?? getLanguageIdFromPath(filename!);
     if (languageId && !highlighter.getLoadedLanguages().includes(languageId)) {
       console.info(
-        `[modern-monaco] Loading garmmar '${languageId}' from ${shiki?.tmDownloadCDN ?? "https://esm.sh"}/tm-grammars ...`,
+        `[modern-monaco] Loading garmmar '${languageId}' from CDN...`,
       );
       promises.push(highlighter.loadGrammarFromCDN(languageId));
     }
