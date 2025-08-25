@@ -1,4 +1,7 @@
-export function registerLSPProvider(lang: string, provider: import("./lsp.d.ts").LSPProvider): void;
-export function registerSyntax(...syntaxes: import("./index.d.ts").TextmateGrammar[]): void;
-export function registerTheme(theme: import("./index.d.ts").TextmateTheme): void;
+import type { TextmateGrammar, TextmateTheme } from "./index.d.ts";
+import type { LSPProvider } from "./lsp.d.ts";
+
+export function registerSyntax(...syntaxes: TextmateGrammar[]): void;
+export function registerTheme(theme: TextmateTheme): void;
+export function registerLSPProvider(lang: string, provider: LSPProvider): void;
 export * from "./index";
