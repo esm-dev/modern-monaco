@@ -1,5 +1,5 @@
 import { build as esbuild } from "https://deno.land/x/esbuild@v0.25.9/mod.js";
-import { grammars as shikiGrammars } from "../node_modules/tm-grammars/index.js";
+import { grammars as shikiGrammars, injections } from "../node_modules/tm-grammars/index.js";
 import { themes as shikiThemes } from "../node_modules/tm-themes/index.js";
 import { wasmBinary } from "../node_modules/@shikijs/engine-oniguruma/dist/wasm-inlined.mjs";
 
@@ -85,9 +85,12 @@ const tmDefine = () => {
     shikiGrammars.find((v) => v.name === id)!.embedded = ["html", "css"];
   }
 
+  const grammars = shikiGrammars.map((v) => Object.fromEntries(keys.map((k) => [k, v[k as keyof typeof v]])));
+  const injections_grammars = injections.map((v) => Object.fromEntries(keys.map((k) => [k, v[k as keyof typeof v]])));
+
   return {
     SHIKI_THEMES: JSON.stringify(shikiThemes.map((v) => v.name)),
-    SHIKI_GRAMMARS: JSON.stringify(shikiGrammars.map((v) => Object.fromEntries(keys.map((k) => [k, v[k as keyof typeof v]])))),
+    SHIKI_GRAMMARS: JSON.stringify([...grammars, ...injections_grammars]),
   };
 };
 const buildEditorCore = async () => {
