@@ -49,7 +49,7 @@ const errors = {
 };
 
 const syntaxes: { name: string; scopeName: string }[] = [];
-const lSPProviders: Record<string, LSPProvider> = {};
+const lspProviders: Record<string, LSPProvider> = {};
 
 const { promise: editorWorkerPromise, resolve: onDidEditorWorkerResolve } = promiseWithResolvers<void>();
 const attr = (el: HTMLElement, name: string): string | null => el.getAttribute(name);
@@ -362,13 +362,13 @@ async function loadMonaco(
   onDidEditorWorkerResolve?: () => void,
 ): Promise<typeof monacoNS> {
   const monaco = await import("./editor-core.js");
-  const lspProviders = { ...lSPProviders, ...lsp?.providers };
+  const lspProviderMap = { ...lspProviders, ...lsp?.providers };
 
   // initialize the workspace with the monaco namespace
   workspace?.setupMonaco(monaco);
 
   // setup Monaco NS for the language service module
-  if (Object.keys(lspProviders).length > 0) {
+  if (Object.keys(lspProviderMap).length > 0) {
     initLS(monaco);
   }
 
@@ -385,9 +385,9 @@ async function loadMonaco(
   // set the global `MonacoEnvironment` variable
   Reflect.set(globalThis, "MonacoEnvironment", {
     getWorker: async (_workerId: string, label: string) => {
-      let provider: LSPProvider | undefined = lspProviders[label];
+      let provider: LSPProvider | undefined = lspProviderMap[label];
       if (!provider) {
-        provider = Object.values(lspProviders).find((p) => p.aliases?.includes(label));
+        provider = Object.values(lspProviderMap).find((p) => p.aliases?.includes(label));
       }
       const url = provider ? (await provider.import()).getWorkerUrl() : monaco.getWorkerUrl();
       if (label === "typescript") {
@@ -490,9 +490,9 @@ async function loadMonaco(
 
       // check if the language is supported by the LSP provider
       let lspLabel = id;
-      let lspProvider = lspProviders[lspLabel];
+      let lspProvider = lspProviderMap[lspLabel];
       if (!lspProvider) {
-        const alias = Object.entries(lspProviders).find(([, lsp]) => lsp.aliases?.includes(id));
+        const alias = Object.entries(lspProviderMap).find(([, lsp]) => lsp.aliases?.includes(id));
         if (alias) {
           [lspLabel, lspProvider] = alias;
         }
@@ -510,8 +510,8 @@ async function loadMonaco(
 }
 
 /** Register a custom language syntax. */
-export function registerSyntax(...syntaxes: { name: string; scopeName: string }[]) {
-  syntaxes.push(...syntaxes);
+export function registerSyntax(syntax: { name: string; scopeName: string }) {
+  syntaxes.push(syntax);
 }
 
 /** Register a custom theme. */
@@ -523,7 +523,7 @@ export function registerTheme(theme: Record<string, any>) {
 
 /** Register a language server protocol provider. */
 export function registerLSPProvider(lang: string, provider: LSPProvider) {
-  lSPProviders[lang] = provider;
+  lspProviders[lang] = provider;
 }
 
 // set the shiki wasm default loader

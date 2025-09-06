@@ -12,7 +12,9 @@ for (const [lang, provider] of Object.entries(builtinLSPProviders)) {
 }
 
 // register built-in syntaxes
-registerSyntax(...syntaxes);
+for (const syntax of syntaxes) {
+  registerSyntax(syntax);
+}
 
 // register built-in themes
 registerTheme(vitesseDark);
