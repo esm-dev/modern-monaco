@@ -12,20 +12,20 @@ importers:
         specifier: 0.1.1
         version: 0.1.1
       '@shikijs/core':
-        specifier: 3.11.0
-        version: 3.11.0
+        specifier: 3.12.2
+        version: 3.12.2
       '@shikijs/engine-oniguruma':
-        specifier: 3.11.0
-        version: 3.11.0
+        specifier: 3.12.2
+        version: 3.12.2
       monaco-editor-core:
         specifier: 0.52.2
         version: 0.52.2
       tm-grammars:
-        specifier: 1.24.6
-        version: 1.24.6
+        specifier: 1.24.10
+        version: 1.24.10
       tm-themes:
-        specifier: 1.10.7
-        version: 1.10.7
+        specifier: 1.10.9
+        version: 1.10.9
       typescript:
         specifier: 5.9.2
         version: 5.9.2
@@ -50,14 +50,14 @@ packages:
   '@esm.sh/import-map@0.1.1':
     resolution: {integrity: sha512-fwng22cW5vf8EVyuYVhd08Yud62bHgjMHrTx1XWuNyV3TcTYpG5uKrmj6/HhjHweY0G4ahpUWVsizz1B5FmxCg==}
 
-  '@shikijs/core@3.11.0':
-    resolution: {integrity: sha512-oJwU+DxGqp6lUZpvtQgVOXNZcVsirN76tihOLBmwILkKuRuwHteApP8oTXmL4tF5vS5FbOY0+8seXmiCoslk4g==}
+  '@shikijs/core@3.12.2':
+    resolution: {integrity: sha512-L1Safnhra3tX/oJK5kYHaWmLEBJi1irASwewzY3taX5ibyXyMkkSDZlq01qigjryOBwrXSdFgTiZ3ryzSNeu7Q==}
 
-  '@shikijs/engine-oniguruma@3.11.0':
-    resolution: {integrity: sha512-4DwIjIgETK04VneKbfOE4WNm4Q7WC1wo95wv82PoHKdqX4/9qLRUwrfKlmhf0gAuvT6GHy0uc7t9cailk6Tbhw==}
+  '@shikijs/engine-oniguruma@3.12.2':
+    resolution: {integrity: sha512-hozwnFHsLvujK4/CPVHNo3Bcg2EsnG8krI/ZQ2FlBlCRpPZW4XAEQmEwqegJsypsTAN9ehu2tEYe30lYKSZW/w==}
 
-  '@shikijs/types@3.11.0':
-    resolution: {integrity: sha512-RB7IMo2E7NZHyfkqAuaf4CofyY8bPzjWPjJRzn6SEak3b46fIQyG6Vx5fG/obqkfppQ+g8vEsiD7Uc6lqQt32Q==}
+  '@shikijs/types@3.12.2':
+    resolution: {integrity: sha512-K5UIBzxCyv0YoxN3LMrKB9zuhp1bV+LgewxuVwHdl4Gz5oePoUFrr9EfgJlGlDeXCU1b/yhdnXeuRvAnz8HN8Q==}
 
   '@shikijs/vscode-textmate@10.0.2':
     resolution: {integrity: sha512-83yeghZ2xxin3Nj8z1NMd/NCuca+gsYXswywDy5bHvwlWL8tpTQmzGeUuHd9FC3E/SBEMvzJRwWEOz5gGes9Qg==}
@@ -138,11 +138,11 @@ packages:
   stringify-entities@4.0.4:
     resolution: {integrity: sha512-IwfBptatlO+QCJUo19AqvrPNqlVMpW9YEL2LIVY+Rpv2qsjCGxaDLNRgeGsQWJhfItebuJhsGSLjaBbNSQ+ieg==}
 
-  tm-grammars@1.24.6:
-    resolution: {integrity: sha512-L3GCmS5MaA775/Ow0zYhp48vZWJmEkxFmB6S9D9p6amwGh6TWWOTm24yiMMJilM4BjO+GeFOJVM9/01G0wbcpw==}
+  tm-grammars@1.24.10:
+    resolution: {integrity: sha512-pbRV2csdGieF9exQHwxHopmb1VAEvKWifuju9Tab8OQyNVw4hXKgENO++zt5dZFodMrUW1ZXIPAFTR81S68v4Q==}
 
-  tm-themes@1.10.7:
-    resolution: {integrity: sha512-/7UiSrze10BQqlyy43LRT4QmQxCYJKMSlyMM6umKwsDIAQZlFqyj5sDe/qoaiVOvAzv22VsoC0GfcEKxI8J0ng==}
+  tm-themes@1.10.9:
+    resolution: {integrity: sha512-2pBK8ZHXFibHOoKmi1aE2VF1ISsMpqTU+RS3+YS8LGNEm4WSkmnDqdylbtsmZIfFTxy/8KbsiBKbrmnHYVTZFw==}
 
   trim-lines@3.0.1:
     resolution: {integrity: sha512-kRj8B+YHZCc9kQYdWfJB2/oUl9rA99qbowYYBtr4ui4mZyAQ2JpvVBd/6U2YloATfqBhBTSMhTpgBHtU0Mf3Rg==}
@@ -198,19 +198,19 @@ snapshots:
 
   '@esm.sh/import-map@0.1.1': {}
 
-  '@shikijs/core@3.11.0':
+  '@shikijs/core@3.12.2':
     dependencies:
-      '@shikijs/types': 3.11.0
+      '@shikijs/types': 3.12.2
       '@shikijs/vscode-textmate': 10.0.2
       '@types/hast': 3.0.4
       hast-util-to-html: 9.0.5
 
-  '@shikijs/engine-oniguruma@3.11.0':
+  '@shikijs/engine-oniguruma@3.12.2':
     dependencies:
-      '@shikijs/types': 3.11.0
+      '@shikijs/types': 3.12.2
       '@shikijs/vscode-textmate': 10.0.2
 
-  '@shikijs/types@3.11.0':
+  '@shikijs/types@3.12.2':
     dependencies:
       '@shikijs/vscode-textmate': 10.0.2
       '@types/hast': 3.0.4
@@ -307,9 +307,9 @@ snapshots:
       character-entities-html4: 2.1.0
       character-entities-legacy: 3.0.0
 
-  tm-grammars@1.24.6: {}
+  tm-grammars@1.24.10: {}
 
-  tm-themes@1.10.7: {}
+  tm-themes@1.10.9: {}
 
   trim-lines@3.0.1: {}
 
