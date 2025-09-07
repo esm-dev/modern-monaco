@@ -18,15 +18,14 @@ export interface HTMLDataConfiguration {
 }
 
 export interface CreateData {
-  /**
-   * Settings for the HTML formatter.
-   */
+  /** Settings for the HTML formatter. */
   readonly format?: htmlService.HTMLFormatConfiguration;
-  /**
-   * Code completion settings.
-   */
+  /** Code completion settings. */
   readonly suggest?: htmlService.CompletionConfiguration;
+  /** HTML data configuration. */
   readonly data?: HTMLDataConfiguration;
+  /** Whether the worker has a file system provider. */
+  readonly workspace?: boolean;
 }
 
 export class HTMLWorker extends WorkerBase<undefined, htmlService.HTMLDocument> {
@@ -35,7 +34,7 @@ export class HTMLWorker extends WorkerBase<undefined, htmlService.HTMLDocument> 
   private _languageService: htmlService.LanguageService;
 
   constructor(ctx: monacoNS.worker.IWorkerContext, createData: CreateData) {
-    super(ctx, (document) => this._languageService.parseHTMLDocument(document));
+    super(ctx, createData, (document) => this._languageService.parseHTMLDocument(document));
     const data = createData.data;
     const useDefaultDataProvider = data?.useDefaultDataProvider;
     const fileSystemProvider = this.getFileSystemProvider();

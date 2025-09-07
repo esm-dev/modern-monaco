@@ -36,6 +36,7 @@ export interface CreateData {
   formatOptions: ts.FormatCodeSettings & Pick<ts.UserPreferences, "quotePreference">;
   importMap: ImportMap;
   types: Record<string, VersionedContent>;
+  workspace?: boolean;
 }
 
 /** TypeScriptWorker removes all but the `fileName` property to avoid serializing circular JSON structures. */
@@ -53,12 +54,12 @@ export interface Diagnostic extends DiagnosticRelatedInformation {
 
 export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageServiceHost {
   #compilerOptions: ts.CompilerOptions;
+  #languageService: ts.LanguageService;
   #formatOptions?: CreateData["formatOptions"];
   #importMap: ImportMap;
   #importMapVersion: number;
   #isBlankImportMap: boolean;
   #types: Record<string, VersionedContent>;
-  #languageService = ts.createLanguageService(this);
   #urlMappings = new Map<string, string>();
   #typesMappings = new Map<string, string>();
   #httpLibs = new Map<string, string>();
@@ -72,8 +73,9 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
   #httpDocumentCache = new Map<string, TextDocument>();
 
   constructor(ctx: monacoNS.worker.IWorkerContext<Host>, createData: CreateData) {
-    super(ctx);
+    super(ctx, createData);
     this.#compilerOptions = ts.convertCompilerOptionsFromJson(createData.compilerOptions, ".").options;
+    this.#languageService = ts.createLanguageService(this);
     this.#importMap = createData.importMap;
     this.#importMapVersion = 0;
     this.#isBlankImportMap = isBlankImportMap(createData.importMap);

@@ -9,16 +9,17 @@ export enum FileType {
 }
 
 export class WorkerBase<Host = undefined, LanguageDocument = undefined> {
-  private _documentCache = new Map<string, [number, TextDocument, LanguageDocument | undefined]>();
-  private _fsEntries?: Map<string, number>;
+  #documentCache = new Map<string, [number, TextDocument, LanguageDocument | undefined]>();
+  #fs?: Map<string, number>;
 
   constructor(
     private _ctx: monacoNS.worker.IWorkerContext<Host>,
+    private _createData: { workspace?: boolean },
     private _createLanguageDocument?: (document: TextDocument) => LanguageDocument,
   ) {}
 
   get hasFileSystemProvider(): boolean {
-    return !!this._fsEntries;
+    return !!this._createData.workspace;
   }
 
   get host() {
@@ -56,18 +57,18 @@ export class WorkerBase<Host = undefined, LanguageDocument = undefined> {
     if (!model) {
       return null;
     }
-    const cached = this._documentCache.get(uri);
+    const cached = this.#documentCache.get(uri);
     if (cached && cached[0] === model.version) {
       return cached[1];
     }
     const document = TextDocument.create(uri, "-", model.version, model.getValue());
-    this._documentCache.set(uri, [model.version, document, undefined]);
+    this.#documentCache.set(uri, [model.version, document, undefined]);
     return document;
   }
 
   getLanguageDocument(document: TextDocument): LanguageDocument {
     const { uri, version } = document;
-    const cached = this._documentCache.get(uri);
+    const cached = this.#documentCache.get(uri);
     if (cached && cached[0] === version && cached[2]) {
       return cached[2];
     }
@@ -75,15 +76,14 @@ export class WorkerBase<Host = undefined, LanguageDocument = undefined> {
       throw new Error("createLanguageDocument is not provided");
     }
     const languageDocument = this._createLanguageDocument(document);
-    this._documentCache.set(uri, [version, document, languageDocument]);
+    this.#documentCache.set(uri, [version, document, languageDocument]);
     return languageDocument;
   }
 
   readDir(uri: string, extensions?: readonly string[]): [string, FileType][] {
     const entries: [string, FileType][] = [];
-    const fsTree = this._fsEntries;
-    if (fsTree) {
-      for (const [path, type] of fsTree) {
+    if (this.#fs) {
+      for (const [path, type] of this.#fs) {
         if (path.startsWith(uri)) {
           const name = path.slice(uri.length);
           if (!name.includes("/")) {
@@ -123,11 +123,9 @@ export class WorkerBase<Host = undefined, LanguageDocument = undefined> {
   resolveReference(ref: string, baseUrl: string): string | undefined {
     const url = new URL(ref, baseUrl);
     const href = url.href;
-    if (url.protocol === "file:" && this._fsEntries) {
-      // check if the file exists
-      if (!this._fsEntries.has(href)) {
-        return undefined;
-      }
+    // if the file is not in the file system, return undefined
+    if (url.protocol === "file:" && url.pathname !== "/" && this.#fs && !this.#fs.has(href.endsWith("/") ? href.slice(0, -1) : href)) {
+      return undefined;
     }
     return href;
   }
@@ -135,23 +133,19 @@ export class WorkerBase<Host = undefined, LanguageDocument = undefined> {
   // #region methods used by the host
 
   async removeDocumentCache(uri: string): Promise<void> {
-    this._documentCache.delete(uri);
+    this.#documentCache.delete(uri);
   }
 
-  async syncFSEntries(entries: [string, number][]): Promise<void> {
-    this._fsEntries = new Map(entries);
-  }
-
-  async fsNotify(kind: "create" | "modify" | "remove", path: string, type?: number): Promise<void> {
+  async fsNotify(kind: "create" | "remove", path: string, type?: number): Promise<void> {
     const url = "file://" + path;
-    const entries = this._fsEntries ?? (this._fsEntries = new Map());
+    const entries = this.#fs ?? (this.#fs = new Map());
     if (kind === "create") {
       if (type) {
         entries.set(url, type);
       }
     } else if (kind === "remove") {
       if (entries.get(url) === FileType.File) {
-        this._documentCache.delete(url);
+        this.#documentCache.delete(url);
       }
       entries.delete(url);
     }

@@ -73,8 +73,7 @@ export function registerBasicFeatures<
     & ILanguageWorkerWithSelectionRanges
     & {
       removeDocumentCache(uri: string): Promise<void>;
-      syncFSEntries(entries: [string, number][]): Promise<void>;
-      fsNotify(kind: "create" | "modify" | "remove", path: string, type?: number): Promise<void>;
+      fsNotify(kind: "create" | "remove", path: string, type?: number): Promise<void>;
     },
 >(
   languageId: string,
@@ -137,9 +136,12 @@ export function registerBasicFeatures<
         worker.getProxy().then(proxy => proxy.fsNotify(kind, path, type));
       }
     });
-    workspace.fs.entries().then((entries) => {
-      worker.getProxy().then(proxy => proxy.syncFSEntries(entries));
-    });
+    (async () => {
+      const workerProxy = await worker.getProxy();
+      for await (const [path, type] of workspace.fs.walk()) {
+        workerProxy.fsNotify("create", path, type);
+      }
+    })();
   }
 }
 

@@ -2,6 +2,7 @@ import type monacoNS from "monaco-editor-core";
 import type {
   FileStat,
   FileSystem,
+  FileSystemEntryType,
   Workspace as IWorkspace,
   WorkspaceHistory,
   WorkspaceHistoryState,
@@ -191,14 +192,12 @@ class FS implements FileSystem {
     return [transaction.objectStore("fs-meta"), transaction.objectStore("fs-blob")];
   }
 
-  /**
-   * read the fs entries
-   * @internal
-   */
-  async entries(): Promise<[string, number][]> {
+  async *walk(): AsyncIterable<[string, FileSystemEntryType]> {
     const metaStore = await this._getIdbObjectStore("fs-meta");
     const entries = await promisifyIDBRequest<Array<{ url: string } & FileStat>>(metaStore.getAll());
-    return entries.map(({ url, type }) => [url, type]);
+    for (const entry of entries) {
+      yield [new URL(entry.url).pathname, entry.type];
+    }
   }
 
   async stat(name: string): Promise<FileStat> {

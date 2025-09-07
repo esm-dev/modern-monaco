@@ -12,6 +12,8 @@ export interface CreateData {
   readonly settings?: jsonService.LanguageSettings & jsonService.DocumentLanguageSettings;
   /** Settings for the CSS formatter. */
   readonly format?: jsonService.FormattingOptions;
+  /** Whether the worker has a file system provider. */
+  readonly workspace?: boolean;
 }
 
 export class JSONWorker extends WorkerBase<undefined, jsonService.JSONDocument> {
@@ -19,7 +21,7 @@ export class JSONWorker extends WorkerBase<undefined, jsonService.JSONDocument> 
   private _languageService: jsonService.LanguageService;
 
   constructor(ctx: monacoNS.worker.IWorkerContext, createData: CreateData) {
-    super(ctx, (document) => this._languageService.parseJSONDocument(document));
+    super(ctx, createData, (document) => this._languageService.parseJSONDocument(document));
     this._formatSettings = createData.format;
     this._languageService = jsonService.getLanguageService({
       workspaceContext: {

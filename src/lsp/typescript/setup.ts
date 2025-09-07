@@ -125,6 +125,7 @@ async function createWorker(
     },
     importMap,
     types: typesStore.types,
+    workspace: !!workspace,
   };
   const worker = monaco.editor.createWebWorker<TypeScriptWorker>({
     moduleId: "lsp/typescript/worker",

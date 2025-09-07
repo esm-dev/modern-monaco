@@ -17,18 +17,14 @@ export interface CSSDataConfiguration {
 }
 
 export interface CreateData {
-  /**
-   * The language ID.
-   */
+  /** The language ID. */
   readonly language?: "css" | "less" | "scss";
-  /**
-   * Configures the CSS data types known by the langauge service.
-   */
+  /** Configures the CSS data types known by the langauge service.  */
   readonly data?: CSSDataConfiguration;
-  /**
-   * Settings for the CSS formatter.
-   */
+  /** Settings for the CSS formatter. */
   readonly format?: cssService.CSSFormatConfiguration;
+  /** Whether the worker has a file system provider. */
+  readonly workspace?: boolean;
 }
 
 export class CSSWorker extends WorkerBase<undefined, cssService.Stylesheet> {
@@ -36,7 +32,7 @@ export class CSSWorker extends WorkerBase<undefined, cssService.Stylesheet> {
   private _languageService: cssService.LanguageService;
 
   constructor(ctx: monacoNS.worker.IWorkerContext, createData: CreateData) {
-    super(ctx, (document) => this._languageService.parseStylesheet(document));
+    super(ctx, createData, (document) => this._languageService.parseStylesheet(document));
     const data = createData.data;
     const customDataProviders: cssService.ICSSDataProvider[] = [];
     if (data?.dataProviders) {

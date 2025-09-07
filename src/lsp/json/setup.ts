@@ -34,6 +34,7 @@ export async function setup(
       trimFinalNewlines: true,
       ...formattingOptions,
     },
+    workspace: !!workspace,
   };
   const worker = editor.createWebWorker<JSONWorker>({
     moduleId: "lsp/json/worker",
