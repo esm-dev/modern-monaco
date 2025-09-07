@@ -7,13 +7,9 @@ import { WorkerBase } from "../worker-base.ts";
 import { initializeWorker } from "../../editor-worker.js";
 
 export interface HTMLDataConfiguration {
-  /**
-   * Defines whether the standard CSS properties, at-directives, pseudoClasses and pseudoElements are shown.
-   */
+  /**  Defines whether the standard CSS properties, at-directives, pseudoClasses and pseudoElements are shown. */
   useDefaultDataProvider?: boolean;
-  /**
-   * Provides a set of custom data providers.
-   */
+  /**  Provides a set of custom data providers. */
   dataProviders?: { [providerId: string]: htmlService.HTMLDataV1 };
 }
 
