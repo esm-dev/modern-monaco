@@ -93,7 +93,7 @@ export default {
       },
     );
     return new Response(
-      /* html */`
+      /* html */ `
         ${editorHTML}
         <script type="module">
           import { hydrate } from "https://esm.sh/modern-monaco";
@@ -348,7 +348,7 @@ export interface LSPLanguageConfig {
 modern-monaco uses [import maps](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/script/type/importmap) to resolve **bare specifier** imports in JavaScript/TypeScript. By default, modern-monaco detects the `importmap` from the root `index.html` in the workspace.
 
 ```js
-const indexHtml = /* html */`<!DOCTYPE html>
+const indexHtml = /* html */ `<!DOCTYPE html>
 <html>
   <head>
     <script type="importmap">

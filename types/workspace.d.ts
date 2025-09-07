@@ -43,8 +43,11 @@ export interface WorkspaceHistory {
   onChange(callback: (state: WorkspaceHistoryState) => void): () => void;
 }
 
+/** 0: unknown, 1: file, 2: directory, 64: symlink */
+export type FileSystemEntryType = 0 | 1 | 2 | 64;
+
 export interface FileStat {
-  readonly type: number; // 0: unknown, 1: file, 2: directory, 64: symlink
+  readonly type: FileSystemEntryType;
   readonly ctime: number;
   readonly mtime: number;
   readonly version: number;
@@ -63,6 +66,7 @@ export interface FileSystem {
   writeFile(filename: string, content: string | Uint8Array, context?: { isModelContentChange: boolean }): Promise<void>;
   watch(filename: string, options: { recursive: boolean }, handle: FileSystemWatchHandle): () => void;
   watch(filename: string, handle: FileSystemWatchHandle): () => void;
+  walk(): AsyncIterable<[string, FileSystemEntryType]>;
 }
 
 export interface FileSystemWatchHandle {

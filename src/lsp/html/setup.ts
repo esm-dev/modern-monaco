@@ -41,6 +41,7 @@ export async function setup(
         ? { custom: { version: 1.1, tags: languageSettings.customTags as any } }
         : undefined,
     },
+    workspace: !!workspace,
   };
   const htmlWorker = editor.createWebWorker<HTMLWorker>({
     moduleId: "lsp/html/worker",

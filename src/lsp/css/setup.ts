@@ -30,6 +30,7 @@ export async function setup(
       spaceAroundSelectorSeparator: false,
       braceStyle: "collapse",
     },
+    workspace: !!workspace,
   };
   const worker = monaco.editor.createWebWorker<CSSWorker>({
     moduleId: "lsp/css/worker",
