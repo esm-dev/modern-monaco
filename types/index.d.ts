@@ -1,7 +1,7 @@
 import type * as monacoNS from "./monaco.d.ts";
 import type { LSPConfig } from "./lsp.d.ts";
 import type { TextmateGrammarName, TextmateThemeName } from "./textmate.d.ts";
-import type { ErrorNotFound, FileSystem, Workspace } from "./workspace.d.ts";
+import { ErrorNotFound, FileSystem, Workspace } from "./workspace";
 
 type Awaitable<T> = T | Promise<T>;
 type MaybeGetter<T> = Awaitable<MaybeModule<T>> | (() => Awaitable<MaybeModule<T>>);
