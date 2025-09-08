@@ -136,12 +136,6 @@ export function registerBasicFeatures<
         worker.getProxy().then(proxy => proxy.fsNotify(kind, path, type));
       }
     });
-    (async () => {
-      const workerProxy = await worker.getProxy();
-      for await (const [path, type] of workspace.fs.walk()) {
-        workerProxy.fsNotify("create", path, type);
-      }
-    })();
   }
 }
 

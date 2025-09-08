@@ -14,7 +14,7 @@ import {
 
 // ! external modules, don't remove the `.js` extension
 import { cache } from "../../cache.js";
-import { ErrorNotFound } from "../../workspace.js";
+import { ErrorNotFound, walk } from "../../workspace.js";
 import * as ls from "../language-service.js";
 
 type TSWorker = monacoNS.editor.MonacoWebWorker<TypeScriptWorker>;
@@ -125,7 +125,7 @@ async function createWorker(
     },
     importMap,
     types: typesStore.types,
-    workspace: !!workspace,
+    fs: workspace ? await walk(workspace.fs, "/") : undefined,
   };
   const worker = monaco.editor.createWebWorker<TypeScriptWorker>({
     moduleId: "lsp/typescript/worker",

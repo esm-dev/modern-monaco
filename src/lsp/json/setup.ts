@@ -6,6 +6,7 @@ import { parseImportMapFromHtml, parseImportMapFromJson } from "@esm.sh/import-m
 import { schemas } from "./schemas.ts";
 
 // ! external modules, don't remove the `.js` extension
+import { walk } from "../../workspace.js";
 import * as ls from "../language-service.js";
 
 export async function setup(
@@ -34,7 +35,7 @@ export async function setup(
       trimFinalNewlines: true,
       ...formattingOptions,
     },
-    workspace: !!workspace,
+    fs: workspace ? await walk(workspace.fs, "/") : undefined,
   };
   const worker = editor.createWebWorker<JSONWorker>({
     moduleId: "lsp/json/worker",

@@ -13,7 +13,7 @@ import {
   SelectionRange,
   SymbolKind,
 } from "vscode-languageserver-types";
-import { FileType, TextDocument, WorkerBase } from "../worker-base.ts";
+import { TextDocument, WorkerBase, type WorkerCreateData } from "../worker-base.ts";
 
 // ! external modules, don't remove the `.js` extension
 // @ts-expect-error 'libs.js' is generated at build time
@@ -31,12 +31,11 @@ export interface VersionedContent {
   version: number;
 }
 
-export interface CreateData {
+export interface CreateData extends WorkerCreateData {
   compilerOptions: Record<string, unknown>;
   formatOptions: ts.FormatCodeSettings & Pick<ts.UserPreferences, "quotePreference">;
   importMap: ImportMap;
   types: Record<string, VersionedContent>;
-  workspace?: boolean;
 }
 
 /** TypeScriptWorker removes all but the `fileName` property to avoid serializing circular JSON structures. */
@@ -103,7 +102,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
         .filter((key) => key !== "/" && key.includes("/"))
         .map(key => key.split("/")[0]);
     }
-    return this.readDir(path).filter(([_, type]) => type === FileType.Directory).map(([name, _]) => name);
+    return this.readDir(path).filter(([_, type]) => type === 2).map(([name, _]) => name);
   }
 
   readDirectory(
@@ -121,7 +120,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
         .map(key => dirname.length > 0 ? key.slice(dirname.length) : key)
         .filter((key) => !key.includes("/"));
     }
-    return this.readDir(path, extensions).filter(([_, type]) => type === FileType.File).map(([name, _]) => name);
+    return this.readDir(path, extensions).filter(([_, type]) => type === 1).map(([name, _]) => name);
   }
 
   fileExists(filename: string): boolean {

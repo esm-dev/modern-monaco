@@ -1,7 +1,7 @@
 import type monacoNS from "monaco-editor-core";
 import * as htmlService from "vscode-html-languageservice";
 import { getDocumentRegions } from "./embedded-support.ts";
-import { WorkerBase } from "../worker-base.ts";
+import { WorkerBase, type WorkerCreateData } from "../worker-base.ts";
 
 // ! external modules, don't remove the `.js` extension
 import { initializeWorker } from "../../editor-worker.js";
@@ -13,15 +13,13 @@ export interface HTMLDataConfiguration {
   dataProviders?: { [providerId: string]: htmlService.HTMLDataV1 };
 }
 
-export interface CreateData {
+export interface CreateData extends WorkerCreateData {
   /** Settings for the HTML formatter. */
   readonly format?: htmlService.HTMLFormatConfiguration;
   /** Code completion settings. */
   readonly suggest?: htmlService.CompletionConfiguration;
   /** HTML data configuration. */
   readonly data?: HTMLDataConfiguration;
-  /** Whether the worker has a file system provider. */
-  readonly workspace?: boolean;
 }
 
 export class HTMLWorker extends WorkerBase<undefined, htmlService.HTMLDocument> {

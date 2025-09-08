@@ -4,6 +4,7 @@ import type { Workspace } from "~/workspace.ts";
 import type { CreateData, CSSWorker } from "./worker.ts";
 
 // ! external modules, don't remove the `.js` extension
+import { walk } from "../../workspace.js";
 import * as ls from "../language-service.js";
 
 export async function setup(
@@ -30,7 +31,7 @@ export async function setup(
       spaceAroundSelectorSeparator: false,
       braceStyle: "collapse",
     },
-    workspace: !!workspace,
+    fs: workspace ? await walk(workspace.fs, "/") : undefined,
   };
   const worker = monaco.editor.createWebWorker<CSSWorker>({
     moduleId: "lsp/css/worker",

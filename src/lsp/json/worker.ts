@@ -1,19 +1,17 @@
 import type monacoNS from "monaco-editor-core";
 import * as jsonService from "vscode-json-languageservice";
-import { WorkerBase } from "../worker-base.ts";
+import { WorkerBase, type WorkerCreateData } from "../worker-base.ts";
 
 // ! external modules, don't remove the `.js` extension
 import { cache } from "../../cache.js";
 import { initializeWorker } from "../../editor-worker.js";
 
 /** The create data for a new json worker. */
-export interface CreateData {
+export interface CreateData extends WorkerCreateData {
   /** Configures the CSS data types known by the langauge service. */
   readonly settings?: jsonService.LanguageSettings & jsonService.DocumentLanguageSettings;
   /** Settings for the CSS formatter. */
   readonly format?: jsonService.FormattingOptions;
-  /** Whether the worker has a file system provider. */
-  readonly workspace?: boolean;
 }
 
 export class JSONWorker extends WorkerBase<undefined, jsonService.JSONDocument> {

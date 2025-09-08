@@ -43,8 +43,22 @@ export interface WorkspaceHistory {
   onChange(callback: (state: WorkspaceHistoryState) => void): () => void;
 }
 
-/** 0: unknown, 1: file, 2: directory, 64: symlink */
+/**
+ * The type of a file system entry.
+ * - `0`: unknown
+ * - `1`: file
+ * - `2`: directory
+ * - `64`: symlink
+ */
 export type FileSystemEntryType = 0 | 1 | 2 | 64;
+
+export interface FileSystemWatchContext {
+  isModelContentChange?: boolean;
+}
+
+export interface FileSystemWatchHandle {
+  (kind: "create" | "modify" | "remove", filename: string, type?: number, context?: FileSystemWatchContext): void;
+}
 
 export interface FileStat {
   readonly type: FileSystemEntryType;
@@ -63,14 +77,9 @@ export interface FileSystem {
   readTextFile(filename: string): Promise<string>;
   rename(oldName: string, newName: string, options?: { overwrite: boolean }): Promise<void>;
   stat(filename: string): Promise<FileStat>;
-  writeFile(filename: string, content: string | Uint8Array, context?: { isModelContentChange: boolean }): Promise<void>;
+  writeFile(filename: string, content: string | Uint8Array, context?: FileSystemWatchContext): Promise<void>;
   watch(filename: string, options: { recursive: boolean }, handle: FileSystemWatchHandle): () => void;
   watch(filename: string, handle: FileSystemWatchHandle): () => void;
-  walk(): AsyncIterable<[string, FileSystemEntryType]>;
-}
-
-export interface FileSystemWatchHandle {
-  (kind: "create" | "modify" | "remove", filename: string, type?: number, context?: { isModelContentChange: boolean }): void;
 }
 
 export class ErrorNotFound extends Error {}

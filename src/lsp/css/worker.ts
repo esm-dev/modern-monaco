@@ -1,6 +1,6 @@
 import type monacoNS from "monaco-editor-core";
 import * as cssService from "vscode-css-languageservice";
-import { WorkerBase } from "../worker-base.ts";
+import { WorkerBase, type WorkerCreateData } from "../worker-base.ts";
 
 // ! external modules, don't remove the `.js` extension
 import { initializeWorker } from "../../editor-worker.js";
@@ -12,15 +12,13 @@ export interface CSSDataConfiguration {
   dataProviders?: { [providerId: string]: cssService.CSSDataV1 };
 }
 
-export interface CreateData {
+export interface CreateData extends WorkerCreateData {
   /** The language ID. */
   readonly language?: "css" | "less" | "scss";
   /** Configures the CSS data types known by the langauge service.  */
   readonly data?: CSSDataConfiguration;
   /** Settings for the CSS formatter. */
   readonly format?: cssService.CSSFormatConfiguration;
-  /** Whether the worker has a file system provider. */
-  readonly workspace?: boolean;
 }
 
 export class CSSWorker extends WorkerBase<undefined, cssService.Stylesheet> {
