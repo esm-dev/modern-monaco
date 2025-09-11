@@ -862,7 +862,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     if (types) {
       for (const uri of Object.keys(this.#types)) {
         if (!(uri in types)) {
-          this.removeDocumentCache(uri);
+          this.releaseDocument(uri);
         }
       }
       this.#types = types;
