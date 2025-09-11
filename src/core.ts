@@ -389,13 +389,7 @@ async function loadMonaco(
       if (!provider) {
         provider = Object.values(lspProviderMap).find((p) => p.aliases?.includes(label));
       }
-      const url = provider ? (await provider.import()).getWorkerUrl() : monaco.getWorkerUrl();
-      if (label === "typescript") {
-        const tsVersion = lsp?.typescript?.tsVersion;
-        if (tsVersion && (url.hostname === "esm.sh" || url.hostname.endsWith(".esm.sh"))) {
-          url.searchParams.set("deps", `typescript@${tsVersion}`);
-        }
-      }
+      const url = provider ? (await provider.import()).getWorker(lsp?.[label] || {}) : monaco.getWorker();
       const worker = createWebWorker(url, undefined);
       if (!provider) {
         const onMessage = (e: MessageEvent) => {

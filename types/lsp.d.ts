@@ -74,7 +74,7 @@ export interface LSP {
     formattingOptions?: Record<string, unknown>,
     workspace?: Workspace,
   ) => Promise<void>;
-  getWorkerUrl: () => URL;
+  getWorker: () => URL | Worker;
 }
 
 export interface LSPProvider {
