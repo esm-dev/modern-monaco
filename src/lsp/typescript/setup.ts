@@ -15,7 +15,7 @@ import {
 // ! external modules, don't remove the `.js` extension
 import { cache } from "../../cache.js";
 import { ErrorNotFound, walk } from "../../workspace.js";
-import * as ls from "../language-service.js";
+import * as client from "../client.js";
 
 type TSWorker = monacoNS.editor.MonacoWebWorker<TypeScriptWorker>;
 type CompilerOptions = { [key: string]: ts.CompilerOptionsValue };
@@ -38,10 +38,10 @@ export async function setup(
   }
 
   // register language features
-  ls.registerBasicFeatures(languageId, worker, [".", "/", '"', "'", "<"], workspace);
-  ls.registerAutoComplete(languageId, worker, [">", "/"]);
-  ls.registerSignatureHelp(languageId, worker, ["(", ","]);
-  ls.registerCodeAction(languageId, worker);
+  client.registerBasicFeatures(languageId, worker, [".", "/", '"', "'", "<"], workspace);
+  client.registerAutoComplete(languageId, worker, [">", "/"]);
+  client.registerSignatureHelp(languageId, worker, ["(", ","]);
+  client.registerCodeAction(languageId, worker);
 
   // unimplemented features
   // languages.registerOnTypeFormattingEditProvider(languageId, new lfs.FormatOnTypeAdapter(worker));

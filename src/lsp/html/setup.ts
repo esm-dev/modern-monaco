@@ -5,7 +5,7 @@ import type { CreateData, HTMLWorker } from "./worker.ts";
 
 // ! external modules, don't remove the `.js` extension
 import { walk } from "../../workspace.js";
-import * as ls from "../language-service.js";
+import * as client from "../client.js";
 
 export async function setup(
   monaco: typeof monacoNS,
@@ -48,16 +48,16 @@ export async function setup(
     moduleId: "lsp/html/worker",
     label: languageId,
     createData,
-    host: ls.createHost(workspace),
+    host: client.createHost(workspace),
   });
-  const workerWithEmbeddedLanguages = ls.createWorkerWithEmbeddedLanguages(htmlWorker);
+  const workerWithEmbeddedLanguages = client.createWorkerWithEmbeddedLanguages(htmlWorker);
 
   // register language features
-  ls.registerEmbedded(languageId, workerWithEmbeddedLanguages, ["css", "javascript", "importmap"]);
-  ls.registerBasicFeatures(languageId, workerWithEmbeddedLanguages, ["<", "/", "=", '"'], workspace);
-  ls.registerAutoComplete(languageId, workerWithEmbeddedLanguages, [">", "/", "="]);
-  ls.registerColorPresentation(languageId, workerWithEmbeddedLanguages); // css color presentation
-  ls.registerDocumentLinks(languageId, workerWithEmbeddedLanguages);
+  client.registerEmbedded(languageId, workerWithEmbeddedLanguages, ["css", "javascript", "importmap"]);
+  client.registerBasicFeatures(languageId, workerWithEmbeddedLanguages, ["<", "/", "=", '"'], workspace);
+  client.registerAutoComplete(languageId, workerWithEmbeddedLanguages, [">", "/", "="]);
+  client.registerColorPresentation(languageId, workerWithEmbeddedLanguages); // css color presentation
+  client.registerDocumentLinks(languageId, workerWithEmbeddedLanguages);
 
   // register code lens provider for import maps
   languages.registerCodeLensProvider(languageId, {
