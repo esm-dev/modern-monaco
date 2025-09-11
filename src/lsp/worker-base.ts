@@ -150,7 +150,7 @@ export class WorkerBase<Host = undefined, LanguageDocument = undefined> {
 
   // #region methods used by the host
 
-  async removeDocumentCache(uri: string): Promise<void> {
+  async releaseDocument(uri: string): Promise<void> {
     this.#documentCache.delete(uri);
   }
 
