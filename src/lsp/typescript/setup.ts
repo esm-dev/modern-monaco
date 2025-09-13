@@ -52,7 +52,7 @@ export async function setup(
 export function getWorker(config: { tsVersion?: string }) {
   try {
     if (new URL(import.meta.url).hostname === "esm.sh" || new URL(import.meta.url).hostname.endsWith(".esm.sh")) {
-      return new Worker(new URL(`./worker.js?deps=typescript@${config.tsVersion}`, import.meta.url), { type: "module" });
+      return new Worker(`./worker.mjs?deps=typescript@${config.tsVersion}`, { type: "module" });
     }
   } catch (e) {
     console.error("import.meta.url not available", import.meta.url, e);
