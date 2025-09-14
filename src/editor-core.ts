@@ -179,11 +179,8 @@ export function showQuickPick(items: any[], options: QuickPickOptions = {}) {
   });
 }
 
-export function getWorkerUrl() {
-  const i = () => import("./editor-worker.js"); // trick for bundlers
-  const m = getWorkerUrl.toString().match(/import\(['"](.+?)['"]\)/);
-  if (!m) throw new Error("worker url not found", { cause: i });
-  return new URL(m[1], import.meta.url);
+export function getWorker() {
+  return new Worker(new URL("./editor-worker.js", import.meta.url), { type: "module" });
 }
 
 export const languageConfigurationAliases: Record<string, string> = {
