@@ -37,6 +37,9 @@ export async function initShiki({
   if (languages?.length) {
     const set = new Set<string>();
     languages.forEach((l) => {
+      if (["plaintext", "text"].includes(l)) {
+        return;
+      }
       if (typeof l === "string" || l instanceof URL) {
         if (!set.has(l.toString())) {
           const g = grammars.find((g) => g.name === l);

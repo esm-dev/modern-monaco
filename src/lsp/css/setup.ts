@@ -47,9 +47,6 @@ export async function setup(
   client.registerDocumentLinks(languageId, worker);
 }
 
-export function getWorkerUrl() {
-  const i = () => import("./worker.js"); // trick for bundlers
-  const m = getWorkerUrl.toString().match(/import\(['"](.+?)['"]\)/);
-  if (!m) throw new Error("worker url not found", { cause: i });
-  return new URL(m[1], import.meta.url);
+export function getWorker() {
+  return new Worker(new URL("./worker.js", import.meta.url), { type: "module" });
 }

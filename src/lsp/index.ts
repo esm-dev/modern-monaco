@@ -10,7 +10,7 @@ export interface LSP {
     langaugeSettings?: Record<string, unknown>,
     formattingOptions?: FormattingOptions,
   ) => void | Promise<void>;
-  getWorkerUrl: () => URL;
+  getWorker: (config: any) => URL | Worker;
 }
 
 export interface LSPProvider {
@@ -45,7 +45,10 @@ export const builtinLSPProviders: Record<string, LSPProvider> = {
   },
 };
 
-export function createWebWorker(url: URL, name?: string): Worker {
+export function createWebWorker(url: URL | Worker, name?: string): Worker {
+  if (url instanceof Worker) {
+    return url;
+  }
   let workerUrl: URL | string = url;
   // create a blob url for cross-origin workers if the url is not same-origin
   if (url.origin !== location.origin) {

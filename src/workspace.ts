@@ -90,7 +90,7 @@ export class Workspace implements IWorkspace {
 
   async openTextDocument(uri: string | URL, content?: string): Promise<monacoNS.editor.ITextModel> {
     const monaco = await this._monaco.promise;
-    return this._openTextDocument(uri, monaco.editor.getEditors()[0]);
+    return this._openTextDocument(uri, monaco.editor.getEditors()[0], undefined, content);
   }
 
   // @internal
@@ -98,15 +98,16 @@ export class Workspace implements IWorkspace {
     uri: string | URL,
     editor?: monacoNS.editor.ICodeEditor,
     selectionOrPosition?: monacoNS.IRange | monacoNS.IPosition,
+    readonlyContent?: string,
   ): Promise<monacoNS.editor.ITextModel> {
     const monaco = await this._monaco.promise;
     const fs = this._fs;
     const href = toURL(uri).href;
-    const content = await fs.readTextFile(href);
+    const content = readonlyContent ?? await fs.readTextFile(href);
     const viewState = await this.viewState.get(href);
     const modelUri = monaco.Uri.parse(href);
     const model = monaco.editor.getModel(modelUri) ?? monaco.editor.createModel(content, undefined, modelUri);
-    if (!Reflect.has(model, "__OB__")) {
+    if (!Reflect.has(model, "__OB__") && typeof readonlyContent !== "string") {
       const persist = createPersistTask(() => fs.writeFile(href, model.getValue(), { isModelContentChange: true }));
       const disposable = model.onDidChangeContent(persist);
       const unwatch = fs.watch(href, (kind, _, __, context) => {
@@ -128,7 +129,13 @@ export class Workspace implements IWorkspace {
     }
     if (editor) {
       editor.setModel(model);
-      editor.updateOptions({ readOnly: false });
+      editor.updateOptions({ readOnly: typeof readonlyContent === "string" });
+      if (typeof readonlyContent === "string") {
+        const disposable = editor.onDidChangeModel(() => {
+          model.dispose();
+          disposable.dispose();
+        })
+      }
       if (selectionOrPosition) {
         if ("startLineNumber" in selectionOrPosition) {
           editor.setSelection(selectionOrPosition);
