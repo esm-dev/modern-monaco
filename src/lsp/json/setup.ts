@@ -161,5 +161,5 @@ async function searchPackagesFromNpm(keyword: string, size = 20) {
 }
 
 export function getWorker() {
-  return new Worker(new URL("./worker.js", import.meta.url), { type: "module" });
+  return new Worker(new URL("./worker.mjs", import.meta.url), { type: "module" });
 }

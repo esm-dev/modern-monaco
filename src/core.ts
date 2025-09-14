@@ -389,7 +389,7 @@ async function loadMonaco(
       if (!lsp) {
         lsp = Object.values(lspProviderMap).find((p) => p.aliases?.includes(label));
       }
-      let worker = lsp ? (await lsp.import()).getWorker() : monaco.getWorker();
+      let worker = lsp ? (await lsp.import()).getWorker() : monaco.getEditorWorker();
       if (worker instanceof URL) {
         worker = createWebWorker(worker);
       }

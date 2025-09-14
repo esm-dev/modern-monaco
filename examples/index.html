@@ -197,7 +197,7 @@
   <script type="importmap">
     {
       "imports": {
-        "modern-monaco": "/modern-monaco/index.js"
+        "modern-monaco": "/modern-monaco/index.mjs"
       }
     }
   </script>
@@ -246,7 +246,7 @@
 
   <script type="module">
     import { lazy } from 'modern-monaco';
-    import { workspaceWithBrowserHistory as workspace } from '/js/workspace.js';
+    import { workspaceWithBrowserHistory as workspace } from '/js/workspace.mjs';
 
     const folderButton = document.querySelector('button.folder')
     const selector = document.querySelector('ul.selector')

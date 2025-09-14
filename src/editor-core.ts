@@ -1,7 +1,7 @@
 import type { InputBoxOptions, QuickPickItem, QuickPickOptions } from "monaco-editor-core";
 import { editor, languages, Uri } from "monaco-editor-core";
-import { IQuickInputService } from "monaco-editor-core/esm/vs/platform/quickinput/common/quickInput.js";
-import { StandaloneServices } from "monaco-editor-core/esm/vs/editor/standalone/browser/standaloneServices.js";
+import { IQuickInputService } from "monaco-editor-core/esm/vs/platform/quickinput/common/quickInput";
+import { StandaloneServices } from "monaco-editor-core/esm/vs/editor/standalone/browser/standaloneServices";
 import languageConfigurations from "../language-configurations.json" with { type: "json" };
 
 const defaultEditorOptions: editor.IStandaloneEditorConstructionOptions = {
@@ -179,8 +179,8 @@ export function showQuickPick(items: any[], options: QuickPickOptions = {}) {
   });
 }
 
-export function getWorker() {
-  return new Worker(new URL("./editor-worker.js", import.meta.url), { type: "module" });
+export function getEditorWorker() {
+  return new Worker(new URL("./editor-worker.mjs", import.meta.url), { type: "module" });
 }
 
 export const languageConfigurationAliases: Record<string, string> = {
