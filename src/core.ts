@@ -385,13 +385,15 @@ async function loadMonaco(
   // set the global `MonacoEnvironment` variable
   Reflect.set(globalThis, "MonacoEnvironment", {
     getWorker: async (_workerId: string, label: string) => {
-      let provider: LSPProvider | undefined = lspProviderMap[label];
-      if (!provider) {
-        provider = Object.values(lspProviderMap).find((p) => p.aliases?.includes(label));
+      let lsp: LSPProvider | undefined = lspProviderMap[label];
+      if (!lsp) {
+        lsp = Object.values(lspProviderMap).find((p) => p.aliases?.includes(label));
       }
-      const url = provider ? (await provider.import()).getWorker(lsp?.[label] || {}) : monaco.getWorker();
-      const worker = createWebWorker(url, undefined);
-      if (!provider) {
+      let worker = lsp ? (await lsp.import()).getWorker() : monaco.getWorker();
+      if (worker instanceof URL) {
+        worker = createWebWorker(worker);
+      }
+      if (!lsp) {
         const onMessage = (e: MessageEvent) => {
           onDidEditorWorkerResolve?.();
           worker.removeEventListener("message", onMessage);

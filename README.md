@@ -337,8 +337,6 @@ export interface LSPLanguageConfig {
     compilerOptions?: ts.CompilerOptions;
     /** The global import map. */
     importMap?: ImportMap;
-    /** The version of TypeScript from the CDN. Default: ">= 5.0.0" */
-    tsVersion?: string;
   };
 }
 ```

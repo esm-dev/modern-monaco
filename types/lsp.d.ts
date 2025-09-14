@@ -66,7 +66,7 @@ export interface ITagData extends IData {
   void?: boolean;
 }
 
-export interface LSP {
+export interface LSPModule {
   setup: (
     monaco: typeof monacoNS,
     languageId: string,
@@ -74,13 +74,13 @@ export interface LSP {
     formattingOptions?: Record<string, unknown>,
     workspace?: Workspace,
   ) => Promise<void>;
-  getWorker: () => URL | Worker;
+  getWorker: () => Worker;
 }
 
 export interface LSPProvider {
   aliases?: string[];
   syntaxes?: any[];
-  import: () => Promise<LSP>;
+  import: () => Promise<LSPModule>;
 }
 
 export interface LSPConfig extends LSPLanguageConfig {
@@ -105,8 +105,6 @@ declare global {
       compilerOptions?: ts.CompilerOptions;
       /** The global import maps. */
       importMap?: ImportMap;
-      /** The version of the typescript imported from esm.sh CDN. Default: ">= 5.5.0" */
-      tsVersion?: string;
     };
   }
 }
