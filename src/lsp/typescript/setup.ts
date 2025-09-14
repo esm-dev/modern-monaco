@@ -49,15 +49,8 @@ export async function setup(
   // languages.registerLinkedEditingRangeProvider(languageId, new lfs.LinkedEditingRangeAdapter(worker));
 }
 
-export function getWorker(config: { tsVersion?: string }) {
-  try {
-    if (new URL(import.meta.url).hostname === "esm.sh" || new URL(import.meta.url).hostname.endsWith(".esm.sh")) {
-      return new Worker(`./worker.mjs?deps=typescript@${config.tsVersion}`, { type: "module" });
-    }
-  } catch (e) {
-    console.error("import.meta.url not available", import.meta.url, e);
-  }
-  return new Worker(new URL("./worker.js", import.meta.url), { type: "module" });
+export function getWorker() {
+  return new Worker(new URL("./worker.mjs", import.meta.url), { type: "module" });
 }
 
 /** Create the typescript worker. */

@@ -22,7 +22,7 @@
   <script type="importmap">
     {
       "imports": {
-        "modern-monaco": "/modern-monaco/index.js"
+        "modern-monaco": "/modern-monaco/index.mjs"
       }
     }
   </script>
@@ -32,7 +32,7 @@
   {SSR}
   <script type="module">
     import { hydrate } from 'modern-monaco';
-    import { workspace } from '/js/workspace.js';
+    import { workspace } from '/js/workspace.mjs';
     hydrate({ workspace });
   </script>
 </body>

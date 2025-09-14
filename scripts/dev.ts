@@ -2,7 +2,7 @@ async function serveDist(url: URL, req: Request) {
   try {
     const fileUrl = new URL("../dist" + url.pathname, import.meta.url);
     let body = (await Deno.open(fileUrl)).readable;
-    if (url.pathname === "/lsp/typescript/worker.js") {
+    if (url.pathname === "/lsp/typescript/worker.mjs") {
       let replaced = false;
       body = body.pipeThrough(
         new TransformStream<Uint8Array>({
@@ -49,7 +49,7 @@ async function servePages(url: URL, req: Request) {
   try {
     const fileUrl = new URL("../examples/" + filename, import.meta.url);
     if (filename === "ssr.html") {
-      const { default: ssr } = await import("../examples/js/ssr.js");
+      const { default: ssr } = await import("../examples/js/ssr.mjs");
       return ssr.fetch(req);
     }
     const headers = new Headers({
@@ -70,7 +70,7 @@ function getContentType(pathname: string) {
   if (pathname.endsWith(".css")) {
     return "text/css; charset=utf-8";
   }
-  if (pathname.endsWith(".js")) {
+  if (pathname.endsWith(".js") || pathname.endsWith(".mjs")) {
     return "application/javascript; charset=utf-8";
   }
   if (pathname.endsWith(".html")) {

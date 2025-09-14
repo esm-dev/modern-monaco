@@ -98,5 +98,5 @@ export async function setup(
 }
 
 export function getWorker() {
-  return new Worker(new URL("./worker.js", import.meta.url), { type: "module" });
+  return new Worker(new URL("./worker.mjs", import.meta.url), { type: "module" });
 }

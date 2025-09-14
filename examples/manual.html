@@ -22,7 +22,7 @@
   <script type="importmap">
     {
       "imports": {
-        "modern-monaco": "/modern-monaco/index.js"
+        "modern-monaco": "/modern-monaco/index.mjs"
       }
     }
   </script>
@@ -32,7 +32,7 @@
   <div id="editor"></div>
   <script type="module">
     import { init } from 'modern-monaco';
-    import { workspace } from '/js/workspace.js';
+    import { workspace } from '/js/workspace.mjs';
     const monaco = await init({ workspace });
     const editor = monaco.editor.create(document.getElementById("editor"), {
       padding: { top: 8, bottom: 8 },

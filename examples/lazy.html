@@ -22,7 +22,7 @@
   <script type="importmap">
     {
       "imports": {
-        "modern-monaco": "/modern-monaco/index.js"
+        "modern-monaco": "/modern-monaco/index.mjs"
       }
     }
   </script>
@@ -32,7 +32,7 @@
   <monaco-editor file="src/App.tsx"></monaco-editor>
   <script type="module">
     import { lazy } from 'modern-monaco';
-    import { workspace } from '/js/workspace.js';
+    import { workspace } from '/js/workspace.mjs';
     lazy({ workspace });
   </script>
 </body>

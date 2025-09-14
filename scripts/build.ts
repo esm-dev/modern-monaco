@@ -4,8 +4,6 @@ import { themes as shikiThemes } from "../node_modules/tm-themes/index.js";
 import { wasmBinary } from "../node_modules/@shikijs/engine-oniguruma/dist/wasm-inlined.mjs";
 
 const build = (entryPoints: string[], define?: Record<string, string>) => {
-  const buildEditorCore = entryPoints.includes("src/editor-core.ts");
-  const buildShiki = entryPoints.includes("src/shiki.ts");
   return esbuild({
     target: "esnext",
     format: "esm",
@@ -18,21 +16,33 @@ const build = (entryPoints: string[], define?: Record<string, string>) => {
     loader: {
       ".ttf": "dataurl",
     },
-    external: [
-      "typescript",
-      "*/editor-core.js",
-      "*/editor-worker.js",
-      "*/language-service.js",
-      "*/libs.js",
-      "*/onig.wasm",
-      "*/setup.js",
-      "*/shiki-wasm.js",
-      "*/shiki.js",
-      "*/util.js",
-      "*/worker.js",
-      buildShiki ? "" : "*/core.js",
-      buildEditorCore ? "" : "*/workspace.js",
-      buildEditorCore ? "" : "*/cache.js",
+    outExtension: {
+      ".js": ".mjs",
+    },
+    plugins: [
+      {
+        name: "external",
+        setup(build: any) {
+          build.onResolve({ filter: /.*/ }, (args: { path: string; resolveDir: string }) => {
+            if (args.path === "typescript" || args.path.endsWith(".wasm")) {
+              return {
+                path: args.path,
+                external: true,
+              };
+            }
+            if (
+              args.path.endsWith(".js") && args.path.startsWith(".")
+              && args.resolveDir.startsWith(new URL(import.meta.resolve("../src")).pathname)
+            ) {
+              return {
+                path: args.path.replace(".js", ".mjs"),
+                external: true,
+              };
+            }
+            return {};
+          });
+        },
+      },
     ],
     entryPoints,
   });
@@ -53,12 +63,12 @@ const bundleTypescriptLibs = async () => {
     })),
   );
   await Deno.writeTextFile(
-    "dist/lsp/typescript/libs.js",
+    "dist/lsp/typescript/libs.mjs",
     "export default " + JSON.stringify(libs, undefined, 2),
   );
 };
 const modifyEditorCore = async () => {
-  const js = await Deno.readTextFile("dist/editor-core.js");
+  const js = await Deno.readTextFile("dist/editor-core.mjs");
   const ret = await esbuild({
     entryPoints: ["dist/editor-core.css"],
     minify: true,
@@ -67,7 +77,7 @@ const modifyEditorCore = async () => {
   const css = ret.outputFiles[0].text;
   const addonCss =
     `.monaco-inputbox input{outline:1px solid var(--vscode-focusBorder)} .rename-box input{color:inherit;font-family:inherit;font-size:100%;}.monaco-editor .rename-box .rename-input-with-button{width:auto}`;
-  await Deno.writeTextFile("dist/editor-core.js", js + "\nexport const CSS = " + JSON.stringify(css + addonCss));
+  await Deno.writeTextFile("dist/editor-core.mjs", js + "\nexport const CSS = " + JSON.stringify(css + addonCss));
 };
 const copyDts = (...files: [src: string, dest: string][]) => {
   return Promise.all(files.map(([src, dest]) => Deno.copyFile("node_modules/" + src, "types/" + dest)));

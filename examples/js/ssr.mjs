@@ -1,5 +1,5 @@
-import { renderToWebComponent } from "../../dist/ssr/index.js";
-import { files } from "./files.js";
+import { renderToWebComponent } from "../../dist/ssr/index.mjs";
+import { files } from "./files.mjs";
 
 const filename = "src/App.tsx";
 

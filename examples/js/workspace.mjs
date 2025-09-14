@@ -1,5 +1,5 @@
 import { Workspace } from "modern-monaco";
-import { files } from "./files.js";
+import { files } from "./files.mjs";
 
 export const workspace = new Workspace({
   name: "test",

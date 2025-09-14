@@ -2,7 +2,7 @@ import type monacoNS from "monaco-editor-core";
 import type { FormattingOptions } from "vscode-languageserver-types";
 import type { Workspace } from "~/workspace.ts";
 
-export interface LSP {
+export interface LSPModule {
   setup: (
     monaco: typeof monacoNS,
     languageId: string,
@@ -10,18 +10,17 @@ export interface LSP {
     langaugeSettings?: Record<string, unknown>,
     formattingOptions?: FormattingOptions,
   ) => void | Promise<void>;
-  getWorker: (config: any) => URL | Worker;
+  getWorker: () => Worker;
 }
 
 export interface LSPProvider {
   aliases?: string[];
-  import: () => Promise<LSP>;
+  import: () => Promise<LSPModule>;
 }
 
 export interface LSPConfig {
   providers?: Record<string, LSPProvider>;
   formatting?: FormattingOptions;
-  typescript?: { tsVersion?: string };
 }
 
 export const builtinLSPProviders: Record<string, LSPProvider> = {
@@ -45,10 +44,7 @@ export const builtinLSPProviders: Record<string, LSPProvider> = {
   },
 };
 
-export function createWebWorker(url: URL | Worker, name?: string): Worker {
-  if (url instanceof Worker) {
-    return url;
-  }
+export function createWebWorker(url: URL, name?: string): Worker {
   let workerUrl: URL | string = url;
   // create a blob url for cross-origin workers if the url is not same-origin
   if (url.origin !== location.origin) {
