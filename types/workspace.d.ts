@@ -14,8 +14,13 @@ export interface WorkspaceInit {
   customFS?: FileSystem;
 }
 
-export class Workspace {
-  constructor(options?: WorkspaceInit);
+// When hydrating multiple workspaces, setting the name is required
+export interface WorkspaceInitMultiple extends WorkspaceInit {
+  name: string;
+}
+
+export class Workspace<WorkspaceInitType extends WorkspaceInit | WorkspaceInitMultiple> {
+  constructor(options?: WorkspaceInitType);
   readonly entryFile?: string;
   readonly fs: FileSystem;
   readonly history: WorkspaceHistory;

@@ -2,6 +2,7 @@ import type monacoNS from "monaco-editor-core";
 import type { FormattingOptions } from "vscode-languageserver-types";
 import type { Workspace } from "~/workspace.ts";
 import type { CreateData, HTMLWorker } from "./worker.ts";
+import { WorkspaceInit } from "../../../types/workspace";
 
 // ! external modules, don't remove the `.js` extension
 import * as ls from "../language-service.js";
@@ -11,7 +12,7 @@ export async function setup(
   languageId: string,
   languageSettings?: Record<string, unknown>,
   formattingOptions?: FormattingOptions,
-  workspace?: Workspace,
+  workspace?: Workspace<WorkspaceInit>,
 ) {
   const { editor, languages } = monaco;
   const { tabSize, insertSpaces, insertFinalNewline, trimFinalNewlines } = formattingOptions ?? {};

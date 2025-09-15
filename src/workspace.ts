@@ -7,8 +7,10 @@ import type {
   WorkspaceHistory,
   WorkspaceHistoryState,
   WorkspaceInit,
+  WorkspaceInitMultiple,
   WorkspaceViewState,
 } from "../types/workspace.d.ts";
+import { WorkspaceURI } from "./multi-workspace.ts";
 
 // ! external modules, don't remove the `.js` extension
 import {
@@ -26,20 +28,22 @@ import {
 } from "./util.js";
 
 /** class Workspace implements IWorkspace */
-export class Workspace implements IWorkspace {
+export class Workspace<T extends WorkspaceInit | WorkspaceInitMultiple> implements IWorkspace<T> {
   private _monaco: { promise: Promise<typeof monacoNS>; resolve: (value: typeof monacoNS) => void; reject: (reason: any) => void };
   private _history: WorkspaceHistory;
   private _fs: FileSystem;
   private _viewState: WorkspaceViewState;
   private _entryFile?: string;
+  private _name: string;
 
-  constructor(options: WorkspaceInit = {}) {
+  constructor(options: T = {} as T) {
     const { name = "default", browserHistory, initialFiles, entryFile, customFS } = options;
 
     this._monaco = promiseWithResolvers();
     this._fs = customFS ?? new FS("modern-monaco-workspace(" + name + ")");
     this._viewState = new WorkspaceStateStorage<monacoNS.editor.ICodeEditorViewState>("modern-monaco-state(" + name + ")");
     this._entryFile = entryFile;
+    this._name = name;
 
     if (initialFiles) {
       for (const [name, data] of Object.entries(initialFiles)) {
@@ -84,6 +88,10 @@ export class Workspace implements IWorkspace {
     return this._history;
   }
 
+  get name() {
+    return this._name;
+  }
+
   get viewState() {
     return this._viewState;
   }
@@ -105,8 +113,25 @@ export class Workspace implements IWorkspace {
     const href = toURL(uri).href;
     const content = readonlyContent ?? await fs.readTextFile(href);
     const viewState = await this.viewState.get(href);
-    const modelUri = monaco.Uri.parse(href);
-    const model = monaco.editor.getModel(modelUri) ?? monaco.editor.createModel(content, undefined, modelUri);
+
+    // Create workspace-scoped URIs to ensure model isolation
+    // For non-default workspaces, prefix the path with /workspace/{name}
+    let modelUri = monaco.Uri.parse(href);
+    if (this._name !== 'default') {
+      const transformedPath = WorkspaceURI.addWorkspacePrefix(modelUri.path, this._name);
+      modelUri = modelUri.with({ path: transformedPath });
+    }
+
+    // Always create a new model with the correct content for this workspace
+    // Check if model already exists and has different content
+    let model = monaco.editor.getModel(modelUri);
+    if (!model) {
+      // Create new model with correct content
+      model = monaco.editor.createModel(content, undefined, modelUri);
+    } else if (model.getValue() !== content) {
+      // Update existing model with correct content for this workspace
+      model.setValue(content);
+    }
     if (!Reflect.has(model, "__OB__") && typeof readonlyContent !== "string") {
       const persist = createPersistTask(() => fs.writeFile(href, model.getValue(), { isModelContentChange: true }));
       const disposable = model.onDidChangeContent(persist);

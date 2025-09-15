@@ -1,6 +1,7 @@
 import type Monaco from "monaco-editor-core";
 import type { Workspace } from "~/workspace.ts";
 import * as lst from "vscode-languageserver-types";
+import { WorkspaceInit } from "../../types/workspace";
 
 // ! external modules, don't remove the `.js` extension
 import { cache } from "../cache.js";
@@ -12,18 +13,31 @@ export function init(monacoNS: typeof Monaco): void {
   monaco = monacoNS;
 }
 
+/** Strip workspace prefix from URI to get the actual file path */
+function stripWorkspacePrefix(uri: string): string {
+  // Match pattern: /workspace/{workspaceName}/actualPath
+  const workspaceMatch = uri.match(/^\/workspace\/[^\/]+(.*)$/);
+  return workspaceMatch ? workspaceMatch[1] : uri;
+}
+
 /** create a worker host with the given workspace. */
-export function createHost(workspace?: Workspace) {
+export function createHost(workspace?: Workspace<WorkspaceInit>) {
   return workspace
     ? {
       fs_readDirectory: (uri: string) => {
-        return workspace.fs.readDirectory(uri);
+        // Strip workspace prefix to access the actual directory
+        const actualUri = stripWorkspacePrefix(uri);
+        return workspace.fs.readDirectory(actualUri);
       },
       fs_stat: (uri: string) => {
-        return workspace.fs.stat(uri);
+        // Strip workspace prefix to access the actual file
+        const actualUri = stripWorkspacePrefix(uri);
+        return workspace.fs.stat(actualUri);
       },
       fs_getContent: (uri: string): Promise<string> => {
-        return workspace.fs.readTextFile(uri);
+        // Strip workspace prefix to access the actual file content
+        const actualUri = stripWorkspacePrefix(uri);
+        return workspace.fs.readTextFile(actualUri);
       },
     }
     : Object.create(null);
@@ -76,7 +90,7 @@ export function registerBasicFeatures<
   languageId: string,
   worker: Monaco.editor.MonacoWebWorker<T>,
   completionTriggerCharacters: string[],
-  workspace?: Workspace,
+  workspace?: Workspace<WorkspaceInit>,
 ) {
   const { editor, languages } = monaco;
 

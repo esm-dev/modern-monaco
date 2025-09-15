@@ -35,8 +35,10 @@ export async function renderToString(input: RenderInput, options?: RenderOptions
 /** Render a `<monaco-editor>` component in HTML string. */
 export async function renderToWebComponent(input: RenderInput, options?: RenderOptions): Promise<string> {
   const prerender = await renderToString(input, options);
+  const workspaceName = options?.workspace ? ` workspace="${options.workspace}"` : "";
+
   return (
-    "<monaco-editor>"
+    "<monaco-editor" + workspaceName + ">"
     + '<script type="application/json" class="monaco-editor-options">'
     + JSON.stringify([input, options]).replaceAll("/", "\\/")
     + "</script>"

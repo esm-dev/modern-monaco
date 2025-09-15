@@ -24,7 +24,6 @@ export default function App() {
 `
 
 export const files = {
-  "src/greeting.ts": "export const message = \"Hello world!\" as const;",
   "src/App.tsx": appTsx,
   "style/style.css": [
     "h1 {",

@@ -16,32 +16,42 @@ import {
 import { cache } from "../../cache.js";
 import { ErrorNotFound } from "../../workspace.js";
 import * as ls from "../language-service.js";
+import { createHost } from "../language-service.js";
+import { WorkspaceInit } from "../../../types/workspace.js";
 
 type TSWorker = monacoNS.editor.MonacoWebWorker<TypeScriptWorker>;
 type CompilerOptions = { [key: string]: ts.CompilerOptionsValue };
 
 // javascript and typescript share the same worker
-let worker: TSWorker | Promise<TSWorker> | null = null;
+let workspaceWorkers: Record<string, TSWorker | Promise<TSWorker>> = {};
 
 export async function setup(
   monaco: typeof monacoNS,
   languageId: string,
   languageSettings?: Record<string, unknown>,
   formattingOptions?: FormattingOptions & { semicolon?: "ignore" | "insert" | "remove" },
-  workspace?: Workspace,
+  workspace?: Workspace<WorkspaceInit>,
 ) {
-  if (!worker) {
-    worker = createWorker(monaco, workspace, languageSettings, formattingOptions);
+  let usedWorker = workspace?.name ? workspaceWorkers[workspace.name] : workspaceWorkers.default;
+
+  if (!usedWorker) {
+    if (workspace?.name) {
+      workspaceWorkers[workspace.name] = createWorker(monaco, workspace, languageSettings, formattingOptions);
+      usedWorker = workspaceWorkers[workspace.name];
+    } else {
+      workspaceWorkers.default = createWorker(monaco, workspace, languageSettings, formattingOptions);
+      usedWorker = workspaceWorkers.default;
+    }
   }
-  if (worker instanceof Promise) {
-    worker = await worker;
+  if (usedWorker instanceof Promise) {
+    usedWorker = await usedWorker;
   }
 
   // register language features
-  ls.registerBasicFeatures(languageId, worker, [".", "/", '"', "'", "<"], workspace);
-  ls.registerAutoComplete(languageId, worker, [">", "/"]);
-  ls.registerSignatureHelp(languageId, worker, ["(", ","]);
-  ls.registerCodeAction(languageId, worker);
+  ls.registerBasicFeatures(languageId, usedWorker, [".", "/", '"', "'", "<"], workspace);
+  ls.registerAutoComplete(languageId, usedWorker, [">", "/"]);
+  ls.registerSignatureHelp(languageId, usedWorker, ["(", ","]);
+  ls.registerCodeAction(languageId, usedWorker);
 
   // unimplemented features
   // languages.registerOnTypeFormattingEditProvider(languageId, new lfs.FormatOnTypeAdapter(worker));
@@ -52,7 +62,7 @@ export async function setup(
 /** Create the typescript worker. */
 async function createWorker(
   monaco: typeof monacoNS,
-  workspace?: Workspace,
+  workspace?: Workspace<WorkspaceInit>,
   languageSettings?: Record<string, unknown>,
   formattingOptions?: FormattingOptions & { semicolon?: "ignore" | "insert" | "remove" },
 ) {
@@ -123,31 +133,37 @@ async function createWorker(
   const worker = monaco.editor.createWebWorker<TypeScriptWorker>({
     worker: getWorker(createData),
     keepIdleModels: true,
-    host: {
-      openModel: async (uri: string): Promise<boolean> => {
-        if (!workspace) {
-          throw new Error("Workspace is undefined.");
-        }
-        try {
-          await workspace._openTextDocument(uri);
-        } catch (error) {
-          if (error instanceof ErrorNotFound) {
-            return false;
+    host: (() => {
+      const hostFunctions = createHost(workspace);
+
+      return {
+        openModel: async (uri: string): Promise<boolean> => {
+          if (!workspace) {
+            throw new Error("Workspace is undefined.");
           }
-          throw error;
-        }
-        return true;
-      },
-      refreshDiagnostics: async (uri: string) => {
-        let model = monaco.editor.getModel(uri);
-        if (model && model.uri.path.includes(".(embedded).")) {
-          model = monaco.editor.getModel(model.uri.toString(true).split(".(embedded).")[0]);
-        }
-        if (model) {
-          Reflect.get(model, "refreshDiagnostics")?.();
-        }
-      },
-    } satisfies Host,
+          try {
+            await workspace._openTextDocument(uri);
+          } catch (error) {
+            if (error instanceof ErrorNotFound) {
+              return false;
+            }
+            throw error;
+          }
+          return true;
+        },
+        refreshDiagnostics: async (uri: string) => {
+          let model = monaco.editor.getModel(uri);
+          if (model && model.uri.path.includes(".(embedded).")) {
+            model = monaco.editor.getModel(model.uri.toString(true).split(".(embedded).")[0]);
+          }
+          if (model) {
+            Reflect.get(model, "refreshDiagnostics")?.();
+          }
+        },
+        // Add fs hooks directly
+        ...hostFunctions,
+      };
+    })(),
   });
 
   if (fs) {
@@ -301,7 +317,7 @@ class TypesSet {
   }
 
   /** load types defined in tsconfig.json */
-  async load(compilerOptions: CompilerOptions, workspace?: Workspace): Promise<void> {
+  async load(compilerOptions: CompilerOptions, workspace?: Workspace<WorkspaceInit>): Promise<void> {
     const types = compilerOptions.types;
     if (Array.isArray(types)) {
       delete compilerOptions.types;
@@ -347,7 +363,7 @@ class TypesSet {
 }
 
 /** Load compiler options from `tsconfig.json` in the workspace if exists. */
-async function loadCompilerOptions(workspace: Workspace) {
+async function loadCompilerOptions(workspace: Workspace<WorkspaceInit>) {
   const compilerOptions: CompilerOptions = {};
   try {
     const tsconfigJson = await workspace.fs.readTextFile("tsconfig.json");
@@ -365,7 +381,7 @@ async function loadCompilerOptions(workspace: Workspace) {
 }
 
 /** Load import maps from the root index.html or external json file in the workspace. */
-export async function loadImportMap(workspace: Workspace, validate: (im: ImportMap) => ImportMap) {
+export async function loadImportMap(workspace: Workspace<WorkspaceInit>, validate: (im: ImportMap) => ImportMap) {
   let src: string | undefined;
   try {
     let indexHtml = await workspace.fs.readTextFile("index.html");
