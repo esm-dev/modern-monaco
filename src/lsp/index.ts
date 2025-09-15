@@ -6,9 +6,9 @@ export interface LSPModule {
   setup: (
     monaco: typeof monacoNS,
     languageId: string,
-    workspace?: Workspace,
     langaugeSettings?: Record<string, unknown>,
     formattingOptions?: FormattingOptions,
+    workspace?: Workspace,
   ) => void | Promise<void>;
 }
 

@@ -26,9 +26,9 @@ let worker: TSWorker | Promise<TSWorker> | null = null;
 export async function setup(
   monaco: typeof monacoNS,
   languageId: string,
-  workspace?: Workspace,
   languageSettings?: Record<string, unknown>,
   formattingOptions?: FormattingOptions & { semicolon?: "ignore" | "insert" | "remove" },
+  workspace?: Workspace,
 ) {
   if (!worker) {
     worker = createWorker(monaco, workspace, languageSettings, formattingOptions);

@@ -11,9 +11,9 @@ import * as ls from "../language-service.js";
 export async function setup(
   monaco: typeof monacoNS,
   languageId: string,
-  workspace?: Workspace,
   languageSettings?: Record<string, unknown>,
   formattingOptions?: FormattingOptions,
+  workspace?: Workspace,
 ) {
   const { editor, languages } = monaco;
   const createData: CreateData = {

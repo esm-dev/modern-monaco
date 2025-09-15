@@ -484,7 +484,7 @@ async function loadMonaco(
         }
       }
       if (lspProvider) {
-        lspProvider.import().then(({ setup }) => setup(monaco, id, workspace, lsp?.[lspLabel], lsp?.formatting));
+        lspProvider.import().then(({ setup }) => setup(monaco, id, lsp?.[lspLabel], lsp?.formatting, workspace));
       }
     });
   });
