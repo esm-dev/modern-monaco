@@ -74,7 +74,6 @@ export interface LSPModule {
     formattingOptions?: Record<string, unknown>,
     workspace?: Workspace,
   ) => Promise<void>;
-  getWorker: () => Worker;
 }
 
 export interface LSPProvider {

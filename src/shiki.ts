@@ -37,7 +37,7 @@ export async function initShiki({
   if (languages?.length) {
     const set = new Set<string>();
     languages.forEach((l) => {
-      if (["plaintext", "text"].includes(l)) {
+      if (["plaintext", "text"].includes(l as string)) {
         return;
       }
       if (typeof l === "string" || l instanceof URL) {

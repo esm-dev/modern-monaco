@@ -23,7 +23,7 @@ export interface CreateData {
   readonly workspace?: boolean;
 }
 
-export class CSSWorker extends WorkerBase<undefined, cssService.Stylesheet> {
+export class CSSWorker extends WorkerBase<{}, cssService.Stylesheet> {
   private _formatSettings: cssService.CSSFormatConfiguration;
   private _languageService: cssService.LanguageService;
 

@@ -77,7 +77,7 @@ const modifyEditorCore = async () => {
   const css = ret.outputFiles[0].text;
   const addonCss =
     `.monaco-inputbox input{outline:1px solid var(--vscode-focusBorder)} .rename-box input{color:inherit;font-family:inherit;font-size:100%;}.monaco-editor .rename-box .rename-input-with-button{width:auto}`;
-  await Deno.writeTextFile("dist/editor-core.mjs", js + "\nexport const CSS = " + JSON.stringify(css + addonCss));
+  await Deno.writeTextFile("dist/editor-core.mjs", js + "\nexport const cssBundle = " + JSON.stringify(css + addonCss));
 };
 const copyDts = (...files: [src: string, dest: string][]) => {
   return Promise.all(files.map(([src, dest]) => Deno.copyFile("node_modules/" + src, "types/" + dest)));
@@ -107,6 +107,7 @@ const buildEditorCore = async () => {
   await build([
     "src/editor-core.ts",
     "src/editor-worker.ts",
+    "src/editor-worker-main.ts",
   ]);
   await modifyEditorCore();
   await Deno.remove("dist/editor-core.css").catch(() => {});

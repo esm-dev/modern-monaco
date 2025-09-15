@@ -67,7 +67,7 @@
     "@esm.sh/import-map": "0.1.1",
     "@shikijs/core": "3.12.2",
     "@shikijs/engine-oniguruma": "3.12.2",
-    "monaco-editor-core": "0.52.2",
+    "monaco-editor-core": "0.53.0",
     "tm-grammars": "1.24.10",
     "tm-themes": "1.10.9",
     "typescript": "5.9.2",

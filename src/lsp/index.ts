@@ -6,11 +6,10 @@ export interface LSPModule {
   setup: (
     monaco: typeof monacoNS,
     languageId: string,
-    workspace?: Workspace,
     langaugeSettings?: Record<string, unknown>,
     formattingOptions?: FormattingOptions,
+    workspace?: Workspace,
   ) => void | Promise<void>;
-  getWorker: () => Worker;
 }
 
 export interface LSPProvider {
@@ -43,15 +42,3 @@ export const builtinLSPProviders: Record<string, LSPProvider> = {
     import: () => import("./lsp/typescript/setup.js"),
   },
 };
-
-export function createWebWorker(url: URL, name?: string): Worker {
-  let workerUrl: URL | string = url;
-  // create a blob url for cross-origin workers if the url is not same-origin
-  if (url.origin !== location.origin) {
-    workerUrl = URL.createObjectURL(new Blob([`import "${url.href}"`], { type: "application/javascript" }));
-  }
-  return new Worker(workerUrl, {
-    type: "module",
-    name: name ?? url.pathname.slice(1).split("/").slice(-2).join("/"),
-  });
-}

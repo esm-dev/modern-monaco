@@ -9,9 +9,9 @@ import * as ls from "../language-service.js";
 export async function setup(
   monaco: typeof monacoNS,
   languageId: string,
-  workspace?: Workspace,
   languageSettings?: Record<string, unknown>,
   formattingOptions?: FormattingOptions,
+  workspace?: Workspace,
 ) {
   const { editor, languages } = monaco;
   const { tabSize, insertSpaces, insertFinalNewline, trimFinalNewlines } = formattingOptions ?? {};
@@ -44,9 +44,7 @@ export async function setup(
     workspace: !!workspace,
   };
   const htmlWorker = editor.createWebWorker<HTMLWorker>({
-    moduleId: "lsp/html/worker",
-    label: languageId,
-    createData,
+    worker: getWorker(createData),
     host: ls.createHost(workspace),
   });
   const workerWithEmbeddedLanguages = ls.createWorkerWithEmbeddedLanguages(htmlWorker);
@@ -97,6 +95,20 @@ export async function setup(
   });
 }
 
-export function getWorker() {
+function createWebWorker(): Worker {
+  const workerUrl: URL = new URL("./worker.mjs", import.meta.url);
+  // create a blob url for cross-origin workers if the url is not same-origin
+  if (workerUrl.origin !== location.origin) {
+    return new Worker(
+      URL.createObjectURL(new Blob([`import "${workerUrl.href}"`], { type: "application/javascript" })),
+      { type: "module" },
+    );
+  }
   return new Worker(new URL("./worker.mjs", import.meta.url), { type: "module" });
+}
+
+function getWorker(createData: CreateData) {
+  const worker = createWebWorker();
+  worker.postMessage(createData);
+  return worker;
 }
