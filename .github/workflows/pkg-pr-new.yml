@@ -1,8 +1,8 @@
 
 name: Publish Any Commit
-on: [push, pull_request]
-
-permissions: {}
+on:
+  pull_request:
+    branches: [main]
 
 jobs:
   build:
@@ -12,16 +12,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Setup Deno
+        uses: denoland/setup-deno@main
+        with:
+          deno-version: 2.x
+
       - run: corepack enable
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: "pnpm"
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm i
 
       - name: Build
-        run: pnpm build
+        run: deno run -A --no-lock scripts/build.ts
 
       - run: pnpm dlx pkg-pr-new publish
