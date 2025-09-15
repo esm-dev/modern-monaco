@@ -24,7 +24,7 @@ export interface CreateData {
   readonly workspace?: boolean;
 }
 
-export class HTMLWorker extends WorkerBase<undefined, htmlService.HTMLDocument> {
+export class HTMLWorker extends WorkerBase<{}, htmlService.HTMLDocument> {
   private _formatSettings: htmlService.HTMLFormatConfiguration;
   private _suggestSettings: htmlService.CompletionConfiguration;
   private _languageService: htmlService.LanguageService;

@@ -8,7 +8,7 @@ export enum FileType {
   Directory = 2,
 }
 
-export class WorkerBase<Host = undefined, LanguageDocument = undefined> {
+export class WorkerBase<Host = {}, LanguageDocument = undefined> {
   #documentCache = new Map<string, [number, TextDocument, LanguageDocument | undefined]>();
   #fs?: Map<string, number>;
 

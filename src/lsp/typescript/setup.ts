@@ -49,10 +49,6 @@ export async function setup(
   // languages.registerLinkedEditingRangeProvider(languageId, new lfs.LinkedEditingRangeAdapter(worker));
 }
 
-export function getWorker() {
-  return new Worker(new URL("./worker.mjs", import.meta.url), { type: "module" });
-}
-
 /** Create the typescript worker. */
 async function createWorker(
   monaco: typeof monacoNS,
@@ -125,10 +121,8 @@ async function createWorker(
     workspace: !!workspace,
   };
   const worker = monaco.editor.createWebWorker<TypeScriptWorker>({
-    moduleId: "lsp/typescript/worker",
-    label: "typescript",
+    worker: getWorker(createData),
     keepIdleModels: true,
-    createData,
     host: {
       openModel: async (uri: string): Promise<boolean> => {
         if (!workspace) {
@@ -237,6 +231,24 @@ async function createWorker(
     },
   });
 
+  return worker;
+}
+
+function createWebWorker(): Worker {
+  const workerUrl: URL = new URL("./worker.mjs", import.meta.url);
+  // create a blob url for cross-origin workers if the url is not same-origin
+  if (workerUrl.origin !== location.origin) {
+    return new Worker(
+      URL.createObjectURL(new Blob([`import "${workerUrl.href}"`], { type: "application/javascript" })),
+      { type: "module" },
+    );
+  }
+  return new Worker(new URL("./worker.mjs", import.meta.url), { type: "module" });
+}
+
+function getWorker(createData: CreateData) {
+  const worker = createWebWorker();
+  worker.postMessage(createData);
   return worker;
 }
 

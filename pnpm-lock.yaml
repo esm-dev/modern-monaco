@@ -18,8 +18,8 @@ importers:
         specifier: 3.12.2
         version: 3.12.2
       monaco-editor-core:
-        specifier: 0.52.2
-        version: 0.52.2
+        specifier: 0.53.0
+        version: 0.53.0
       tm-grammars:
         specifier: 1.24.10
         version: 1.24.10
@@ -126,8 +126,8 @@ packages:
   micromark-util-types@2.0.0:
     resolution: {integrity: sha512-oNh6S2WMHWRZrmutsRmDDfkzKtxF+bc2VxLC9dvtrDIRFln627VsFP6fLMgTryGDljgLPjkrzQSDcPrjPyDJ5w==}
 
-  monaco-editor-core@0.52.2:
-    resolution: {integrity: sha512-5TOyTUymNx7jB24TGP4Qs5UEVrntDKSMzDUvW3ADaI1CFRO1t7FPhbT2u4m3iIKZf85zTM+mkCxiUSgj+v/YtA==}
+  monaco-editor-core@0.53.0:
+    resolution: {integrity: sha512-Kn868s1eqMNq+8iSL5SleCYEX3ft4RABldbgyklRdQlfNRLZyUa+pGzO7AQ0mEsFEqGgOksbrO+LEeqwnRCb3A==}
 
   property-information@7.0.0:
     resolution: {integrity: sha512-7D/qOz/+Y4X/rzSB6jKxKUsQnphO046ei8qxG59mtM3RG3DHgTK81HrxrmoDVINJb8NKT5ZsRbwHvQ6B68Iyhg==}
@@ -296,7 +296,7 @@ snapshots:
 
   micromark-util-types@2.0.0: {}
 
-  monaco-editor-core@0.52.2: {}
+  monaco-editor-core@0.53.0: {}
 
   property-information@7.0.0: {}
 

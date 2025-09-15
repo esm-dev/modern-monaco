@@ -33,9 +33,7 @@ export async function setup(
     workspace: !!workspace,
   };
   const worker = monaco.editor.createWebWorker<CSSWorker>({
-    moduleId: "lsp/css/worker",
-    label: languageId,
-    createData,
+    worker: getWorker(createData),
     host: ls.createHost(workspace),
   });
 
@@ -46,6 +44,20 @@ export async function setup(
   ls.registerDocumentLinks(languageId, worker);
 }
 
-export function getWorker() {
+function createWebWorker(): Worker {
+  const workerUrl: URL = new URL("./worker.mjs", import.meta.url);
+  // create a blob url for cross-origin workers if the url is not same-origin
+  if (workerUrl.origin !== location.origin) {
+    return new Worker(
+      URL.createObjectURL(new Blob([`import "${workerUrl.href}"`], { type: "application/javascript" })),
+      { type: "module" },
+    );
+  }
   return new Worker(new URL("./worker.mjs", import.meta.url), { type: "module" });
+}
+
+function getWorker(createData: CreateData) {
+  const worker = createWebWorker();
+  worker.postMessage(createData);
+  return worker;
 }
