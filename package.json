@@ -31,6 +31,9 @@
     "./editor-worker": {
       "import": "./dist/editor-worker.mjs"
     },
+    "./editor-worker-main": {
+      "import": "./dist/editor-worker-main.mjs"
+    },
     "./cache": {
       "import": "./dist/cache.mjs"
     },
