@@ -9,7 +9,7 @@ import { render } from "./shiki.js";
 import { getWasmInstance } from "./shiki-wasm.js";
 import { ErrorNotFound, Workspace } from "./workspace.js";
 import { debunce, decode, isDigital, promiseWithResolvers } from "./util.ts";
-import { init as initLS } from "./lsp/language-service.js";
+import { createWebWorker, init as initLS } from "./lsp/language-service.js";
 
 const editorProps = [
   "autoDetectHighContrast",
@@ -383,7 +383,7 @@ async function loadMonaco(
   Reflect.set(globalThis, "MonacoEnvironment", {
     getWorker: async (_workerId: string, label: string) => {
       if (label === "editorWorkerService") {
-        const worker = monaco.createEditorWorkerMain();
+        const worker = createWebWorker(monaco.getEditorWorkerMainUrl());
         const onMessage = (e: MessageEvent) => {
           worker.removeEventListener("message", onMessage);
           onDidEditorWorkerResolve();

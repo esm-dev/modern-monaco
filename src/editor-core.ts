@@ -256,16 +256,11 @@ function convertPickItem(item: string | QuickPickItem) {
   return item;
 }
 
-export function createEditorWorkerMain(): Worker {
-  const workerUrl: URL = new URL("./editor-worker-main.mjs", import.meta.url);
-  // create a blob url for cross-origin workers if the url is not same-origin
-  if (workerUrl.origin !== location.origin) {
-    return new Worker(
-      URL.createObjectURL(new Blob([`import "${workerUrl.href}"`], { type: "application/javascript" })),
-      { type: "module" },
-    );
-  }
-  return new Worker(new URL("./editor-worker-main.mjs", import.meta.url), { type: "module" });
+export function getEditorWorkerMainUrl() {
+  const i = () => import("./editor-worker-main.js"); // trick for bundlers
+  const m = getEditorWorkerMainUrl.toString().match(/import\(['"](.+?)['"]\)/);
+  if (!m) throw new Error("worker url not found", { cause: i });
+  return new URL(m[1], import.meta.url);
 }
 
 export * from "monaco-editor-core";

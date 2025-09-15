@@ -12,6 +12,20 @@ export function init(monacoNS: typeof Monaco): void {
   monaco = monacoNS;
 }
 
+/** create a web worker with the given url and create data. */
+export function createWebWorker(url: URL, createData?: any): Worker {
+  let workerUrl: string | URL = url;
+  // create a blob url for cross-origin workers if the url is not same-origin
+  if (workerUrl.origin !== location.origin) {
+    workerUrl = URL.createObjectURL(new Blob([`import "${workerUrl.href}"`], { type: "application/javascript" }));
+  }
+  const worker = new Worker(workerUrl, { type: "module" });
+  if (createData !== undefined) {
+    worker.postMessage(createData);
+  }
+  return worker;
+}
+
 /** create a worker host with the given workspace. */
 export function createHost(workspace?: Workspace) {
   return workspace
