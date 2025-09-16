@@ -37,7 +37,7 @@ export async function setup(
     workspace: !!workspace,
   };
   const worker = editor.createWebWorker<JSONWorker>({
-    worker: ls.createWebWorker(getWorkerUrl(), createData),
+    worker: getWorker(createData),
     host: ls.createHost(workspace),
   });
 
@@ -158,9 +158,8 @@ async function searchPackagesFromNpm(keyword: string, size = 20) {
   return items.slice(0, len);
 }
 
-function getWorkerUrl() {
-  const i = () => import("./worker.js"); // trick for bundlers
-  const m = getWorkerUrl.toString().match(/import\(['"](.+?)['"]\)/);
-  if (!m) throw new Error("worker url not found", { cause: i });
-  return new URL(m[1], import.meta.url);
+function getWorker(createData: CreateData) {
+  const worker = new Worker(new URL("./worker.mjs", import.meta.url), { type: "module" });
+  worker.postMessage(createData);
+  return worker;
 }
