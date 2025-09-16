@@ -2,6 +2,7 @@
 node_modules/
 dist/
 deno.lock
+pnpm-lock.yaml
 types/monaco.d.ts
 types/textmate.d.ts
 types/jsonSchema.d.ts

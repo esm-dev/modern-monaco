@@ -256,15 +256,7 @@ function convertPickItem(item: string | QuickPickItem) {
   return item;
 }
 
-export function createEditorWorkerMain(): Worker {
-  const workerUrl: URL = new URL("./editor-worker-main.mjs", import.meta.url);
-  // create a blob url for cross-origin workers if the url is not same-origin
-  if (workerUrl.origin !== location.origin) {
-    return new Worker(
-      URL.createObjectURL(new Blob([`import "${workerUrl.href}"`], { type: "application/javascript" })),
-      { type: "module" },
-    );
-  }
+export function getEditorWorkerMain() {
   return new Worker(new URL("./editor-worker-main.mjs", import.meta.url), { type: "module" });
 }
 

@@ -1,0 +1,31 @@
+
+name: Publish Any Commit
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@main
+        with:
+          deno-version: 2.x
+
+      - run: corepack enable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: pnpm i
+
+      - name: Build
+        run: deno run -A --no-lock scripts/build.ts
+
+      - run: pnpm dlx pkg-pr-new publish
