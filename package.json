@@ -1,7 +1,7 @@
 {
   "name": "modern-monaco",
   "description": "A modern version of Monaco Editor",
-  "version": "0.1.10",
+  "version": "0.2.1",
   "type": "module",
   "main": "./dist/index.mjs",
   "module": "./dist/index.mjs",
@@ -30,6 +30,9 @@
     },
     "./editor-worker": {
       "import": "./dist/editor-worker.mjs"
+    },
+    "./editor-worker-main": {
+      "import": "./dist/editor-worker-main.mjs"
     },
     "./cache": {
       "import": "./dist/cache.mjs"
