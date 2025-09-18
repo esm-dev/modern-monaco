@@ -19,7 +19,11 @@ export interface WorkspaceInitMultiple extends WorkspaceInit {
   name: string;
 }
 
-export class Workspace<WorkspaceInitType extends WorkspaceInit | WorkspaceInitMultiple> {
+export class Workspace<
+  WorkspaceInitType extends
+    | WorkspaceInit
+    | WorkspaceInitMultiple = WorkspaceInit
+> {
   constructor(options?: WorkspaceInitType);
   readonly entryFile?: string;
   readonly fs: FileSystem;

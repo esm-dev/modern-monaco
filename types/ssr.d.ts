@@ -7,6 +7,7 @@ export interface RenderOptions extends Omit<monacoNS.editor.IStandaloneEditorCon
   fontDigitWidth?: number;
   userAgent?: string;
   shiki?: ShikiInitOptions;
+  workspace?: string;
 }
 
 export function renderToString(code: RenderInput, options: RenderOptions): Promise<string>;
