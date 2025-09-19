@@ -7,6 +7,8 @@ import type {
   WorkspaceInitMultiple,
 } from "../types/workspace";
 
+export const MULTI_WORKSPACE_NAME = "__modern-monaco-multi-workspace";
+
 /** Workspace URI utilities */
 export const WorkspaceURI = {
   addWorkspacePrefix(uri: string, workspaceName: string): string {
@@ -103,7 +105,7 @@ export class MultiWorkspaceFileSystem {
   createVirtualWorkspace(): Workspace<WorkspaceInit> {
     const virtualWorkspace: Workspace<WorkspaceInit> = {
       // Static identifier for debugging/logging - not a real workspace
-      name: "multi-workspace",
+      name: MULTI_WORKSPACE_NAME,
 
       fs: {
         // These methods use createFSMethod() to route calls to the correct real workspace
