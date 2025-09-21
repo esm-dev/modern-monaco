@@ -2,7 +2,6 @@ import type monacoNS from "monaco-editor-core";
 import type {
   FileStat,
   FileSystem,
-  FileSystemEntryType,
   Workspace as IWorkspace,
   WorkspaceHistory,
   WorkspaceHistoryState,
@@ -37,7 +36,7 @@ export class Workspace implements IWorkspace {
     const { name = "default", browserHistory, initialFiles, entryFile, customFS } = options;
 
     this._monaco = promiseWithResolvers();
-    this._fs = customFS ?? new FS("modern-monaco-workspace(" + name + ")");
+    this._fs = customFS ?? new IndexedDBFileSystem("modern-monaco-workspace(" + name + ")");
     this._viewState = new WorkspaceStateStorage<monacoNS.editor.ICodeEditorViewState>("modern-monaco-state(" + name + ")");
     this._entryFile = entryFile;
 
@@ -177,7 +176,7 @@ type FileSystemWatcher = {
 };
 
 /** workspace file system using IndexedDB. */
-class FS implements FileSystem {
+class IndexedDBFileSystem implements FileSystem {
   private _watchers = new Set<FileSystemWatcher>();
   private _db: WorkspaceDatabase;
 
@@ -197,14 +196,6 @@ class FS implements FileSystem {
   private async _getIdbObjectStores(readwrite = false): Promise<[IDBObjectStore, IDBObjectStore]> {
     const transaction = (await this._db.open()).transaction(["fs-meta", "fs-blob"], readwrite ? "readwrite" : "readonly");
     return [transaction.objectStore("fs-meta"), transaction.objectStore("fs-blob")];
-  }
-
-  async *walk(): AsyncIterable<[string, FileSystemEntryType]> {
-    const metaStore = await this._getIdbObjectStore("fs-meta");
-    const entries = await promisifyIDBRequest<Array<{ url: string } & FileStat>>(metaStore.getAll());
-    for (const entry of entries) {
-      yield [new URL(entry.url).pathname, entry.type];
-    }
   }
 
   async stat(name: string): Promise<FileStat> {
@@ -494,6 +485,20 @@ export class ErrorNotFound extends Error {
   constructor(name: string) {
     super("No such file or directory: " + name);
   }
+}
+
+/** walk the file system and return all entries. */
+export async function walk(fs: FileSystem, dir: string = "/"): Promise<string[]> {
+  const entries: string[] = [];
+  for (const [name, type] of await fs.readDirectory(dir || "/")) {
+    const path = (dir.endsWith("/") ? dir.slice(0, -1) : dir) + "/" + name;
+    if (type === 2) {
+      entries.push(...(await walk(fs, path)));
+    } else {
+      entries.push(path);
+    }
+  }
+  return entries;
 }
 
 /** WorkspaceDatabase provides workspace database. */

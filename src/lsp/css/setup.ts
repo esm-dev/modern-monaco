@@ -4,7 +4,8 @@ import type { Workspace } from "~/workspace.ts";
 import type { CreateData, CSSWorker } from "./worker.ts";
 
 // ! external modules, don't remove the `.js` extension
-import * as ls from "../language-service.js";
+import { walk } from "../../workspace.js";
+import * as client from "../client.js";
 
 export async function setup(
   monaco: typeof monacoNS,
@@ -30,18 +31,18 @@ export async function setup(
       spaceAroundSelectorSeparator: false,
       braceStyle: "collapse",
     },
-    workspace: !!workspace,
+    fs: workspace ? await walk(workspace.fs, "/") : undefined,
   };
   const worker = monaco.editor.createWebWorker<CSSWorker>({
     worker: getWorker(createData),
-    host: ls.createHost(workspace),
+    host: client.createHost(workspace),
   });
 
   // register language features
-  ls.registerBasicFeatures(languageId, worker, ["/", "-", ":", "("], workspace);
-  ls.registerCodeAction(languageId, worker);
-  ls.registerColorPresentation(languageId, worker);
-  ls.registerDocumentLinks(languageId, worker);
+  client.registerBasicFeatures(languageId, worker, ["/", "-", ":", "("], workspace);
+  client.registerCodeAction(languageId, worker);
+  client.registerColorPresentation(languageId, worker);
+  client.registerDocumentLinks(languageId, worker);
 }
 
 function createWebWorker(): Worker {

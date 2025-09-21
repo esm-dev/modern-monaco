@@ -130,7 +130,7 @@ const buildDist = async () => {
     "src/lsp/html/worker.ts",
     "src/lsp/json/setup.ts",
     "src/lsp/json/worker.ts",
-    "src/lsp/language-service.ts",
+    "src/lsp/client.ts",
     "src/lsp/typescript/setup.ts",
     "src/lsp/typescript/worker.ts",
   ]);

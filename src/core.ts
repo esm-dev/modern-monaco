@@ -12,7 +12,7 @@ import { render } from "./shiki.js";
 import { getWasmInstance } from "./shiki-wasm.js";
 import { ErrorNotFound, Workspace } from "./workspace.js";
 import { debunce, decode, isDigital, promiseWithResolvers } from "./util.js";
-import { init as initLS } from "./lsp/language-service.js";
+import { init as initLspClient } from "./lsp/client.js";
 
 const editorProps = [
   "autoDetectHighContrast",
@@ -391,7 +391,7 @@ async function loadMonaco(
 
   // setup Monaco NS for the language service module
   if (Object.keys(lspProviderMap).length > 0) {
-    initLS(monaco);
+    initLspClient(monaco);
   }
 
   // insert the monaco editor core CSS

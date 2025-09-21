@@ -1,7 +1,7 @@
 // embedded language support for HTML
 // based on https://github.com/microsoft/vscode/blob/main/extensions/html-language-features/server/src/modes/embeddedSupport.ts
 
-import { LanguageService, Position, TextDocument, TokenType } from "vscode-html-languageservice";
+import { type LanguageService, Position, TextDocument, TokenType } from "vscode-html-languageservice";
 
 export interface HTMLDocumentRegions {
   readonly regions: readonly EmbeddedRegion[];
