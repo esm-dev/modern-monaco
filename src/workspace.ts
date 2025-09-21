@@ -2,7 +2,6 @@ import type monacoNS from "monaco-editor-core";
 import type {
   FileStat,
   FileSystem,
-  FileSystemEntryType,
   Workspace as IWorkspace,
   WorkspaceHistory,
   WorkspaceHistoryState,
