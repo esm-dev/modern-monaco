@@ -3,19 +3,18 @@
     "paths": {
       "~/*": ["./src/*"]
     },
-    "lib": [
-      "DOM",
-      "DOM.Iterable",
-      "ESNext",
-      "WebWorker"
-    ],
+    "lib": ["ESNext", "DOM", "DOM.Iterable", "WebWorker"],
     "target": "ESNext",
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
+    "skipLibCheck": true,
     "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
     "alwaysStrict": true,
-    "strictNullChecks": true
+    "strictNullChecks": true,
+    "noUnusedLocals": true
   },
   "include": [
     "src/**/*.ts"

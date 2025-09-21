@@ -45,7 +45,7 @@ export class Workspace implements IWorkspace {
       for (const [name, data] of Object.entries(initialFiles)) {
         void this._fs.stat(name).catch(async (err) => {
           if (err instanceof ErrorNotFound) {
-            const { pathname, href: url } = filenameToURL(name);
+            const { pathname } = filenameToURL(name);
             const dir = pathname.slice(0, pathname.lastIndexOf("/"));
             if (dir) {
               await this._fs.createDirectory(dir);
@@ -134,7 +134,7 @@ export class Workspace implements IWorkspace {
         const disposable = editor.onDidChangeModel(() => {
           model.dispose();
           disposable.dispose();
-        })
+        });
       }
       if (selectionOrPosition) {
         if ("startLineNumber" in selectionOrPosition) {

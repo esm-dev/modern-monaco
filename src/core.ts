@@ -2,13 +2,16 @@ import type monacoNS from "monaco-editor-core";
 import type { Highlighter, RenderOptions, ShikiInitOptions } from "./shiki.ts";
 import type { LSPConfig, LSPProvider } from "./lsp/index.ts";
 
+import { parseImportMapFromJson } from "@esm.sh/import-map";
+import { version } from "../package.json";
+
 // ! external modules, don't remove the `.js` extension
 import { getExtnameFromLanguageId, getLanguageIdFromPath, grammars, initShiki, setDefaultWasmLoader, themes } from "./shiki.js";
 import { initShikiMonacoTokenizer, registerShikiMonacoTokenizer } from "./shiki.js";
 import { render } from "./shiki.js";
 import { getWasmInstance } from "./shiki-wasm.js";
 import { ErrorNotFound, Workspace } from "./workspace.js";
-import { debunce, decode, isDigital, promiseWithResolvers } from "./util.ts";
+import { debunce, decode, isDigital, promiseWithResolvers } from "./util.js";
 import { init as initLS } from "./lsp/language-service.js";
 
 const editorProps = [
@@ -47,6 +50,7 @@ const errors = {
   NotFound: ErrorNotFound,
 };
 
+const cdnUrl = `https://esm.sh/modern-monaco@${version}`;
 const syntaxes: { name: string; scopeName: string }[] = [];
 const lspProviders: Record<string, LSPProvider> = {};
 
@@ -358,8 +362,29 @@ async function loadMonaco(
   workspace?: Workspace,
   lsp?: LSPConfig,
 ): Promise<typeof monacoNS> {
-  const monaco = await import("./editor-core.js");
-  const lspProviderMap = { ...lspProviders, ...lsp?.providers };
+  let importmap: HTMLScriptElement | null = null;
+  let editorCoreModuleUrl = `${cdnUrl}/es2022/editor-core.mjs`;
+  let lspModuleUrl = `${cdnUrl}/es2022/lsp.mjs`;
+  if (importmap = document.querySelector("script[type='importmap']")) {
+    try {
+      const { imports = {} } = parseImportMapFromJson(importmap.textContent);
+      if (imports["modern-monaco/editor-core"]) {
+        editorCoreModuleUrl = imports["modern-monaco/editor-core"];
+      }
+      if (imports["modern-monaco/lsp"]) {
+        lspModuleUrl = imports["modern-monaco/lsp"];
+      }
+    } catch (error) {
+      // ignore
+    }
+  }
+
+  const builtinLSP = (globalThis as any).MonacoEnvironment?.builtinLSP;
+  const [monaco, { builtinLSPProviders }]: [typeof import("./editor-core"), typeof import("./lsp")] = await Promise.all([
+    import(editorCoreModuleUrl),
+    builtinLSP ? import(lspModuleUrl) : Promise.resolve({ builtinLSPProviders: {} }),
+  ]);
+  const lspProviderMap = { ...builtinLSPProviders, ...lspProviders, ...lsp?.providers };
 
   // initialize the workspace with the monaco namespace
   workspace?.setupMonaco(monaco);

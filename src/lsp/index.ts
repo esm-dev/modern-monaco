@@ -24,21 +24,17 @@ export interface LSPConfig {
 
 export const builtinLSPProviders: Record<string, LSPProvider> = {
   html: {
-    // @ts-expect-error 'setup.js' is generated at build time
-    import: () => import("./lsp/html/setup.js"),
+    import: () => import("./html/setup.js"),
   },
   css: {
     aliases: ["less", "sass"],
-    // @ts-expect-error 'setup.js' is generated at build time
-    import: () => import("./lsp/css/setup.js"),
+    import: () => import("./css/setup.js"),
   },
   json: {
-    // @ts-expect-error 'setup.js' is generated at build time
-    import: () => import("./lsp/json/setup.js"),
+    import: () => import("./json/setup.js"),
   },
   typescript: {
     aliases: ["javascript", "jsx", "tsx"],
-    // @ts-expect-error 'setup.js' is generated at build time
-    import: () => import("./lsp/typescript/setup.js"),
+    import: () => import("./typescript/setup.js"),
   },
 };
