@@ -123,6 +123,7 @@ const buildDist = async () => {
     "src/workspace.ts",
     "src/ssr/index.ts",
     "src/ssr/workerd.ts",
+    "src/lsp/index.ts",
     "src/lsp/css/setup.ts",
     "src/lsp/css/worker.ts",
     "src/lsp/html/setup.ts",

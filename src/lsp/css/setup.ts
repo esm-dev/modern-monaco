@@ -50,10 +50,10 @@ function createWebWorker(): Worker {
   if (workerUrl.origin !== location.origin) {
     return new Worker(
       URL.createObjectURL(new Blob([`import "${workerUrl.href}"`], { type: "application/javascript" })),
-      { type: "module" },
+      { type: "module", name: "css-worker" },
     );
   }
-  return new Worker(new URL("./worker.mjs", import.meta.url), { type: "module" });
+  return new Worker(workerUrl, { type: "module", name: "css-worker" });
 }
 
 function getWorker(createData: CreateData) {
