@@ -7,7 +7,7 @@ import { cache } from "../cache.js";
 
 let monaco: typeof Monaco;
 
-/** @internal */
+/** init the monaco namespace. */
 export function init(monacoNS: typeof Monaco): void {
   monaco = monacoNS;
 }
@@ -34,9 +34,6 @@ function lspRequest<Result>(
   req: () => Promise<Result> | undefined,
   token: Monaco.CancellationToken,
 ): Promise<Result | undefined> | undefined {
-  if (!token) {
-    return req();
-  }
   return new Promise((resolve, reject) => {
     if (token.isCancellationRequested) {
       resolve(undefined);

@@ -12,9 +12,9 @@ import * as client from "../client.js";
 export async function setup(
   monaco: typeof monacoNS,
   languageId: string,
-  workspace?: Workspace,
   languageSettings?: Record<string, unknown>,
   formattingOptions?: FormattingOptions,
+  workspace?: Workspace,
 ) {
   const { editor, languages } = monaco;
   const createData: CreateData = {
@@ -38,9 +38,7 @@ export async function setup(
     fs: workspace ? await walk(workspace.fs, "/") : undefined,
   };
   const worker = editor.createWebWorker<JSONWorker>({
-    moduleId: "lsp/json/worker",
-    label: languageId,
-    createData,
+    worker: getWorker(createData),
     host: client.createHost(workspace),
   });
 
@@ -161,6 +159,20 @@ async function searchPackagesFromNpm(keyword: string, size = 20) {
   return items.slice(0, len);
 }
 
-export function getWorker() {
-  return new Worker(new URL("./worker.js", import.meta.url), { type: "module" });
+function createWebWorker(): Worker {
+  const workerUrl: URL = new URL("./worker.mjs", import.meta.url);
+  // create a blob url for cross-origin workers if the url is not same-origin
+  if (workerUrl.origin !== location.origin) {
+    return new Worker(
+      URL.createObjectURL(new Blob([`import "${workerUrl.href}"`], { type: "application/javascript" })),
+      { type: "module", name: "json-worker" },
+    );
+  }
+  return new Worker(workerUrl, { type: "module", name: "json-worker" });
+}
+
+function getWorker(createData: CreateData) {
+  const worker = createWebWorker();
+  worker.postMessage(createData);
+  return worker;
 }

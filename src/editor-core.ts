@@ -1,7 +1,7 @@
 import type { InputBoxOptions, QuickPickItem, QuickPickOptions } from "monaco-editor-core";
 import { editor, languages, Uri } from "monaco-editor-core";
-import { IQuickInputService } from "monaco-editor-core/esm/vs/platform/quickinput/common/quickInput.js";
-import { StandaloneServices } from "monaco-editor-core/esm/vs/editor/standalone/browser/standaloneServices.js";
+import { IQuickInputService } from "monaco-editor-core/esm/vs/platform/quickinput/common/quickInput";
+import { StandaloneServices } from "monaco-editor-core/esm/vs/editor/standalone/browser/standaloneServices";
 import languageConfigurations from "../language-configurations.json" with { type: "json" };
 
 const defaultEditorOptions: editor.IStandaloneEditorConstructionOptions = {
@@ -179,10 +179,6 @@ export function showQuickPick(items: any[], options: QuickPickOptions = {}) {
   });
 }
 
-export function getWorker() {
-  return new Worker(new URL("./editor-worker.js", import.meta.url), { type: "module" });
-}
-
 export const languageConfigurationAliases: Record<string, string> = {
   "jsx": "javascript",
   "tsx": "typescript",
@@ -258,6 +254,18 @@ function convertPickItem(item: string | QuickPickItem) {
     return { type: "separator", ...item };
   }
   return item;
+}
+
+export function createEditorWorkerMain(): Worker {
+  const workerUrl: URL = new URL("./editor-worker-main.mjs", import.meta.url);
+  // create a blob url for cross-origin workers if the url is not same-origin
+  if (workerUrl.origin !== location.origin) {
+    return new Worker(
+      URL.createObjectURL(new Blob([`import "${workerUrl.href}"`], { type: "application/javascript" })),
+      { type: "module", name: "editor-worker-main" },
+    );
+  }
+  return new Worker(workerUrl, { type: "module", name: "editor-worker-main" });
 }
 
 export * from "monaco-editor-core";

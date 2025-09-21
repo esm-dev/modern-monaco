@@ -2,60 +2,39 @@ import type monacoNS from "monaco-editor-core";
 import type { FormattingOptions } from "vscode-languageserver-types";
 import type { Workspace } from "~/workspace.ts";
 
-export interface LSP {
+export interface LSPModule {
   setup: (
     monaco: typeof monacoNS,
     languageId: string,
-    workspace?: Workspace,
     langaugeSettings?: Record<string, unknown>,
     formattingOptions?: FormattingOptions,
+    workspace?: Workspace,
   ) => void | Promise<void>;
-  getWorker: (config: any) => URL | Worker;
 }
 
 export interface LSPProvider {
   aliases?: string[];
-  import: () => Promise<LSP>;
+  import: () => Promise<LSPModule>;
 }
 
 export interface LSPConfig {
   providers?: Record<string, LSPProvider>;
   formatting?: FormattingOptions;
-  typescript?: { tsVersion?: string };
 }
 
 export const builtinLSPProviders: Record<string, LSPProvider> = {
   html: {
-    // @ts-expect-error 'setup.js' is generated at build time
-    import: () => import("./lsp/html/setup.js"),
+    import: () => import("./html/setup.js"),
   },
   css: {
     aliases: ["less", "sass"],
-    // @ts-expect-error 'setup.js' is generated at build time
-    import: () => import("./lsp/css/setup.js"),
+    import: () => import("./css/setup.js"),
   },
   json: {
-    // @ts-expect-error 'setup.js' is generated at build time
-    import: () => import("./lsp/json/setup.js"),
+    import: () => import("./json/setup.js"),
   },
   typescript: {
     aliases: ["javascript", "jsx", "tsx"],
-    // @ts-expect-error 'setup.js' is generated at build time
-    import: () => import("./lsp/typescript/setup.js"),
+    import: () => import("./typescript/setup.js"),
   },
 };
-
-export function createWebWorker(url: URL | Worker, name?: string): Worker {
-  if (url instanceof Worker) {
-    return url;
-  }
-  let workerUrl: URL | string = url;
-  // create a blob url for cross-origin workers if the url is not same-origin
-  if (url.origin !== location.origin) {
-    workerUrl = URL.createObjectURL(new Blob([`import "${url.href}"`], { type: "application/javascript" }));
-  }
-  return new Worker(workerUrl, {
-    type: "module",
-    name: name ?? url.pathname.slice(1).split("/").slice(-2).join("/"),
-  });
-}

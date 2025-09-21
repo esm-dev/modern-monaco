@@ -21,7 +21,7 @@ export interface CreateData extends WorkerCreateData {
   readonly format?: cssService.CSSFormatConfiguration;
 }
 
-export class CSSWorker extends WorkerBase<undefined, cssService.Stylesheet> {
+export class CSSWorker extends WorkerBase<{}, cssService.Stylesheet> {
   private _formatSettings: cssService.CSSFormatConfiguration;
   private _languageService: cssService.LanguageService;
 

@@ -26,9 +26,9 @@ let worker: TSWorker | Promise<TSWorker> | null = null;
 export async function setup(
   monaco: typeof monacoNS,
   languageId: string,
-  workspace?: Workspace,
   languageSettings?: Record<string, unknown>,
   formattingOptions?: FormattingOptions & { semicolon?: "ignore" | "insert" | "remove" },
+  workspace?: Workspace,
 ) {
   if (!worker) {
     worker = createWorker(monaco, workspace, languageSettings, formattingOptions);
@@ -47,17 +47,6 @@ export async function setup(
   // languages.registerOnTypeFormattingEditProvider(languageId, new lfs.FormatOnTypeAdapter(worker));
   // languages.registerInlayHintsProvider(languageId, new lfs.InlayHintsAdapter(worker));
   // languages.registerLinkedEditingRangeProvider(languageId, new lfs.LinkedEditingRangeAdapter(worker));
-}
-
-export function getWorker(config: { tsVersion?: string }) {
-  try {
-    if (new URL(import.meta.url).hostname === "esm.sh" || new URL(import.meta.url).hostname.endsWith(".esm.sh")) {
-      return new Worker(`./worker.mjs?deps=typescript@${config.tsVersion}`, { type: "module" });
-    }
-  } catch (e) {
-    console.error("import.meta.url not available", import.meta.url, e);
-  }
-  return new Worker(new URL("./worker.js", import.meta.url), { type: "module" });
 }
 
 /** Create the typescript worker. */
@@ -132,10 +121,8 @@ async function createWorker(
     fs: workspace ? await walk(workspace.fs, "/") : undefined,
   };
   const worker = monaco.editor.createWebWorker<TypeScriptWorker>({
-    moduleId: "lsp/typescript/worker",
-    label: "typescript",
+    worker: getWorker(createData),
     keepIdleModels: true,
-    createData,
     host: {
       openModel: async (uri: string): Promise<boolean> => {
         if (!workspace) {
@@ -244,6 +231,24 @@ async function createWorker(
     },
   });
 
+  return worker;
+}
+
+function createWebWorker(): Worker {
+  const workerUrl: URL = new URL("./worker.mjs", import.meta.url);
+  // create a blob url for cross-origin workers if the url is not same-origin
+  if (workerUrl.origin !== location.origin) {
+    return new Worker(
+      URL.createObjectURL(new Blob([`import "${workerUrl.href}"`], { type: "application/javascript" })),
+      { type: "module", name: "typescript-worker" },
+    );
+  }
+  return new Worker(workerUrl, { type: "module", name: "typescript-worker" });
+}
+
+function getWorker(createData: CreateData) {
+  const worker = createWebWorker();
+  worker.postMessage(createData);
   return worker;
 }
 

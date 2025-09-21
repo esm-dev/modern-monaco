@@ -14,7 +14,7 @@ export interface CreateData extends WorkerCreateData {
   readonly format?: jsonService.FormattingOptions;
 }
 
-export class JSONWorker extends WorkerBase<undefined, jsonService.JSONDocument> {
+export class JSONWorker extends WorkerBase<{}, jsonService.JSONDocument> {
   private _formatSettings?: jsonService.FormattingOptions;
   private _languageService: jsonService.LanguageService;
 

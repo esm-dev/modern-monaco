@@ -1,47 +1,53 @@
 {
   "name": "modern-monaco",
   "description": "A modern version of Monaco Editor",
-  "version": "0.1.9",
+  "version": "0.2.1",
   "type": "module",
-  "main": "./dist/index.js",
-  "module": "./dist/index.js",
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
   "types": "./types/index.d.ts",
   "exports": {
     ".": {
-      "import": "./dist/index.js",
+      "import": "./dist/index.mjs",
       "types": "./types/index.d.ts"
     },
     "./core": {
-      "import": "./dist/core.js",
+      "import": "./dist/core.mjs",
       "types": "./types/core.d.ts"
     },
     "./workspace": {
-      "import": "./dist/workspace.js",
+      "import": "./dist/workspace.mjs",
       "types": "./types/workspace.d.ts"
     },
     "./ssr": {
-      "workerd": "./dist/ssr/workerd.js",
-      "import": "./dist/ssr/index.js",
+      "workerd": "./dist/ssr/workerd.mjs",
+      "import": "./dist/ssr/index.mjs",
       "types": "./types/ssr.d.ts"
     },
     "./editor-core": {
-      "import": "./dist/editor-core.js",
+      "import": "./dist/editor-core.mjs",
       "types": "./types/monaco.d.ts"
     },
     "./editor-worker": {
-      "import": "./dist/editor-worker.js"
+      "import": "./dist/editor-worker.mjs"
+    },
+    "./editor-worker-main": {
+      "import": "./dist/editor-worker-main.mjs"
     },
     "./cache": {
-      "import": "./dist/cache.js"
+      "import": "./dist/cache.mjs"
     },
     "./shiki": {
-      "import": "./dist/shiki.js"
+      "import": "./dist/shiki.mjs"
     },
     "./util": {
-      "import": "./dist/util.js"
+      "import": "./dist/util.mjs"
+    },
+    "./lsp": {
+      "import": "./dist/lsp/index.mjs"
     },
     "./lsp/*": {
-      "import": "./dist/lsp/*.js"
+      "import": "./dist/lsp/*.mjs"
     }
   },
   "esm.sh": {
@@ -67,7 +73,7 @@
     "@esm.sh/import-map": "0.1.1",
     "@shikijs/core": "3.12.2",
     "@shikijs/engine-oniguruma": "3.12.2",
-    "monaco-editor-core": "0.52.2",
+    "monaco-editor-core": "0.53.0",
     "tm-grammars": "1.24.10",
     "tm-themes": "1.10.9",
     "typescript": "5.9.2",

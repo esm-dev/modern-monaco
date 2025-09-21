@@ -1,7 +1,9 @@
 import type monacoNS from "monaco-editor-core";
 import type { Highlighter, RenderOptions, ShikiInitOptions } from "./shiki.ts";
 import type { LSPConfig, LSPProvider } from "./lsp/index.ts";
-import { createWebWorker } from "./lsp/index.ts";
+
+import { parseImportMapFromJson } from "@esm.sh/import-map";
+import { version } from "../package.json";
 
 // ! external modules, don't remove the `.js` extension
 import { getExtnameFromLanguageId, getLanguageIdFromPath, grammars, initShiki, setDefaultWasmLoader, themes } from "./shiki.js";
@@ -9,7 +11,7 @@ import { initShikiMonacoTokenizer, registerShikiMonacoTokenizer } from "./shiki.
 import { render } from "./shiki.js";
 import { getWasmInstance } from "./shiki-wasm.js";
 import { ErrorNotFound, Workspace } from "./workspace.js";
-import { debunce, decode, isDigital, promiseWithResolvers } from "./util.ts";
+import { debunce, decode, isDigital, promiseWithResolvers } from "./util.js";
 import { init as initLspClient } from "./lsp/client.js";
 
 const editorProps = [
@@ -48,6 +50,7 @@ const errors = {
   NotFound: ErrorNotFound,
 };
 
+const cdnUrl = `https://esm.sh/modern-monaco@${version}`;
 const syntaxes: { name: string; scopeName: string }[] = [];
 const lspProviders: Record<string, LSPProvider> = {};
 
@@ -261,8 +264,7 @@ export async function lazy(options?: InitOptions) {
           }
 
           async function createEditor() {
-            const monaco =
-              await (monacoPromise ?? (monacoPromise = loadMonaco(highlighter, workspace, options?.lsp, onDidEditorWorkerResolve)));
+            const monaco = await (monacoPromise ?? (monacoPromise = loadMonaco(highlighter, workspace, options?.lsp)));
             const editor = monaco.editor.create(containerEl, renderOptions);
             if (workspace) {
               const storeViewState = () => {
@@ -359,10 +361,30 @@ async function loadMonaco(
   highlighter: Highlighter,
   workspace?: Workspace,
   lsp?: LSPConfig,
-  onDidEditorWorkerResolve?: () => void,
 ): Promise<typeof monacoNS> {
-  const monaco = await import("./editor-core.js");
-  const lspProviderMap = { ...lspProviders, ...lsp?.providers };
+  let importmap: HTMLScriptElement | null = null;
+  let editorCoreModuleUrl = `${cdnUrl}/es2022/editor-core.mjs`;
+  let lspModuleUrl = `${cdnUrl}/es2022/lsp.mjs`;
+  if (importmap = document.querySelector("script[type='importmap']")) {
+    try {
+      const { imports = {} } = parseImportMapFromJson(importmap.textContent);
+      if (imports["modern-monaco/editor-core"]) {
+        editorCoreModuleUrl = imports["modern-monaco/editor-core"];
+      }
+      if (imports["modern-monaco/lsp"]) {
+        lspModuleUrl = imports["modern-monaco/lsp"];
+      }
+    } catch (error) {
+      // ignore
+    }
+  }
+
+  const builtinLSP = (globalThis as any).MonacoEnvironment?.builtinLSP;
+  const [monaco, { builtinLSPProviders }]: [typeof import("./editor-core"), typeof import("./lsp")] = await Promise.all([
+    import(editorCoreModuleUrl),
+    builtinLSP ? import(lspModuleUrl) : Promise.resolve({ builtinLSPProviders: {} }),
+  ]);
+  const lspProviderMap = { ...builtinLSPProviders, ...lspProviders, ...lsp?.providers };
 
   // initialize the workspace with the monaco namespace
   workspace?.setupMonaco(monaco);
@@ -377,28 +399,23 @@ async function loadMonaco(
     const styleEl = document.createElement("style");
     styleEl.id = "monaco-editor-core-css";
     styleEl.media = "screen";
-    // @ts-expect-error `monaco.CSS` is injected at build time
-    styleEl.textContent = monaco.CSS;
+    // @ts-expect-error `monaco.cssBundle` is injected at build time
+    styleEl.textContent = monaco.cssBundle;
     document.head.appendChild(styleEl);
   }
 
   // set the global `MonacoEnvironment` variable
   Reflect.set(globalThis, "MonacoEnvironment", {
     getWorker: async (_workerId: string, label: string) => {
-      let provider: LSPProvider | undefined = lspProviderMap[label];
-      if (!provider) {
-        provider = Object.values(lspProviderMap).find((p) => p.aliases?.includes(label));
-      }
-      const url = provider ? (await provider.import()).getWorker(lsp?.[label] || {}) : monaco.getWorker();
-      const worker = createWebWorker(url, undefined);
-      if (!provider) {
+      if (label === "editorWorkerService") {
+        const worker = monaco.createEditorWorkerMain();
         const onMessage = (e: MessageEvent) => {
-          onDidEditorWorkerResolve?.();
           worker.removeEventListener("message", onMessage);
+          onDidEditorWorkerResolve();
         };
         worker.addEventListener("message", onMessage);
+        return worker;
       }
-      return worker;
     },
     getLanguageIdFromUri: (uri: monacoNS.Uri) => getLanguageIdFromPath(uri.path),
     getExtnameFromLanguageId: getExtnameFromLanguageId,
@@ -492,7 +509,7 @@ async function loadMonaco(
         }
       }
       if (lspProvider) {
-        lspProvider.import().then(({ setup }) => setup(monaco, id, workspace, lsp?.[lspLabel], lsp?.formatting));
+        lspProvider.import().then(({ setup }) => setup(monaco, id, lsp?.[lspLabel], lsp?.formatting, workspace));
       }
     });
   });

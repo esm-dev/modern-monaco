@@ -22,7 +22,7 @@ export interface CreateData extends WorkerCreateData {
   readonly data?: HTMLDataConfiguration;
 }
 
-export class HTMLWorker extends WorkerBase<undefined, htmlService.HTMLDocument> {
+export class HTMLWorker extends WorkerBase<{}, htmlService.HTMLDocument> {
   private _formatSettings: htmlService.HTMLFormatConfiguration;
   private _suggestSettings: htmlService.CompletionConfiguration;
   private _languageService: htmlService.LanguageService;

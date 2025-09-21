@@ -10,9 +10,9 @@ import * as client from "../client.js";
 export async function setup(
   monaco: typeof monacoNS,
   languageId: string,
-  workspace?: Workspace,
   languageSettings?: Record<string, unknown>,
   formattingOptions?: FormattingOptions,
+  workspace?: Workspace,
 ) {
   const { editor, languages } = monaco;
   const { tabSize, insertSpaces, insertFinalNewline, trimFinalNewlines } = formattingOptions ?? {};
@@ -45,9 +45,7 @@ export async function setup(
     fs: workspace ? await walk(workspace.fs, "/") : undefined,
   };
   const htmlWorker = editor.createWebWorker<HTMLWorker>({
-    moduleId: "lsp/html/worker",
-    label: languageId,
-    createData,
+    worker: getWorker(createData),
     host: client.createHost(workspace),
   });
   const workerWithEmbeddedLanguages = client.createWorkerWithEmbeddedLanguages(htmlWorker);
@@ -98,6 +96,20 @@ export async function setup(
   });
 }
 
-export function getWorker() {
-  return new Worker(new URL("./worker.js", import.meta.url), { type: "module" });
+function createWebWorker(): Worker {
+  const workerUrl: URL = new URL("./worker.mjs", import.meta.url);
+  // create a blob url for cross-origin workers if the url is not same-origin
+  if (workerUrl.origin !== location.origin) {
+    return new Worker(
+      URL.createObjectURL(new Blob([`import "${workerUrl.href}"`], { type: "application/javascript" })),
+      { type: "module", name: "html-worker" },
+    );
+  }
+  return new Worker(workerUrl, { type: "module", name: "html-worker" });
+}
+
+function getWorker(createData: CreateData) {
+  const worker = createWebWorker();
+  worker.postMessage(createData);
+  return worker;
 }
