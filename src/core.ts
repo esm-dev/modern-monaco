@@ -11,7 +11,7 @@ import { initShikiMonacoTokenizer, registerShikiMonacoTokenizer } from "./shiki.
 import { render } from "./shiki.js";
 import { getWasmInstance } from "./shiki-wasm.js";
 import { ErrorNotFound, Workspace } from "./workspace.js";
-import { debunce, decode, isDigital, promiseWithResolvers } from "./util.js";
+import { debunce, decode, isDigital } from "./util.js";
 import { init as initLspClient } from "./lsp/client.js";
 
 const editorProps = [
@@ -54,7 +54,6 @@ const cdnUrl = `https://esm.sh/modern-monaco@${version}`;
 const syntaxes: { name: string; scopeName: string }[] = [];
 const lspProviders: Record<string, LSPProvider> = {};
 
-const { promise: editorWorkerPromise, resolve: onDidEditorWorkerResolve } = promiseWithResolvers<void>();
 const attr = (el: HTMLElement, name: string): string | null => el.getAttribute(name);
 const style = (el: HTMLElement, style: Partial<CSSStyleDeclaration>) => Object.assign(el.style, style);
 
@@ -263,7 +262,8 @@ export async function lazy(options?: InitOptions) {
             }
           }
 
-          async function createEditor() {
+          // load and render editor
+          {
             const monaco = await (monacoPromise ?? (monacoPromise = loadMonaco(highlighter, workspace, options?.lsp)));
             const editor = monaco.editor.create(containerEl, renderOptions);
             if (workspace) {
@@ -326,28 +326,21 @@ export async function lazy(options?: InitOptions) {
             }
             // hide the prerender element if exists
             if (prerenderEl) {
-              editorWorkerPromise.then(() => {
-                setTimeout(() => {
-                  const animate = prerenderEl.animate?.([{ opacity: 1 }, { opacity: 0 }], { duration: 150 });
-                  if (animate) {
-                    animate.finished.then(() => prerenderEl.remove());
-                  } else {
-                    // animation API is not supported
-                    setTimeout(() => prerenderEl.remove(), 150);
-                  }
-                }, 100);
-              });
+              setTimeout(() => {
+                const animate = prerenderEl.animate?.([{ opacity: 1 }, { opacity: 0 }], { duration: 200 });
+                if (animate) {
+                  animate.finished.then(() => prerenderEl.remove());
+                } else {
+                  // animation API is not supported
+                  setTimeout(() => prerenderEl.remove(), 200);
+                }
+              }, 200);
             }
           }
-
-          // load and render editor
-          await createEditor();
         }
       },
     );
   }
-
-  await editorWorkerPromise;
 }
 
 /** Hydrate the monaco editor in the browser. */
@@ -408,13 +401,7 @@ async function loadMonaco(
   Reflect.set(globalThis, "MonacoEnvironment", {
     getWorker: async (_workerId: string, label: string) => {
       if (label === "editorWorkerService") {
-        const worker = monaco.createEditorWorkerMain();
-        const onMessage = (e: MessageEvent) => {
-          worker.removeEventListener("message", onMessage);
-          onDidEditorWorkerResolve();
-        };
-        worker.addEventListener("message", onMessage);
-        return worker;
+        return monaco.createEditorWorkerMain();
       }
     },
     getLanguageIdFromUri: (uri: monacoNS.Uri) => getLanguageIdFromPath(uri.path),

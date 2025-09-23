@@ -26,7 +26,7 @@ import {
 
 /** class Workspace implements IWorkspace */
 export class Workspace implements IWorkspace {
-  private _monaco: { promise: Promise<typeof monacoNS>; resolve: (value: typeof monacoNS) => void; reject: (reason: any) => void };
+  private _monaco: PromiseWithResolvers<typeof monacoNS>;
   private _history: WorkspaceHistory;
   private _fs: FileSystem;
   private _viewState: WorkspaceViewState;
