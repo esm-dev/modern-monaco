@@ -92,7 +92,6 @@ export class Workspace implements IWorkspace {
     return this._openTextDocument(uri, monaco.editor.getEditors()[0], undefined, content);
   }
 
-  // @internal
   async _openTextDocument(
     uri: string | URL,
     editor?: monacoNS.editor.ICodeEditor,

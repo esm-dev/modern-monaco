@@ -135,7 +135,7 @@ export async function lazy(options?: InitOptions) {
           let filename: string | undefined;
           let code: string | undefined;
 
-          // get editor optios from SSR output
+          // get editor options from `<script class="monaco-editor-options" type="application/json">`
           const firstEl = this.firstElementChild;
           if (firstEl && firstEl.tagName === "SCRIPT" && firstEl.className === "monaco-editor-options") {
             try {
@@ -161,7 +161,6 @@ export async function lazy(options?: InitOptions) {
             firstEl.remove();
           }
 
-          // set the base style of the container element
           style(this, { display: "block", position: "relative" });
 
           // set dimension from width and height attributes
@@ -179,12 +178,10 @@ export async function lazy(options?: InitOptions) {
             if (isDigital(heightAttr)) {
               heightAttr += "px";
             }
-            // set the default width and height if not set
             this.style.width ||= widthAttr ?? "100%";
             this.style.height ||= heightAttr ?? "100%";
           }
 
-          // the container element for monaco editor instance
           const containerEl = document.createElement("div");
           containerEl.className = "monaco-editor-container";
           style(containerEl, { width: "100%", height: "100%" });
@@ -216,14 +213,13 @@ export async function lazy(options?: InitOptions) {
             renderOptions.theme = renderOptions.theme.toLowerCase().replace(/ +/g, "-");
           }
 
-          // create a shiki instance for the renderer/editor
           const highlighter = await initShiki({
             ...options,
             theme: renderOptions.theme ?? options?.theme,
             langs,
           });
 
-          // check the pre-rendered editor(mock), if not exists, render one
+          // check the pre-rendered editor, if not exists, render one
           let prerenderEl: HTMLElement | undefined;
           for (const el of this.children) {
             if (el.className === "monaco-editor-prerender") {
@@ -379,15 +375,13 @@ async function loadMonaco(
   ]);
   const lspProviderMap = { ...builtinLSPProviders, ...lspProviders, ...lsp?.providers };
 
-  // initialize the workspace with the monaco namespace
+  // bind the monaco namespace to the workspace&lsp
   workspace?.setupMonaco(monaco);
-
-  // setup Monaco NS for the language service module
   if (Object.keys(lspProviderMap).length > 0) {
     initLspClient(monaco);
   }
 
-  // insert the monaco editor core CSS
+  // apply the monaco CSS
   if (!document.getElementById("monaco-editor-core-css")) {
     const styleEl = document.createElement("style");
     styleEl.id = "monaco-editor-core-css";

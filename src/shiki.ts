@@ -74,7 +74,7 @@ function loadTMTheme(src: string | URL, cdn = "https://esm.sh") {
   if (typeof src === "string" && themes.has(src)) {
     return themes.get(src)!;
   }
-  // fix theme id
+  // fix theme ID
   if (typeof src === "string" && /^[a-zA-Z]/.test(src)) {
     src = src.replace(/\s+/g, "-").replace(/([a-z])([A-Z])/g, "$1-$2").toLowerCase();
     if (!shikiThemeIds.has(src)) {
