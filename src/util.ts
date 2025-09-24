@@ -17,7 +17,7 @@ export function defineProperty(obj: any, prop: string, value: any) {
 }
 
 /** Convert string to URL. */
-export function toURL(uri: string | URL): URL {
+export function normalizeURL(uri: string | URL): URL {
   return uri instanceof URL ? uri : new URL(uri, "file:///");
 }
 
@@ -176,10 +176,10 @@ export async function openIDB(
   version: number = 1,
   ...stores: { name: string; keyPath: string; onCreate?: (store: IDBObjectStore) => Promise<void> }[]
 ) {
-  const req = indexedDB.open(name, version);
+  const openRequest = indexedDB.open(name, version);
   const promises: Promise<void>[] = [];
-  req.onupgradeneeded = () => {
-    const db = req.result;
+  openRequest.onupgradeneeded = () => {
+    const db = openRequest.result;
     for (const { name, keyPath, onCreate } of stores) {
       if (!db.objectStoreNames.contains(name)) {
         const store = db.createObjectStore(name, { keyPath });
@@ -189,7 +189,7 @@ export async function openIDB(
       }
     }
   };
-  const db = await promisifyIDBRequest<IDBDatabase>(req);
+  const db = await promisifyIDBRequest<IDBDatabase>(openRequest);
   await Promise.all(promises);
   return db;
 }
@@ -202,9 +202,9 @@ export function openIDBCursor(
   direction?: IDBCursorDirection,
 ) {
   return new Promise<void>((resolve, reject) => {
-    const ocr = store.openCursor(range, direction);
-    ocr.onsuccess = () => {
-      const cursor = ocr.result;
+    const corsor = store.openCursor(range, direction);
+    corsor.onsuccess = () => {
+      const cursor = corsor.result;
       if (cursor) {
         if (callback(cursor) !== false) {
           cursor.continue();
@@ -213,8 +213,8 @@ export function openIDBCursor(
       }
       resolve();
     };
-    ocr.onerror = () => {
-      reject(ocr.error);
+    corsor.onerror = () => {
+      reject(corsor.error);
     };
   });
 }

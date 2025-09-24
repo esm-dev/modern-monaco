@@ -204,7 +204,7 @@ function hashCode(s: string) {
 function normalizeFontFamily(fontFamily: string) {
   return fontFamily
     .split(",")
-    .map((f) => f.replace(/['"]+/g, "").trim())
+    .map((f) => f.trim().replace(/['"]+/g, ""))
     .filter(Boolean)
     .map((f) => (f.includes(" ") ? `'${f}'` : f))
     .join(", ");

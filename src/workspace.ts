@@ -16,12 +16,12 @@ import {
   decode,
   encode,
   filenameToURL,
+  normalizeURL,
   openIDB,
   openIDBCursor,
   promiseWithResolvers,
   promisifyIDBRequest,
   supportLocalStorage,
-  toURL,
 } from "./util.js";
 
 /** class Workspace implements IWorkspace */
@@ -100,7 +100,7 @@ export class Workspace implements IWorkspace {
   ): Promise<monacoNS.editor.ITextModel> {
     const monaco = await this._monaco.promise;
     const fs = this._fs;
-    const href = toURL(uri).href;
+    const href = normalizeURL(uri).href;
     const content = readonlyContent ?? await fs.readTextFile(href);
     const viewState = await this.viewState.get(href);
     const modelUri = monaco.Uri.parse(href);
@@ -541,13 +541,13 @@ class WorkspaceStateStorage<T> {
   }
 
   async get(uri: string | URL): Promise<T | undefined> {
-    const url = toURL(uri).href;
+    const url = normalizeURL(uri).href;
     const store = (await this.#db.open()).transaction("store", "readonly").objectStore("store");
     return promisifyIDBRequest<{ state: T } | undefined>(store.get(url)).then((result) => result?.state);
   }
 
   async save(uri: string | URL, state: T): Promise<void> {
-    const url = toURL(uri).href;
+    const url = normalizeURL(uri).href;
     const store = (await this.#db.open()).transaction("store", "readwrite").objectStore("store");
     await promisifyIDBRequest(store.put({ url, state }));
   }

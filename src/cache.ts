@@ -1,5 +1,5 @@
 // ! external modules, don't remove the `.js` extension
-import { defineProperty, openIDB, promisifyIDBRequest, toURL } from "./util.js";
+import { defineProperty, normalizeURL, openIDB, promisifyIDBRequest } from "./util.js";
 
 interface CacheFile {
   url: string;
@@ -67,7 +67,7 @@ class Cache {
   }
 
   async fetch(url: string | URL): Promise<Response> {
-    url = toURL(url);
+    url = normalizeURL(url);
     const storedRes = await this.query(url);
     if (storedRes) {
       return storedRes;
@@ -100,7 +100,7 @@ class Cache {
   }
 
   async query(key: string | URL): Promise<Response | null> {
-    const url = toURL(key).href;
+    const url = normalizeURL(key).href;
     const file = await this._db.get(url);
     if (file && file.headers) {
       const headers = new Headers(file.headers);
