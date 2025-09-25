@@ -83,7 +83,7 @@ export function registerBasicFeatures<
     & ILanguageWorkerWithFoldingRanges
     & ILanguageWorkerWithSelectionRanges
     & {
-      removeDocumentCache(uri: string): Promise<void>;
+      releaseDocument(uri: string): Promise<void>;
       fsNotify(kind: "create" | "remove", path: string, type?: number): Promise<void>;
     },
 >(
@@ -97,7 +97,7 @@ export function registerBasicFeatures<
   // remove document cache from worker when the model is disposed
   const onDispose = async (model: Monaco.editor.ITextModel) => {
     const workerProxy = await worker.withSyncedResources([]);
-    workerProxy.removeDocumentCache(model.uri.toString());
+    workerProxy.releaseDocument(model.uri.toString());
   };
   editor.onDidChangeModelLanguage(({ model, oldLanguage }) => {
     if (oldLanguage === languageId) {
@@ -147,12 +147,6 @@ export function registerBasicFeatures<
         worker.getProxy().then(proxy => proxy.fsNotify(kind, path, type));
       }
     });
-    (async () => {
-      const workerProxy = await worker.getProxy();
-      for await (const [path, type] of workspace.fs.walk()) {
-        workerProxy.fsNotify("create", path, type);
-      }
-    })();
   }
 }
 

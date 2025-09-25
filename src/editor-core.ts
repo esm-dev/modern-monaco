@@ -211,11 +211,11 @@ export function convertVscodeLanguageConfiguration(config: any): languages.Langu
     }
   }
   if (autoClosingPairs) {
-    // ['"', '"'] -> { open: '"', close: '"' }
+    // convert ['"', '"'] -> { open: '"', close: '"' }
     config.autoClosingPairs = autoClosingPairs.map((v) => Array.isArray(v) ? ({ open: v[0], close: v[1] }) : v);
   }
   if (surroundingPairs) {
-    // ['"', '"'] -> { open: '"', close: '"' }
+    // convert ['"', '"'] -> { open: '"', close: '"' }
     config.surroundingPairs = surroundingPairs.map((v) => Array.isArray(v) ? ({ open: v[0], close: v[1] }) : v);
   }
   return config;
@@ -262,10 +262,10 @@ export function createEditorWorkerMain(): Worker {
   if (workerUrl.origin !== location.origin) {
     return new Worker(
       URL.createObjectURL(new Blob([`import "${workerUrl.href}"`], { type: "application/javascript" })),
-      { type: "module" },
+      { type: "module", name: "editor-worker-main" },
     );
   }
-  return new Worker(new URL("./editor-worker-main.mjs", import.meta.url), { type: "module" });
+  return new Worker(workerUrl, { type: "module", name: "editor-worker-main" });
 }
 
 export * from "monaco-editor-core";

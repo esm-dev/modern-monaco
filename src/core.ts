@@ -4,14 +4,17 @@ import type { LSPConfig, LSPProvider } from "./lsp/index.ts";
 import { createMultiWorkspaceFileSystem, WorkspaceURI } from "./multi-workspace.ts";
 import { WorkspaceInit, WorkspaceInitMultiple } from "../types/workspace";
 
+import { parseImportMapFromJson } from "@esm.sh/import-map";
+import { version } from "../package.json";
+
 // ! external modules, don't remove the `.js` extension
 import { getExtnameFromLanguageId, getLanguageIdFromPath, grammars, initShiki, setDefaultWasmLoader, themes } from "./shiki.js";
 import { initShikiMonacoTokenizer, registerShikiMonacoTokenizer } from "./shiki.js";
 import { render } from "./shiki.js";
 import { getWasmInstance } from "./shiki-wasm.js";
 import { ErrorNotFound, Workspace } from "./workspace.js";
-import { debunce, decode, isDigital, promiseWithResolvers } from "./util.ts";
-import { init as initLS } from "./lsp/language-service.js";
+import { debunce, decode, isDigital } from "./util.js";
+import { init as initLspClient } from "./lsp/client.js";
 
 const editorProps = [
   "autoDetectHighContrast",
@@ -49,11 +52,11 @@ const errors = {
   NotFound: ErrorNotFound,
 };
 
+const cdnUrl = `https://esm.sh/modern-monaco@${version}`;
 const syntaxes: { name: string; scopeName: string }[] = [];
 const lspProviders: Record<string, LSPProvider> = {};
 const lspRegistrations = new Set<string>();
 
-const { promise: editorWorkerPromise, resolve: onDidEditorWorkerResolve } = promiseWithResolvers<void>();
 const attr = (el: HTMLElement, name: string): string | null => el.getAttribute(name);
 const style = (el: HTMLElement, style: Partial<CSSStyleDeclaration>) => Object.assign(el.style, style);
 
@@ -191,7 +194,7 @@ export async function lazy(options?: InitOptions) {
           let filename: string | undefined;
           let code: string | undefined;
 
-          // get editor optios from SSR output
+          // get editor options from `<script class="monaco-editor-options" type="application/json">`
           const firstEl = this.firstElementChild;
           if (firstEl && firstEl.tagName === "SCRIPT" && firstEl.className === "monaco-editor-options") {
             try {
@@ -217,7 +220,6 @@ export async function lazy(options?: InitOptions) {
             firstEl.remove();
           }
 
-          // set the base style of the container element
           style(this, { display: "block", position: "relative" });
 
           // set dimension from width and height attributes
@@ -235,12 +237,10 @@ export async function lazy(options?: InitOptions) {
             if (isDigital(heightAttr)) {
               heightAttr += "px";
             }
-            // set the default width and height if not set
             this.style.width ||= widthAttr ?? "100%";
             this.style.height ||= heightAttr ?? "100%";
           }
 
-          // the container element for monaco editor instance
           const containerEl = document.createElement("div");
           containerEl.className = "monaco-editor-container";
           style(containerEl, { width: "100%", height: "100%" });
@@ -272,14 +272,13 @@ export async function lazy(options?: InitOptions) {
             renderOptions.theme = renderOptions.theme.toLowerCase().replace(/ +/g, "-");
           }
 
-          // create a shiki instance for the renderer/editor
           const highlighter = await initShiki({
             ...options,
             theme: renderOptions.theme ?? options?.theme,
             langs,
           });
 
-          // check the pre-rendered editor(mock), if not exists, render one
+          // check the pre-rendered editor, if not exists, render one
           let prerenderEl: HTMLElement | undefined;
           for (const el of this.children) {
             if (el.className === "monaco-editor-prerender") {
@@ -318,8 +317,8 @@ export async function lazy(options?: InitOptions) {
             }
           }
 
-          async function createEditor() {
-            // Get Monaco instance (shared for multiple workspaces)
+          // load and render editor
+          {
             const monaco = await getMonacoInstance(options, highlighter, workspace, sharedMonacoPromise);
             if (options && 'workspaces' in options && options.workspaces && !sharedMonacoPromise) {
               sharedMonacoPromise = Promise.resolve(monaco);
@@ -402,28 +401,21 @@ export async function lazy(options?: InitOptions) {
             }
             // hide the prerender element if exists
             if (prerenderEl) {
-              editorWorkerPromise.then(() => {
-                setTimeout(() => {
-                  const animate = prerenderEl.animate?.([{ opacity: 1 }, { opacity: 0 }], { duration: 150 });
-                  if (animate) {
-                    animate.finished.then(() => prerenderEl.remove());
-                  } else {
-                    // animation API is not supported
-                    setTimeout(() => prerenderEl.remove(), 150);
-                  }
-                }, 100);
-              });
+              setTimeout(() => {
+                const animate = prerenderEl.animate?.([{ opacity: 1 }, { opacity: 0 }], { duration: 200 });
+                if (animate) {
+                  animate.finished.then(() => prerenderEl.remove());
+                } else {
+                  // animation API is not supported
+                  setTimeout(() => prerenderEl.remove(), 200);
+                }
+              }, 200);
             }
           }
-
-          // load and render editor
-          await createEditor();
         }
       },
     );
   }
-
-  await editorWorkerPromise;
 }
 
 /** Hydrate the monaco editor in the browser. */
@@ -438,18 +430,37 @@ async function loadMonaco(
   workspace?: Workspace<WorkspaceInit>,
   lsp?: LSPConfig,
 ): Promise<typeof monacoNS> {
-  const monaco = await import("./editor-core.js");
-  const lspProviderMap = { ...lspProviders, ...lsp?.providers };
-
-  // initialize the workspace with the monaco namespace
-  workspace?.setupMonaco(monaco);
-
-  // setup Monaco NS for the language service module
-  if (Object.keys(lspProviderMap).length > 0) {
-    initLS(monaco);
+  let importmap: HTMLScriptElement | null = null;
+  let editorCoreModuleUrl = `${cdnUrl}/es2022/editor-core.mjs`;
+  let lspModuleUrl = `${cdnUrl}/es2022/lsp.mjs`;
+  if (importmap = document.querySelector("script[type='importmap']")) {
+    try {
+      const { imports = {} } = parseImportMapFromJson(importmap.textContent);
+      if (imports["modern-monaco/editor-core"]) {
+        editorCoreModuleUrl = imports["modern-monaco/editor-core"];
+      }
+      if (imports["modern-monaco/lsp"]) {
+        lspModuleUrl = imports["modern-monaco/lsp"];
+      }
+    } catch (error) {
+      // ignore
+    }
   }
 
-  // insert the monaco editor core CSS
+  const builtinLSP = (globalThis as any).MonacoEnvironment?.builtinLSP;
+  const [monaco, { builtinLSPProviders }]: [typeof import("./editor-core"), typeof import("./lsp")] = await Promise.all([
+    import(editorCoreModuleUrl),
+    builtinLSP ? import(lspModuleUrl) : Promise.resolve({ builtinLSPProviders: {} }),
+  ]);
+  const lspProviderMap = { ...builtinLSPProviders, ...lspProviders, ...lsp?.providers };
+
+  // bind the monaco namespace to the workspace&lsp
+  workspace?.setupMonaco(monaco);
+  if (Object.keys(lspProviderMap).length > 0) {
+    initLspClient(monaco);
+  }
+
+  // apply the monaco CSS
   if (!document.getElementById("monaco-editor-core-css")) {
     const styleEl = document.createElement("style");
     styleEl.id = "monaco-editor-core-css";
@@ -463,13 +474,7 @@ async function loadMonaco(
   Reflect.set(globalThis, "MonacoEnvironment", {
     getWorker: async (_workerId: string, label: string) => {
       if (label === "editorWorkerService") {
-        const worker = monaco.createEditorWorkerMain();
-        const onMessage = (e: MessageEvent) => {
-          worker.removeEventListener("message", onMessage);
-          onDidEditorWorkerResolve();
-        };
-        worker.addEventListener("message", onMessage);
-        return worker;
+        return monaco.createEditorWorkerMain();
       }
     },
     getLanguageIdFromUri: (uri: monacoNS.Uri) => getLanguageIdFromPath(uri.path),

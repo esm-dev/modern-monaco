@@ -2,7 +2,6 @@ import type monacoNS from "monaco-editor-core";
 import type {
   FileStat,
   FileSystem,
-  FileSystemEntryType,
   Workspace as IWorkspace,
   WorkspaceHistory,
   WorkspaceHistoryState,
@@ -29,7 +28,7 @@ import {
 
 /** class Workspace implements IWorkspace */
 export class Workspace<T extends WorkspaceInit | WorkspaceInitMultiple> implements IWorkspace<T> {
-  private _monaco: { promise: Promise<typeof monacoNS>; resolve: (value: typeof monacoNS) => void; reject: (reason: any) => void };
+  private _monaco: PromiseWithResolvers<typeof monacoNS>;
   private _history: WorkspaceHistory;
   private _fs: FileSystem;
   private _viewState: WorkspaceViewState;
@@ -40,7 +39,7 @@ export class Workspace<T extends WorkspaceInit | WorkspaceInitMultiple> implemen
     const { name = "default", browserHistory, initialFiles, entryFile, customFS } = options;
 
     this._monaco = promiseWithResolvers();
-    this._fs = customFS ?? new FS("modern-monaco-workspace(" + name + ")");
+    this._fs = customFS ?? new IndexedDBFileSystem("modern-monaco-workspace(" + name + ")");
     this._viewState = new WorkspaceStateStorage<monacoNS.editor.ICodeEditorViewState>("modern-monaco-state(" + name + ")");
     this._entryFile = entryFile;
     this._name = name;
@@ -49,7 +48,7 @@ export class Workspace<T extends WorkspaceInit | WorkspaceInitMultiple> implemen
       for (const [name, data] of Object.entries(initialFiles)) {
         void this._fs.stat(name).catch(async (err) => {
           if (err instanceof ErrorNotFound) {
-            const { pathname, href: url } = filenameToURL(name);
+            const { pathname } = filenameToURL(name);
             const dir = pathname.slice(0, pathname.lastIndexOf("/"));
             if (dir) {
               await this._fs.createDirectory(dir);
@@ -101,7 +100,6 @@ export class Workspace<T extends WorkspaceInit | WorkspaceInitMultiple> implemen
     return this._openTextDocument(uri, monaco.editor.getEditors()[0], undefined, content);
   }
 
-  // @internal
   async _openTextDocument(
     uri: string | URL,
     editor?: monacoNS.editor.ICodeEditor,
@@ -159,7 +157,7 @@ export class Workspace<T extends WorkspaceInit | WorkspaceInitMultiple> implemen
         const disposable = editor.onDidChangeModel(() => {
           model.dispose();
           disposable.dispose();
-        })
+        });
       }
       if (selectionOrPosition) {
         if ("startLineNumber" in selectionOrPosition) {
@@ -202,7 +200,7 @@ type FileSystemWatcher = {
 };
 
 /** workspace file system using IndexedDB. */
-class FS implements FileSystem {
+class IndexedDBFileSystem implements FileSystem {
   private _watchers = new Set<FileSystemWatcher>();
   private _db: WorkspaceDatabase;
 
@@ -222,14 +220,6 @@ class FS implements FileSystem {
   private async _getIdbObjectStores(readwrite = false): Promise<[IDBObjectStore, IDBObjectStore]> {
     const transaction = (await this._db.open()).transaction(["fs-meta", "fs-blob"], readwrite ? "readwrite" : "readonly");
     return [transaction.objectStore("fs-meta"), transaction.objectStore("fs-blob")];
-  }
-
-  async *walk(): AsyncIterable<[string, FileSystemEntryType]> {
-    const metaStore = await this._getIdbObjectStore("fs-meta");
-    const entries = await promisifyIDBRequest<Array<{ url: string } & FileStat>>(metaStore.getAll());
-    for (const entry of entries) {
-      yield [new URL(entry.url).pathname, entry.type];
-    }
   }
 
   async stat(name: string): Promise<FileStat> {
@@ -519,6 +509,20 @@ export class ErrorNotFound extends Error {
   constructor(name: string) {
     super("No such file or directory: " + name);
   }
+}
+
+/** walk the file system and return all entries. */
+export async function walk(fs: FileSystem, dir: string = "/"): Promise<string[]> {
+  const entries: string[] = [];
+  for (const [name, type] of await fs.readDirectory(dir || "/")) {
+    const path = (dir.endsWith("/") ? dir.slice(0, -1) : dir) + "/" + name;
+    if (type === 2) {
+      entries.push(...(await walk(fs, path)));
+    } else {
+      entries.push(path);
+    }
+  }
+  return entries;
 }
 
 /** WorkspaceDatabase provides workspace database. */

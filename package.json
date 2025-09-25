@@ -43,6 +43,9 @@
     "./util": {
       "import": "./dist/util.mjs"
     },
+    "./lsp": {
+      "import": "./dist/lsp/index.mjs"
+    },
     "./lsp/*": {
       "import": "./dist/lsp/*.mjs"
     }

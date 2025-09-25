@@ -220,7 +220,10 @@ export function openIDBCursor(
 }
 
 /** polyfill for `Promise.withResolvers` */
-export function promiseWithResolvers<T>() {
+export function promiseWithResolvers<T>(): PromiseWithResolvers<T> {
+  if (Promise.withResolvers) {
+    return Promise.withResolvers<T>();
+  }
   let resolve: (value: T) => void;
   let reject: (reason: any) => void;
   const promise = new Promise<T>((res, rej) => {

@@ -74,7 +74,7 @@ function loadTMTheme(src: string | URL, cdn = "https://esm.sh") {
   if (typeof src === "string" && themes.has(src)) {
     return themes.get(src)!;
   }
-  // fix theme id
+  // fix theme ID
   if (typeof src === "string" && /^[a-zA-Z]/.test(src)) {
     src = src.replace(/\s+/g, "-").replace(/([a-z])([A-Z])/g, "$1-$2").toLowerCase();
     if (!shikiThemeIds.has(src)) {
@@ -88,7 +88,7 @@ function loadTMTheme(src: string | URL, cdn = "https://esm.sh") {
     return cache.fetch(url).then((res) => res.json());
   }
   const url = typeof src === "string" ? new URL(src, globalThis.location?.href) : src;
-  if (url.protocol === "http" || url.protocol === "https") {
+  if (url.protocol === "http:" || url.protocol === "https:") {
     return cache.fetch(url).then((res) => res.json());
   }
   throw new Error(`Unsupported theme source: ${src}`);
@@ -104,7 +104,7 @@ function loadTMGrammar(src: string | URL, cdn = "https://esm.sh") {
     }
   }
   const url = typeof src === "string" ? new URL(src, globalThis.location?.href) : src;
-  if (url.protocol === "http" || url.protocol === "https") {
+  if (url.protocol === "http:" || url.protocol === "https:") {
     return cache.fetch(url).then((res) => res.json());
   }
   throw new Error(`Unsupported grammar source: ${src}`);

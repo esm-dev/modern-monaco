@@ -7,7 +7,8 @@ import { schemas } from "./schemas.ts";
 import { WorkspaceInit } from "../../../types/workspace.js";
 
 // ! external modules, don't remove the `.js` extension
-import * as ls from "../language-service.js";
+import { walk } from "../../workspace.js";
+import * as client from "../client.js";
 
 export async function setup(
   monaco: typeof monacoNS,
@@ -35,11 +36,11 @@ export async function setup(
       trimFinalNewlines: true,
       ...formattingOptions,
     },
-    workspace: !!workspace,
+    fs: workspace ? await walk(workspace.fs, "/") : undefined,
   };
   const worker = editor.createWebWorker<JSONWorker>({
     worker: getWorker(createData),
-    host: ls.createHost(workspace),
+    host: client.createHost(workspace),
   });
 
   // reset schema on model change
@@ -58,9 +59,9 @@ export async function setup(
   });
 
   // register language features
-  ls.registerBasicFeatures(languageId, worker, [" ", ":", '"'], workspace);
-  ls.registerColorPresentation(languageId, worker);
-  ls.registerDocumentLinks(languageId, worker);
+  client.registerBasicFeatures(languageId, worker, [" ", ":", '"'], workspace);
+  client.registerColorPresentation(languageId, worker);
+  client.registerDocumentLinks(languageId, worker);
 
   // register code lens provider for import maps
   languages.registerCodeLensProvider(languageId, {
@@ -165,10 +166,10 @@ function createWebWorker(): Worker {
   if (workerUrl.origin !== location.origin) {
     return new Worker(
       URL.createObjectURL(new Blob([`import "${workerUrl.href}"`], { type: "application/javascript" })),
-      { type: "module" },
+      { type: "module", name: "json-worker" },
     );
   }
-  return new Worker(new URL("./worker.mjs", import.meta.url), { type: "module" });
+  return new Worker(workerUrl, { type: "module", name: "json-worker" });
 }
 
 function getWorker(createData: CreateData) {

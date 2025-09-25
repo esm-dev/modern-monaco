@@ -2,7 +2,8 @@ import type monacoNS from "monaco-editor-core";
 import type ts from "typescript";
 import type { FormattingOptions } from "vscode-languageserver-types";
 import type { Workspace } from "~/workspace";
-import type { CreateData, Host, TypeScriptWorker, VersionedContent } from "./worker";
+import type { WorkspaceInit } from "~/../types/workspace";
+import type { CreateData, TypeScriptWorker, VersionedContent } from "./worker";
 import {
   createBlankImportMap,
   type ImportMap,
@@ -14,10 +15,8 @@ import {
 
 // ! external modules, don't remove the `.js` extension
 import { cache } from "../../cache.js";
-import { ErrorNotFound } from "../../workspace.js";
-import * as ls from "../language-service.js";
-import { createHost } from "../language-service.js";
-import { WorkspaceInit } from "../../../types/workspace.js";
+import { ErrorNotFound, walk } from "../../workspace.js";
+import * as client from "../client.js";
 
 type TSWorker = monacoNS.editor.MonacoWebWorker<TypeScriptWorker>;
 type CompilerOptions = { [key: string]: ts.CompilerOptionsValue };
@@ -48,10 +47,10 @@ export async function setup(
   }
 
   // register language features
-  ls.registerBasicFeatures(languageId, usedWorker, [".", "/", '"', "'", "<"], workspace);
-  ls.registerAutoComplete(languageId, usedWorker, [">", "/"]);
-  ls.registerSignatureHelp(languageId, usedWorker, ["(", ","]);
-  ls.registerCodeAction(languageId, usedWorker);
+  client.registerBasicFeatures(languageId, usedWorker, [".", "/", '"', "'", "<"], workspace);
+  client.registerAutoComplete(languageId, usedWorker, [">", "/"]);
+  client.registerSignatureHelp(languageId, usedWorker, ["(", ","]);
+  client.registerCodeAction(languageId, usedWorker);
 
   // unimplemented features
   // languages.registerOnTypeFormattingEditProvider(languageId, new lfs.FormatOnTypeAdapter(worker));
@@ -128,13 +127,13 @@ async function createWorker(
     },
     importMap,
     types: typesStore.types,
-    workspace: !!workspace,
+    fs: workspace ? await walk(workspace.fs, "/") : undefined,
   };
   const worker = monaco.editor.createWebWorker<TypeScriptWorker>({
     worker: getWorker(createData),
     keepIdleModels: true,
     host: (() => {
-      const hostFunctions = createHost(workspace);
+      const hostFunctions = client.createHost(workspace);
 
       return {
         openModel: async (uri: string): Promise<boolean> => {
@@ -256,10 +255,10 @@ function createWebWorker(): Worker {
   if (workerUrl.origin !== location.origin) {
     return new Worker(
       URL.createObjectURL(new Blob([`import "${workerUrl.href}"`], { type: "application/javascript" })),
-      { type: "module" },
+      { type: "module", name: "typescript-worker" },
     );
   }
-  return new Worker(new URL("./worker.mjs", import.meta.url), { type: "module" });
+  return new Worker(workerUrl, { type: "module", name: "typescript-worker" });
 }
 
 function getWorker(createData: CreateData) {
