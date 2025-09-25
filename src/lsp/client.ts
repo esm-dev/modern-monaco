@@ -1,7 +1,7 @@
 import type Monaco from "monaco-editor-core";
 import type { Workspace } from "~/workspace.ts";
 import * as lst from "vscode-languageserver-types";
-import { WorkspaceInit } from "../../types/workspace";
+import type { WorkspaceInit } from "../../types/workspace";
 
 // ! external modules, don't remove the `.js` extension
 import { cache } from "../cache.js";

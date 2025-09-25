@@ -2,7 +2,7 @@ import type monacoNS from "monaco-editor-core";
 import type { FormattingOptions } from "vscode-languageserver-types";
 import type { Workspace } from "~/workspace.ts";
 import type { CreateData, HTMLWorker } from "./worker.ts";
-import { WorkspaceInit } from "../../../types/workspace";
+import type { WorkspaceInit } from "../../../types/workspace";
 
 // ! external modules, don't remove the `.js` extension
 import { walk } from "../../workspace.js";

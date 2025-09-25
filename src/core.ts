@@ -2,7 +2,7 @@ import type monacoNS from "monaco-editor-core";
 import type { Highlighter, RenderOptions, ShikiInitOptions } from "./shiki.ts";
 import type { LSPConfig, LSPProvider } from "./lsp/index.ts";
 import { createMultiWorkspaceFileSystem, WorkspaceURI } from "./multi-workspace.ts";
-import { WorkspaceInit, WorkspaceInitMultiple } from "../types/workspace";
+import type { WorkspaceInit, WorkspaceInitMultiple } from "../types/workspace";
 
 import { parseImportMapFromJson } from "@esm.sh/import-map";
 import { version } from "../package.json";
