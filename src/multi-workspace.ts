@@ -119,16 +119,6 @@ export class MultiWorkspaceFileSystem {
         delete: this.createFSMethod("delete"),
         rename: this.createFSMethod("rename"),
 
-        // Special handling for methods that need custom logic
-        walk: (): AsyncIterable<[string, FileSystemEntryType]> => {
-          const [workspace] = this.resolveWorkspaceAndPath();
-          if (workspace.fs.walk) {
-            return workspace.fs.walk();
-          }
-          // Return empty iterator to satisfy TypeScript language service expectations
-          return { async *[Symbol.asyncIterator]() {} };
-        },
-
         watch: ((
           uri: string,
           options?: { recursive: boolean },
