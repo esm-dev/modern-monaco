@@ -78,36 +78,35 @@ export interface InitOptionsMultipleWorkspaces extends ShikiInitOptions {
   lsp?: LSPConfig;
 }
 
-export type InitOptions = InitOptionsSingleWorkspace | InitOptionsMultipleWorkspaces;
-
-
+export type InitOptions =
+  | InitOptionsSingleWorkspace
+  | InitOptionsMultipleWorkspaces;
 
 /** Initialize Monaco editor with optional multi-workspace support */
-export async function init(options?: InitOptions): Promise<typeof monacoNS> {
+export async function init(
+  options?: InitOptions,
+  highlighter?: Highlighter
+): Promise<typeof monacoNS> {
   const langs = (options?.langs ?? []).concat(syntaxes as any[]);
-  const highlighter = await initShiki({ ...options, langs });
+  const usedHighlighter =
+    highlighter ?? (await initShiki({ ...options, langs }));
 
-  // Check if multi-workspace setup is requested
-  if (options && 'workspaces' in options && options.workspaces) {
-    return initMultiWorkspace(highlighter, options.workspaces, options.lsp);
+  const workspaces: Workspace<WorkspaceInitMultiple>[] = [];
+  if (options && "workspaces" in options && options.workspaces) {
+    workspaces.push(...options.workspaces);
+  } else if (options && "workspace" in options && options.workspace) {
+    workspaces.push(options.workspace);
   }
 
-  // Single workspace setup
-  const singleOptions = options as InitOptionsSingleWorkspace | undefined;
-  return loadMonaco(highlighter, singleOptions?.workspace, singleOptions?.lsp);
-}
-
-/** Initialize multi-workspace Monaco setup */
-async function initMultiWorkspace(
-  highlighter: Highlighter,
-  workspaces: Workspace<WorkspaceInitMultiple>[],
-  lsp?: LSPConfig
-): Promise<typeof monacoNS> {
   const multiWorkspaceFS = createMultiWorkspaceFileSystem(workspaces);
-  const monaco = await loadMonaco(highlighter, multiWorkspaceFS as any, lsp);
+  const monaco = await loadMonaco(
+    usedHighlighter,
+    multiWorkspaceFS,
+    options?.lsp
+  );
 
   // Initialize each workspace with the Monaco instance
-  workspaces.forEach(workspace => workspace.setupMonaco(monaco));
+  workspaces.forEach((workspace) => workspace.setupMonaco(monaco));
 
   return monaco;
 }
@@ -116,13 +115,9 @@ async function initMultiWorkspace(
 async function getMonacoInstance(
   options: InitOptions | undefined,
   highlighter: Highlighter,
-  workspace: Workspace<WorkspaceInit> | undefined,
   sharedPromise: Promise<typeof monacoNS> | null
 ): Promise<typeof monacoNS> {
-  if (options && 'workspaces' in options && options.workspaces) {
-    return sharedPromise || init(options);
-  }
-  return loadMonaco(highlighter, workspace, options?.lsp);
+  return sharedPromise || init(options, highlighter);
 }
 
 /** Render a mock editor, then load the monaco editor in background. */
@@ -318,8 +313,12 @@ export async function lazy(options?: InitOptions) {
 
           // load and render editor
           {
-            const monaco = await getMonacoInstance(options, highlighter, workspace, sharedMonacoPromise);
-            if (options && 'workspaces' in options && options.workspaces && !sharedMonacoPromise) {
+            const monaco = await getMonacoInstance(
+              options,
+              highlighter,
+              sharedMonacoPromise
+            );
+            if (!sharedMonacoPromise) {
               sharedMonacoPromise = Promise.resolve(monaco);
             }
             const editor = monaco.editor.create(containerEl, renderOptions);
