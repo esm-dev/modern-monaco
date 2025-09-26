@@ -4,7 +4,7 @@ import type { Workspace } from "~/workspace.ts";
 import type { CreateData, JSONWorker } from "./worker.ts";
 import { parseImportMapFromHtml, parseImportMapFromJson } from "@esm.sh/import-map";
 import { schemas } from "./schemas.ts";
-import { WorkspaceInit } from "../../../types/workspace.js";
+import type { WorkspaceInit } from "../../../types/workspace.js";
 
 // ! external modules, don't remove the `.js` extension
 import { walk } from "../../workspace.js";
