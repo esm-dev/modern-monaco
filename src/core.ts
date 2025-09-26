@@ -329,7 +329,6 @@ export async function lazy(options?: InitOptions) {
                   const state = editor.saveViewState();
                   if (state) {
                     state.viewState.scrollTop ??= editor.getScrollTop();
-                    // Strip workspace prefix for viewState storage to use original URI
                     const uri = currentModel.uri.toString();
                     const storageUri = WorkspaceURI.removeWorkspacePrefix(uri, workspace.name);
                     workspace.viewState.save(storageUri, Object.freeze(state));
@@ -493,7 +492,6 @@ async function loadMonaco(
     openCodeEditor: async (editor, resource, selectionOrPosition) => {
       if (workspace && resource.scheme === "file") {
         try {
-          // Strip workspace prefix to get the original file URI
           const resourceUri = resource.toString();
           const originalUri = WorkspaceURI.removeWorkspacePrefix(resourceUri, workspace.name);
           await workspace._openTextDocument(originalUri, editor, selectionOrPosition);

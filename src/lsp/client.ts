@@ -24,17 +24,14 @@ export function createHost(workspace?: Workspace<WorkspaceInit>) {
   return workspace
     ? {
       fs_readDirectory: (uri: string) => {
-        // Strip workspace prefix to access the actual directory
         const actualUri = stripWorkspacePrefix(uri);
         return workspace.fs.readDirectory(actualUri);
       },
       fs_stat: (uri: string) => {
-        // Strip workspace prefix to access the actual file
         const actualUri = stripWorkspacePrefix(uri);
         return workspace.fs.stat(actualUri);
       },
       fs_getContent: (uri: string): Promise<string> => {
-        // Strip workspace prefix to access the actual file content
         const actualUri = stripWorkspacePrefix(uri);
         return workspace.fs.readTextFile(actualUri);
       },
@@ -110,8 +107,8 @@ export function registerBasicFeatures<
     }
   });
 
-    // enable diagnostics
-    registerDiagnostics(languageId, worker);
+  // enable diagnostics
+  registerDiagnostics(languageId, worker);
 
   // register language features
   languages.registerCompletionItemProvider(languageId, new CompletionAdapter(worker, completionTriggerCharacters));
@@ -364,8 +361,7 @@ export function fromRange(range: Monaco.IRange): lst.Range {
 }
 
 export function convertRange(range: lst.Range): Monaco.Range {
-  const monaco = monacoAPI.monaco;
-  return new monaco.Range(
+  return new monacoAPI.monaco.Range(
     range.start.line + 1,
     range.start.character + 1,
     range.end.line + 1,
@@ -950,7 +946,6 @@ function isLocationLink(location: lst.Location | lst.LocationLink): location is 
 }
 
 function convertLocationLink(location: lst.Location | lst.LocationLink): Monaco.languages.LocationLink {
-  const monaco = monacoAPI.monaco;
   let uri: string;
   let range: lst.Range;
   let targetSelectionRange: lst.Range | undefined;
@@ -968,7 +963,7 @@ function convertLocationLink(location: lst.Location | lst.LocationLink): Monaco.
     uri = uri.slice(0, uri.lastIndexOf(".(embedded)."));
   }
   return {
-    uri: monaco.Uri.parse(uri),
+    uri: monacoAPI.monaco.Uri.parse(uri),
     range: convertRange(range),
     targetSelectionRange: targetSelectionRange ? convertRange(targetSelectionRange) : undefined,
     originSelectionRange: originSelectionRange ? convertRange(originSelectionRange) : undefined,
@@ -976,8 +971,7 @@ function convertLocationLink(location: lst.Location | lst.LocationLink): Monaco.
 }
 
 async function ensureHttpModels(links: Monaco.languages.LocationLink[]): Promise<void> {
-  const monaco = monacoAPI.monaco;
-  const { editor, Uri } = monaco;
+  const { editor, Uri } = monacoAPI.monaco;
   const httpUrls = new Set<string>(
     links
       .map(link => link.uri)
@@ -1333,8 +1327,7 @@ function convertInlayHintLabelPart(part: lst.InlayHintLabelPart): Monaco.languag
 }
 
 function convertPosition(position: lst.Position): Monaco.Position {
-  const monaco = monacoAPI.monaco;
-  return new monaco.Position(position.line + 1, position.character + 1);
+  return new monacoAPI.monaco.Position(position.line + 1, position.character + 1);
 }
 
 // #endregion

@@ -50,20 +50,20 @@ export interface ShikiInitOptions {
 
 export interface InitOptionsSingleWorkspace extends ShikiInitOptions {
   /**
-     * Virtual file system to be used by the editor.
-     */
+   * Virtual file system to be used by the editor.
+   */
   workspace?: Workspace;
   /**
-    * Language server protocol configuration.
-    */
+   * Language server protocol configuration.
+   */
   lsp?: LSPConfig;
 }
 
 export interface InitOptionsMultipleWorkspaces extends ShikiInitOptions {
   workspaces?: Workspace<WorkspaceInitMultiple>[];
   /**
-  * Language server protocol configuration.
-  */
+   * Language server protocol configuration.
+   */
   lsp?: LSPConfig;
 }
 
