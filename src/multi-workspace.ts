@@ -1,7 +1,6 @@
 import type monacoNS from "monaco-editor-core";
 import type { Workspace } from "./workspace.js";
 import type {
-  FileSystemEntryType,
   FileSystemWatchHandle,
   WorkspaceInit,
   WorkspaceInitMultiple,

@@ -14,7 +14,6 @@ import { render } from "./shiki.js";
 import { getWasmInstance } from "./shiki-wasm.js";
 import { ErrorNotFound, Workspace } from "./workspace.js";
 import { debunce, decode, isDigital } from "./util.js";
-import { init as initLspClient } from "./lsp/client.js";
 
 const editorProps = [
   "autoDetectHighContrast",
@@ -456,9 +455,6 @@ async function loadMonaco(
 
   // bind the monaco namespace to the workspace&lsp
   workspace?.setupMonaco(monaco);
-  if (Object.keys(lspProviderMap).length > 0) {
-    initLspClient(monaco);
-  }
 
   // apply the monaco CSS
   if (!document.getElementById("monaco-editor-core-css")) {
@@ -479,6 +475,8 @@ async function loadMonaco(
     },
     getLanguageIdFromUri: (uri: monacoNS.Uri) => getLanguageIdFromPath(uri.path),
     getExtnameFromLanguageId: getExtnameFromLanguageId,
+    // Make Monaco available to all workers and LSP components
+    monaco: monaco,
   });
 
   // prevent to open a http link which is a model
