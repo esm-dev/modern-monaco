@@ -42,7 +42,7 @@ async function servePages(url: URL, req: Request) {
   const { pathname } = url;
   let filename = "index.html";
   if (
-    pathname === "/ssr" || pathname === "/lazy" || pathname === "/manual" || pathname === "/manual-no-workspace" || pathname === "/compare"
+    pathname === "/ssr" || pathname === "/ssr-multiple-editors" || pathname === "/lazy" || pathname === "/manual" || pathname === "/manual-no-workspace" || pathname === "/compare"
   ) {
     filename = pathname.slice(1) + ".html";
   }
@@ -50,6 +50,10 @@ async function servePages(url: URL, req: Request) {
     const fileUrl = new URL("../examples/" + filename, import.meta.url);
     if (filename === "ssr.html") {
       const { default: ssr } = await import("../examples/js/ssr.mjs");
+      return ssr.fetch(req);
+    }
+    if (filename === "ssr-multiple-editors.html") {
+      const { default: ssr } = await import("../examples/js/ssr-multiple-editors.mjs");
       return ssr.fetch(req);
     }
     const headers = new Headers({

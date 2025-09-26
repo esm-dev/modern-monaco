@@ -2,7 +2,8 @@ import type monacoNS from "monaco-editor-core";
 import type ts from "typescript";
 import type { FormattingOptions } from "vscode-languageserver-types";
 import type { Workspace } from "~/workspace";
-import type { CreateData, Host, TypeScriptWorker, VersionedContent } from "./worker";
+import type { WorkspaceInit } from "~/../types/workspace";
+import type { CreateData, TypeScriptWorker, VersionedContent } from "./worker";
 import {
   createBlankImportMap,
   type ImportMap,
@@ -21,27 +22,35 @@ type TSWorker = monacoNS.editor.MonacoWebWorker<TypeScriptWorker>;
 type CompilerOptions = { [key: string]: ts.CompilerOptionsValue };
 
 // javascript and typescript share the same worker
-let worker: TSWorker | Promise<TSWorker> | null = null;
+let workspaceWorkers: Record<string, TSWorker | Promise<TSWorker>> = {};
 
 export async function setup(
   monaco: typeof monacoNS,
   languageId: string,
   languageSettings?: Record<string, unknown>,
   formattingOptions?: FormattingOptions & { semicolon?: "ignore" | "insert" | "remove" },
-  workspace?: Workspace,
+  workspace?: Workspace<WorkspaceInit>,
 ) {
-  if (!worker) {
-    worker = createWorker(monaco, workspace, languageSettings, formattingOptions);
+  let usedWorker = workspace?.name ? workspaceWorkers[workspace.name] : workspaceWorkers.default;
+
+  if (!usedWorker) {
+    if (workspace?.name) {
+      workspaceWorkers[workspace.name] = createWorker(monaco, workspace, languageSettings, formattingOptions);
+      usedWorker = workspaceWorkers[workspace.name];
+    } else {
+      workspaceWorkers.default = createWorker(monaco, workspace, languageSettings, formattingOptions);
+      usedWorker = workspaceWorkers.default;
+    }
   }
-  if (worker instanceof Promise) {
-    worker = await worker;
+  if (usedWorker instanceof Promise) {
+    usedWorker = await usedWorker;
   }
 
   // register language features
-  client.registerBasicFeatures(languageId, worker, [".", "/", '"', "'", "<"], workspace);
-  client.registerAutoComplete(languageId, worker, [">", "/"]);
-  client.registerSignatureHelp(languageId, worker, ["(", ","]);
-  client.registerCodeAction(languageId, worker);
+  client.registerBasicFeatures(languageId, usedWorker, [".", "/", '"', "'", "<"], workspace);
+  client.registerAutoComplete(languageId, usedWorker, [">", "/"]);
+  client.registerSignatureHelp(languageId, usedWorker, ["(", ","]);
+  client.registerCodeAction(languageId, usedWorker);
 
   // unimplemented features
   // languages.registerOnTypeFormattingEditProvider(languageId, new lfs.FormatOnTypeAdapter(worker));
@@ -52,7 +61,7 @@ export async function setup(
 /** Create the typescript worker. */
 async function createWorker(
   monaco: typeof monacoNS,
-  workspace?: Workspace,
+  workspace?: Workspace<WorkspaceInit>,
   languageSettings?: Record<string, unknown>,
   formattingOptions?: FormattingOptions & { semicolon?: "ignore" | "insert" | "remove" },
 ) {
@@ -123,31 +132,37 @@ async function createWorker(
   const worker = monaco.editor.createWebWorker<TypeScriptWorker>({
     worker: getWorker(createData),
     keepIdleModels: true,
-    host: {
-      openModel: async (uri: string): Promise<boolean> => {
-        if (!workspace) {
-          throw new Error("Workspace is undefined.");
-        }
-        try {
-          await workspace._openTextDocument(uri);
-        } catch (error) {
-          if (error instanceof ErrorNotFound) {
-            return false;
+    host: (() => {
+      const hostFunctions = client.createHost(workspace);
+
+      return {
+        openModel: async (uri: string): Promise<boolean> => {
+          if (!workspace) {
+            throw new Error("Workspace is undefined.");
           }
-          throw error;
-        }
-        return true;
-      },
-      refreshDiagnostics: async (uri: string) => {
-        let model = monaco.editor.getModel(uri);
-        if (model && model.uri.path.includes(".(embedded).")) {
-          model = monaco.editor.getModel(model.uri.toString(true).split(".(embedded).")[0]);
-        }
-        if (model) {
-          Reflect.get(model, "refreshDiagnostics")?.();
-        }
-      },
-    } satisfies Host,
+          try {
+            await workspace._openTextDocument(uri);
+          } catch (error) {
+            if (error instanceof ErrorNotFound) {
+              return false;
+            }
+            throw error;
+          }
+          return true;
+        },
+        refreshDiagnostics: async (uri: string) => {
+          let model = monaco.editor.getModel(uri);
+          if (model && model.uri.path.includes(".(embedded).")) {
+            model = monaco.editor.getModel(model.uri.toString(true).split(".(embedded).")[0]);
+          }
+          if (model) {
+            Reflect.get(model, "refreshDiagnostics")?.();
+          }
+        },
+        // Add fs hooks directly
+        ...hostFunctions,
+      };
+    })(),
   });
 
   if (fs) {
@@ -301,7 +316,7 @@ class TypesSet {
   }
 
   /** load types defined in tsconfig.json */
-  async load(compilerOptions: CompilerOptions, workspace?: Workspace): Promise<void> {
+  async load(compilerOptions: CompilerOptions, workspace?: Workspace<WorkspaceInit>): Promise<void> {
     const types = compilerOptions.types;
     if (Array.isArray(types)) {
       delete compilerOptions.types;
@@ -347,7 +362,7 @@ class TypesSet {
 }
 
 /** Load compiler options from `tsconfig.json` in the workspace if exists. */
-async function loadCompilerOptions(workspace: Workspace) {
+async function loadCompilerOptions(workspace: Workspace<WorkspaceInit>) {
   const compilerOptions: CompilerOptions = {};
   try {
     const tsconfigJson = await workspace.fs.readTextFile("tsconfig.json");
@@ -365,7 +380,7 @@ async function loadCompilerOptions(workspace: Workspace) {
 }
 
 /** Load import maps from the root index.html or external json file in the workspace. */
-export async function loadImportMap(workspace: Workspace, validate: (im: ImportMap) => ImportMap) {
+export async function loadImportMap(workspace: Workspace<WorkspaceInit>, validate: (im: ImportMap) => ImportMap) {
   let src: string | undefined;
   try {
     let indexHtml = await workspace.fs.readTextFile("index.html");

@@ -15,6 +15,7 @@ export interface RenderOptions extends editor.IStandaloneEditorConstructionOptio
   fontDigitWidth?: number;
   userAgent?: string;
   shiki?: ShikiInitOptions;
+  workspace?: string;
 }
 
 /** Renders a mock monaco editor. */

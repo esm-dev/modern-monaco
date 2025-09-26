@@ -1,7 +1,7 @@
 import type * as monacoNS from "./monaco.d.ts";
 import type { LSPConfig } from "./lsp.d.ts";
 import type { TextmateGrammarName, TextmateThemeName } from "./textmate.d.ts";
-import { ErrorNotFound, FileSystem, Workspace } from "./workspace";
+import { ErrorNotFound, FileSystem, Workspace, WorkspaceInitMultiple } from "./workspace";
 
 type Awaitable<T> = T | Promise<T>;
 type MaybeGetter<T> = Awaitable<MaybeModule<T>> | (() => Awaitable<MaybeModule<T>>);
@@ -48,7 +48,7 @@ export interface ShikiInitOptions {
   tmDownloadCDN?: string;
 }
 
-export interface InitOptions extends ShikiInitOptions {
+export interface InitOptionsSingleWorkspace extends ShikiInitOptions {
   /**
    * Virtual file system to be used by the editor.
    */
@@ -58,6 +58,17 @@ export interface InitOptions extends ShikiInitOptions {
    */
   lsp?: LSPConfig;
 }
+
+export interface InitOptionsMultipleWorkspaces extends ShikiInitOptions {
+  workspaces?: Workspace<WorkspaceInitMultiple>[];
+  /**
+   * Language server protocol configuration.
+   */
+  lsp?: LSPConfig;
+}
+
+export type InitOptions = InitOptionsSingleWorkspace | InitOptionsMultipleWorkspaces;
+
 
 export function init(options?: InitOptions): Promise<typeof monacoNS>;
 export function lazy(options?: InitOptions): Promise<void>;
