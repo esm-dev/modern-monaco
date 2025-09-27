@@ -37,6 +37,7 @@ export async function setup(
     worker: getWorker(createData),
     host: client.createHost(workspace),
   });
+  client.init(monaco);
 
   // register language features
   client.registerBasicFeatures(languageId, worker, ["/", "-", ":", "("], workspace);
