@@ -14,7 +14,7 @@ async function serveDist(url: URL, req: Request) {
             const text = new TextDecoder().decode(chunk);
             if (text.includes('from "typescript"')) {
               controller.enqueue(new TextEncoder().encode(
-                text.replace('from "typescript"', 'from "https://esm.sh/typescript@5.9.2"'),
+                text.replace('from "typescript"', 'from "https://esm.sh/typescript@5.9.3"'),
               ));
               replaced = true;
             } else {
