@@ -1,6 +1,7 @@
 import type monacoNS from "monaco-editor-core";
 import type { FormattingOptions } from "vscode-languageserver-types";
 import type { Workspace } from "~/workspace.ts";
+import type { WorkspaceInit } from "../../types/workspace.js";
 
 export interface LSPModule {
   setup: (
@@ -8,7 +9,7 @@ export interface LSPModule {
     languageId: string,
     langaugeSettings?: Record<string, unknown>,
     formattingOptions?: FormattingOptions,
-    workspace?: Workspace,
+    workspace?: Workspace<WorkspaceInit>,
   ) => void | Promise<void>;
 }
 

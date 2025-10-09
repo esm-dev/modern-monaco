@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Modern Monaco</title>
+  <style>
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    monaco-editor {
+      width: 100%;
+      height: 100%;
+    }
+
+    .split-view {
+      display: grid;
+      height: 100dvh;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      background-color: #333;
+    }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "modern-monaco": "/modern-monaco/index.mjs",
+        "modern-monaco/editor-core": "/modern-monaco/editor-core.mjs",
+        "modern-monaco/lsp": "/modern-monaco/lsp/index.mjs"
+      }
+    }
+  </script>
+</head>
+
+<body>
+  <div class="split-view">
+    <div>
+      {SSR}
+    </div>
+    <div>
+      {SSR2}
+    </div>
+  </div>
+  <script type="module">
+    import { hydrate } from 'modern-monaco';
+    import { workspace, secondaryWorkspace } from '/js/workspace.mjs';
+    hydrate({ workspaces: [workspace, secondaryWorkspace] });
+  </script>
+</body>
+
+</html>

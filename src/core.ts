@@ -1,6 +1,8 @@
 import type monacoNS from "monaco-editor-core";
 import type { Highlighter, RenderOptions, ShikiInitOptions } from "./shiki.ts";
 import type { LSPConfig, LSPProvider } from "./lsp/index.ts";
+import { createMultiWorkspaceFileSystem, WorkspaceURI } from "./multi-workspace.ts";
+import type { WorkspaceInit, WorkspaceInitMultiple } from "../types/workspace";
 
 import { parseImportMapFromJson } from "@esm.sh/import-map";
 import { version } from "../package.json";
@@ -12,7 +14,6 @@ import { render } from "./shiki.js";
 import { getWasmInstance } from "./shiki-wasm.js";
 import { ErrorNotFound, Workspace } from "./workspace.js";
 import { debunce, decode, isDigital } from "./util.js";
-import { init as initLspClient } from "./lsp/client.js";
 
 const editorProps = [
   "autoDetectHighContrast",
@@ -53,37 +54,89 @@ const errors = {
 const cdnUrl = `https://esm.sh/modern-monaco@${version}`;
 const syntaxes: { name: string; scopeName: string }[] = [];
 const lspProviders: Record<string, LSPProvider> = {};
+const lspRegistrations = new Set<string>();
 
 const attr = (el: HTMLElement, name: string): string | null => el.getAttribute(name);
 const style = (el: HTMLElement, style: Partial<CSSStyleDeclaration>) => Object.assign(el.style, style);
 
-export interface InitOptions extends ShikiInitOptions {
+export interface InitOptionsSingleWorkspace extends ShikiInitOptions {
   /**
-   * Virtual file system to be used by the editor.
-   */
-  workspace?: Workspace;
+     * Virtual file system to be used by the editor.
+     */
+  workspace?: Workspace<WorkspaceInit>;
   /**
-   * Language server protocol configuration.
-   */
+    * Language server protocol configuration.
+    */
   lsp?: LSPConfig;
 }
 
-/* Initialize and return the monaco editor namespace. */
-export async function init(options?: InitOptions): Promise<typeof monacoNS> {
+export interface InitOptionsMultipleWorkspaces extends ShikiInitOptions {
+  workspaces?: Workspace<WorkspaceInitMultiple>[];
+  /**
+  * Language server protocol configuration.
+  */
+  lsp?: LSPConfig;
+}
+
+export type InitOptions =
+  | InitOptionsSingleWorkspace
+  | InitOptionsMultipleWorkspaces;
+
+/** Initialize Monaco editor with optional multi-workspace support */
+export async function init(
+  options?: InitOptions,
+  highlighter?: Highlighter
+): Promise<typeof monacoNS> {
   const langs = (options?.langs ?? []).concat(syntaxes as any[]);
-  const hightlighter = await initShiki({ ...options, langs });
-  return loadMonaco(hightlighter, options?.workspace, options?.lsp);
+  const usedHighlighter =
+    highlighter ?? (await initShiki({ ...options, langs }));
+
+  const workspaces: Workspace<WorkspaceInitMultiple>[] = [];
+  if (options && "workspaces" in options && options.workspaces) {
+    workspaces.push(...options.workspaces);
+  } else if (options && "workspace" in options && options.workspace) {
+    workspaces.push(options.workspace);
+  }
+
+  const multiWorkspaceFS = createMultiWorkspaceFileSystem(workspaces);
+  const monaco = await loadMonaco(
+    usedHighlighter,
+    multiWorkspaceFS,
+    options?.lsp
+  );
+
+  // Initialize each workspace with the Monaco instance
+  workspaces.forEach((workspace) => workspace.setupMonaco(monaco));
+
+  return monaco;
+}
+
+/** Get Monaco instance, handling shared instances for multi-workspace */
+async function getMonacoInstance(
+  options: InitOptions | undefined,
+  highlighter: Highlighter,
+  sharedPromise: Promise<typeof monacoNS> | null
+): Promise<typeof monacoNS> {
+  return sharedPromise || init(options, highlighter);
 }
 
 /** Render a mock editor, then load the monaco editor in background. */
 export async function lazy(options?: InitOptions) {
+  // Shared Monaco promise for all editors when using multiple workspaces
+  let sharedMonacoPromise: Promise<typeof monacoNS> | null = null;
+
   if (!customElements.get("monaco-editor")) {
-    let monacoPromise: Promise<typeof monacoNS> | null = null;
     customElements.define(
       "monaco-editor",
       class extends HTMLElement {
         async connectedCallback() {
-          const workspace = options?.workspace;
+          const workspaceName = this.getAttribute("workspace");
+          let workspace: Workspace<WorkspaceInit> | undefined;
+          if (options && 'workspaces' in options && options.workspaces) {
+            workspace = options.workspaces.find((w) => w.name === workspaceName);
+          } else {
+            workspace = (options as InitOptionsSingleWorkspace | undefined)?.workspace;
+          }
           const renderOptions: RenderOptions = {};
 
           // parse editor/render options from attributes
@@ -260,7 +313,14 @@ export async function lazy(options?: InitOptions) {
 
           // load and render editor
           {
-            const monaco = await (monacoPromise ?? (monacoPromise = loadMonaco(highlighter, workspace, options?.lsp)));
+            const monaco = await getMonacoInstance(
+              options,
+              highlighter,
+              sharedMonacoPromise
+            );
+            if (!sharedMonacoPromise) {
+              sharedMonacoPromise = Promise.resolve(monaco);
+            }
             const editor = monaco.editor.create(containerEl, renderOptions);
             if (workspace) {
               const storeViewState = () => {
@@ -269,15 +329,24 @@ export async function lazy(options?: InitOptions) {
                   const state = editor.saveViewState();
                   if (state) {
                     state.viewState.scrollTop ??= editor.getScrollTop();
-                    workspace.viewState.save(currentModel.uri.toString(), Object.freeze(state));
+                    const uri = currentModel.uri.toString();
+                    const storageUri = WorkspaceURI.removeWorkspacePrefix(uri, workspace.name);
+                    workspace.viewState.save(storageUri, Object.freeze(state));
                   }
                 }
               };
               editor.onDidChangeCursorSelection(debunce(storeViewState, 500));
               editor.onDidScrollChange(debunce(storeViewState, 500));
               workspace.history.onChange((state) => {
-                if (editor.getModel()?.uri.toString() !== state.current) {
-                  workspace._openTextDocument(state.current, editor);
+                const currentModel = editor.getModel();
+                if (currentModel) {
+                  // Compare using the original URI (strip workspace prefix from current model)
+                  const currentUri = currentModel.uri.toString();
+                  const originalUri = WorkspaceURI.removeWorkspacePrefix(currentUri, workspace.name);
+
+                  if (originalUri !== state.current) {
+                    workspace._openTextDocument(state.current, editor);
+                  }
                 }
               });
             }
@@ -307,7 +376,14 @@ export async function lazy(options?: InitOptions) {
               }
             } else if ((code && (renderOptions.language || filename))) {
               // Check if model already exists to prevent duplicate creation
-              const modelUri = filename ? monaco.Uri.file(filename) : undefined;
+              let modelUri = filename ? monaco.Uri.file(filename) : undefined;
+
+              // Create workspace-scoped URI for non-default workspaces
+              if (modelUri && workspace && workspace.name !== 'default') {
+                const transformedPath = WorkspaceURI.addWorkspacePrefix(modelUri.path, workspace.name);
+                modelUri = modelUri.with({ path: transformedPath });
+              }
+
               let model = modelUri ? monaco.editor.getModel(modelUri) : null;
               if (!model) {
                 model = monaco.editor.createModel(code, renderOptions.language, modelUri);
@@ -348,7 +424,7 @@ export function hydrate(options?: InitOptions) {
 /** Load monaco editor core. */
 async function loadMonaco(
   highlighter: Highlighter,
-  workspace?: Workspace,
+  workspace?: Workspace<WorkspaceInit>,
   lsp?: LSPConfig,
 ): Promise<typeof monacoNS> {
   let importmap: HTMLScriptElement | null = null;
@@ -377,9 +453,6 @@ async function loadMonaco(
 
   // bind the monaco namespace to the workspace&lsp
   workspace?.setupMonaco(monaco);
-  if (Object.keys(lspProviderMap).length > 0) {
-    initLspClient(monaco);
-  }
 
   // apply the monaco CSS
   if (!document.getElementById("monaco-editor-core-css")) {
@@ -400,6 +473,8 @@ async function loadMonaco(
     },
     getLanguageIdFromUri: (uri: monacoNS.Uri) => getLanguageIdFromPath(uri.path),
     getExtnameFromLanguageId: getExtnameFromLanguageId,
+    // Make Monaco available to all workers and LSP components
+    monaco: monaco,
   });
 
   // prevent to open a http link which is a model
@@ -417,7 +492,9 @@ async function loadMonaco(
     openCodeEditor: async (editor, resource, selectionOrPosition) => {
       if (workspace && resource.scheme === "file") {
         try {
-          await workspace._openTextDocument(resource.toString(), editor, selectionOrPosition);
+          const resourceUri = resource.toString();
+          const originalUri = WorkspaceURI.removeWorkspacePrefix(resourceUri, workspace.name);
+          await workspace._openTextDocument(originalUri, editor, selectionOrPosition);
           return true;
         } catch (err) {
           if (err instanceof ErrorNotFound) {
@@ -489,8 +566,13 @@ async function loadMonaco(
           [lspLabel, lspProvider] = alias;
         }
       }
-      if (lspProvider) {
-        lspProvider.import().then(({ setup }) => setup(monaco, id, lsp?.[lspLabel], lsp?.formatting, workspace));
+      if (lspProvider && workspace) {
+        // Prevent duplicate language service registration in multi-workspace setups
+        const registrationKey = `${id}-${workspace.name}`;
+        if (!lspRegistrations.has(registrationKey)) {
+          lspRegistrations.add(registrationKey);
+          lspProvider.import().then(({ setup }) => setup(monaco, id, lsp?.[lspLabel], lsp?.formatting, workspace));
+        }
       }
     });
   });
