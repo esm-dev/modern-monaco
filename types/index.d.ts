@@ -45,7 +45,7 @@ export interface ShikiInitOptions {
   /**
    * The CDN base URL to download themes and languages from. Default: "https://esm.sh".
    */
-  tmDownloadCDN?: string;
+  cdn?: string;
 }
 
 export interface InitOptions extends ShikiInitOptions {
@@ -60,8 +60,8 @@ export interface InitOptions extends ShikiInitOptions {
 }
 
 export function init(options?: InitOptions): Promise<typeof monacoNS>;
-export function lazy(options?: InitOptions): Promise<void>;
-export function hydrate(options?: InitOptions): Promise<void>;
+export function lazy(options?: InitOptions): void;
+export function hydrate(options?: InitOptions): void;
 
 export const errors: {
   NotFound: ErrorNotFound;

@@ -50,7 +50,7 @@ const errors = {
   NotFound: ErrorNotFound,
 };
 
-const cdnUrl = `https://esm.sh/modern-monaco@${version}`;
+const defaultCDN = "https://esm.sh";
 const syntaxes: { name: string; scopeName: string }[] = [];
 const lspProviders: Record<string, LSPProvider> = {};
 
@@ -71,12 +71,12 @@ export interface InitOptions extends ShikiInitOptions {
 /* Initialize and return the monaco editor namespace. */
 export async function init(options?: InitOptions): Promise<typeof monacoNS> {
   const langs = (options?.langs ?? []).concat(syntaxes as any[]);
-  const hightlighter = await initShiki({ ...options, langs });
-  return loadMonaco(hightlighter, options?.workspace, options?.lsp);
+  const shiki = await initShiki({ ...options, langs });
+  return loadMonaco(shiki, options?.workspace, options?.lsp, options?.cdn);
 }
 
 /** Render a mock editor, then load the monaco editor in background. */
-export async function lazy(options?: InitOptions) {
+export function lazy(options?: InitOptions) {
   if (!customElements.get("monaco-editor")) {
     let monacoPromise: Promise<typeof monacoNS> | null = null;
     customElements.define(
@@ -260,7 +260,7 @@ export async function lazy(options?: InitOptions) {
 
           // load and render editor
           {
-            const monaco = await (monacoPromise ?? (monacoPromise = loadMonaco(highlighter, workspace, options?.lsp)));
+            const monaco = await (monacoPromise ?? (monacoPromise = loadMonaco(highlighter, workspace, options?.lsp, options?.cdn)));
             const editor = monaco.editor.create(containerEl, renderOptions);
             if (workspace) {
               const storeViewState = () => {
@@ -350,13 +350,18 @@ async function loadMonaco(
   highlighter: Highlighter,
   workspace?: Workspace,
   lsp?: LSPConfig,
+  cdn?: string | URL,
 ): Promise<typeof monacoNS> {
-  let importmap: HTMLScriptElement | null = null;
-  let editorCoreModuleUrl = `${cdnUrl}/es2022/editor-core.mjs`;
-  let lspModuleUrl = `${cdnUrl}/es2022/lsp.mjs`;
-  if (importmap = document.querySelector("script[type='importmap']")) {
+  let importmapEl: HTMLScriptElement | null = null;
+  let cdnUrl = new URL(cdn ?? defaultCDN);
+  if (cdnUrl.hostname === "esm.sh") {
+    cdnUrl.hostname = "raw.esm.sh";
+  }
+  let editorCoreModuleUrl = `${cdnUrl}/modern-monaco@${version}/dist/editor-core.mjs`;
+  let lspModuleUrl = `${cdnUrl}/modern-monaco@${version}/dist/lsp/index.mjs`;
+  if (importmapEl = document.querySelector("script[type='importmap']")) {
     try {
-      const { imports = {} } = parseImportMapFromJson(importmap.textContent);
+      const { imports = {} } = parseImportMapFromJson(importmapEl.textContent);
       if (imports["modern-monaco/editor-core"]) {
         editorCoreModuleUrl = imports["modern-monaco/editor-core"];
       }
@@ -368,16 +373,16 @@ async function loadMonaco(
     }
   }
 
-  const builtinLSP = (globalThis as any).MonacoEnvironment?.builtinLSP;
+  const useBuiltinLSP = (globalThis as any).MonacoEnvironment?.useBuiltinLSP;
   const [monaco, { builtinLSPProviders }]: [typeof import("./editor-core"), typeof import("./lsp")] = await Promise.all([
     import(editorCoreModuleUrl),
-    builtinLSP ? import(lspModuleUrl) : Promise.resolve({ builtinLSPProviders: {} }),
+    useBuiltinLSP ? import(lspModuleUrl) : Promise.resolve({ builtinLSPProviders: {} }),
   ]);
-  const lspProviderMap = { ...builtinLSPProviders, ...lspProviders, ...lsp?.providers };
+  const allLspProviders = { ...builtinLSPProviders, ...lspProviders, ...lsp?.providers };
 
   // bind the monaco namespace to the workspace&lsp
   workspace?.setupMonaco(monaco);
-  if (Object.keys(lspProviderMap).length > 0) {
+  if (Object.keys(allLspProviders).length > 0) {
     initLspClient(monaco);
   }
 
@@ -482,9 +487,9 @@ async function loadMonaco(
 
       // check if the language is supported by the LSP provider
       let lspLabel = id;
-      let lspProvider = lspProviderMap[lspLabel];
+      let lspProvider = allLspProviders[lspLabel];
       if (!lspProvider) {
-        const alias = Object.entries(lspProviderMap).find(([, lsp]) => lsp.aliases?.includes(id));
+        const alias = Object.entries(allLspProviders).find(([, lsp]) => lsp.aliases?.includes(id));
         if (alias) {
           [lspLabel, lspProvider] = alias;
         }

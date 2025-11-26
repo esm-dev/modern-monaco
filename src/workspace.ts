@@ -487,12 +487,12 @@ export class ErrorNotFound extends Error {
 }
 
 /** walk the file system and return all entries. */
-export async function walk(fs: FileSystem, dir: string = "/"): Promise<string[]> {
+export async function walkFS(fs: FileSystem, dir: string = "/"): Promise<string[]> {
   const entries: string[] = [];
   for (const [name, type] of await fs.readDirectory(dir || "/")) {
     const path = (dir.endsWith("/") ? dir.slice(0, -1) : dir) + "/" + name;
     if (type === 2) {
-      entries.push(...(await walk(fs, path)));
+      entries.push(...(await walkFS(fs, path)));
     } else {
       entries.push(path);
     }

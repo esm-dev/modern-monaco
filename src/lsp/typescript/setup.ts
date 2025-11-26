@@ -14,7 +14,6 @@ import {
 
 // ! external modules, don't remove the `.js` extension
 import { cache } from "../../cache.js";
-import { ErrorNotFound, walk } from "../../workspace.js";
 import * as client from "../client.js";
 
 type TSWorker = monacoNS.editor.MonacoWebWorker<TypeScriptWorker>;
@@ -118,7 +117,7 @@ async function createWorker(
     },
     importMap,
     types: typesStore.types,
-    fs: workspace ? await walk(workspace.fs, "/") : undefined,
+    fs: workspace ? await client.walkFS(workspace.fs, "/") : undefined,
   };
   const worker = monaco.editor.createWebWorker<TypeScriptWorker>({
     worker: getWorker(createData),

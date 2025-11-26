@@ -4,7 +4,6 @@ import type { Workspace } from "~/workspace.ts";
 import type { CreateData, HTMLWorker } from "./worker.ts";
 
 // ! external modules, don't remove the `.js` extension
-import { walk } from "../../workspace.js";
 import * as client from "../client.js";
 
 export async function setup(
@@ -42,7 +41,7 @@ export async function setup(
         ? { custom: { version: 1.1, tags: languageSettings.customTags as any } }
         : undefined,
     },
-    fs: workspace ? await walk(workspace.fs, "/") : undefined,
+    fs: workspace ? await client.walkFS(workspace.fs, "/") : undefined,
   };
   const htmlWorker = editor.createWebWorker<HTMLWorker>({
     worker: getWorker(createData),
