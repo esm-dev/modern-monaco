@@ -10,7 +10,7 @@ import { initShikiMonacoTokenizer, registerShikiMonacoTokenizer } from "./shiki.
 import { render } from "./shiki.js";
 import { getWasmInstance } from "./shiki-wasm.js";
 import { NotFoundError, Workspace } from "./workspace.js";
-import { debunce, decode, getCDNUrl, isDigital } from "./util.js";
+import { debunce, decode, isDigital } from "./util.js";
 
 export interface InitOptions extends ShikiInitOptions {
   /**
