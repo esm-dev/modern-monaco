@@ -1,7 +1,6 @@
 import type monacoNS from "monaco-editor-core";
 import type { Highlighter, RenderOptions, ShikiInitOptions } from "./shiki.ts";
 import type { LSPConfig, LSPProvider } from "./lsp/index.ts";
-
 import { parseImportMapFromJson } from "@esm.sh/import-map";
 import { version } from "../package.json";
 
@@ -13,6 +12,17 @@ import { getWasmInstance } from "./shiki-wasm.js";
 import { NotFoundError, Workspace } from "./workspace.js";
 import { debunce, decode, getCDNUrl, isDigital } from "./util.js";
 import { init as initLspClient } from "./lsp/client.js";
+
+export interface InitOptions extends ShikiInitOptions {
+  /**
+   * Virtual file system to be used by the editor.
+   */
+  workspace?: Workspace;
+  /**
+   * Language server protocol configuration.
+   */
+  lsp?: LSPConfig;
+}
 
 const editorProps = [
   "autoDetectHighContrast",
@@ -50,23 +60,11 @@ const errors = {
   NotFound: NotFoundError,
 };
 
-const defaultCDN = "https://esm.sh";
 const syntaxes: { name: string; scopeName: string }[] = [];
 const lspProviders: Record<string, LSPProvider> = {};
 
-const attr = (el: HTMLElement, name: string): string | null => el.getAttribute(name);
-const style = (el: HTMLElement, style: Partial<CSSStyleDeclaration>) => Object.assign(el.style, style);
-
-export interface InitOptions extends ShikiInitOptions {
-  /**
-   * Virtual file system to be used by the editor.
-   */
-  workspace?: Workspace;
-  /**
-   * Language server protocol configuration.
-   */
-  lsp?: LSPConfig;
-}
+const getAttr = (el: HTMLElement, name: string): string | null => el.getAttribute(name);
+const setStyle = (el: HTMLElement, style: Partial<CSSStyleDeclaration>) => Object.assign(el.style, style);
 
 /* Initialize and return the monaco editor namespace. */
 export async function init(options?: InitOptions): Promise<typeof monacoNS> {
@@ -90,7 +88,7 @@ export function lazy(options?: InitOptions) {
           for (const attrName of this.getAttributeNames()) {
             const key = editorProps.find((k) => k.toLowerCase() === attrName);
             if (key) {
-              let value: any = attr(this, attrName);
+              let value: any = getAttr(this, attrName);
               if (value === "") {
                 value = key === "minimap" || key === "stickyScroll" ? { enabled: true } : true;
               } else {
@@ -161,15 +159,15 @@ export function lazy(options?: InitOptions) {
             firstEl.remove();
           }
 
-          style(this, { display: "block", position: "relative" });
+          setStyle(this, { display: "block", position: "relative" });
 
           // set dimension from width and height attributes
-          let widthAttr = attr(this, "width");
-          let heightAttr = attr(this, "height");
+          let widthAttr = getAttr(this, "width");
+          let heightAttr = getAttr(this, "height");
           if (isDigital(widthAttr) && isDigital(heightAttr)) {
             const width = Number(widthAttr);
             const height = Number(heightAttr);
-            style(this, { width: width + "px", height: height + "px" });
+            setStyle(this, { width: width + "px", height: height + "px" });
             renderOptions.dimension = { width, height };
           } else {
             if (isDigital(widthAttr)) {
@@ -184,7 +182,7 @@ export function lazy(options?: InitOptions) {
 
           const containerEl = document.createElement("div");
           containerEl.className = "monaco-editor-container";
-          style(containerEl, { width: "100%", height: "100%" });
+          setStyle(containerEl, { width: "100%", height: "100%" });
           this.appendChild(containerEl);
 
           if (!filename && workspace) {
@@ -244,7 +242,7 @@ export function lazy(options?: InitOptions) {
           }
 
           if (prerenderEl) {
-            style(prerenderEl, { position: "absolute", top: "0", left: "0" });
+            setStyle(prerenderEl, { position: "absolute", top: "0", left: "0" });
             this.appendChild(prerenderEl);
             if (filename && workspace) {
               const viewState = await workspace.viewState.get(filename);
