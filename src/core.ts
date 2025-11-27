@@ -207,13 +207,14 @@ export function lazy(options?: InitOptions) {
               langs.push(lang);
             }
           }
-          if (renderOptions.theme) {
+          renderOptions.theme = renderOptions.theme ?? options?.theme;
+          if (typeof renderOptions.theme === 'string') {
             renderOptions.theme = renderOptions.theme.toLowerCase().replace(/ +/g, "-");
           }
 
           const highlighter = await initShiki({
             ...options,
-            theme: renderOptions.theme ?? options?.theme,
+            theme: renderOptions.theme,
             langs,
           });
 

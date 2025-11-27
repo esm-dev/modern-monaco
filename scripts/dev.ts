@@ -40,11 +40,9 @@ async function serveDist(url: URL, req: Request) {
 
 async function servePages(url: URL, req: Request) {
   const { pathname } = url;
-  let filename = "index.html";
-  if (
-    pathname === "/ssr" || pathname === "/lazy" || pathname === "/manual" || pathname === "/manual-no-workspace" || pathname === "/compare"
-  ) {
-    filename = pathname.slice(1) + ".html";
+  let filename = pathname === "/" ? "index.html" : pathname.slice(1);
+  if (!filename.endsWith(".html")) {
+    filename += ".html";
   }
   try {
     const fileUrl = new URL("../examples/" + filename, import.meta.url);
@@ -60,6 +58,9 @@ async function servePages(url: URL, req: Request) {
     return new Response((await Deno.open(fileUrl)).readable, { headers });
   } catch (e: any) {
     if (e instanceof Deno.errors.NotFound) {
+      if (filename !== "index.html") {
+        return servePages(new URL("/", url), req);
+      }
       return new Response("Not found", { status: 404 });
     }
     return new Response(e.message, { status: 500 });
@@ -88,13 +89,19 @@ cmd.spawn();
 Deno.serve(async (req) => {
   let url = new URL(req.url);
   let pathname = url.pathname;
-  if (pathname.startsWith("/js/")) {
+  let contentType = "";
+  if (pathname.startsWith("/json/"))
+    contentType = "application/json; charset=utf-8";
+  if (pathname.startsWith("/js/"))
+    contentType = "application/javascript; charset=utf-8";
+
+  if (contentType !== "") {
     const file = await Deno.open(new URL("../examples" + pathname, import.meta.url));
     return new Response(
       file.readable,
       {
         headers: {
-          "content-type": "application/javascript; charset=utf-8",
+          "content-type": contentType,
           "cache-control": "no-cache, no-store, must-revalidate",
         },
       },
