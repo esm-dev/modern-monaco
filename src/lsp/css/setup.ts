@@ -37,6 +37,9 @@ export async function setup(
     host: client.createHost(workspace),
   });
 
+  // initialize lsp client
+  client.init(monaco);
+
   // register language features
   client.registerBasicFeatures(languageId, worker, ["/", "-", ":", "("], workspace);
   client.registerCodeAction(languageId, worker);

@@ -11,7 +11,6 @@ import { render } from "./shiki.js";
 import { getWasmInstance } from "./shiki-wasm.js";
 import { NotFoundError, Workspace } from "./workspace.js";
 import { debunce, decode, getCDNUrl, isDigital } from "./util.js";
-import { init as initLspClient } from "./lsp/client.js";
 
 export interface InitOptions extends ShikiInitOptions {
   /**
@@ -379,9 +378,6 @@ async function loadMonaco(
 
   // bind the monaco namespace to the workspace&lsp
   workspace?.setupMonaco(monaco);
-  if (Object.keys(allLspProviders).length > 0) {
-    initLspClient(monaco);
-  }
 
   // apply the monaco CSS
   if (!document.getElementById("monaco-editor-core-css")) {

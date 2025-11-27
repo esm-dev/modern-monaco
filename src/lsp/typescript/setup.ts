@@ -36,6 +36,9 @@ export async function setup(
     worker = await worker;
   }
 
+  // initialize lsp client
+  client.init(monaco);
+
   // register language features
   client.registerBasicFeatures(languageId, worker, [".", "/", '"', "'", "<"], workspace);
   client.registerAutoComplete(languageId, worker, [">", "/"]);
