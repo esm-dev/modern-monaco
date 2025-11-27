@@ -49,6 +49,8 @@ export async function setup(
   });
   const workerWithEmbeddedLanguages = client.createWorkerWithEmbeddedLanguages(htmlWorker);
 
+  client.init(monaco);
+  
   // register language features
   client.registerEmbedded(languageId, workerWithEmbeddedLanguages, ["css", "javascript", "importmap"]);
   client.registerBasicFeatures(languageId, workerWithEmbeddedLanguages, ["<", "/", "=", '"'], workspace);

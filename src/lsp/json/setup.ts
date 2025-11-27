@@ -56,6 +56,7 @@ export async function setup(
     }
   });
 
+  client.init(monaco);
   // register language features
   client.registerBasicFeatures(languageId, worker, [" ", ":", '"'], workspace);
   client.registerColorPresentation(languageId, worker);
