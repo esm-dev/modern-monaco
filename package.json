@@ -1,7 +1,7 @@
 {
   "name": "modern-monaco",
   "description": "A modern version of Monaco Editor",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "type": "module",
   "main": "./dist/index.mjs",
   "module": "./dist/index.mjs",
