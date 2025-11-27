@@ -29,6 +29,20 @@ export function createHost(workspace?: Workspace) {
     : Object.create(null);
 }
 
+/** walk the file system and return all entries. */
+export async function walkFS(fs: Workspace["fs"], dir: string = "/"): Promise<string[]> {
+  const entries: string[] = [];
+  for (const [name, type] of await fs.readDirectory(dir || "/")) {
+    const path = (dir.endsWith("/") ? dir.slice(0, -1) : dir) + "/" + name;
+    if (type === 2) {
+      entries.push(...(await walkFS(fs, path)));
+    } else {
+      entries.push(path);
+    }
+  }
+  return entries;
+}
+
 /** make a cancelable request to the language worker */
 function lspRequest<Result>(
   req: () => Promise<Result> | undefined,

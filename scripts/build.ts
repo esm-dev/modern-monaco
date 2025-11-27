@@ -5,7 +5,7 @@ import { wasmBinary } from "../node_modules/@shikijs/engine-oniguruma/dist/wasm-
 
 const build = (entryPoints: string[], define?: Record<string, string>) => {
   return esbuild({
-    target: "esnext",
+    target: "es2022",
     format: "esm",
     platform: "browser",
     outdir: "dist",

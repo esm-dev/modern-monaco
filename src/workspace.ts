@@ -24,6 +24,14 @@ import {
   supportLocalStorage,
 } from "./util.js";
 
+/** Not found error. */
+export class NotFoundError extends Error {
+  readonly FS_ERROR = "NOT_FOUND";
+  constructor(message: string) {
+    super("No such file or directory: " + message);
+  }
+}
+
 /** class Workspace implements IWorkspace */
 export class Workspace implements IWorkspace {
   private _monaco: PromiseWithResolvers<typeof monacoNS>;
@@ -43,7 +51,7 @@ export class Workspace implements IWorkspace {
     if (initialFiles) {
       for (const [name, data] of Object.entries(initialFiles)) {
         void this._fs.stat(name).catch(async (err) => {
-          if (err instanceof ErrorNotFound) {
+          if (err instanceof NotFoundError) {
             const { pathname } = filenameToURL(name);
             const dir = pathname.slice(0, pathname.lastIndexOf("/"));
             if (dir) {
@@ -205,7 +213,7 @@ class IndexedDBFileSystem implements FileSystem {
     const metaStore = await this._getIdbObjectStore("fs-meta");
     const stat = await promisifyIDBRequest<FileStat | undefined>(metaStore.get(url));
     if (!stat) {
-      throw new ErrorNotFound(url);
+      throw new NotFoundError(url);
     }
     return stat;
   }
@@ -273,7 +281,7 @@ class IndexedDBFileSystem implements FileSystem {
     const blobStore = await this._getIdbObjectStore("fs-blob");
     const file = await promisifyIDBRequest<{ content: Uint8Array }>(blobStore.get(url));
     if (!file) {
-      throw new ErrorNotFound(url);
+      throw new NotFoundError(url);
     }
     return file.content;
   }
@@ -291,7 +299,7 @@ class IndexedDBFileSystem implements FileSystem {
           throw new Error(`write ${pathname}: not a directory`);
         }
       } catch (error) {
-        if (error instanceof ErrorNotFound) {
+        if (error instanceof NotFoundError) {
           throw new Error(`write ${pathname}: no such file or directory`);
         }
         throw error;
@@ -301,7 +309,7 @@ class IndexedDBFileSystem implements FileSystem {
     try {
       oldStat = await this.stat(url);
     } catch (error) {
-      if (!(error instanceof ErrorNotFound)) {
+      if (!(error instanceof NotFoundError)) {
         throw error;
       }
     }
@@ -387,7 +395,7 @@ class IndexedDBFileSystem implements FileSystem {
       }
       await this.delete(newUrl, stat.type === 2 ? { recursive: true } : undefined);
     } catch (error) {
-      if (!(error instanceof ErrorNotFound)) {
+      if (!(error instanceof NotFoundError)) {
         throw error;
       }
     }
@@ -398,7 +406,7 @@ class IndexedDBFileSystem implements FileSystem {
           throw new Error(`rename ${oldUrl} to ${newUrl}: Not a directory`);
         }
       } catch (error) {
-        if (error instanceof ErrorNotFound) {
+        if (error instanceof NotFoundError) {
           throw new Error(`rename ${oldUrl} to ${newUrl}: No such file or directory`);
         }
         throw error;
@@ -479,27 +487,6 @@ class IndexedDBFileSystem implements FileSystem {
   }
 }
 
-/** Error for file not found. */
-export class ErrorNotFound extends Error {
-  constructor(name: string) {
-    super("No such file or directory: " + name);
-  }
-}
-
-/** walk the file system and return all entries. */
-export async function walk(fs: FileSystem, dir: string = "/"): Promise<string[]> {
-  const entries: string[] = [];
-  for (const [name, type] of await fs.readDirectory(dir || "/")) {
-    const path = (dir.endsWith("/") ? dir.slice(0, -1) : dir) + "/" + name;
-    if (type === 2) {
-      entries.push(...(await walk(fs, path)));
-    } else {
-      entries.push(path);
-    }
-  }
-  return entries;
-}
-
 /** WorkspaceDatabase provides workspace database. */
 class WorkspaceDatabase {
   private _db: Promise<IDBDatabase> | IDBDatabase;
@@ -523,8 +510,6 @@ class WorkspaceDatabase {
     return await this._db;
   }
 }
-
-/** workspace state storage */
 
 /** workspace state storage */
 class WorkspaceStateStorage<T> {

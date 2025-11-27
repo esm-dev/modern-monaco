@@ -1,7 +1,6 @@
 import type monacoNS from "monaco-editor-core";
 import type { Highlighter, RenderOptions, ShikiInitOptions } from "./shiki.ts";
 import type { LSPConfig, LSPProvider } from "./lsp/index.ts";
-
 import { parseImportMapFromJson } from "@esm.sh/import-map";
 import { version } from "../package.json";
 
@@ -10,9 +9,20 @@ import { getExtnameFromLanguageId, getLanguageIdFromPath, grammars, initShiki, s
 import { initShikiMonacoTokenizer, registerShikiMonacoTokenizer } from "./shiki.js";
 import { render } from "./shiki.js";
 import { getWasmInstance } from "./shiki-wasm.js";
-import { ErrorNotFound, Workspace } from "./workspace.js";
-import { debunce, decode, isDigital } from "./util.js";
+import { NotFoundError, Workspace } from "./workspace.js";
+import { debunce, decode, getCDNUrl, isDigital } from "./util.js";
 import { init as initLspClient } from "./lsp/client.js";
+
+export interface InitOptions extends ShikiInitOptions {
+  /**
+   * Virtual file system to be used by the editor.
+   */
+  workspace?: Workspace;
+  /**
+   * Language server protocol configuration.
+   */
+  lsp?: LSPConfig;
+}
 
 const editorProps = [
   "autoDetectHighContrast",
@@ -47,36 +57,24 @@ const editorProps = [
 ];
 
 const errors = {
-  NotFound: ErrorNotFound,
+  NotFound: NotFoundError,
 };
 
-const cdnUrl = `https://esm.sh/modern-monaco@${version}`;
 const syntaxes: { name: string; scopeName: string }[] = [];
 const lspProviders: Record<string, LSPProvider> = {};
 
-const attr = (el: HTMLElement, name: string): string | null => el.getAttribute(name);
-const style = (el: HTMLElement, style: Partial<CSSStyleDeclaration>) => Object.assign(el.style, style);
-
-export interface InitOptions extends ShikiInitOptions {
-  /**
-   * Virtual file system to be used by the editor.
-   */
-  workspace?: Workspace;
-  /**
-   * Language server protocol configuration.
-   */
-  lsp?: LSPConfig;
-}
+const getAttr = (el: HTMLElement, name: string): string | null => el.getAttribute(name);
+const setStyle = (el: HTMLElement, style: Partial<CSSStyleDeclaration>) => Object.assign(el.style, style);
 
 /* Initialize and return the monaco editor namespace. */
 export async function init(options?: InitOptions): Promise<typeof monacoNS> {
   const langs = (options?.langs ?? []).concat(syntaxes as any[]);
-  const hightlighter = await initShiki({ ...options, langs });
-  return loadMonaco(hightlighter, options?.workspace, options?.lsp);
+  const shiki = await initShiki({ ...options, langs });
+  return loadMonaco(shiki, options?.workspace, options?.lsp, options?.cdn);
 }
 
 /** Render a mock editor, then load the monaco editor in background. */
-export async function lazy(options?: InitOptions) {
+export function lazy(options?: InitOptions) {
   if (!customElements.get("monaco-editor")) {
     let monacoPromise: Promise<typeof monacoNS> | null = null;
     customElements.define(
@@ -90,7 +88,7 @@ export async function lazy(options?: InitOptions) {
           for (const attrName of this.getAttributeNames()) {
             const key = editorProps.find((k) => k.toLowerCase() === attrName);
             if (key) {
-              let value: any = attr(this, attrName);
+              let value: any = getAttr(this, attrName);
               if (value === "") {
                 value = key === "minimap" || key === "stickyScroll" ? { enabled: true } : true;
               } else {
@@ -161,15 +159,15 @@ export async function lazy(options?: InitOptions) {
             firstEl.remove();
           }
 
-          style(this, { display: "block", position: "relative" });
+          setStyle(this, { display: "block", position: "relative" });
 
           // set dimension from width and height attributes
-          let widthAttr = attr(this, "width");
-          let heightAttr = attr(this, "height");
+          let widthAttr = getAttr(this, "width");
+          let heightAttr = getAttr(this, "height");
           if (isDigital(widthAttr) && isDigital(heightAttr)) {
             const width = Number(widthAttr);
             const height = Number(heightAttr);
-            style(this, { width: width + "px", height: height + "px" });
+            setStyle(this, { width: width + "px", height: height + "px" });
             renderOptions.dimension = { width, height };
           } else {
             if (isDigital(widthAttr)) {
@@ -184,7 +182,7 @@ export async function lazy(options?: InitOptions) {
 
           const containerEl = document.createElement("div");
           containerEl.className = "monaco-editor-container";
-          style(containerEl, { width: "100%", height: "100%" });
+          setStyle(containerEl, { width: "100%", height: "100%" });
           this.appendChild(containerEl);
 
           if (!filename && workspace) {
@@ -235,7 +233,7 @@ export async function lazy(options?: InitOptions) {
               prerenderEl.className = "monaco-editor-prerender";
               prerenderEl.innerHTML = render(highlighter, decode(code), { ...renderOptions, language });
             } catch (error) {
-              if (error instanceof ErrorNotFound) {
+              if (error instanceof NotFoundError) {
                 // ignore
               } else {
                 throw error;
@@ -244,7 +242,7 @@ export async function lazy(options?: InitOptions) {
           }
 
           if (prerenderEl) {
-            style(prerenderEl, { position: "absolute", top: "0", left: "0" });
+            setStyle(prerenderEl, { position: "absolute", top: "0", left: "0" });
             this.appendChild(prerenderEl);
             if (filename && workspace) {
               const viewState = await workspace.viewState.get(filename);
@@ -260,7 +258,7 @@ export async function lazy(options?: InitOptions) {
 
           // load and render editor
           {
-            const monaco = await (monacoPromise ?? (monacoPromise = loadMonaco(highlighter, workspace, options?.lsp)));
+            const monaco = await (monacoPromise ?? (monacoPromise = loadMonaco(highlighter, workspace, options?.lsp, options?.cdn)));
             const editor = monaco.editor.create(containerEl, renderOptions);
             if (workspace) {
               const storeViewState = () => {
@@ -289,7 +287,7 @@ export async function lazy(options?: InitOptions) {
                   model.setValue(code);
                 }
               } catch (error) {
-                if (error instanceof ErrorNotFound) {
+                if (error instanceof NotFoundError) {
                   if (code) {
                     const dirname = filename.split("/").slice(0, -1).join("/");
                     if (dirname) {
@@ -350,13 +348,14 @@ async function loadMonaco(
   highlighter: Highlighter,
   workspace?: Workspace,
   lsp?: LSPConfig,
+  cdn?: string | URL,
 ): Promise<typeof monacoNS> {
-  let importmap: HTMLScriptElement | null = null;
-  let editorCoreModuleUrl = `${cdnUrl}/es2022/editor-core.mjs`;
-  let lspModuleUrl = `${cdnUrl}/es2022/lsp.mjs`;
-  if (importmap = document.querySelector("script[type='importmap']")) {
+  let editorCoreModuleUrl = getCDNUrl(`/modern-monaco@${version}/dist/editor-core.mjs`, cdn);
+  let lspModuleUrl = getCDNUrl(`/modern-monaco@${version}/dist/lsp/index.mjs`, cdn);
+  let importmapEl: HTMLScriptElement | null = null;
+  if (importmapEl = document.querySelector("script[type='importmap']")) {
     try {
-      const { imports = {} } = parseImportMapFromJson(importmap.textContent);
+      const { imports = {} } = parseImportMapFromJson(importmapEl.textContent);
       if (imports["modern-monaco/editor-core"]) {
         editorCoreModuleUrl = imports["modern-monaco/editor-core"];
       }
@@ -368,16 +367,16 @@ async function loadMonaco(
     }
   }
 
-  const builtinLSP = (globalThis as any).MonacoEnvironment?.builtinLSP;
+  const useBuiltinLSP = (globalThis as any).MonacoEnvironment?.useBuiltinLSP;
   const [monaco, { builtinLSPProviders }]: [typeof import("./editor-core"), typeof import("./lsp")] = await Promise.all([
     import(editorCoreModuleUrl),
-    builtinLSP ? import(lspModuleUrl) : Promise.resolve({ builtinLSPProviders: {} }),
+    useBuiltinLSP ? import(lspModuleUrl) : Promise.resolve({ builtinLSPProviders: {} }),
   ]);
-  const lspProviderMap = { ...builtinLSPProviders, ...lspProviders, ...lsp?.providers };
+  const allLspProviders = { ...builtinLSPProviders, ...lspProviders, ...lsp?.providers };
 
   // bind the monaco namespace to the workspace&lsp
   workspace?.setupMonaco(monaco);
-  if (Object.keys(lspProviderMap).length > 0) {
+  if (Object.keys(allLspProviders).length > 0) {
     initLspClient(monaco);
   }
 
@@ -420,7 +419,7 @@ async function loadMonaco(
           await workspace._openTextDocument(resource.toString(), editor, selectionOrPosition);
           return true;
         } catch (err) {
-          if (err instanceof ErrorNotFound) {
+          if (err instanceof NotFoundError) {
             return false;
           }
           throw err;
@@ -482,9 +481,9 @@ async function loadMonaco(
 
       // check if the language is supported by the LSP provider
       let lspLabel = id;
-      let lspProvider = lspProviderMap[lspLabel];
+      let lspProvider = allLspProviders[lspLabel];
       if (!lspProvider) {
-        const alias = Object.entries(lspProviderMap).find(([, lsp]) => lsp.aliases?.includes(id));
+        const alias = Object.entries(allLspProviders).find(([, lsp]) => lsp.aliases?.includes(id));
         if (alias) {
           [lspLabel, lspProvider] = alias;
         }

@@ -1,7 +1,7 @@
 import type * as monacoNS from "./monaco.d.ts";
 import type { LSPConfig } from "./lsp.d.ts";
 import type { TextmateGrammarName, TextmateThemeName } from "./textmate.d.ts";
-import { ErrorNotFound, FileSystem, Workspace } from "./workspace";
+import { FileSystem, NotFoundError, Workspace } from "./workspace";
 
 type Awaitable<T> = T | Promise<T>;
 type MaybeGetter<T> = Awaitable<MaybeModule<T>> | (() => Awaitable<MaybeModule<T>>);
@@ -45,7 +45,7 @@ export interface ShikiInitOptions {
   /**
    * The CDN base URL to download themes and languages from. Default: "https://esm.sh".
    */
-  tmDownloadCDN?: string;
+  cdn?: string;
 }
 
 export interface InitOptions extends ShikiInitOptions {
@@ -60,11 +60,11 @@ export interface InitOptions extends ShikiInitOptions {
 }
 
 export function init(options?: InitOptions): Promise<typeof monacoNS>;
-export function lazy(options?: InitOptions): Promise<void>;
-export function hydrate(options?: InitOptions): Promise<void>;
+export function lazy(options?: InitOptions): void;
+export function hydrate(options?: InitOptions): void;
 
 export const errors: {
-  NotFound: ErrorNotFound;
+  NotFound: NotFoundError;
 };
 
 export { FileSystem, Workspace };

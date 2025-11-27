@@ -15,7 +15,7 @@ const shikiThemeIds = new Set(SHIKI_THEMES);
 export interface ShikiInitOptions {
   langs?: (string | URL | LanguageInput)[];
   theme?: string | URL | ThemeInput;
-  tmDownloadCDN?: string;
+  cdn?: string;
   engine?: RegexEngine | Promise<RegexEngine>;
 }
 
@@ -28,7 +28,7 @@ export interface Highlighter extends HighlighterCore {
 export async function initShiki({
   theme = "vitesse-dark",
   langs: languages,
-  tmDownloadCDN,
+  cdn,
   engine = createOnigurumaEngine(getDefaultWasmLoader()),
 }: ShikiInitOptions = {}): Promise<Highlighter> {
   const langs: LanguageInput[] = [];
@@ -44,9 +44,9 @@ export async function initShiki({
         if (!set.has(l.toString())) {
           const g = grammars.find((g) => g.name === l);
           if (g?.embedded) {
-            langs.push(...g.embedded.map((id) => loadTMGrammar(id, tmDownloadCDN)));
+            langs.push(...g.embedded.map((id) => loadTMGrammar(id, cdn)));
           }
-          langs.push(loadTMGrammar(l, tmDownloadCDN));
+          langs.push(loadTMGrammar(l, cdn));
           set.add(l.toString());
         }
       } else if (isPlainObject(l) || typeof l === "function") {
@@ -56,15 +56,15 @@ export async function initShiki({
   }
 
   if (typeof theme === "string" || theme instanceof URL) {
-    themes.push(await loadTMTheme(theme, tmDownloadCDN));
+    themes.push(await loadTMTheme(theme, cdn));
   } else if (isPlainObject(theme) || typeof theme === "function") {
     themes.push(theme);
   }
 
   const highlighterCore = await createHighlighterCore({ langs, themes, engine });
   Object.assign(highlighterCore, {
-    loadThemeFromCDN: (themeName: string) => highlighterCore.loadTheme(loadTMTheme(themeName, tmDownloadCDN)),
-    loadGrammarFromCDN: (...ids: string[]) => highlighterCore.loadLanguage(...ids.map(id => loadTMGrammar(id, tmDownloadCDN))),
+    loadThemeFromCDN: (themeName: string) => highlighterCore.loadTheme(loadTMTheme(themeName, cdn)),
+    loadGrammarFromCDN: (...ids: string[]) => highlighterCore.loadLanguage(...ids.map(id => loadTMGrammar(id, cdn))),
   });
   return highlighterCore as unknown as Highlighter;
 }

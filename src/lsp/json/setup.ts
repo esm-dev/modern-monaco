@@ -6,7 +6,6 @@ import { parseImportMapFromHtml, parseImportMapFromJson } from "@esm.sh/import-m
 import { schemas } from "./schemas.ts";
 
 // ! external modules, don't remove the `.js` extension
-import { walk } from "../../workspace.js";
 import * as client from "../client.js";
 
 export async function setup(
@@ -35,7 +34,7 @@ export async function setup(
       trimFinalNewlines: true,
       ...formattingOptions,
     },
-    fs: workspace ? await walk(workspace.fs, "/") : undefined,
+    fs: workspace ? await client.walkFS(workspace.fs, "/") : undefined,
   };
   const worker = editor.createWebWorker<JSONWorker>({
     worker: getWorker(createData),
@@ -161,8 +160,8 @@ async function searchPackagesFromNpm(keyword: string, size = 20) {
 
 function createWebWorker(): Worker {
   const workerUrl: URL = new URL("./worker.mjs", import.meta.url);
-  // create a blob url for cross-origin workers if the url is not same-origin
   if (workerUrl.origin !== location.origin) {
+    // create a blob url for cross-origin workers if the url is not same-origin
     return new Worker(
       URL.createObjectURL(new Blob([`import "${workerUrl.href}"`], { type: "application/javascript" })),
       { type: "module", name: "json-worker" },

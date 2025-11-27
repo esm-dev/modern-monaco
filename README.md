@@ -249,7 +249,7 @@ lazy({
     },
   ],
   // The CDN for loading language grammars and themes. Default is "https://esm.sh"
-  tmDownloadCDN: "https://esm.sh",
+  cdn: "https://esm.sh",
 });
 ```
 
