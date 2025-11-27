@@ -69,7 +69,7 @@ const setStyle = (el: HTMLElement, style: Partial<CSSStyleDeclaration>) => Objec
 export async function init(options?: InitOptions): Promise<typeof monacoNS> {
   const langs = (options?.langs ?? []).concat(syntaxes as any[]);
   const shiki = await initShiki({ ...options, langs });
-  return loadMonaco(shiki, options?.workspace, options?.lsp, options?.cdn);
+  return loadMonaco(shiki, options?.workspace, options?.lsp);
 }
 
 /** Render a mock editor, then load the monaco editor in background. */
@@ -260,7 +260,7 @@ export function lazy(options?: InitOptions) {
 
           // load and render editor
           {
-            const monaco = await (monacoPromise ?? (monacoPromise = loadMonaco(highlighter, workspace, options?.lsp, options?.cdn)));
+            const monaco = await (monacoPromise ?? (monacoPromise = loadMonaco(highlighter, workspace, options?.lsp)));
             const editor = monaco.editor.create(containerEl, renderOptions);
             if (workspace) {
               const storeViewState = () => {
@@ -350,10 +350,11 @@ async function loadMonaco(
   highlighter: Highlighter,
   workspace?: Workspace,
   lsp?: LSPConfig,
-  cdn?: string | URL,
 ): Promise<typeof monacoNS> {
-  let editorCoreModuleUrl = getCDNUrl(`/modern-monaco@${version}/dist/editor-core.mjs`, cdn);
-  let lspModuleUrl = getCDNUrl(`/modern-monaco@${version}/dist/lsp/index.mjs`, cdn);
+  let cdnUrl = `https://esm.sh/modern-monaco@${version}`;
+  let editorCoreModuleUrl = `${cdnUrl}/es2022/editor-core.mjs`;
+  let lspModuleUrl = `${cdnUrl}/es2022/lsp.mjs`;
+
   let importmapEl: HTMLScriptElement | null = null;
   if (importmapEl = document.querySelector("script[type='importmap']")) {
     try {
