@@ -1,7 +1,7 @@
 import type * as monacoNS from "./monaco.d.ts";
 import type { LSPConfig } from "./lsp.d.ts";
 import type { TextmateGrammarName, TextmateThemeName } from "./textmate.d.ts";
-import { ErrorNotFound, FileSystem, Workspace } from "./workspace";
+import { FileSystem, NotFoundError, Workspace } from "./workspace";
 
 type Awaitable<T> = T | Promise<T>;
 type MaybeGetter<T> = Awaitable<MaybeModule<T>> | (() => Awaitable<MaybeModule<T>>);
@@ -64,7 +64,7 @@ export function lazy(options?: InitOptions): void;
 export function hydrate(options?: InitOptions): void;
 
 export const errors: {
-  NotFound: ErrorNotFound;
+  NotFound: NotFoundError;
 };
 
 export { FileSystem, Workspace };

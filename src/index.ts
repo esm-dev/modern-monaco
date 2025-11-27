@@ -14,4 +14,6 @@ for (const syntax of syntaxes) {
 registerTheme(vitesseDark);
 
 // use builtin LSP providers
-Reflect.set(globalThis, "MonacoEnvironment", { useBuiltinLSP: true });
+Object.assign(globalThis, {
+  MonacoEnvironment: { useBuiltinLSP: true },
+});

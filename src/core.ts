@@ -10,8 +10,8 @@ import { getExtnameFromLanguageId, getLanguageIdFromPath, grammars, initShiki, s
 import { initShikiMonacoTokenizer, registerShikiMonacoTokenizer } from "./shiki.js";
 import { render } from "./shiki.js";
 import { getWasmInstance } from "./shiki-wasm.js";
-import { ErrorNotFound, Workspace } from "./workspace.js";
-import { debunce, decode, isDigital } from "./util.js";
+import { NotFoundError, Workspace } from "./workspace.js";
+import { debunce, decode, getCDNUrl, isDigital } from "./util.js";
 import { init as initLspClient } from "./lsp/client.js";
 
 const editorProps = [
@@ -47,7 +47,7 @@ const editorProps = [
 ];
 
 const errors = {
-  NotFound: ErrorNotFound,
+  NotFound: NotFoundError,
 };
 
 const defaultCDN = "https://esm.sh";
@@ -235,7 +235,7 @@ export function lazy(options?: InitOptions) {
               prerenderEl.className = "monaco-editor-prerender";
               prerenderEl.innerHTML = render(highlighter, decode(code), { ...renderOptions, language });
             } catch (error) {
-              if (error instanceof ErrorNotFound) {
+              if (error instanceof NotFoundError) {
                 // ignore
               } else {
                 throw error;
@@ -289,7 +289,7 @@ export function lazy(options?: InitOptions) {
                   model.setValue(code);
                 }
               } catch (error) {
-                if (error instanceof ErrorNotFound) {
+                if (error instanceof NotFoundError) {
                   if (code) {
                     const dirname = filename.split("/").slice(0, -1).join("/");
                     if (dirname) {
@@ -352,13 +352,9 @@ async function loadMonaco(
   lsp?: LSPConfig,
   cdn?: string | URL,
 ): Promise<typeof monacoNS> {
+  let editorCoreModuleUrl = getCDNUrl(`/modern-monaco@${version}/dist/editor-core.mjs`, cdn);
+  let lspModuleUrl = getCDNUrl(`/modern-monaco@${version}/dist/lsp/index.mjs`, cdn);
   let importmapEl: HTMLScriptElement | null = null;
-  let cdnUrl = new URL(cdn ?? defaultCDN);
-  if (cdnUrl.hostname === "esm.sh") {
-    cdnUrl.hostname = "raw.esm.sh";
-  }
-  let editorCoreModuleUrl = `${cdnUrl}/modern-monaco@${version}/dist/editor-core.mjs`;
-  let lspModuleUrl = `${cdnUrl}/modern-monaco@${version}/dist/lsp/index.mjs`;
   if (importmapEl = document.querySelector("script[type='importmap']")) {
     try {
       const { imports = {} } = parseImportMapFromJson(importmapEl.textContent);
@@ -425,7 +421,7 @@ async function loadMonaco(
           await workspace._openTextDocument(resource.toString(), editor, selectionOrPosition);
           return true;
         } catch (err) {
-          if (err instanceof ErrorNotFound) {
+          if (err instanceof NotFoundError) {
             return false;
           }
           throw err;

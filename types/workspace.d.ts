@@ -82,4 +82,4 @@ export interface FileSystem {
   watch(filename: string, handle: FileSystemWatchHandle): () => void;
 }
 
-export class ErrorNotFound extends Error {}
+export class NotFoundError extends Error {}

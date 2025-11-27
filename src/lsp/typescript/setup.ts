@@ -130,7 +130,7 @@ async function createWorker(
         try {
           await workspace._openTextDocument(uri);
         } catch (error) {
-          if (error instanceof ErrorNotFound) {
+          if (isFsNotFoundError(error)) {
             return false;
           }
           throw error;
@@ -235,8 +235,8 @@ async function createWorker(
 
 function createWebWorker(): Worker {
   const workerUrl: URL = new URL("./worker.mjs", import.meta.url);
-  // create a blob url for cross-origin workers if the url is not same-origin
   if (workerUrl.origin !== location.origin) {
+    // create a blob url for cross-origin workers if the url is not same-origin
     return new Worker(
       URL.createObjectURL(new Blob([`import "${workerUrl.href}"`], { type: "application/javascript" })),
       { type: "module", name: "typescript-worker" },
@@ -354,9 +354,7 @@ async function loadCompilerOptions(workspace: Workspace) {
     compilerOptions.$src = "file:///tsconfig.json";
     Object.assign(compilerOptions, tsconfig.compilerOptions);
   } catch (error) {
-    if (error instanceof ErrorNotFound) {
-      // ignore
-    } else {
+    if (!isFsNotFoundError(error)) {
       console.error(error);
     }
   }
@@ -379,14 +377,17 @@ export async function loadImportMap(workspace: Workspace, validate: (im: ImportM
       return validate(importMap);
     }
   } catch (error) {
-    if (error instanceof ErrorNotFound) {
-      // ignore
-    } else {
+    if (!isFsNotFoundError(error)) {
       console.error("Failed to parse import map from index.html:", error.message);
     }
   }
   const importMap = createBlankImportMap();
   return validate(importMap);
+}
+
+/** Check if the error is a fs not found error. */
+function isFsNotFoundError(error: unknown): error is Error {
+  return error instanceof Error && (error as any).FS_ERROR === "NOT_FOUND";
 }
 
 /**

@@ -160,8 +160,8 @@ async function searchPackagesFromNpm(keyword: string, size = 20) {
 
 function createWebWorker(): Worker {
   const workerUrl: URL = new URL("./worker.mjs", import.meta.url);
-  // create a blob url for cross-origin workers if the url is not same-origin
   if (workerUrl.origin !== location.origin) {
+    // create a blob url for cross-origin workers if the url is not same-origin
     return new Worker(
       URL.createObjectURL(new Blob([`import "${workerUrl.href}"`], { type: "application/javascript" })),
       { type: "module", name: "json-worker" },

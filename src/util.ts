@@ -35,6 +35,16 @@ export function filenameToURL(filename: string): URL {
   return url;
 }
 
+/** Get the CDN URL. */
+export function getCDNUrl(path: string, cdn: string | URL = "https://esm.sh"): string {
+  let cdnUrl = new URL(cdn);
+  if (cdnUrl.hostname === "esm.sh") {
+    cdnUrl.hostname = "raw.esm.sh";
+  }
+  cdnUrl.pathname = path;
+  return cdnUrl.toString();
+}
+
 /** Check if the value is a plain object. */
 export function isPlainObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && v.constructor === Object;
