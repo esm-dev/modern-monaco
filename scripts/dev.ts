@@ -40,11 +40,9 @@ async function serveDist(url: URL, req: Request) {
 
 async function servePages(url: URL, req: Request) {
   const { pathname } = url;
-  let filename = "index.html";
-  if (
-    pathname === "/ssr" || pathname === "/lazy" || pathname === "/manual" || pathname === "/manual-no-workspace" || pathname === "/compare"
-  ) {
-    filename = pathname.slice(1) + ".html";
+  let filename = pathname === "/" ? "index.html" : pathname.slice(1);
+  if (!filename.endsWith(".html")) {
+    filename += ".html";
   }
   try {
     const fileUrl = new URL("../examples/" + filename, import.meta.url);
@@ -60,6 +58,9 @@ async function servePages(url: URL, req: Request) {
     return new Response((await Deno.open(fileUrl)).readable, { headers });
   } catch (e: any) {
     if (e instanceof Deno.errors.NotFound) {
+      if (filename !== "index.html") {
+        return servePages(new URL("/", url), req);
+      }
       return new Response("Not found", { status: 404 });
     }
     return new Response(e.message, { status: 500 });
