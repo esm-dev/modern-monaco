@@ -207,16 +207,17 @@ export function lazy(options?: InitOptions) {
               langs.push(lang);
             }
           }
-          renderOptions.theme = renderOptions.theme ?? options?.theme;
-          if (typeof renderOptions.theme === 'string') {
-            renderOptions.theme = renderOptions.theme.toLowerCase().replace(/ +/g, "-");
+
+          let theme = options?.theme ?? renderOptions.theme;
+          if (typeof theme === "string") {
+            theme = theme.toLowerCase().replace(/ +/g, "-");
           }
 
-          const highlighter = await initShiki({
-            ...options,
-            theme: renderOptions.theme,
-            langs,
-          });
+          // initialize shiki highlighter
+          const highlighter = await initShiki({ ...options, theme, langs });
+
+          // set the editor theme to the first loaded theme
+          renderOptions.theme = highlighter.getLoadedThemes()[0];
 
           // check the pre-rendered editor, if not exists, render one
           let prerenderEl: HTMLElement | undefined;
@@ -226,6 +227,7 @@ export function lazy(options?: InitOptions) {
               break;
             }
           }
+
           if (!prerenderEl && filename && workspace) {
             try {
               const code = await workspace.fs.readFile(filename);
