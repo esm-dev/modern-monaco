@@ -88,13 +88,19 @@ cmd.spawn();
 Deno.serve(async (req) => {
   let url = new URL(req.url);
   let pathname = url.pathname;
-  if (pathname.startsWith("/js/")) {
+  let contentType = "";
+  if (pathname.startsWith("/json/"))
+    contentType = "application/json; charset=utf-8";
+  if (pathname.startsWith("/js/"))
+    contentType = "application/javascript; charset=utf-8";
+
+  if (contentType !== "") {
     const file = await Deno.open(new URL("../examples" + pathname, import.meta.url));
     return new Response(
       file.readable,
       {
         headers: {
-          "content-type": "application/javascript; charset=utf-8",
+          "content-type": contentType,
           "cache-control": "no-cache, no-store, must-revalidate",
         },
       },
