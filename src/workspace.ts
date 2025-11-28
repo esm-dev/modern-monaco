@@ -219,35 +219,36 @@ class IndexedDBFileSystem implements FileSystem {
   }
 
   async createDirectory(name: string): Promise<void> {
-    const now = Date.now();
     const { pathname, href: url } = filenameToURL(name);
     const metaStore = await this._getIdbObjectStore("fs-meta", true);
+
+    const exists = (url: string) => promisifyIDBRequest(metaStore.get(url)).then(Boolean);
+
+    if (await exists(url)) { return; }
+
+    const now = Date.now();
     const promises: Promise<void>[] = [];
     const newDirs: string[] = [];
+
     // ensure parent directories exist
     let parent = pathname.slice(0, pathname.lastIndexOf("/"));
     while (parent) {
-      const stat: FileStat = { type: 2, version: 1, ctime: now, mtime: now, size: 0 };
-      promises.push(
-        promisifyIDBRequest<void>(metaStore.add({ url: filenameToURL(parent).href, ...stat })).catch((error) => {
-          if (error.name !== "ConstraintError") {
-            throw error;
-          }
-        }),
-      );
-      newDirs.push(parent);
+      const parentUrl = filenameToURL(parent).href;
+
+      if (!await exists(parentUrl)) {
+        const stat: FileStat = { type: 2, version: 1, ctime: now, mtime: now, size: 0 };
+        promises.push(promisifyIDBRequest<void>(metaStore.add({ url: parentUrl, ...stat })));
+        newDirs.push(parent);
+      }
+
       parent = parent.slice(0, parent.lastIndexOf("/"));
     }
     const stat: FileStat = { type: 2, version: 1, ctime: now, mtime: now, size: 0 };
-    promises.push(
-      promisifyIDBRequest<void>(metaStore.add({ url, ...stat })).catch((error) => {
-        if (error.name !== "ConstraintError") {
-          throw error;
-        }
-      }),
-    );
+    promises.push(promisifyIDBRequest<void>(metaStore.add({ url, ...stat })));
     newDirs.push(pathname);
+
     await Promise.all(promises);
+
     for (const dir of newDirs) {
       this._notify("create", dir, 2);
     }
