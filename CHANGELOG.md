@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fix creating nested directories using default FS (#43 by @xkcm)
+
 ## v0.3.2
 
 - Upgrade shiki to 3.17.0
