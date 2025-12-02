@@ -215,9 +215,6 @@ export function lazy(options?: InitOptions) {
           // initialize shiki highlighter
           const highlighter = await initShiki({ ...options, theme, langs });
 
-          // set the editor theme to the first loaded theme
-          renderOptions.theme = highlighter.getLoadedThemes()[0];
-
           // check the pre-rendered editor, if not exists, render one
           let prerenderEl: HTMLElement | undefined;
           for (const el of this.children) {

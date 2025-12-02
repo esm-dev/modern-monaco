@@ -9,8 +9,6 @@ const defaultEditorOptions: editor.IStandaloneEditorConstructionOptions = {
   minimap: { enabled: false },
   stickyScroll: { enabled: false },
   scrollBeyondLastLine: false,
-  matchBrackets: "never",
-  theme: "vitesse-dark",
 };
 
 const { create, createModel, getModel } = editor;
