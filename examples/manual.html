@@ -35,7 +35,7 @@
   <script type="module">
     import { init } from 'modern-monaco';
     import { workspace } from '/js/workspace.mjs';
-    const monaco = await init({ workspace, theme: 'vitesse-black'});
+    const monaco = await init({ workspace, theme: 'github-dark-default'});
     const editor = monaco.editor.create(document.getElementById("editor"), {
       padding: { top: 8, bottom: 8 },
     });
