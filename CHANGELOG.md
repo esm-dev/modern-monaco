@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+## v0.3.3
+
+- Fix `theme` option for `init` funtion
 - Fix creating nested directories using default FS (#43 by @xkcm)
 
 ## v0.3.2
