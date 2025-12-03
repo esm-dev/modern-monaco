@@ -140,12 +140,13 @@ class TokenizerState implements monacoNs.languages.IState {
 }
 
 function toRGBA(hex: string) {
-  const start = hex.charCodeAt(0) === 35 /* '#' */ ? 1 : 0;
+  const start = hex.charCodeAt(0) === /* '#' */ 35 ? 1 : 0;
   const step = (hex.length - start) >= 6 ? 2 : 1;
-  const rgba = [0, 1, 2, 3].map(i => {
+  const rgba = [0, 0, 0, 0];
+  for (let i = 0; i < 4; i++) {
     const j = start + i * step;
-    return parseInt(hex.slice(j, j + step).repeat(3 - step), 16);
-  });
+    rgba[i] = parseInt(hex.slice(j, j + step).repeat(3 - step), 16);
+  }
   if (Number.isNaN(rgba[3])) {
     rgba[3] = 1;
   } else {
@@ -164,8 +165,8 @@ function channelMixer(channelA: number, channelB: number, amount: number) {
   return Math.round(a + b);
 }
 
-function normalizeColor(bg: string, fg: string): string {
-  const fgRgba = toRGBA(fg);
+function normalizeColor(bg: string, fg: string | string[]): string {
+  const fgRgba = toRGBA(Array.isArray(fg) ? fg[0] : fg);
   if (fgRgba[3] === 1) {
     return toHexColor(fgRgba.slice(0, 3));
   }
