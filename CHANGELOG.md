@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v0.3.4
+
+- Use bun as the scripts runner
+- Validate and normalize `theme` option
+- Fix normalizeColor function (close #45)
+
 ## v0.3.3
 
 - Fix `theme` option for `init` funtion
