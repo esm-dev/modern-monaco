@@ -7,12 +7,9 @@
     "target": "ESNext",
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "skipLibCheck": true,
     "noEmit": true,
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
-    "moduleDetection": "force",
-    "alwaysStrict": true,
     "strictNullChecks": true,
     "noUnusedLocals": true
   },
