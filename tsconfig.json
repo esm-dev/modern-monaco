@@ -3,9 +3,9 @@
     "paths": {
       "~/*": ["./src/*"]
     },
-    "lib": ["ESNext", "DOM", "DOM.Iterable", "WebWorker"],
-    "target": "ESNext",
-    "module": "ESNext",
+    "lib": ["esnext", "dom", "dom.iterable", "webworker"],
+    "target": "esnext",
+    "module": "esnext",
     "moduleResolution": "bundler",
     "noEmit": true,
     "allowImportingTsExtensions": true,

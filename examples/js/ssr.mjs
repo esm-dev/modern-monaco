@@ -12,7 +12,7 @@ export default {
         userAgent: req.headers.get("user-agent"),
       }
     );
-    const html = await Deno.readTextFile(new URL("../ssr.html", import.meta.url));
+    const html = await Bun.file(new URL("../ssr.html", import.meta.url)).text();
     return new Response(html.replace("{SSR}", ssrOutput), {
       headers: {
         "cache-control": "public, max-age=0, revalidate",

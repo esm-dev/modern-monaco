@@ -1,7 +1,13 @@
+import { build } from "./build";
+
 async function serveDist(url: URL, req: Request) {
   try {
     const fileUrl = new URL("../dist" + url.pathname, import.meta.url);
-    let body = (await Deno.open(fileUrl)).readable;
+    const file = Bun.file(fileUrl);
+    if (!(await file.exists())) {
+      return new Response("Not found", { status: 404 });
+    }
+    let body = file.stream();
     if (url.pathname === "/lsp/typescript/worker.mjs") {
       let replaced = false;
       body = body.pipeThrough(
@@ -31,9 +37,6 @@ async function serveDist(url: URL, req: Request) {
     });
     return new Response(body, { headers });
   } catch (e: any) {
-    if (e instanceof Deno.errors.NotFound) {
-      return new Response("Not found", { status: 404 });
-    }
     return new Response(e.message, { status: 500 });
   }
 }
@@ -46,6 +49,13 @@ async function servePages(url: URL, req: Request) {
   }
   try {
     const fileUrl = new URL("../examples/" + filename, import.meta.url);
+    const file = Bun.file(fileUrl);
+    if (!(await file.exists())) {
+      if (filename !== "index.html") {
+        return servePages(new URL("/", url), req);
+      }
+      return new Response("Not found", { status: 404 });
+    }
     if (filename === "ssr.html") {
       const { default: ssr } = await import("../examples/js/ssr.mjs");
       return ssr.fetch(req);
@@ -55,14 +65,8 @@ async function servePages(url: URL, req: Request) {
       "cache-control": "public, max-age=0, revalidate",
       "content-type": getContentType(fileUrl.pathname),
     });
-    return new Response((await Deno.open(fileUrl)).readable, { headers });
+    return new Response(file.stream(), { headers });
   } catch (e: any) {
-    if (e instanceof Deno.errors.NotFound) {
-      if (filename !== "index.html") {
-        return servePages(new URL("/", url), req);
-      }
-      return new Response("Not found", { status: 404 });
-    }
     return new Response(e.message, { status: 500 });
   }
 }
@@ -70,6 +74,9 @@ async function servePages(url: URL, req: Request) {
 function getContentType(pathname: string) {
   if (pathname.endsWith(".css")) {
     return "text/css; charset=utf-8";
+  }
+  if (pathname.endsWith(".json")) {
+    return "application/json; charset=utf-8";
   }
   if (pathname.endsWith(".js") || pathname.endsWith(".mjs")) {
     return "application/javascript; charset=utf-8";
@@ -80,36 +87,48 @@ function getContentType(pathname: string) {
   return "application/octet-stream";
 }
 
-const cmd = new Deno.Command(Deno.execPath(), {
-  args: ["run", "-A", "--no-lock", "scripts/build.ts", "--watch"],
-  cwd: new URL("..", import.meta.url).pathname,
-});
-cmd.spawn();
+const server = Bun.serve({
+  port: 8000,
+  fetch: async (req) => {
+    let url = new URL(req.url);
+    let pathname = url.pathname;
 
-Deno.serve(async (req) => {
-  let url = new URL(req.url);
-  let pathname = url.pathname;
-  let contentType = "";
-  if (pathname.startsWith("/json/"))
-    contentType = "application/json; charset=utf-8";
-  if (pathname.startsWith("/js/"))
-    contentType = "application/javascript; charset=utf-8";
-
-  if (contentType !== "") {
-    const file = await Deno.open(new URL("../examples" + pathname, import.meta.url));
-    return new Response(
-      file.readable,
-      {
-        headers: {
-          "content-type": contentType,
-          "cache-control": "no-cache, no-store, must-revalidate",
+    if (pathname.startsWith("/json/") || pathname.startsWith("/js/")) {
+      const file = Bun.file(new URL("../examples" + pathname, import.meta.url));
+      return new Response(
+        file.stream(),
+        {
+          headers: {
+            "content-type": getContentType(pathname),
+            "cache-control": "no-cache, no-store, must-revalidate",
+          },
         },
-      },
-    );
-  }
-  if (pathname === "/modern-monaco" || pathname.startsWith("/modern-monaco/")) {
-    url = new URL(pathname.slice("/modern-monaco".length) || "/index.js", url);
-    return serveDist(url, req);
-  }
-  return servePages(url, req);
+      );
+    }
+
+    if (pathname === "/modern-monaco" || pathname.startsWith("/modern-monaco/")) {
+      url = new URL(pathname.slice("/modern-monaco".length) || "/index.js", url);
+      return serveDist(url, req);
+    }
+
+    if (pathname.endsWith("/favicon.ico") || pathname.startsWith("/.well-known/")) {
+      return new Response("Not found", { status: 404 });
+    }
+
+    return servePages(url, req);
+  },
 });
+
+await build(true);
+
+console.log(`
+Server is running on ${server.url}
+Examples:
+  General - ${server.url}
+  Lazy mode - ${server.url}lazy
+  Manual mode - ${server.url}manual
+  Manual mode (without workspace) - ${server.url}manual-no-workspace
+  Custom theme(json) - ${server.url}custom-theme
+  SSR mode - ${server.url}ssr
+  Compare modes - ${server.url}compare
+`);

@@ -1,4 +1,4 @@
-// [path-1] replace the default command history storage (which is in-memory) of Monaco Editor with a browser localStorage-based one
+// [patch-1] replace the default command history storage (which is in-memory) of Monaco Editor with a browser localStorage-based one
 const commandHistoryStorageJs = `{
   get: (key, _scope, defaultValue) => localStorage.getItem('monaco:' + key) ?? defaultValue,
   getNumber: (key, _scope, defaultValue) => Number(localStorage.getItem('monaco:' + key) ?? defaultValue) || defaultValue,
@@ -12,11 +12,11 @@ const commandHistoryStorageJs = `{
 `;
 {
   const path = "node_modules/monaco-editor-core/esm/vs/platform/quickinput/browser/commandsQuickAccess.js";
-  const js = await Deno.readTextFile(path);
+  const js = await Bun.file(path).text();
   const arr = js.split("this.storageService = storageService;");
   if (arr.length === 2) {
-    await Deno.writeTextFile(path, arr[0] + "// Added by modern-monaco\nthis.storageService = " + commandHistoryStorageJs + arr[1]);
-    console.log("Patched", path.slice("node_modules/".length));
+    await Bun.write(path, arr[0] + "// Added by modern-monaco\nthis.storageService = " + commandHistoryStorageJs + arr[1]);
+    console.log("[patch-1]", path.slice("node_modules/".length));
   }
 }
 
@@ -30,14 +30,14 @@ if (isMacintosh) {
 `;
 {
   const path = "node_modules/monaco-editor-core/esm/vs/platform/quickinput/browser/quickInputActions.js";
-  const js = await Deno.readTextFile(path);
+  const js = await Bun.file(path).text();
   if (!js.includes(registerQuickPickCommandAndKeybindingRulesJS)) {
-    await Deno.writeTextFile(path, js + registerQuickPickCommandAndKeybindingRulesJS);
-    console.log("Patched", path.slice("node_modules/".length));
+    await Bun.write(path, js + registerQuickPickCommandAndKeybindingRulesJS);
+    console.log("[patch-2]", path.slice("node_modules/".length));
   }
 }
 
-// [path-3] fix type definitions for createModel and getModel to accept `string | URL | Uri` type for the `uri` parameter
+// [patch-3] fix type definitions for createModel and getModel to accept `string | URL | Uri` type for the `uri` parameter
 {
   const path = "node_modules/monaco-editor-core/esm/vs/editor/editor.api.d.ts";
   const diffs = [
@@ -51,7 +51,7 @@ if (isMacintosh) {
     ],
   ];
   const addon = "\nexport * from './vscode';\n";
-  let dts = await Deno.readTextFile(path);
+  let dts = await Bun.file(path).text();
   let patched = false;
   for (const [search, replace] of diffs) {
     if (!dts.includes(replace)) {
@@ -62,36 +62,36 @@ if (isMacintosh) {
   if (!dts.includes(addon)) {
     const pathOrgi = "types/vscode.d.ts";
     const pathDest = "node_modules/monaco-editor-core/esm/vs/editor/vscode.d.ts";
-    await Deno.writeTextFile(pathDest, (await Deno.readTextFile(pathOrgi)).replace("./monaco.d.ts", "./editor.api.d.ts"));
+    await Bun.write(pathDest, (await Bun.file(pathOrgi).text()).replace("./monaco.d.ts", "./editor.api.d.ts"));
     dts += addon;
     patched = true;
   }
   if (patched) {
-    await Deno.writeTextFile(path, dts);
-    console.log("Patched", path.slice("node_modules/".length));
+    await Bun.write(path, dts);
+    console.log("[patch-3]", path.slice("node_modules/".length));
   }
 }
 
-// [path-4] fix the issue of `maxDigitWidth` not being set correctly in SSR mode
+// [patch-4] fix the issue of `maxDigitWidth` not being set correctly in SSR mode
 {
   const path = "node_modules/monaco-editor-core/esm/vs/editor/common/config/editorOptions.js";
-  const js = await Deno.readTextFile(path);
+  const js = await Bun.file(path).text();
   const search = "maxDigitWidth: env.fontInfo.maxDigitWidth,";
   const replace = "maxDigitWidth: globalThis.__monaco_maxDigitWidth || env.fontInfo.maxDigitWidth,";
   if (!js.includes(replace)) {
-    await Deno.writeTextFile(path, js.replace(search, replace));
-    console.log("Patched", path.slice("node_modules/".length));
+    await Bun.write(path, js.replace(search, replace));
+    console.log("[patch-4]", path.slice("node_modules/".length));
   }
 }
 
-// [path-5] fix folding icon size
+// [patch-5] fix folding icon size
 {
   const path = "node_modules/monaco-editor-core/esm/vs/editor/contrib/folding/browser/folding.css";
-  const css = await Deno.readTextFile(path);
+  const css = await Bun.file(path).text();
   const search = "font-size: 140%;";
   const replace = "font-size: 100%;";
   if (css.includes(search)) {
-    await Deno.writeTextFile(path, css.replace(search, replace));
-    console.log("Patched", path.slice("node_modules/".length));
+    await Bun.write(path, css.replace(search, replace));
+    console.log("[patch-5]", path.slice("node_modules/".length));
   }
 }

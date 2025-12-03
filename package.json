@@ -54,10 +54,10 @@
     "bundle": false
   },
   "scripts": {
-    "prepublishOnly": "deno run -A --no-lock scripts/build.ts",
-    "prepare": "deno run -A --no-lock scripts/patch.ts",
-    "update-language-configurations": "deno run -A --no-lock scripts/update-language-configurations.ts",
-    "dev": "deno run -A --no-lock scripts/dev.ts",
+    "prepublishOnly": "bun scripts/build.ts",
+    "prepare": "bun scripts/patch.ts",
+    "update-language-configurations": "bun scripts/update-language-configurations.ts",
+    "dev": "bun scripts/dev.ts",
     "fmt": "dprint fmt"
   },
   "files": [
@@ -73,6 +73,8 @@
     "@esm.sh/import-map": "0.1.1",
     "@shikijs/core": "3.17.0",
     "@shikijs/engine-oniguruma": "3.17.0",
+    "@types/bun": "1.3.3",
+    "esbuild": "0.27.0",
     "monaco-editor-core": "0.55.1",
     "tm-grammars": "1.26.0",
     "tm-themes": "1.10.13",

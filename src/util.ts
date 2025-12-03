@@ -47,7 +47,7 @@ export function isDigital(v: unknown): v is number | string {
 
 /** Debounce the function call. */
 export function debunce(fn: () => void, delay: number) {
-  let timer: number | null = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
   return () => {
     if (timer !== null) {
       clearTimeout(timer);
@@ -67,7 +67,7 @@ export function debunce(fn: () => void, delay: number) {
  * @returns The persist trigger function.
  */
 export function createPersistTask(persist: () => void | Promise<void>, delay = 500) {
-  let timer: number | null = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
   const askToExit = (e: BeforeUnloadEvent) => {
     e.preventDefault();
     return false;
@@ -92,7 +92,7 @@ export function createPersistTask(persist: () => void | Promise<void>, delay = 5
  * @returns The persist trigger function.
  */
 export function createSyncPersistTask(persist: () => void, delay = 500) {
-  let timer: number | null = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
   return () => {
     if (timer !== null) {
       return;
