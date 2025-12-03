@@ -209,11 +209,15 @@ export function lazy(options?: InitOptions) {
 
           let theme = options?.theme ?? renderOptions.theme;
           if (typeof theme === "string") {
+            // fix theme ID
             theme = theme.toLowerCase().replace(/ +/g, "-");
           }
 
           // initialize shiki highlighter
           const highlighter = await initShiki({ ...options, theme, langs });
+
+          // set the editor theme to shiki theme
+          renderOptions.theme = highlighter.getLoadedThemes()[0];
 
           // check the pre-rendered editor, if not exists, render one
           let prerenderEl: HTMLElement | undefined;
