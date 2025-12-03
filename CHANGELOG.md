@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+## v0.3.5
+
+- Add `dataProviders` option to `LSPConfig.css`
+- Add `hideEndTagSuggestions` option to `LSPConfig.html`
+- Update options of `LSPConfig.json`
+  ```ts
+  export interface JSONLanguageConfig {
+    /** By default, the validator will return syntax and semantic errors. Set to false to disable the validator. */
+    validate?: boolean;
+    /** Defines whether comments are allowed or not. Default is disallowed. */
+    allowComments?: boolean;
+    /** A list of known schemas and/or associations of schemas to file names. */
+    schemas?: JSONSchemaSource[];
+    /** The severity of reported comments. Default is "error". */
+    comments?: SeverityLevel;
+    /** The severity of reported trailing commas. Default is "error". */
+    trailingCommas?: SeverityLevel;
+    /** The severity of problems from schema validation. Default is "warning". */
+    schemaValidation?: SeverityLevel;
+    /** The severity of problems that occurred when resolving and loading schemas. Default is "warning". */
+    schemaRequest?: SeverityLevel;
+  }
+  ```
+
 ## v0.3.4
 
 - Use bun as the scripts runner
