@@ -5,7 +5,6 @@ import { themes as shikiThemes } from "../node_modules/tm-themes/index.js";
 import { wasmBinary } from "../node_modules/@shikijs/engine-oniguruma/dist/wasm-inlined.mjs";
 
 const bundleTypescriptLibs = async () => {
-  const libDir = "node_modules/typescript/lib";
   const glob = new Bun.Glob("node_modules/typescript/lib/lib.*.d.ts");
   const dtsFiles = [...glob.scanSync()];
   dtsFiles.sort();
