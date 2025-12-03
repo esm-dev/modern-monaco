@@ -17,8 +17,9 @@ export async function setup(
   const { tabSize, insertSpaces, insertFinalNewline, trimFinalNewlines } = formattingOptions ?? {};
   const createData: CreateData = {
     suggest: {
-      hideAutoCompleteProposals: languageSettings?.hideAutoCompleteProposals as boolean | undefined,
       attributeDefaultValue: languageSettings?.attributeDefaultValue as "empty" | "singlequotes" | "doublequotes" | undefined,
+      hideAutoCompleteProposals: languageSettings?.hideAutoCompleteProposals as boolean | undefined,
+      hideEndTagSuggestions: languageSettings?.hideEndTagSuggestions as boolean | undefined,
     },
     format: {
       tabSize,

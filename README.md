@@ -309,29 +309,69 @@ You can configure built-in LSPs in the `lazy`, `init`, or `hydrate` functions.
 
 ```js
 lazy({
-  // configure LSP for each language
   lsp: {
+    // formatting options for all languages
+    formatting: {/* ... */},
+    // configure LSP for languages
     html: {/* ... */},
+    css: {/* ... */},
     json: {/* ... */},
     typescript: {/* ... */},
   },
 });
 ```
 
-The `LSPLanguageConfig` interface is defined as:
+The `LSPConfig` interface is defined as:
 
 ```ts
-export interface LSPLanguageConfig {
+export interface LSPConfig {
+  /** Formatting options. */
+  formatting?: {
+    /** Size of a tab in spaces. Default: 4. */
+    tabSize?: number;
+    /** Prefer spaces over tabs. Default: true.*/
+    insertSpaces?: boolean;
+    /** Trim trailing whitespace on a line. Default: true. */
+    trimTrailingWhitespace?: boolean;
+    /** Insert a newline character at the end of the file if one does not exist. Default: false. */
+    insertFinalNewline?: boolean;
+    /** Trim all newlines after the final newline at the end of the file. Default: false. */
+    trimFinalNewlines?: boolean;
+    /** Semicolon preference for JavaScript and TypeScript. Default: "insert". */
+    semicolon?: "ignore" | "insert" | "remove";
+  }
+  /** HTML language configuration. */
   html?: {
     attributeDefaultValue?: "empty" | "singlequotes" | "doublequotes";
     customTags?: ITagData[];
     hideAutoCompleteProposals?: boolean;
+    hideEndTagSuggestions?: boolean;
   };
-  css?: {};
+  /** CSS language configuration. */
+  css?: {
+    /** Defines whether the standard CSS properties, at-directives, pseudoClasses and pseudoElements are shown. */
+    useDefaultDataProvider?: boolean;
+    /** Provides a set of custom data providers. */
+    dataProviders?: { [providerId: string]: CSSDataV1 };
+  };
+  /** JSON language configuration. */
   json?: {
-    /** JSON schemas for JSON language service. */
-    schemas?: JSONSchemaSource[];
+      /** By default, the validator will return syntax and semantic errors. Set to false to disable the validator. */
+      validate?: boolean;
+      /** Defines whether comments are allowed or not. Default is disallowed. */
+      allowComments?: boolean;
+      /** A list of known schemas and/or associations of schemas to file names. */
+      schemas?: JSONSchemaSource[];
+      /** The severity of reported comments. Default is "error". */
+      comments?: SeverityLevel;
+      /** The severity of reported trailing commas. Default is "error". */
+      trailingCommas?: SeverityLevel;
+      /** The severity of problems from schema validation. Default is "warning". */
+      schemaValidation?: SeverityLevel;
+      /** The severity of problems that occurred when resolving and loading schemas. Default is "warning". */
+      schemaRequest?: SeverityLevel;
   };
+  /** TypeScript language configuration. */
   typescript?: {
     /** The compiler options. */
     compilerOptions?: ts.CompilerOptions;

@@ -52,15 +52,18 @@ export interface IReference {
   name: string;
   url: string;
 }
+
 export interface IData {
   name: string;
   description?: string;
   references?: IReference[];
 }
+
 export interface IAttributeData extends IData {
   valueSet?: string;
   values?: IData[];
 }
+
 export interface ITagData extends IData {
   attributes: IAttributeData[];
   void?: boolean;
@@ -87,17 +90,45 @@ export interface LSPConfig extends LSPLanguageConfig {
   formatting?: FormatOptions;
 }
 
+export type SeverityLevel = "error" | "warning" | "ignore";
+
+export interface CSSDataV1 {
+  version: 1 | 1.1;
+  properties?: (IData & Record<string, unknown>)[];
+  atDirectives?: (IData & Record<string, unknown>)[];
+  pseudoClasses?: (IData & Record<string, unknown>)[];
+  pseudoElements?: (IData & Record<string, unknown>)[];
+}
+
 declare global {
   interface LSPLanguageConfig {
     html?: {
       attributeDefaultValue?: "empty" | "singlequotes" | "doublequotes";
       customTags?: ITagData[];
+      hideEndTagSuggestions?: boolean;
       hideAutoCompleteProposals?: boolean;
     };
-    css?: {};
+    css?: {
+      /** Defines whether the standard CSS properties, at-directives, pseudoClasses and pseudoElements are shown. */
+      useDefaultDataProvider?: boolean;
+      /** Provides a set of custom data providers. */
+      dataProviders?: { [providerId: string]: CSSDataV1 };
+    };
     json?: {
-      /** JSON schemas for JSON language service. */
+      /** By default, the validator will return syntax and semantic errors. Set to false to disable the validator. */
+      validate?: boolean;
+      /** Defines whether comments are allowed or not. Default is disallowed. */
+      allowComments?: boolean;
+      /** A list of known schemas and/or associations of schemas to file names. */
       schemas?: JSONSchemaSource[];
+      /** The severity of reported comments. Default is "error". */
+      comments?: SeverityLevel;
+      /** The severity of reported trailing commas. Default is "error". */
+      trailingCommas?: SeverityLevel;
+      /** The severity of problems from schema validation. Default is "warning". */
+      schemaValidation?: SeverityLevel;
+      /** The severity of problems that occurred when resolving and loading schemas. Default is "warning". */
+      schemaRequest?: SeverityLevel;
     };
     typescript?: {
       /** The compiler options. */

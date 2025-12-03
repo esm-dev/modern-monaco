@@ -3,7 +3,7 @@ import type { FormattingOptions } from "vscode-languageserver-types";
 import type { Workspace } from "~/workspace.ts";
 import type { CreateData, JSONWorker } from "./worker.ts";
 import { parseImportMapFromHtml, parseImportMapFromJson } from "@esm.sh/import-map";
-import { schemas } from "./schemas.ts";
+import { schemas as builtinSchemas } from "./schemas.ts";
 
 // ! external modules, don't remove the `.js` extension
 import * as client from "../client.js";
@@ -16,15 +16,17 @@ export async function setup(
   workspace?: Workspace,
 ) {
   const { editor, languages } = monaco;
+  const schemas = Array.isArray(languageSettings?.schemas) ? builtinSchemas.concat(languageSettings.schemas) : builtinSchemas;
   const createData: CreateData = {
     settings: {
       validate: true,
       allowComments: false,
-      schemas: Array.isArray(languageSettings?.schemas) ? schemas.concat(languageSettings.schemas) : schemas,
       comments: "error",
       trailingCommas: "error",
       schemaRequest: "warning",
       schemaValidation: "warning",
+      ...languageSettings,
+      schemas,
     },
     format: {
       tabSize: 4,

@@ -18,7 +18,7 @@ export async function setup(
     language: languageId as "css" | "less" | "scss",
     data: {
       useDefaultDataProvider: true,
-      // todo: custom data provider
+      ...languageSettings,
     },
     format: {
       tabSize,
