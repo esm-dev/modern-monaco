@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## v0.3.6
+
+- Update `sideEffects: ["dist/index.mjs"]` in package.json (#48)
+- Update import statements to use `webpackIgnore` annotation (#47)
+
 ## v0.3.5
 
 - Add `dataProviders` option to `LSPConfig.css`
