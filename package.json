@@ -68,7 +68,7 @@
     "process": false,
     "buffer": false
   },
-  "sideEffects": false,
+  "sideEffects": ["dist/index.mjs"],
   "devDependencies": {
     "@esm.sh/import-map": "0.1.1",
     "@shikijs/core": "3.17.0",
