@@ -373,8 +373,8 @@ async function loadMonaco(
 
   const useBuiltinLSP = (globalThis as any).MonacoEnvironment?.useBuiltinLSP;
   const [monaco, { builtinLSPProviders }]: [typeof import("./editor-core"), typeof import("./lsp")] = await Promise.all([
-    import(editorCoreModuleUrl),
-    useBuiltinLSP ? import(lspModuleUrl) : Promise.resolve({ builtinLSPProviders: {} }),
+    import(/* webpackIgnore: true */ editorCoreModuleUrl),
+    useBuiltinLSP ? import(/* webpackIgnore: true */ lspModuleUrl) : Promise.resolve({ builtinLSPProviders: {} }),
   ]);
   const allLspProviders = { ...builtinLSPProviders, ...lspProviders, ...lsp?.providers };
 
