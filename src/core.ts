@@ -69,7 +69,7 @@ const setStyle = (el: HTMLElement, style: Partial<CSSStyleDeclaration>) => Objec
 export async function init(options?: InitOptions): Promise<typeof monacoNS> {
   const langs = (options?.langs ?? []).concat(syntaxes as any[]);
   const shiki = await initShiki({ ...options, langs });
-  return loadMonaco(shiki, options?.workspace, options?.lsp);
+  return loadMonaco(shiki, options?.workspace, options?.lsp, options?.cdn);
 }
 
 /** Render a mock editor, then load the monaco editor in background. */
@@ -261,7 +261,7 @@ export function lazy(options?: InitOptions) {
 
           // load and render editor
           {
-            const monaco = await (monacoPromise ?? (monacoPromise = loadMonaco(highlighter, workspace, options?.lsp)));
+            const monaco = await (monacoPromise ?? (monacoPromise = loadMonaco(highlighter, workspace, options?.lsp, options?.cdn)));
             const editor = monaco.editor.create(containerEl, renderOptions);
             if (workspace) {
               const storeViewState = () => {
@@ -351,8 +351,9 @@ async function loadMonaco(
   highlighter: Highlighter,
   workspace?: Workspace,
   lsp?: LSPConfig,
+  cdn = "https://esm.sh"
 ): Promise<typeof monacoNS> {
-  let cdnUrl = `https://esm.sh/modern-monaco@${version}`;
+  let cdnUrl = `${cdn}/modern-monaco@${version}`;
   let editorCoreModuleUrl = `${cdnUrl}/es2022/editor-core.mjs`;
   let lspModuleUrl = `${cdnUrl}/es2022/lsp.mjs`;
 
@@ -490,7 +491,7 @@ async function loadMonaco(
         }
       }
       if (lspProvider) {
-        lspProvider.import().then(({ setup }) => setup(monaco, id, lsp?.[lspLabel], lsp?.formatting, workspace));
+        lspProvider.import().then(({ setup }) => setup(monaco, id, lsp?.[lspLabel], lsp?.formatting, workspace, cdn));
       }
     });
   });

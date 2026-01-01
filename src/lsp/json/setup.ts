@@ -14,6 +14,7 @@ export async function setup(
   languageSettings?: Record<string, unknown>,
   formattingOptions?: FormattingOptions,
   workspace?: Workspace,
+  cdn = "https://esm.sh",
 ) {
   const { editor, languages } = monaco;
   const schemas = Array.isArray(languageSettings?.schemas) ? builtinSchemas.concat(languageSettings.schemas) : builtinSchemas;
@@ -114,7 +115,7 @@ export async function setup(
     const { imports, scopes } = modelPath.endsWith(".json")
       ? parseImportMapFromJson(model.getValue())
       : parseImportMapFromHtml(model.getValue());
-    const specifier = "https://esm.sh/" + pkg.name + "@" + pkg.version;
+    const specifier = cdn + "/" + pkg.name + "@" + pkg.version;
     if (imports[pkg.name] === specifier) {
       return;
     }

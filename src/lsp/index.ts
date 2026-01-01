@@ -9,6 +9,7 @@ export interface LSPModule {
     langaugeSettings?: Record<string, unknown>,
     formattingOptions?: FormattingOptions,
     workspace?: Workspace,
+    cdn?: string,
   ) => void | Promise<void>;
 }
 
