@@ -68,7 +68,7 @@ const workspace = new Workspace({
 });
 
 // initialize the editor lazily
-await lazy({ workspace });
+lazy({ workspace });
 
 // write a file and open it in the editor
 workspace.fs.writeFile("util.js", "export function add(a, b) { return a + b; }");
