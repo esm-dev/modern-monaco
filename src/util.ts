@@ -224,11 +224,10 @@ export function promiseWithResolvers<T>(): PromiseWithResolvers<T> {
   if (Promise.withResolvers) {
     return Promise.withResolvers<T>();
   }
-  let resolve: (value: T) => void;
-  let reject: (reason: any) => void;
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res;
-    reject = rej;
+  const p = Object.create(null);
+  p.promise = new Promise<T>((resolve, reject) => {
+    p.resolve = resolve;
+    p.reject = reject;
   });
-  return { promise, resolve: resolve!, reject: reject! };
+  return p;
 }
