@@ -475,6 +475,23 @@ import { lazy } from "modern-monaco/core";
 lazy();
 ```
 
+## Loading editor modules from a custom CDN
+
+By default, modern-monaco loads editor modules from `https://esm.sh`. You can customize the CDN URL by providing an import map in your HTML.
+
+```html
+<script type="importmap">
+  {
+    "imports": {
+      "modern-monaco": "https://mycdn.com/modern-monaco@:version/dist/index.mjs",
+      "modern-monaco/editor-core": "https://mycdn.com/modern-monaco@:version/dist/editor-core.mjs",
+      "modern-monaco/lsp": "https://mycdn.com/modern-monaco@:version/dist/lsp/index.mjs",
+      "typescript": "https://mycdn.com/typescript@:version/lib/typescript.js"
+    }
+  }
+</script>
+```
+
 ## License
 
 [MIT License](https://opensource.org/licenses/MIT)
