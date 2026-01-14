@@ -15,6 +15,7 @@ const shikiThemeIds = new Set(SHIKI_THEMES);
 export interface ShikiInitOptions {
   langs?: (string | URL | LanguageInput)[];
   theme?: string | URL | ThemeInput;
+  extraThemes?: (string | URL | ThemeInput)[];
   cdn?: string;
   engine?: RegexEngine | Promise<RegexEngine>;
 }
@@ -27,6 +28,7 @@ export interface Highlighter extends HighlighterCore {
 /** Initialize shiki with the given options. */
 export async function initShiki({
   theme = "vitesse-dark",
+  extraThemes = [],
   langs: languages,
   cdn,
   engine = createOnigurumaEngine(getDefaultWasmLoader()),
@@ -64,7 +66,8 @@ export async function initShiki({
     }
   }
 
-  themes.push(...await Promise.all([theme].flat().map(t => parseTheme(t))));
+  const filtThemes = [...new Set([theme, extraThemes].flat())];
+  themes.push(...await Promise.all(filtThemes.map(t => parseTheme(t))));
   const highlighterCore = await createHighlighterCore({ langs, themes, engine });
   Object.assign(highlighterCore, {
     loadThemeFromCDN: (themeName: string) => highlighterCore.loadTheme(loadTMTheme(themeName, cdn)),

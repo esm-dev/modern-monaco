@@ -54,7 +54,7 @@
     const DARK_THEME = 'monokai-custom';
 
     /// register multiple themes by passing an array of valid theme inputs
-    const monaco = await init({ workspace, theme: [LIGHT_THEME, customTheme]});
+    const monaco = await init({ workspace, theme: LIGHT_THEME, extraThemes: [customTheme]});
     const editor = monaco.editor.create(document.getElementById("editor"), {
       padding: { top: 8, bottom: 8 },
     });
