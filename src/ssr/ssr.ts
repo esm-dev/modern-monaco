@@ -21,7 +21,7 @@ export async function renderToString(input: RenderInput, options?: RenderOptions
     const languageId = language ?? getLanguageIdFromPath(filename!);
     if (languageId && !highlighter.getLoadedLanguages().includes(languageId)) {
       console.info(
-        `[modern-monaco] Loading garmmar '${languageId}' from CDN...`,
+        `[modern-monaco] Loading grammar '${languageId}' from CDN...`,
       );
       promises.push(highlighter.loadGrammarFromCDN(languageId));
     }
