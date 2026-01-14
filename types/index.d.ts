@@ -33,11 +33,13 @@ export type TextmateTheme = {
   semanticHighlighting?: boolean;
 };
 
+export type ThemeOption = TextmateThemeName | (string & {}) | URL | ThemeInput;
+
 export interface ShikiInitOptions {
   /**
    * Theme names, or theme registration objects to be loaded upfront.
    */
-  theme?: TextmateThemeName | (string & {}) | URL | ThemeInput;
+  theme?: ThemeOption | ThemeOption[];
   /**
    * Language names, or language registration objects to be loaded upfront.
    */

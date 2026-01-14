@@ -129,6 +129,7 @@ Examples:
   Manual mode - ${server.url}manual
   Manual mode (without workspace) - ${server.url}manual-no-workspace
   Custom theme(json) - ${server.url}custom-theme
+  Multiple themes - ${server.url}multi-theme
   SSR mode - ${server.url}ssr
   Compare modes - ${server.url}compare
 `);

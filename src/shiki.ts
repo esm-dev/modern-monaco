@@ -59,8 +59,9 @@ export async function initShiki({
     themes.push(await loadTMTheme(theme, cdn));
   } else if (isPlainObject(theme) || typeof theme === "function") {
     themes.push(theme);
+  } else if (Array.isArray(theme)) {
+    themes.push(...theme.map(async (t) => await loadTMTheme(t, cdn)));
   }
-
   const highlighterCore = await createHighlighterCore({ langs, themes, engine });
   Object.assign(highlighterCore, {
     loadThemeFromCDN: (themeName: string) => highlighterCore.loadTheme(loadTMTheme(themeName, cdn)),

@@ -1,0 +1,73 @@
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Modern Monaco</title>
+  <style>
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    #editor {
+      width: 100%;
+      height: 100%;
+    }
+
+    #theme-btn {
+      cursor: pointer;
+      position: fixed;
+      top: 4px;
+      right: 4px;
+      border-radius: 4px;
+      padding: 0.45em;
+      background: oklch(92.9% 0.013 255.508);
+      border-width: 1px;
+    }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "modern-monaco": "/modern-monaco/index.mjs",
+        "modern-monaco/editor-core": "/modern-monaco/editor-core.mjs",
+        "modern-monaco/lsp": "/modern-monaco/lsp/index.mjs"
+      }
+    }
+  </script>
+</head>
+
+<body>
+  <div id="editor"></div>
+  <button id="theme-btn">Dark Mode</button>
+  <script type="module">
+    import { init } from 'modern-monaco';
+    import { workspace } from '/js/workspace.mjs';
+
+    const LIGHT_THEME = 'vitesse-light';
+    const DARK_THEME = 'vitesse-dark';
+
+    /// register multiple themes by passing an array
+    const monaco = await init({ workspace, theme: [LIGHT_THEME, DARK_THEME]});
+    const editor = monaco.editor.create(document.getElementById("editor"), {
+      padding: { top: 8, bottom: 8 },
+    });
+    await workspace.openTextDocument("src/App.tsx")
+
+    document.getElementById('theme-btn').addEventListener('pointerdown', function(evt) {
+      const isLight = editor._themeService._theme.id.includes(LIGHT_THEME);
+      const btnText = isLight ? "Light Mode" : "Dark Mode";
+
+      // dynamically change editor theme, since both themes have been registered
+      monaco.editor.setTheme(isLight ? DARK_THEME : LIGHT_THEME);
+      this.textContent = btnText;
+    });
+  </script>
+</body>
+
+</html>
