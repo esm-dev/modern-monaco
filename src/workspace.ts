@@ -224,7 +224,7 @@ class IndexedDBFileSystem implements FileSystem {
 
     const exists = (url: string) => promisifyIDBRequest(metaStore.get(url)).then(Boolean);
 
-    if (await exists(url)) { return; }
+    if (await exists(url)) return;
 
     const now = Date.now();
     const promises: Promise<void>[] = [];

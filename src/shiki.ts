@@ -55,13 +55,16 @@ export async function initShiki({
     });
   }
 
-  if (typeof theme === "string" || theme instanceof URL) {
-    themes.push(await loadTMTheme(theme, cdn));
-  } else if (isPlainObject(theme) || typeof theme === "function") {
-    themes.push(theme);
-  } else if (Array.isArray(theme)) {
-    themes.push(...theme.map(async (t) => await loadTMTheme(t, cdn)));
+  /** Parses a theme, loading via CDN if needed */
+  async function parseTheme(theme: string | URL | ThemeInput) {
+    if (typeof theme === "string" || theme instanceof URL) {
+      return await loadTMTheme(theme, cdn);
+    } else if (isPlainObject(theme) || typeof theme === "function") {
+      return theme;
+    }
   }
+
+  themes.push(...await Promise.all([theme].flat().map(t => parseTheme(t))));
   const highlighterCore = await createHighlighterCore({ langs, themes, engine });
   Object.assign(highlighterCore, {
     loadThemeFromCDN: (themeName: string) => highlighterCore.loadTheme(loadTMTheme(themeName, cdn)),

@@ -48,15 +48,17 @@
   <script type="module">
     import { init } from 'modern-monaco';
     import { workspace } from '/js/workspace.mjs';
+    import customTheme from './json/customTheme.json' with { type: "json" };
 
     const LIGHT_THEME = 'vitesse-light';
-    const DARK_THEME = 'vitesse-dark';
+    const DARK_THEME = 'monokai-custom';
 
-    /// register multiple themes by passing an array
-    const monaco = await init({ workspace, theme: [LIGHT_THEME, DARK_THEME]});
+    /// register multiple themes by passing an array of valid theme inputs
+    const monaco = await init({ workspace, theme: [LIGHT_THEME, customTheme]});
     const editor = monaco.editor.create(document.getElementById("editor"), {
       padding: { top: 8, bottom: 8 },
     });
+    window.editor = editor;
     await workspace.openTextDocument("src/App.tsx")
 
     document.getElementById('theme-btn').addEventListener('pointerdown', function(evt) {

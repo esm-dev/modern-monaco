@@ -339,7 +339,7 @@ export interface LSPConfig {
     trimFinalNewlines?: boolean;
     /** Semicolon preference for JavaScript and TypeScript. Default: "insert". */
     semicolon?: "ignore" | "insert" | "remove";
-  }
+  };
   /** HTML language configuration. */
   html?: {
     attributeDefaultValue?: "empty" | "singlequotes" | "doublequotes";
@@ -356,20 +356,20 @@ export interface LSPConfig {
   };
   /** JSON language configuration. */
   json?: {
-      /** By default, the validator will return syntax and semantic errors. Set to false to disable the validator. */
-      validate?: boolean;
-      /** Defines whether comments are allowed or not. Default is disallowed. */
-      allowComments?: boolean;
-      /** A list of known schemas and/or associations of schemas to file names. */
-      schemas?: JSONSchemaSource[];
-      /** The severity of reported comments. Default is "error". */
-      comments?: SeverityLevel;
-      /** The severity of reported trailing commas. Default is "error". */
-      trailingCommas?: SeverityLevel;
-      /** The severity of problems from schema validation. Default is "warning". */
-      schemaValidation?: SeverityLevel;
-      /** The severity of problems that occurred when resolving and loading schemas. Default is "warning". */
-      schemaRequest?: SeverityLevel;
+    /** By default, the validator will return syntax and semantic errors. Set to false to disable the validator. */
+    validate?: boolean;
+    /** Defines whether comments are allowed or not. Default is disallowed. */
+    allowComments?: boolean;
+    /** A list of known schemas and/or associations of schemas to file names. */
+    schemas?: JSONSchemaSource[];
+    /** The severity of reported comments. Default is "error". */
+    comments?: SeverityLevel;
+    /** The severity of reported trailing commas. Default is "error". */
+    trailingCommas?: SeverityLevel;
+    /** The severity of problems from schema validation. Default is "warning". */
+    schemaValidation?: SeverityLevel;
+    /** The severity of problems that occurred when resolving and loading schemas. Default is "warning". */
+    schemaRequest?: SeverityLevel;
   };
   /** TypeScript language configuration. */
   typescript?: {
