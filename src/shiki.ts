@@ -13,8 +13,13 @@ const themes: Map<string, ThemeRegistration> = new Map();
 const shikiThemeIds = new Set(SHIKI_THEMES);
 
 export interface ShikiInitOptions {
-  langs?: (string | URL | LanguageInput)[];
+  /**
+   * @deprecated Use `defaultTheme` instead.
+   */
   theme?: string | URL | ThemeInput;
+  langs?: (string | URL | LanguageInput)[];
+  defaultTheme?: string | URL | ThemeInput;
+  themes?: (string | URL | ThemeInput)[];
   cdn?: string;
   engine?: RegexEngine | Promise<RegexEngine>;
 }
@@ -26,13 +31,18 @@ export interface Highlighter extends HighlighterCore {
 
 /** Initialize shiki with the given options. */
 export async function initShiki({
-  theme = "vitesse-dark",
+  defaultTheme = "vitesse-dark",
+  theme,
+  themes = [],
   langs: languages,
   cdn,
   engine = createOnigurumaEngine(getDefaultWasmLoader()),
 }: ShikiInitOptions = {}): Promise<Highlighter> {
   const langs: LanguageInput[] = [];
-  const themes: ThemeInput[] = [];
+  const themesToLoad: ThemeInput[] = [];
+
+  /* Backwards-compatibility for deprecated `theme` param */
+  if (theme) defaultTheme = theme;
 
   if (languages?.length) {
     const set = new Set<string>();
@@ -55,13 +65,18 @@ export async function initShiki({
     });
   }
 
-  if (typeof theme === "string" || theme instanceof URL) {
-    themes.push(await loadTMTheme(theme, cdn));
-  } else if (isPlainObject(theme) || typeof theme === "function") {
-    themes.push(theme);
+  /** Parses a theme, loading via CDN if needed */
+  async function parseTheme(theme: string | URL | ThemeInput) {
+    if (typeof theme === "string" || theme instanceof URL) {
+      return await loadTMTheme(theme, cdn);
+    } else if (isPlainObject(theme) || typeof theme === "function") {
+      return theme;
+    }
   }
 
-  const highlighterCore = await createHighlighterCore({ langs, themes, engine });
+  const filtThemes = [...new Set([defaultTheme, themes].flat())];
+  themesToLoad.push(...await Promise.all(filtThemes.map(t => parseTheme(t))));
+  const highlighterCore = await createHighlighterCore({ langs, themes: themesToLoad, engine });
   Object.assign(highlighterCore, {
     loadThemeFromCDN: (themeName: string) => highlighterCore.loadTheme(loadTMTheme(themeName, cdn)),
     loadGrammarFromCDN: (...ids: string[]) => highlighterCore.loadLanguage(...ids.map(id => loadTMGrammar(id, cdn))),
