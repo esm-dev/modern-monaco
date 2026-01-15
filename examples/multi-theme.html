@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 
@@ -48,26 +47,25 @@
   <script type="module">
     import { init } from 'modern-monaco';
     import { workspace } from '/js/workspace.mjs';
-    import customTheme from './json/customTheme.json' with { type: "json" };
+    import customTheme from './json/customTheme.json' with { type: 'json' };
 
     const LIGHT_THEME = 'vitesse-light';
-    const DARK_THEME = 'monokai-custom';
+    const DARK_THEME = customTheme.name
+
+    let currentTheme = LIGHT_THEME;
 
     /// register multiple themes by passing an array of valid theme inputs
-    const monaco = await init({ workspace, defaultTheme: LIGHT_THEME, themes: [customTheme]});
-    const editor = monaco.editor.create(document.getElementById("editor"), {
+    const monaco = await init({ workspace, themes: [LIGHT_THEME, customTheme] });
+    const editor = monaco.editor.create(document.getElementById('editor'), {
       padding: { top: 8, bottom: 8 },
+      theme: currentTheme,
     });
-    window.editor = editor;
-    await workspace.openTextDocument("src/App.tsx")
+    await workspace.openTextDocument('src/App.tsx')
 
-    document.getElementById('theme-btn').addEventListener('pointerdown', function(evt) {
-      const isLight = editor._themeService._theme.id.includes(LIGHT_THEME);
-      const btnText = isLight ? "Light Mode" : "Dark Mode";
-
-      // dynamically change editor theme, since both themes have been registered
-      monaco.editor.setTheme(isLight ? DARK_THEME : LIGHT_THEME);
-      this.textContent = btnText;
+    document.getElementById('theme-btn').addEventListener('pointerdown', function (evt) {
+      currentTheme = currentTheme === LIGHT_THEME ? DARK_THEME : LIGHT_THEME;
+      monaco.editor.setTheme(currentTheme);
+      this.textContent = currentTheme === LIGHT_THEME ? 'Light Mode' : 'Dark Mode';
     });
   </script>
 </body>
