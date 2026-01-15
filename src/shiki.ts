@@ -17,9 +17,9 @@ export interface ShikiInitOptions {
    * @deprecated Use `defaultTheme` instead.
    */
   theme?: string | URL | ThemeInput;
-  langs?: (string | URL | LanguageInput)[];
   defaultTheme?: string | URL | ThemeInput;
   themes?: (string | URL | ThemeInput)[];
+  langs?: (string | URL | LanguageInput)[];
   cdn?: string;
   engine?: RegexEngine | Promise<RegexEngine>;
 }

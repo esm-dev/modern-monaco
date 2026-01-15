@@ -14,7 +14,7 @@ export type RenderInput = string | { filename: string; code: string; version?: n
 export interface RenderOptions extends editor.IStandaloneEditorConstructionOptions {
   fontDigitWidth?: number;
   userAgent?: string;
-  shiki?: ShikiInitOptions;
+  shiki?: Omit<ShikiInitOptions, "defaultTheme" | "theme">;
 }
 
 /** Renders a mock monaco editor. */

@@ -6,7 +6,7 @@ export type RenderInput = string | { filename: string; code: string; version?: n
 export interface RenderOptions extends Omit<monacoNS.editor.IStandaloneEditorConstructionOptions, "model" | "value"> {
   fontDigitWidth?: number;
   userAgent?: string;
-  shiki?: ShikiInitOptions;
+  shiki?: Omit<ShikiInitOptions, "defaultTheme" | "theme">;
 }
 
 export function renderToString(code: RenderInput, options: RenderOptions): Promise<string>;
