@@ -1,6 +1,15 @@
 # Changelog
 
-## Unreleased
+### v0.3.7
+
+- Add support for multiple themes (#53)
+- Deprecate `theme` option in favor of `defaultTheme` and `themes` (#53)
+- Update `shiki` to 3.21.0
+- Update `tm-grammars` to 1.28.0
+- Update `tm-themes` to 1.10.15
+- Update `vscode-css-languageservice` to 6.3.9
+- Update `vscode-html-languageservice` to 5.6.1
+- Update `vscode-json-languageservice` to 5.7.1
 
 ## v0.3.6
 
