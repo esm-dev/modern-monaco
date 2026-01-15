@@ -31,7 +31,7 @@ export interface Highlighter extends HighlighterCore {
 
 /** Initialize shiki with the given options. */
 export async function initShiki({
-  defaultTheme = "vitesse-dark",
+  defaultTheme,
   theme,
   themes = [],
   langs: languages,
@@ -39,10 +39,6 @@ export async function initShiki({
   engine = createOnigurumaEngine(getDefaultWasmLoader()),
 }: ShikiInitOptions = {}): Promise<Highlighter> {
   const langs: LanguageInput[] = [];
-  const themesToLoad: ThemeInput[] = [];
-
-  /* Backwards-compatibility for deprecated `theme` param */
-  if (theme) defaultTheme = theme;
 
   if (languages?.length) {
     const set = new Set<string>();
@@ -74,9 +70,21 @@ export async function initShiki({
     }
   }
 
-  const filtThemes = [...new Set([defaultTheme, themes].flat())];
-  themesToLoad.push(...await Promise.all(filtThemes.map(t => parseTheme(t))));
-  const highlighterCore = await createHighlighterCore({ langs, themes: themesToLoad, engine });
+  /* Backwards-compatibility for deprecated `theme` param */
+  if (theme) defaultTheme = theme;
+  if (!defaultTheme && themes.length === 0) {
+    defaultTheme = "vitesse-dark";
+  }
+  const themesToLoad = new Set(themes);
+  if (defaultTheme) {
+    themesToLoad.add(defaultTheme);
+  }
+
+  const highlighterCore = await createHighlighterCore({
+    langs,
+    themes: await Promise.all([...themesToLoad].map(parseTheme)),
+    engine,
+  });
   Object.assign(highlighterCore, {
     loadThemeFromCDN: (themeName: string) => highlighterCore.loadTheme(loadTMTheme(themeName, cdn)),
     loadGrammarFromCDN: (...ids: string[]) => highlighterCore.loadLanguage(...ids.map(id => loadTMGrammar(id, cdn))),
