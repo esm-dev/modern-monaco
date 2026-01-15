@@ -35,13 +35,17 @@ export type TextmateTheme = {
 
 export interface ShikiInitOptions {
   /**
-   * Theme name, or theme registration object to be loaded upfront.
+   * @deprecated Use `defaultTheme` instead.
    */
   theme?: TextmateThemeName | (string & {}) | URL | ThemeInput;
   /**
+   * Theme name, or theme registration object to be loaded upfront.
+   */
+  defaultTheme?: TextmateThemeName | (string & {}) | URL | ThemeInput;
+  /**
    * Additional theme names, or theme registration objects to be loaded upfront.
    */
-  extraThemes?: (TextmateThemeName | (string & {}) | URL | ThemeInput)[];
+  themes?: (TextmateThemeName | (string & {}) | URL | ThemeInput)[];
   /**
    * Language names, or language registration objects to be loaded upfront.
    */

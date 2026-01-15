@@ -38,11 +38,13 @@
     import customTheme from './json/customTheme.json' with { type: "json" };
     
     /// custom theme, will be converted for monaco as well
-    lazy({ workspace, theme: customTheme });
+    lazy({ workspace, defaultTheme: customTheme });
+    // `theme` has been marked deprecated, and will be replaced with `defaultTheme`
+    // lazy({ workspace, theme: customTheme });
     // predefined theme
-    // lazy({ workspace, theme: 'vitesse-light' });
+    // lazy({ workspace, defaultTheme: 'vitesse-light' });
     // default theme
-    // lazy({ workspace, theme: 'vitesse-light' });
+    // lazy({ workspace, defaultTtheme: 'vitesse-light' });
   </script>
 </body>
 
