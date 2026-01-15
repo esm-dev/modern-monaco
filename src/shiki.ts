@@ -94,40 +94,31 @@ export async function initShiki({
 
 /** Load a TextMate theme from the given source. */
 function loadTMTheme(src: string | URL, cdn = "https://esm.sh") {
-  if (typeof src === "string" && themes.has(src)) {
+  if (isURL(src)) {
+    return cache.fetch(src).then((res) => res.json());
+  }
+  // check if it's a built-in registered theme
+  if (themes.has(src)) {
     return themes.get(src)!;
   }
-  // fix theme ID
-  if (typeof src === "string" && /^[a-zA-Z]/.test(src)) {
-    src = src.replace(/\s+/g, "-").replace(/([a-z])([A-Z])/g, "$1-$2").toLowerCase();
-    if (!shikiThemeIds.has(src)) {
-      throw new Error(
-        `Invalid theme ID: ${src}, please ensure the theme ID is one of the following: ${Array.from(shikiThemeIds.keys()).join(", ")}`,
-      );
-    }
+  src = src.replace(/\s+/g, "-").replace(/([a-z])([A-Z])/g, "$1-$2").toLowerCase();
+  if (!shikiThemeIds.has(src)) {
+    throw new Error(
+      `Invalid theme ID: ${src}, please ensure the theme ID is one of the following: ${Array.from(shikiThemeIds.keys()).join(", ")}`,
+    );
   }
-  if (typeof src === "string" && shikiThemeIds.has(src)) {
-    const url = new URL(`/tm-themes@${tmThemesVersion}/themes/${src}.json`, cdn);
-    return cache.fetch(url).then((res) => res.json());
-  }
-  const url = typeof src === "string" ? new URL(src, globalThis.location?.href) : src;
-  if (url.protocol === "http:" || url.protocol === "https:") {
-    return cache.fetch(url).then((res) => res.json());
-  }
-  throw new Error(`Unsupported theme source: ${src}`);
+  const url = new URL(`/tm-themes@${tmThemesVersion}/themes/${src}.json`, cdn);
+  return cache.fetch(url).then((res) => res.json());
 }
 
 /** Load a TextMate grammar from the given source. */
 function loadTMGrammar(src: string | URL, cdn = "https://esm.sh") {
-  if (typeof src === "string") {
-    const g = grammars.find(g => g.name === src);
-    if (g) {
-      const url = new URL(`/tm-grammars@${tmGrammarsVersion}/grammars/${g.name}.json`, cdn);
-      return cache.fetch(url).then((res) => res.json());
-    }
+  if (isURL(src)) {
+    return cache.fetch(src).then((res) => res.json());
   }
-  const url = typeof src === "string" ? new URL(src, globalThis.location?.href) : src;
-  if (url.protocol === "http:" || url.protocol === "https:") {
+  const g = grammars.find(g => g.name === src);
+  if (g) {
+    const url = new URL(`/tm-grammars@${tmGrammarsVersion}/grammars/${g.name}.json`, cdn);
     return cache.fetch(url).then((res) => res.json());
   }
   throw new Error(`Unsupported grammar source: ${src}`);
@@ -159,6 +150,11 @@ export function getExtnameFromLanguageId(language: string): string | undefined {
     return g.aliases?.[0] ?? g.name;
   }
   return undefined;
+}
+
+function isURL(src: string | URL): src is URL {
+  return src instanceof URL
+    || (typeof src === "string" && (src.startsWith("http://") || src.startsWith("https://") || src.startsWith("/")));
 }
 
 // `SHIKI_GRAMMARS` and `SHIKI_THEMES` are defined at build time
