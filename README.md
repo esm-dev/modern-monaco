@@ -193,24 +193,64 @@ To set the editor theme, you can add a `theme` attribute to the `<monaco-editor>
 <monaco-editor theme="vitesse-dark"></monaco-editor>
 ```
 
-Or set it in the `lazy`, `init`, or `hydrate` function.
+Or add a `defaultTheme` option to the `lazy`, `init`, or `hydrate` function.
 
 ```js
 lazy({
-  theme: "vitesse-dark",
+  defaultTheme: "one-dark-pro",
 });
 ```
 
 > [!Note]
 > The theme ID should be one of the [Shiki Themes](https://shiki.style/themes).
 
-modern-monaco loads the theme data from the CDN when a theme ID is provided. You can also use a theme from the `tm-themes` package:
+You can also load multiple themes by passing an array of theme inputs to the `themes` option.
 
 ```js
-import OneDark from "tm-themes/themes/vitesse-dark.json" with { type: "json" };
+const monaco = await init({
+  themes: [
+    "one-light",
+    "one-dark-pro",
+  ],
+});
+
+monaco.editor.create(document.getElementById("editor"), {
+  theme: "one-light",
+})
+// update the editor theme
+monaco.editor.setTheme("one-dark-pro");
+```
+
+modern-monaco loads the theme data from the CDN when a theme ID is provided. You can also load a theme from a JSON file:
+
+```js
+import OneDarkPro from "tm-themes/themes/one-dark-pro.json" with { type: "json" };
 
 lazy({
-  theme: OneDark,
+  themes: [
+    // load language grammars from CDN, these language ids must be defined in the `tm-grammars` package
+    "one-light",
+
+    // use `tm-themes` package without extra HTTP requests, but increases the bundle size
+    OneDarkPro,
+
+    // load theme from a URL
+    "https://example.com/themes/mytheme.json",
+
+    // load theme from a local file
+    "/assets/mytheme.json",
+
+    // dynamically import
+    () => import("tm-themes/one-light.json", { with: { type: "json" } }),
+
+    // hand-crafted theme
+    {
+      name: "mytheme",
+      base: "vs-dark",
+      colors: {/* ... */},
+      tokenColors: [/* ... */],
+    },
+  ],
 });
 ```
 
@@ -229,14 +269,14 @@ lazy({
     "javascript",
     "json",
 
+    // use `tm-grammars` package without extra HTTP requests, but increases the bundle size
+    markdown,
+
     // load language grammar from a URL
     "https://example.com/grammars/mylang.json",
 
     // load language grammar from a local file
     "/assets/mylang.json",
-
-    // use `tm-grammars` package without extra HTTP requests, but increases the bundle size
-    markdown,
 
     // dynamically import
     () => import("tm-grammars/markdown.json", { with: { type: "json" } }),
