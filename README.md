@@ -231,13 +231,13 @@ lazy({
     // load language grammars from CDN, these language ids must be defined in the `tm-grammars` package
     "one-light",
 
-    // use `tm-themes` package without extra HTTP requests, but increases the bundle size
+    // import theme from `tm-themes` package without extra HTTP requests, but increases the bundle size
     OneDarkPro,
 
     // load theme from a URL
     "https://example.com/themes/mytheme.json",
 
-    // load theme from a local file
+    // load theme from an asset file
     "/assets/mytheme.json",
 
     // dynamically import
@@ -269,13 +269,13 @@ lazy({
     "javascript",
     "json",
 
-    // use `tm-grammars` package without extra HTTP requests, but increases the bundle size
+    // import language grammar from `tm-grammars` package without extra HTTP requests, but increases the bundle size
     markdown,
 
     // load language grammar from a URL
     "https://example.com/grammars/mylang.json",
 
-    // load language grammar from a local file
+    // load language grammar from an asset file
     "/assets/mylang.json",
 
     // dynamically import
