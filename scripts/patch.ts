@@ -95,3 +95,33 @@ if (isMacintosh) {
     console.log("[patch-5]", path.slice("node_modules/".length));
   }
 }
+
+// [patch-6] fix clipboard IProductService silent error in standalone mode
+{
+  const path = "node_modules/monaco-editor-core/esm/vs/editor/contrib/clipboard/browser/clipboard.js";
+  let js = await Bun.file(path).text();
+  let patched = false;
+  const teleBlock = `                    if (productService.quality !== 'stable') {
+                        const duration = sw.elapsed();
+                        telemetryService.publicLog2('editorAsyncPaste', { duration });
+                    }`;
+  const removals = [
+    "import { StopWatch } from '../../../../base/common/stopwatch.js';",
+    "import { IProductService } from '../../../../platform/product/common/productService.js';",
+    "import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';",
+    "const telemetryService = accessor.get(ITelemetryService);",
+    "const productService = accessor.get(IProductService);",
+    "const sw = StopWatch.create(true);",
+    teleBlock,
+  ];
+  for (const search of removals) {
+    if (js.includes(search)) {
+      js = js.replace(search + "\n", "");
+      patched = true;
+    }
+  }
+  if (patched) {
+    await Bun.write(path, js);
+    console.log("[patch-6]", path.slice("node_modules/".length));
+  }
+}
