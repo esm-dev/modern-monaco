@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.3.8
+
+- Patch `monaco-editor-core` to allow paste via contextmenu action (#54)
+- Upgrade `shiki` to 3.22.0
+- Upgrade `tm-grammars` to 1.30.8
+- Upgrade `tm-themes` to 1.11.1
+
 ### v0.3.7
 
 - Add support for multiple themes (#53)
