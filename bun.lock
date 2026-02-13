@@ -11,7 +11,7 @@
         "@types/bun": "1.3.9",
         "esbuild": "0.27.3",
         "monaco-editor-core": "0.55.1",
-        "tm-grammars": "1.30.7",
+        "tm-grammars": "1.30.8",
         "tm-themes": "1.11.1",
         "typescript": "5.9.3",
         "vscode-css-languageservice": "6.3.9",
@@ -152,7 +152,7 @@
 
     "stringify-entities": ["stringify-entities@4.0.4", "", { "dependencies": { "character-entities-html4": "^2.0.0", "character-entities-legacy": "^3.0.0" } }, "sha512-IwfBptatlO+QCJUo19AqvrPNqlVMpW9YEL2LIVY+Rpv2qsjCGxaDLNRgeGsQWJhfItebuJhsGSLjaBbNSQ+ieg=="],
 
-    "tm-grammars": ["tm-grammars@1.30.7", "", {}, "sha512-7FCoasCaESm8i4lMGXs+NSF0r+oXDaktsVT6WcIn16C1D5PUTLOrx8h44vmPP5dM0B0H7xlAdp9x7RGf3jXyxw=="],
+    "tm-grammars": ["tm-grammars@1.30.8", "", {}, "sha512-nZZ9qS0DZ1rPVIDYdR00ck0CPdSWuebVasEKeEJBHckLcbVkQzHjq02/JEh2VomLsof6sIGC0JwN9wE2GaGbuQ=="],
 
     "tm-themes": ["tm-themes@1.11.1", "", {}, "sha512-lf4ULkNhbJJ0MFPGMz9o1rJ1OzpIxVi2V3r3assgpcktJBzGB+2RbDmSPpW8S2emHgT1V4u6fZlrWzGJUaGfCQ=="],
 
