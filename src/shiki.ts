@@ -94,7 +94,7 @@ export async function initShiki({
 
 /** Load a TextMate theme from the given source. */
 function loadTMTheme(src: string | URL, cdn = "https://esm.sh") {
-  if (isURL(src)) {
+  if (isUrlOrPathname(src)) {
     return cache.fetch(src).then((res) => res.json());
   }
   // check if it's a built-in registered theme
@@ -113,7 +113,7 @@ function loadTMTheme(src: string | URL, cdn = "https://esm.sh") {
 
 /** Load a TextMate grammar from the given source. */
 function loadTMGrammar(src: string | URL, cdn = "https://esm.sh") {
-  if (isURL(src)) {
+  if (isUrlOrPathname(src)) {
     return cache.fetch(src).then((res) => res.json());
   }
   const g = grammars.find(g => g.name === src);
@@ -152,9 +152,9 @@ export function getExtnameFromLanguageId(language: string): string | undefined {
   return undefined;
 }
 
-function isURL(src: string | URL): src is URL {
+function isUrlOrPathname(src: string | URL): src is URL {
   return src instanceof URL
-    || (typeof src === "string" && (src.startsWith("http://") || src.startsWith("https://") || src.startsWith("/")));
+    || (typeof src === "string" && (src.startsWith("https://") || src.startsWith("http://") || src.startsWith("/")));
 }
 
 // `SHIKI_GRAMMARS` and `SHIKI_THEMES` are defined at build time
