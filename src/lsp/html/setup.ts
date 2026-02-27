@@ -85,9 +85,9 @@ export async function setup(
             {
               range: (m2 ?? m).range,
               command: {
-                id: "search-npm-package",
-                title: "$(sparkle-filled) Search packages on NPM",
-                tooltip: "Search packages on NPM",
+                id: "importmap:add-import",
+                title: "$(sparkle-filled) Add Import",
+                tooltip: "Add Import",
                 arguments: [model],
               },
             },

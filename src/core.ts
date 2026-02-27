@@ -1,7 +1,6 @@
 import type monacoNS from "monaco-editor-core";
 import type { Highlighter, RenderOptions, ShikiInitOptions } from "./shiki.ts";
 import type { LSPConfig, LSPProvider } from "./lsp/index.ts";
-import { parseImportMapFromJson } from "@esm.sh/import-map";
 import { version } from "../package.json";
 
 // ! external modules, don't remove the `.js` extension
@@ -359,7 +358,7 @@ async function loadMonaco(
   let importmapEl: HTMLScriptElement | null = null;
   if (importmapEl = document.querySelector("script[type='importmap']")) {
     try {
-      const { imports = {} } = parseImportMapFromJson(importmapEl.textContent);
+      const { imports = {} } = JSON.parse(importmapEl.textContent);
       if (imports["modern-monaco/editor-core"]) {
         editorCoreModuleUrl = imports["modern-monaco/editor-core"];
       }

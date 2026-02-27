@@ -3,14 +3,7 @@ import type ts from "typescript";
 import type { FormattingOptions } from "vscode-languageserver-types";
 import type { Workspace } from "~/workspace";
 import type { CreateData, Host, TypeScriptWorker, VersionedContent } from "./worker";
-import {
-  createBlankImportMap,
-  type ImportMap,
-  importMapFrom,
-  isBlankImportMap,
-  isSameImportMap,
-  parseImportMapFromJson,
-} from "@esm.sh/import-map";
+import { ImportMap, type ImportMapRaw, parseFromHtml } from "@esm.sh/import-map";
 
 // ! external modules, don't remove the `.js` extension
 import { cache } from "../../cache.js";
@@ -74,8 +67,8 @@ async function createWorker(
     ...(languageSettings?.compilerOptions as CompilerOptions),
   };
   const typesStore = new TypesSet();
-  const defaultImportMap = importMapFrom(languageSettings?.importMap);
-  const remixImportMap = (im: ImportMap): ImportMap => {
+  const defaultImportMap: ImportMapRaw = languageSettings?.importMap ?? {};
+  const remixImportMap = (im: ImportMap): ImportMapRaw => {
     if (isBlankImportMap(defaultImportMap)) {
       return im;
     }
@@ -163,44 +156,24 @@ async function createWorker(
         }
       });
     };
-    const watchTypes = () =>
-      (compilerOptions.$types as string[] ?? []).map((url) =>
-        fs.watch(url, async (kind) => {
-          if (kind === "remove") {
-            typesStore.remove(url);
-          } else {
-            const content = await fs.readTextFile(url);
-            typesStore.add(content, url);
-          }
-          updateCompilerOptions({ types: typesStore.types });
-        })
-      );
-    const watchImportMapJSON = () => {
-      const { $src } = importMap;
-      if ($src && $src.endsWith(".json")) {
-        return fs.watch($src, async (kind) => {
-          if (kind === "remove") {
-            importMap = { ...defaultImportMap };
-          } else {
-            try {
-              const content = await fs.readTextFile($src);
-              const im = parseImportMapFromJson(content);
-              im.$src = $src;
-              importMap = remixImportMap(im);
-            } catch (error) {
-              console.error("Failed to parse import map:", error);
-              importMap = { ...defaultImportMap };
+    const watchTypeFiles = () =>
+      (compilerOptions.$types as string[] ?? [])
+        .filter((url) => !url.startsWith("https://") && !url.startsWith("http://"))
+        .map((url) =>
+          fs.watch(url, async (kind) => {
+            if (kind === "remove") {
+              typesStore.remove(url);
+            } else {
+              const content = await fs.readTextFile(url);
+              typesStore.add(content, url);
             }
-          }
-          updateCompilerOptions({ importMap });
-        });
-      }
-    };
-    let unwatchTypes = watchTypes();
-    let unwatchImportMap = watchImportMapJSON();
+            updateCompilerOptions({ types: typesStore.types });
+          })
+        );
+    let unwatchTypeFiles = watchTypeFiles();
 
     fs.watch("tsconfig.json", () => {
-      unwatchTypes.forEach((dispose) => dispose());
+      unwatchTypeFiles.forEach((dispose) => dispose());
       loadCompilerOptions(workspace).then((options) => {
         const newOptions = { ...defaultCompilerOptions, ...options };
         if (JSON.stringify(newOptions) !== JSON.stringify(compilerOptions)) {
@@ -209,18 +182,16 @@ async function createWorker(
             updateCompilerOptions({ compilerOptions, types: typesStore.types });
           });
         }
-        unwatchTypes = watchTypes();
+        unwatchTypeFiles = watchTypeFiles();
       });
     });
 
     fs.watch("index.html", () => {
-      unwatchImportMap?.();
       loadImportMap(workspace, remixImportMap).then((im) => {
         if (!isSameImportMap(importMap, im)) {
           importMap = im;
           updateCompilerOptions({ importMap });
         }
-        unwatchImportMap = watchImportMapJSON();
       });
     });
   }
@@ -365,27 +336,70 @@ async function loadCompilerOptions(workspace: Workspace) {
 }
 
 /** Load import maps from the root index.html or external json file in the workspace. */
-export async function loadImportMap(workspace: Workspace, validate: (im: ImportMap) => ImportMap) {
-  let src: string | undefined;
+export async function loadImportMap(workspace: Workspace, validate: (im: ImportMap) => ImportMapRaw) {
   try {
     let indexHtml = await workspace.fs.readTextFile("index.html");
-    let tplEl = document.createElement("template");
-    let scriptEl: HTMLScriptElement | null;
-    tplEl.innerHTML = indexHtml;
-    scriptEl = tplEl.content.querySelector('script[type="importmap"]');
-    if (scriptEl) {
-      src = scriptEl.src ? new URL(scriptEl.src, "file:///").href : "file:///index.html";
-      const importMap = parseImportMapFromJson(scriptEl.src ? await workspace.fs.readTextFile(scriptEl.src) : scriptEl.textContent!);
-      importMap.$src = src;
-      return validate(importMap);
-    }
+    const importMap = parseFromHtml(indexHtml, "file:///");
+    return validate(importMap);
   } catch (error) {
     if (!isFsNotFoundError(error)) {
       console.error("Failed to parse import map from index.html:", error.message);
     }
   }
-  const importMap = createBlankImportMap();
-  return validate(importMap);
+  return validate(new ImportMap("file:///"));
+}
+
+/** Check if the two import maps have the same imports and scopes. */
+function isSameImportMap(im1: ImportMapRaw, im2: ImportMapRaw) {
+  const { imports: im1Imports, scopes: im1Scopes } = im1;
+  const { imports: im2Imports, scopes: im2Scopes } = im2;
+  if (im1Imports && im2Imports) {
+    if (!isSameStringMap(im1Imports, im2Imports)) {
+      return false;
+    }
+  } else if (im1Imports !== im2Imports) {
+    return false;
+  }
+  if (im1Scopes && im2Scopes) {
+    if (!isSameScope(im1Scopes, im2Scopes)) {
+      return false;
+    }
+  } else if (im1Scopes !== im2Scopes) {
+    return false;
+  }
+  return true;
+}
+
+/** Check if the two string maps have the same keys and values. */
+function isSameStringMap(obj1: Record<string, string>, obj2: Record<string, string>) {
+  if (Object.keys(obj1).length !== Object.keys(obj2).length) {
+    return false;
+  }
+  for (const key in obj1) {
+    if (obj1[key] !== obj2[key]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/** Check if the two scopes have the same keys and values. */
+function isSameScope(scope1: Record<string, Record<string, string>>, scope2: Record<string, Record<string, string>>) {
+  if (Object.keys(scope1).length !== Object.keys(scope2).length) {
+    return false;
+  }
+  for (const key in scope1) {
+    if (!isSameStringMap(scope1[key], scope2[key])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/** Check if the import map is blank. */
+function isBlankImportMap(im: ImportMapRaw) {
+  const { imports, scopes } = im;
+  return (!imports || Object.keys(imports).length === 0) && (!scopes || Object.keys(scopes).length === 0);
 }
 
 /** Check if the error is a fs not found error. */

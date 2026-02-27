@@ -2,7 +2,7 @@ import type monacoNS from "monaco-editor-core";
 import type { FormattingOptions } from "vscode-languageserver-types";
 import type { Workspace } from "~/workspace.ts";
 import type { CreateData, JSONWorker } from "./worker.ts";
-import { parseImportMapFromHtml, parseImportMapFromJson } from "@esm.sh/import-map";
+import { parseFromHtml, parseFromJson } from "@esm.sh/import-map";
 import { schemas as builtinSchemas } from "./schemas.ts";
 
 // ! external modules, don't remove the `.js` extension
@@ -78,9 +78,9 @@ export async function setup(
             {
               range: m2?.range ?? new monaco.Range(1, 1, 1, 1),
               command: {
-                id: "search-npm-package",
-                title: "$(sparkle-filled) Search packages on NPM",
-                tooltip: "Search packages on NPM",
+                id: "importmap:add-import",
+                title: "$(sparkle-filled) Add Import",
+                tooltip: "Add Import",
                 arguments: [model],
               },
             },
@@ -92,7 +92,7 @@ export async function setup(
   });
 
   // register command to search npm modules
-  editor.registerCommand("search-npm-package", async (_accessor: any, model: monacoNS.editor.ITextModel) => {
+  editor.registerCommand("importmap:add-import", async (_accessor: any, model: monacoNS.editor.ITextModel) => {
     const keyword = await monaco.showInputBox({
       placeHolder: "Enter package name, e.g. lodash",
       validateInput: (value) => {
@@ -112,8 +112,8 @@ export async function setup(
     const editor = monaco.editor.getEditors().filter(e => e.hasWidgetFocus())[0];
     const modelPath = model.uri.path;
     const { imports, scopes } = modelPath.endsWith(".json")
-      ? parseImportMapFromJson(model.getValue())
-      : parseImportMapFromHtml(model.getValue());
+      ? parseFromJson(model.getValue())
+      : parseFromHtml(model.getValue());
     const specifier = "https://esm.sh/" + pkg.name + "@" + pkg.version;
     if (imports[pkg.name] === specifier) {
       return;

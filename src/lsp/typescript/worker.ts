@@ -1,6 +1,6 @@
 import type monacoNS from "monaco-editor-core";
 import type * as lst from "vscode-languageserver-types";
-import { type ImportMap, isBlankImportMap, resolve } from "@esm.sh/import-map";
+import { ImportMap, type ImportMapRaw } from "@esm.sh/import-map";
 import ts from "typescript";
 import {
   CompletionItemKind,
@@ -34,7 +34,7 @@ export interface VersionedContent {
 export interface CreateData extends WorkerCreateData {
   compilerOptions: Record<string, unknown>;
   formatOptions: ts.FormatCodeSettings & Pick<ts.UserPreferences, "quotePreference">;
-  importMap: ImportMap;
+  importMap: ImportMapRaw;
   types: Record<string, VersionedContent>;
 }
 
@@ -57,7 +57,6 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
   #formatOptions?: CreateData["formatOptions"];
   #importMap: ImportMap;
   #importMapVersion: number;
-  #isBlankImportMap: boolean;
   #types: Record<string, VersionedContent>;
   #urlMappings = new Map<string, string>();
   #typesMappings = new Map<string, string>();
@@ -75,9 +74,8 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     super(ctx, createData);
     this.#compilerOptions = ts.convertCompilerOptionsFromJson(createData.compilerOptions, ".").options;
     this.#languageService = ts.createLanguageService(this);
-    this.#importMap = createData.importMap;
+    this.#importMap = new ImportMap("file:///", createData.importMap);
     this.#importMapVersion = 0;
-    this.#isBlankImportMap = isBlankImportMap(createData.importMap);
     this.#types = createData.types;
     this.#formatOptions = createData.formatOptions;
     this.#updateJsxImportSource();
@@ -239,12 +237,10 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     return moduleLiterals.map((literal): ts.ResolvedModuleWithFailedLookupLocations["resolvedModule"] => {
       let specifier = literal.text;
       let importMapResolved = false;
-      if (!this.#isBlankImportMap) {
-        const [url, resolved] = resolve(this.#importMap, specifier, containingFile);
-        importMapResolved = resolved;
-        if (importMapResolved) {
-          specifier = url;
-        }
+      const [url, resolved] = this.#importMap.resolve(specifier, containingFile);
+      importMapResolved = resolved;
+      if (importMapResolved) {
+        specifier = url;
       }
       if (!importMapResolved && !isHttpUrl(specifier) && !isRelativePath(specifier)) {
         return undefined;
@@ -845,7 +841,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
 
   async updateCompilerOptions(options: {
     compilerOptions?: Record<string, unknown>;
-    importMap?: ImportMap;
+    importMap?: ImportMapRaw;
     types?: Record<string, VersionedContent>;
   }): Promise<void> {
     const { compilerOptions, importMap, types } = options;
@@ -854,9 +850,8 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
       this.#updateJsxImportSource();
     }
     if (importMap) {
-      this.#importMap = importMap;
+      this.#importMap = new ImportMap("file:///", importMap);
       this.#importMapVersion++;
-      this.#isBlankImportMap = isBlankImportMap(importMap);
       this.#updateJsxImportSource();
     }
     if (types) {
@@ -1175,11 +1170,9 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
   #getSpecifierFromDts(filename: string): string | void {
     for (const [specifier, dts] of this.#typesMappings) {
       if (filename === dts) {
-        if (!this.#isBlankImportMap) {
-          for (const [key, value] of Object.entries(this.#importMap.imports)) {
-            if (value === specifier && key !== "@jsxRuntime") {
-              return key;
-            }
+        for (const [key, value] of Object.entries(this.#importMap.imports)) {
+          if (value === specifier) {
+            return key;
           }
         }
         return specifier;
