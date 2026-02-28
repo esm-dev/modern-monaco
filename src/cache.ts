@@ -4,13 +4,15 @@ import { defineProperty, normalizeURL, openIDB, promisifyIDBRequest } from "./ut
 interface CacheFile {
   url: string;
   content: ArrayBuffer | null;
-  ctime: number;
-  headers?: [string, string][];
+  createdAt: number;
+  expiresAt: number;
+  headers: [string, string][];
 }
 
 interface CacheDB {
   get(url: string): Promise<CacheFile | null>;
   put(file: CacheFile): Promise<void>;
+  delete(url: string): Promise<void>;
 }
 
 class IndexedDB implements CacheDB {
@@ -39,6 +41,12 @@ class IndexedDB implements CacheDB {
     const tx = db.transaction("store", "readwrite").objectStore("store");
     await promisifyIDBRequest<CacheFile>(tx.put(file));
   }
+
+  async delete(url: string): Promise<void> {
+    const db = await this.#db;
+    const tx = db.transaction("store", "readwrite").objectStore("store");
+    await promisifyIDBRequest<void>(tx.delete(url));
+  }
 }
 
 class MemoryCache implements CacheDB {
@@ -50,6 +58,10 @@ class MemoryCache implements CacheDB {
 
   async put(file: CacheFile): Promise<void> {
     this.#cache.set(file.url, file);
+  }
+
+  async delete(url: string): Promise<void> {
+    this.#cache.delete(url);
   }
 }
 
@@ -74,24 +86,41 @@ class Cache {
     }
     const res = await fetch(url);
     if (res.ok) {
+      if (!res.headers.has("cache-control")) {
+        return res;
+      }
+      const cacheControl = res.headers.get("cache-control")!;
+      const maxAgeStr = cacheControl.match(/max-age=(\d+)/)?.[1];
+      if (!maxAgeStr) {
+        return res;
+      }
+      const maxAge = parseInt(maxAgeStr);
+      if (isNaN(maxAge) || maxAge <= 0) {
+        return res;
+      }
+      const createdAt = Date.now();
+      const expiresAt = createdAt + maxAge * 1000;
       const file: CacheFile = {
         url: url.href,
         content: null,
-        ctime: Date.now(),
+        createdAt,
+        expiresAt,
+        headers: [],
       };
       if (res.redirected) {
+        // cache the redirected response as well
         file.headers = [["location", res.url]];
         this._db.put(file);
       }
-      const content = await res.arrayBuffer();
-      const headers = [...res.headers.entries()].filter(([k]) =>
-        ["cache-control", "content-type", "content-length", "x-typescript-types"].includes(k)
-      );
+      for (const header of ["content-type", "content-length", "x-typescript-types"]) {
+        if (res.headers.has(header)) {
+          file.headers.push([header, res.headers.get(header)!]);
+        }
+      }
       file.url = res.url;
-      file.headers = headers;
-      file.content = content;
+      file.content = await res.arrayBuffer();
       this._db.put(file);
-      const resp = new Response(content, { headers });
+      const resp = new Response(file.content, { headers: file.headers });
       defineProperty(resp, "url", res.url);
       defineProperty(resp, "redirected", res.redirected);
       return resp;
@@ -102,7 +131,11 @@ class Cache {
   async query(key: string | URL): Promise<Response | null> {
     const url = normalizeURL(key).href;
     const file = await this._db.get(url);
-    if (file && file.headers) {
+    if (file) {
+      if (file.expiresAt < Date.now()) {
+        this._db.delete(url);
+        return null;
+      }
       const headers = new Headers(file.headers);
       if (headers.has("location")) {
         const redirectedUrl = headers.get("location")!;
