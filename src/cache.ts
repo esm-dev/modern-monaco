@@ -109,9 +109,11 @@ class Cache {
     };
     if (res.redirected) {
       // cache the redirected response as well
-      file.url = url instanceof URL ? url.href : url; // raw url
-      file.headers = [["location", res.url]];
-      await this._db.put(file);
+      await this._db.put({
+        ...file,
+        url: url instanceof URL ? url.href : url, // raw url
+        headers: [["location", res.url]],
+      });
     }
     for (const header of ["content-type", "x-typescript-types"]) {
       if (res.headers.has(header)) {
@@ -131,7 +133,7 @@ class Cache {
     const file = await this._db.get(url);
     if (file) {
       if (file.expiresAt < Date.now()) {
-        this._db.delete(url);
+        await this._db.delete(url);
         return null;
       }
       const headers = new Headers(file.headers);

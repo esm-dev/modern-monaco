@@ -1350,8 +1350,8 @@ const ESM_TARGETS = new Set([
 ]);
 
 // parse the esm module path from the url
-// e.g. https://esm.sh/react@18.3.1/jsx-runtime.mjs
-// return [react, 18.3.1, jsx-runtime]
+// e.g. https://esm.sh/react@18.3.1/es2022/jsx-runtime.mjs
+// return ['react', '18.3.1', 'es2022', 'jsx-runtime']
 function parseEsmModulePath({ protocol, pathname }: URL): null | [string, string, string, string] {
   if ((protocol !== "https:" && protocol !== "http:") || !pathname.endsWith(".mjs")) {
     return null;
