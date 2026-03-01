@@ -145,7 +145,7 @@ async function createModulePickItems(specifier: string, cdn?: string): Promise<(
   if (!cdn || !(cdn.startsWith("https://") || cdn.startsWith("http://"))) {
     cdn = "https://esm.sh";
   }
-  const res = await fetch(new URL(`/${specifier}?meta`, cdn));
+  const res = await cache.fetch(new URL(`/${specifier}?meta`, cdn));
   if (!res.ok) {
     throw new Error(`Failed to fetch module metadata of ${specifier}: ${res.statusText}`);
   }
