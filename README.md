@@ -383,15 +383,15 @@ export interface LSPConfig {
   /** HTML language configuration. */
   html?: {
     /** The default value for empty attributes. Default is "empty". */
-      attributeDefaultValue?: "empty" | "singlequotes" | "doublequotes";
-      /** Provides a set of custom data providers. */
-      customTags?: ITagData[];
-      /** Whether to hide end tag suggestions. Default is false. */
-      hideEndTagSuggestions?: boolean;
-      /** Whether to hide auto complete proposals. Default is false. */
-      hideAutoCompleteProposals?: boolean;
-      /** Whether to show the import map code lens. Default is true. */
-      importMapCodeLens?: boolean;
+    attributeDefaultValue?: "empty" | "singlequotes" | "doublequotes";
+    /** Provides a set of custom data providers. */
+    customTags?: ITagData[];
+    /** Whether to hide end tag suggestions. Default is false. */
+    hideEndTagSuggestions?: boolean;
+    /** Whether to hide auto complete proposals. Default is false. */
+    hideAutoCompleteProposals?: boolean;
+    /** Whether to show the import map code lens. Default is true. */
+    importMapCodeLens?: boolean;
   };
   /** CSS language configuration. */
   css?: {
