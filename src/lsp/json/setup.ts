@@ -157,18 +157,20 @@ async function createModulePickItems(specifier: string, cdn?: string): Promise<(
     specifier: name + "@" + version,
   }];
   if (exports) {
-    var i = 0;
-    for (const subModule of exports as string[]) {
-      if (subModule.startsWith("./") && !subModule.endsWith(".json") && !subModule.endsWith(".wasm") && !subModule.endsWith(".css")) {
-        const treeChar = i == exports.length - 1 ? "└" : "├";
-        items.push({
-          label: " " + treeChar + " " + subModule.slice(2),
-          description: "sub-module",
-          specifier: name + "@" + version + subModule.slice(1),
-        });
-        i++;
-      }
-    }
+    const subModules = (exports as string[]).filter((subModule) =>
+      subModule.startsWith("./") &&
+      !subModule.endsWith(".json") &&
+      !subModule.endsWith(".wasm") &&
+      !subModule.endsWith(".css")
+    );
+    subModules.forEach((subModule, index) => {
+      const treeChar = index === subModules.length - 1 ? "└" : "├";
+      items.push({
+        label: " " + treeChar + " " + subModule.slice(2),
+        description: "sub-module",
+        specifier: name + "@" + version + subModule.slice(1),
+      });
+    });
   }
   return items;
 }
