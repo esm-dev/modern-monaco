@@ -179,7 +179,7 @@ function registerDiagnostics<T extends ILanguageWorkerWithValidation>(
       return;
     }
 
-    let timer: number | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
     const validate = () => {
       if (timer) {
         clearTimeout(timer);

@@ -1,6 +1,6 @@
 import type monacoNS from "monaco-editor-core";
 import type * as lst from "vscode-languageserver-types";
-import { type ImportMap, isBlankImportMap, resolve } from "@esm.sh/import-map";
+import { ImportMap, type ImportMapRaw } from "@esm.sh/import-map";
 import ts from "typescript";
 import {
   CompletionItemKind,
@@ -34,7 +34,7 @@ export interface VersionedContent {
 export interface CreateData extends WorkerCreateData {
   compilerOptions: Record<string, unknown>;
   formatOptions: ts.FormatCodeSettings & Pick<ts.UserPreferences, "quotePreference">;
-  importMap: ImportMap;
+  importMap: ImportMapRaw;
   types: Record<string, VersionedContent>;
 }
 
@@ -57,7 +57,6 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
   #formatOptions?: CreateData["formatOptions"];
   #importMap: ImportMap;
   #importMapVersion: number;
-  #isBlankImportMap: boolean;
   #types: Record<string, VersionedContent>;
   #urlMappings = new Map<string, string>();
   #typesMappings = new Map<string, string>();
@@ -75,9 +74,8 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     super(ctx, createData);
     this.#compilerOptions = ts.convertCompilerOptionsFromJson(createData.compilerOptions, ".").options;
     this.#languageService = ts.createLanguageService(this);
-    this.#importMap = createData.importMap;
+    this.#importMap = new ImportMap(createData.importMap, "file:///");
     this.#importMapVersion = 0;
-    this.#isBlankImportMap = isBlankImportMap(createData.importMap);
     this.#types = createData.types;
     this.#formatOptions = createData.formatOptions;
     this.#updateJsxImportSource();
@@ -239,12 +237,10 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     return moduleLiterals.map((literal): ts.ResolvedModuleWithFailedLookupLocations["resolvedModule"] => {
       let specifier = literal.text;
       let importMapResolved = false;
-      if (!this.#isBlankImportMap) {
-        const [url, resolved] = resolve(this.#importMap, specifier, containingFile);
-        importMapResolved = resolved;
-        if (importMapResolved) {
-          specifier = url;
-        }
+      const [url, resolved] = this.#importMap.resolve(specifier, containingFile);
+      importMapResolved = resolved;
+      if (importMapResolved) {
+        specifier = url;
       }
       if (!importMapResolved && !isHttpUrl(specifier) && !isRelativePath(specifier)) {
         return undefined;
@@ -334,8 +330,9 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
           };
         }
         if (!this.#fetchPromises.has(moduleHref)) {
-          const autoFetch = importMapResolved || this.#isJsxImportUrl(specifier) || isHttpUrl(containingFile)
-            || isWellKnownCDNURL(moduleUrl);
+          const isJsxRuntimeUrl = this.#compilerOptions.jsxImportSource === moduleHref + "/jsx-runtime";
+          const autoFetch = importMapResolved || isJsxRuntimeUrl || isHttpUrl(containingFile) || isWellKnownCDNURL(moduleUrl);
+          // if `autoFetch` is true, fetch the module from the network automatically, otherwise query the cache.
           const promise = autoFetch ? cache.fetch(moduleUrl) : cache.query(moduleUrl);
           this.#fetchPromises.set(
             moduleHref,
@@ -345,41 +342,67 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
                 this.#unknownImports.add(moduleHref);
                 return;
               }
-              if (res.ok) {
-                const contentType = res.headers.get("content-type");
-                const dts = res.headers.get("x-typescript-types");
-                if (res.redirected) {
-                  this.#urlMappings.set(moduleHref, res.url);
-                } else if (dts) {
-                  res.body?.cancel();
-                  const dtsRes = await cache.fetch(new URL(dts, res.url));
-                  if (dtsRes.ok) {
-                    this.#typesMappings.set(moduleHref, dtsRes.url);
-                    this.#markHttpLib(dtsRes.url, await dtsRes.text());
-                  }
-                } else if (
-                  /\.(c|m)?jsx?$/.test(moduleUrl.pathname)
-                  || (contentType && /^(application|text)\/(javascript|jsx)/.test(contentType))
-                ) {
-                  this.#httpModules.set(moduleHref, await res.text());
-                } else if (
-                  /\.(c|m)?tsx?$/.test(moduleUrl.pathname)
-                  || (contentType && /^(application|text)\/(typescript|tsx)/.test(contentType))
-                ) {
-                  if (/\.d\.(c|m)?ts$/.test(moduleUrl.pathname)) {
-                    this.#markHttpLib(moduleHref, await res.text());
-                  } else {
-                    this.#httpTsModules.set(moduleHref, await res.text());
-                  }
-                } else {
-                  // not a javascript or typescript module
-                  res.body?.cancel();
-                  this.#badImports.add(moduleHref);
-                }
-              } else {
+              if (!res.ok) {
                 // bad response
                 res.body?.cancel();
                 this.#badImports.add(moduleHref);
+                return;
+              }
+              const contentType = res.headers.get("content-type");
+              const dts = res.headers.get("x-typescript-types");
+              if (res.redirected) {
+                this.#urlMappings.set(moduleHref, res.url);
+              } else if (dts) {
+                res.body?.cancel();
+                const dtsRes = await cache.fetch(new URL(dts, res.url));
+                if (dtsRes.ok) {
+                  const dtsText = await dtsRes.text();
+                  this.#typesMappings.set(moduleHref, dtsRes.url);
+                  this.#addHttpLib(dtsRes.url, dtsText);
+                }
+              } else if (
+                /\.(c|m)?jsx?$/.test(moduleUrl.pathname)
+                || (contentType && /^(application|text)\/(javascript|jsx)/.test(contentType))
+              ) {
+                const esmModulePath = parseEsmModulePath(moduleUrl);
+                if (esmModulePath) {
+                  const [pkgName, pkgVersion, target, subPath] = esmModulePath;
+                  const metaUrl = new URL(`/${pkgName}@${pkgVersion}?meta&target=${target}`, moduleUrl);
+                  if (subPath) {
+                    metaUrl.pathname += "/" + subPath;
+                  }
+                  const metaRes = await cache.fetch(metaUrl);
+                  if (metaRes.ok) {
+                    const { dts } = await metaRes.json();
+                    if (dts) {
+                      const dtsRes = await cache.fetch(new URL(dts, metaUrl));
+                      if (dtsRes.ok) {
+                        const dtsText = await dtsRes.text();
+                        this.#typesMappings.set(moduleHref, dtsRes.url);
+                        this.#addHttpLib(dtsRes.url, dtsText);
+                      }
+                      res.body?.cancel();
+                    } else {
+                      this.#httpModules.set(moduleHref, await res.text());
+                    }
+                  }
+                } else {
+                  this.#httpModules.set(moduleHref, await res.text());
+                }
+              } else if (
+                /\.(c|m)?tsx?$/.test(moduleUrl.pathname)
+                || (contentType && /^(application|text)\/(typescript|tsx)/.test(contentType))
+              ) {
+                const text = await res.text();
+                if (/\.d\.(c|m)?ts$/.test(moduleUrl.pathname)) {
+                  this.#addHttpLib(moduleHref, text);
+                } else {
+                  this.#httpTsModules.set(moduleHref, text);
+                }
+              } else {
+                // not a javascript or typescript module
+                res.body?.cancel();
+                this.#unknownImports.add(moduleHref);
               }
             }).catch((err) => {
               console.error(`Failed to fetch module: ${moduleHref}`, err);
@@ -845,7 +868,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
 
   async updateCompilerOptions(options: {
     compilerOptions?: Record<string, unknown>;
-    importMap?: ImportMap;
+    importMap?: ImportMapRaw;
     types?: Record<string, VersionedContent>;
   }): Promise<void> {
     const { compilerOptions, importMap, types } = options;
@@ -854,9 +877,8 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
       this.#updateJsxImportSource();
     }
     if (importMap) {
-      this.#importMap = importMap;
+      this.#importMap = new ImportMap(importMap, "file:///");
       this.#importMapVersion++;
-      this.#isBlankImportMap = isBlankImportMap(importMap);
       this.#updateJsxImportSource();
     }
     if (types) {
@@ -1144,7 +1166,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     return null;
   }
 
-  #markHttpLib(url: string, dtsContent: string): void {
+  #addHttpLib(url: string, dtsContent: string): void {
     this.#httpLibs.set(url, dtsContent);
     setTimeout(() => {
       // resolve types reference directives
@@ -1175,11 +1197,9 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
   #getSpecifierFromDts(filename: string): string | void {
     for (const [specifier, dts] of this.#typesMappings) {
       if (filename === dts) {
-        if (!this.#isBlankImportMap) {
-          for (const [key, value] of Object.entries(this.#importMap.imports)) {
-            if (value === specifier && key !== "@jsxRuntime") {
-              return key;
-            }
+        for (const [key, value] of Object.entries(this.#importMap.imports)) {
+          if (value === specifier) {
+            return key;
           }
         }
         return specifier;
@@ -1234,11 +1254,18 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     return result;
   }
 
-  #getJsxImportSource(): string | undefined {
+  #getJsxImportSourceFromImportMap(): string | undefined {
     const { imports } = this.#importMap;
-    for (const specifier of ["@jsxRuntime", "@jsxImportSource", "preact", "react"]) {
-      if (specifier in imports) {
-        return imports[specifier];
+    for (const key of Object.keys(imports)) {
+      if (key.endsWith("/jsx-runtime")) {
+        return key.slice(0, -12);
+      } else if (key.endsWith("/jsx-dev-runtime")) {
+        return key.slice(0, -16);
+      }
+    }
+    for (const key of ["react", "preact", "solid-js", "mono-jsx/dom", "mono-jsx"]) {
+      if (key + "/" in imports) {
+        return key;
       }
     }
     return undefined;
@@ -1246,7 +1273,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
 
   #updateJsxImportSource(): void {
     if (!this.#compilerOptions.jsxImportSource) {
-      const jsxImportSource = this.#getJsxImportSource();
+      const jsxImportSource = this.#getJsxImportSourceFromImportMap();
       if (jsxImportSource) {
         this.#compilerOptions.jsx = ts.JsxEmit.React;
         this.#compilerOptions.jsxImportSource = jsxImportSource;
@@ -1256,14 +1283,6 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
 
   #mergeFormatOptions(formatOptions: ts.FormatCodeSettings): ts.FormatCodeSettings {
     return { ...this.#formatOptions, ...formatOptions };
-  }
-
-  #isJsxImportUrl(url: string): boolean {
-    const jsxImportUrl = this.#getJsxImportSource();
-    if (jsxImportUrl) {
-      return url === jsxImportUrl + "/jsx-runtime" || url === jsxImportUrl + "/jsx-dev-runtime";
-    }
-    return false;
   }
 
   // #endregion
@@ -1313,10 +1332,84 @@ function isEsmshHost(hostname: string): boolean {
   return hostname === "esm.sh" || hostname.endsWith(".esm.sh");
 }
 
-const regexpPackagePath = /\/((@|gh\/|pr\/|jsr\/@)[\w\.\-]+\/)?[\w\.\-]+@(\d+(\.\d+){0,2}(\-[\w\.]+)?|next|canary|rc|beta|latest)$/;
+const ESM_TARGETS = new Set([
+  "es2015",
+  "es2016",
+  "es2017",
+  "es2018",
+  "es2019",
+  "es2020",
+  "es2021",
+  "es2022",
+  "es2023",
+  "es2024",
+  "esnext",
+  "denonext",
+  "deno",
+  "node",
+]);
+
+// parse the esm module path from the url
+// e.g. https://esm.sh/react@18.3.1/es2022/jsx-runtime.mjs
+// return ['react', '18.3.1', 'es2022', 'jsx-runtime']
+function parseEsmModulePath({ protocol, pathname }: URL): null | [string, string, string, string] {
+  if ((protocol !== "https:" && protocol !== "http:") || !pathname.endsWith(".mjs")) {
+    return null;
+  }
+  if (pathname.startsWith("/gh") || pathname.startsWith("/pr")) {
+    pathname = pathname.slice(3);
+  } else if (pathname.startsWith("/jsr")) {
+    pathname = pathname.slice(4);
+  }
+  const segments = pathname.split("/").slice(1);
+  if (segments.length < 3) {
+    return null;
+  }
+  let fristSegment = segments[0];
+  let pkgName: string;
+  let pkgNameNoScope: string;
+  let pkgVersion: string;
+  let target: string;
+  let hasTargetSegment: boolean;
+  let subPath: string;
+  if (fristSegment.startsWith("*")) {
+    // remove the leading star modifier(external all) of esm.sh
+    fristSegment = fristSegment.slice(1);
+  }
+  if (fristSegment.startsWith("@")) {
+    [pkgNameNoScope, pkgVersion] = segments[1].split("@");
+    pkgName = fristSegment + "/" + pkgNameNoScope;
+    target = segments[2];
+    hasTargetSegment = ESM_TARGETS.has(target);
+    subPath = segments.slice(3).join("/");
+  } else {
+    [pkgNameNoScope, pkgVersion] = fristSegment.split("@");
+    pkgName = pkgNameNoScope;
+    target = segments[1];
+    hasTargetSegment = ESM_TARGETS.has(target);
+    subPath = segments.slice(2).join("/");
+  }
+  if (!pkgName || !pkgVersion || !hasTargetSegment || !subPath) {
+    return null;
+  }
+  subPath = subPath.slice(0, -4);
+  if (subPath.endsWith(".development")) {
+    subPath = subPath.slice(0, -12);
+  }
+  if (subPath === pkgNameNoScope) {
+    return [pkgName, pkgVersion, target, ""];
+  }
+  if (subPath === "__" + pkgNameNoScope) {
+    subPath = pkgNameNoScope;
+  }
+  return [pkgName, pkgVersion, target, subPath];
+}
+
+const regexpESMPath = /\/((@|gh\/|pr\/|jsr\/@)[\w\.\-]+\/)?[\w\.\-]+@(\d+(\.\d+){0,2}(\-[\w\.]+)?|next|canary|rc|beta|latest)$/;
+
 function isWellKnownCDNURL(url: URL): boolean {
   const { pathname } = url;
-  return regexpPackagePath.test(pathname);
+  return regexpESMPath.test(pathname);
 }
 
 function isDts(fileName: string): boolean {

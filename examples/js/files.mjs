@@ -67,8 +67,7 @@ export const files = {
     {
       compilerOptions: {
         types: [
-          "types/log.d.ts",
-          "https://raw.githubusercontent.com/vitejs/vite/main/packages/vite/types/importMeta.d.ts",
+          "types/log.d.ts"
         ],
       },
     },
