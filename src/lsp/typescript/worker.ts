@@ -330,8 +330,9 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
           };
         }
         if (!this.#fetchPromises.has(moduleHref)) {
-          const autoFetch = importMapResolved || this.#isJsxRuntimeUrl(specifier) || isHttpUrl(containingFile)
-            || isWellKnownCDNURL(moduleUrl);
+          const isJsxRuntimeUrl = this.#compilerOptions.jsxImportSource === moduleHref + "/jsx-runtime";
+          const autoFetch = importMapResolved || isJsxRuntimeUrl || isHttpUrl(containingFile) || isWellKnownCDNURL(moduleUrl);
+          // if `autoFetch` is true, fetch the module from the network automatically, otherwise query the cache.
           const promise = autoFetch ? cache.fetch(moduleUrl) : cache.query(moduleUrl);
           this.#fetchPromises.set(
             moduleHref,
@@ -355,8 +356,9 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
                 res.body?.cancel();
                 const dtsRes = await cache.fetch(new URL(dts, res.url));
                 if (dtsRes.ok) {
+                  const dtsText = await dtsRes.text();
                   this.#typesMappings.set(moduleHref, dtsRes.url);
-                  this.#addHttpLib(dtsRes.url, await dtsRes.text());
+                  this.#addHttpLib(dtsRes.url, dtsText);
                 }
               } else if (
                 /\.(c|m)?jsx?$/.test(moduleUrl.pathname)
@@ -373,11 +375,11 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
                   if (metaRes.ok) {
                     const { dts } = await metaRes.json();
                     if (dts) {
-                      const dtsUrl = new URL(dts, metaUrl);
-                      const dtsRes = await cache.fetch(dtsUrl);
+                      const dtsRes = await cache.fetch(new URL(dts, metaUrl));
                       if (dtsRes.ok) {
-                        this.#typesMappings.set(moduleHref, dtsUrl.href);
-                        this.#addHttpLib(dtsUrl.href, await dtsRes.text());
+                        const dtsText = await dtsRes.text();
+                        this.#typesMappings.set(moduleHref, dtsRes.url);
+                        this.#addHttpLib(dtsRes.url, dtsText);
                       }
                       res.body?.cancel();
                     } else {
@@ -1281,14 +1283,6 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
 
   #mergeFormatOptions(formatOptions: ts.FormatCodeSettings): ts.FormatCodeSettings {
     return { ...this.#formatOptions, ...formatOptions };
-  }
-
-  #isJsxRuntimeUrl(url: string): boolean {
-    const jsxImportUrl = this.#getJsxImportSourceFromImportMap();
-    if (jsxImportUrl) {
-      return url === jsxImportUrl + "/jsx-runtime" || url === jsxImportUrl + "/jsx-dev-runtime";
-    }
-    return false;
   }
 
   // #endregion
