@@ -79,53 +79,51 @@ class Cache {
   }
 
   async fetch(url: string | URL): Promise<Response> {
-    url = normalizeURL(url);
     const storedRes = await this.query(url);
     if (storedRes) {
       return storedRes;
     }
+
     const res = await fetch(url);
-    if (res.ok) {
-      if (!res.headers.has("cache-control")) {
-        return res;
-      }
-      const cacheControl = res.headers.get("cache-control")!;
-      const maxAgeStr = cacheControl.match(/max-age=(\d+)/)?.[1];
-      if (!maxAgeStr) {
-        return res;
-      }
-      const maxAge = parseInt(maxAgeStr);
-      if (isNaN(maxAge) || maxAge <= 0) {
-        return res;
-      }
-      const createdAt = Date.now();
-      const expiresAt = createdAt + maxAge * 1000;
-      const file: CacheFile = {
-        url: url.href,
-        content: null,
-        createdAt,
-        expiresAt,
-        headers: [],
-      };
-      if (res.redirected) {
-        // cache the redirected response as well
-        file.headers = [["location", res.url]];
-        this._db.put(file);
-      }
-      for (const header of ["content-type", "content-length", "x-typescript-types"]) {
-        if (res.headers.has(header)) {
-          file.headers.push([header, res.headers.get(header)!]);
-        }
-      }
-      file.url = res.url;
-      file.content = await res.arrayBuffer();
-      this._db.put(file);
-      const resp = new Response(file.content, { headers: file.headers });
-      defineProperty(resp, "url", res.url);
-      defineProperty(resp, "redirected", res.redirected);
-      return resp;
+    if (!res.ok || !res.headers.has("cache-control")) {
+      return res;
     }
-    return res;
+
+    const cacheControl = res.headers.get("cache-control")!;
+    const maxAgeStr = cacheControl.match(/max-age=(\d+)/)?.[1];
+    if (!maxAgeStr) {
+      return res;
+    }
+    const maxAge = parseInt(maxAgeStr);
+    if (isNaN(maxAge) || maxAge <= 0) {
+      return res;
+    }
+    const createdAt = Date.now();
+    const expiresAt = createdAt + maxAge * 1000;
+    const file: CacheFile = {
+      url: res.url,
+      content: null,
+      createdAt,
+      expiresAt,
+      headers: [],
+    };
+    if (res.redirected) {
+      // cache the redirected response as well
+      file.url = url instanceof URL ? url.href : url; // raw url
+      file.headers = [["location", res.url]];
+      await this._db.put(file);
+    }
+    for (const header of ["content-type", "x-typescript-types"]) {
+      if (res.headers.has(header)) {
+        file.headers.push([header, res.headers.get(header)!]);
+      }
+    }
+    file.content = await res.arrayBuffer();
+    await this._db.put(file);
+    const resp = new Response(file.content, { headers: file.headers });
+    defineProperty(resp, "url", res.url);
+    defineProperty(resp, "redirected", res.redirected);
+    return resp;
   }
 
   async query(key: string | URL): Promise<Response | null> {
