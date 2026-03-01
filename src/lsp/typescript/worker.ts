@@ -341,65 +341,66 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
                 this.#unknownImports.add(moduleHref);
                 return;
               }
-              if (res.ok) {
-                const contentType = res.headers.get("content-type");
-                const dts = res.headers.get("x-typescript-types");
-                if (res.redirected) {
-                  this.#urlMappings.set(moduleHref, res.url);
-                } else if (dts) {
-                  res.body?.cancel();
-                  const dtsRes = await cache.fetch(new URL(dts, res.url));
-                  if (dtsRes.ok) {
-                    this.#typesMappings.set(moduleHref, dtsRes.url);
-                    this.#addHttpLib(dtsRes.url, await dtsRes.text());
-                  }
-                } else if (
-                  /\.(c|m)?jsx?$/.test(moduleUrl.pathname)
-                  || (contentType && /^(application|text)\/(javascript|jsx)/.test(contentType))
-                ) {
-                  const esmModulePath = parseEsmModulePath(moduleUrl);
-                  if (esmModulePath) {
-                    const [pkgName, pkgVersion, target, subPath] = esmModulePath;
-                    const metaUrl = new URL(`/${pkgName}@${pkgVersion}?meta&target=${target}`, moduleUrl);
-                    if (subPath) {
-                      metaUrl.pathname += "/" + subPath;
-                    }
-                    const metaRes = await cache.fetch(metaUrl);
-                    if (metaRes.ok) {
-                      const { dts } = await metaRes.json();
-                      if (dts) {
-                        const dtsUrl = new URL(dts, metaUrl);
-                        const dtsRes = await cache.fetch(dtsUrl);
-                        if (dtsRes.ok) {
-                          this.#typesMappings.set(moduleHref, dtsUrl.href);
-                          this.#addHttpLib(dtsUrl.href, await dtsRes.text());
-                        }
-                        res.body?.cancel();
-                      } else {
-                        this.#httpModules.set(moduleHref, await res.text());
-                      }
-                    }
-                  } else {
-                    this.#httpModules.set(moduleHref, await res.text());
-                  }
-                } else if (
-                  /\.(c|m)?tsx?$/.test(moduleUrl.pathname)
-                  || (contentType && /^(application|text)\/(typescript|tsx)/.test(contentType))
-                ) {
-                  if (/\.d\.(c|m)?ts$/.test(moduleUrl.pathname)) {
-                    this.#addHttpLib(moduleHref, await res.text());
-                  } else {
-                    this.#httpTsModules.set(moduleHref, await res.text());
-                  }
-                } else {
-                  // not a javascript or typescript module
-                  res.body?.cancel();
-                  this.#badImports.add(moduleHref);
-                }
-              } else {
+              if (!res.ok) {
                 // bad response
                 res.body?.cancel();
                 this.#badImports.add(moduleHref);
+                return;
+              }
+              const contentType = res.headers.get("content-type");
+              const dts = res.headers.get("x-typescript-types");
+              if (res.redirected) {
+                this.#urlMappings.set(moduleHref, res.url);
+              } else if (dts) {
+                res.body?.cancel();
+                const dtsRes = await cache.fetch(new URL(dts, res.url));
+                if (dtsRes.ok) {
+                  this.#typesMappings.set(moduleHref, dtsRes.url);
+                  this.#addHttpLib(dtsRes.url, await dtsRes.text());
+                }
+              } else if (
+                /\.(c|m)?jsx?$/.test(moduleUrl.pathname)
+                || (contentType && /^(application|text)\/(javascript|jsx)/.test(contentType))
+              ) {
+                const esmModulePath = parseEsmModulePath(moduleUrl);
+                if (esmModulePath) {
+                  const [pkgName, pkgVersion, target, subPath] = esmModulePath;
+                  const metaUrl = new URL(`/${pkgName}@${pkgVersion}?meta&target=${target}`, moduleUrl);
+                  if (subPath) {
+                    metaUrl.pathname += "/" + subPath;
+                  }
+                  const metaRes = await cache.fetch(metaUrl);
+                  if (metaRes.ok) {
+                    const { dts } = await metaRes.json();
+                    if (dts) {
+                      const dtsUrl = new URL(dts, metaUrl);
+                      const dtsRes = await cache.fetch(dtsUrl);
+                      if (dtsRes.ok) {
+                        this.#typesMappings.set(moduleHref, dtsUrl.href);
+                        this.#addHttpLib(dtsUrl.href, await dtsRes.text());
+                      }
+                      res.body?.cancel();
+                    } else {
+                      this.#httpModules.set(moduleHref, await res.text());
+                    }
+                  }
+                } else {
+                  this.#httpModules.set(moduleHref, await res.text());
+                }
+              } else if (
+                /\.(c|m)?tsx?$/.test(moduleUrl.pathname)
+                || (contentType && /^(application|text)\/(typescript|tsx)/.test(contentType))
+              ) {
+                const text = await res.text();
+                if (/\.d\.(c|m)?ts$/.test(moduleUrl.pathname)) {
+                  this.#addHttpLib(moduleHref, text);
+                } else {
+                  this.#httpTsModules.set(moduleHref, text);
+                }
+              } else {
+                // not a javascript or typescript module
+                res.body?.cancel();
+                this.#unknownImports.add(moduleHref);
               }
             }).catch((err) => {
               console.error(`Failed to fetch module: ${moduleHref}`, err);
@@ -1255,7 +1256,6 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     const { imports } = this.#importMap;
     for (const key of Object.keys(imports)) {
       if (key.endsWith("/jsx-runtime")) {
-        console.log("jsx-runtime", key);
         return key.slice(0, -12);
       } else if (key.endsWith("/jsx-dev-runtime")) {
         return key.slice(0, -16);
@@ -1272,7 +1272,6 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
   #updateJsxImportSource(): void {
     if (!this.#compilerOptions.jsxImportSource) {
       const jsxImportSource = this.#getJsxImportSourceFromImportMap();
-      console.log("jsxImportSource", jsxImportSource);
       if (jsxImportSource) {
         this.#compilerOptions.jsx = ts.JsxEmit.React;
         this.#compilerOptions.jsxImportSource = jsxImportSource;
