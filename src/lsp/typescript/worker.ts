@@ -74,7 +74,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     super(ctx, createData);
     this.#compilerOptions = ts.convertCompilerOptionsFromJson(createData.compilerOptions, ".").options;
     this.#languageService = ts.createLanguageService(this);
-    this.#importMap = new ImportMap("file:///", createData.importMap);
+    this.#importMap = new ImportMap(createData.importMap, "file:///");
     this.#importMapVersion = 0;
     this.#types = createData.types;
     this.#formatOptions = createData.formatOptions;
@@ -330,7 +330,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
           };
         }
         if (!this.#fetchPromises.has(moduleHref)) {
-          const autoFetch = importMapResolved || this.#isJsxImportUrl(specifier) || isHttpUrl(containingFile)
+          const autoFetch = importMapResolved || this.#isJsxRuntimeUrl(specifier) || isHttpUrl(containingFile)
             || isWellKnownCDNURL(moduleUrl);
           const promise = autoFetch ? cache.fetch(moduleUrl) : cache.query(moduleUrl);
           this.#fetchPromises.set(
@@ -351,19 +351,43 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
                   const dtsRes = await cache.fetch(new URL(dts, res.url));
                   if (dtsRes.ok) {
                     this.#typesMappings.set(moduleHref, dtsRes.url);
-                    this.#markHttpLib(dtsRes.url, await dtsRes.text());
+                    this.#addHttpLib(dtsRes.url, await dtsRes.text());
                   }
                 } else if (
                   /\.(c|m)?jsx?$/.test(moduleUrl.pathname)
                   || (contentType && /^(application|text)\/(javascript|jsx)/.test(contentType))
                 ) {
-                  this.#httpModules.set(moduleHref, await res.text());
+                  const esmModulePath = parseEsmModulePath(moduleUrl);
+                  if (esmModulePath) {
+                    const [pkgName, pkgVersion, target, subPath] = esmModulePath;
+                    const metaUrl = new URL(`/${pkgName}@${pkgVersion}?meta&target=${target}`, moduleUrl);
+                    if (subPath) {
+                      metaUrl.pathname += "/" + subPath;
+                    }
+                    const metaRes = await cache.fetch(metaUrl);
+                    if (metaRes.ok) {
+                      const { dts } = await metaRes.json();
+                      if (dts) {
+                        const dtsUrl = new URL(dts, metaUrl);
+                        const dtsRes = await cache.fetch(dtsUrl);
+                        if (dtsRes.ok) {
+                          this.#typesMappings.set(moduleHref, dtsUrl.href);
+                          this.#addHttpLib(dtsUrl.href, await dtsRes.text());
+                        }
+                        res.body?.cancel();
+                      } else {
+                        this.#httpModules.set(moduleHref, await res.text());
+                      }
+                    }
+                  } else {
+                    this.#httpModules.set(moduleHref, await res.text());
+                  }
                 } else if (
                   /\.(c|m)?tsx?$/.test(moduleUrl.pathname)
                   || (contentType && /^(application|text)\/(typescript|tsx)/.test(contentType))
                 ) {
                   if (/\.d\.(c|m)?ts$/.test(moduleUrl.pathname)) {
-                    this.#markHttpLib(moduleHref, await res.text());
+                    this.#addHttpLib(moduleHref, await res.text());
                   } else {
                     this.#httpTsModules.set(moduleHref, await res.text());
                   }
@@ -850,7 +874,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
       this.#updateJsxImportSource();
     }
     if (importMap) {
-      this.#importMap = new ImportMap("file:///", importMap);
+      this.#importMap = new ImportMap(importMap, "file:///");
       this.#importMapVersion++;
       this.#updateJsxImportSource();
     }
@@ -1139,7 +1163,7 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     return null;
   }
 
-  #markHttpLib(url: string, dtsContent: string): void {
+  #addHttpLib(url: string, dtsContent: string): void {
     this.#httpLibs.set(url, dtsContent);
     setTimeout(() => {
       // resolve types reference directives
@@ -1227,11 +1251,19 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     return result;
   }
 
-  #getJsxImportSource(): string | undefined {
+  #getJsxImportSourceFromImportMap(): string | undefined {
     const { imports } = this.#importMap;
-    for (const specifier of ["@jsxRuntime", "@jsxImportSource", "preact", "react"]) {
-      if (specifier in imports) {
-        return imports[specifier];
+    for (const key of Object.keys(imports)) {
+      if (key.endsWith("/jsx-runtime")) {
+        console.log("jsx-runtime", key);
+        return key.slice(0, -12);
+      } else if (key.endsWith("/jsx-dev-runtime")) {
+        return key.slice(0, -16);
+      }
+    }
+    for (const key of ["react", "preact", "solid-js", "mono-jsx/dom", "mono-jsx"]) {
+      if (key + "/" in imports) {
+        return key;
       }
     }
     return undefined;
@@ -1239,7 +1271,8 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
 
   #updateJsxImportSource(): void {
     if (!this.#compilerOptions.jsxImportSource) {
-      const jsxImportSource = this.#getJsxImportSource();
+      const jsxImportSource = this.#getJsxImportSourceFromImportMap();
+      console.log("jsxImportSource", jsxImportSource);
       if (jsxImportSource) {
         this.#compilerOptions.jsx = ts.JsxEmit.React;
         this.#compilerOptions.jsxImportSource = jsxImportSource;
@@ -1251,8 +1284,8 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
     return { ...this.#formatOptions, ...formatOptions };
   }
 
-  #isJsxImportUrl(url: string): boolean {
-    const jsxImportUrl = this.#getJsxImportSource();
+  #isJsxRuntimeUrl(url: string): boolean {
+    const jsxImportUrl = this.#getJsxImportSourceFromImportMap();
     if (jsxImportUrl) {
       return url === jsxImportUrl + "/jsx-runtime" || url === jsxImportUrl + "/jsx-dev-runtime";
     }
@@ -1306,10 +1339,84 @@ function isEsmshHost(hostname: string): boolean {
   return hostname === "esm.sh" || hostname.endsWith(".esm.sh");
 }
 
-const regexpPackagePath = /\/((@|gh\/|pr\/|jsr\/@)[\w\.\-]+\/)?[\w\.\-]+@(\d+(\.\d+){0,2}(\-[\w\.]+)?|next|canary|rc|beta|latest)$/;
+const ESM_TARGETS = new Set([
+  "es2015",
+  "es2016",
+  "es2017",
+  "es2018",
+  "es2019",
+  "es2020",
+  "es2021",
+  "es2022",
+  "es2023",
+  "es2024",
+  "esnext",
+  "denonext",
+  "deno",
+  "node",
+]);
+
+// parse the esm module path from the url
+// e.g. https://esm.sh/react@18.3.1/jsx-runtime.mjs
+// return [react, 18.3.1, jsx-runtime]
+function parseEsmModulePath({ protocol, pathname }: URL): null | [string, string, string, string] {
+  if ((protocol !== "https:" && protocol !== "http:") || !pathname.endsWith(".mjs")) {
+    return null;
+  }
+  if (pathname.startsWith("/gh") || pathname.startsWith("/pr")) {
+    pathname = pathname.slice(3);
+  } else if (pathname.startsWith("/jsr")) {
+    pathname = pathname.slice(4);
+  }
+  const segments = pathname.split("/").slice(1);
+  if (segments.length < 3) {
+    return null;
+  }
+  let fristSegment = segments[0];
+  let pkgName: string;
+  let pkgNameNoScope: string;
+  let pkgVersion: string;
+  let target: string;
+  let hasTargetSegment: boolean;
+  let subPath: string;
+  if (fristSegment.startsWith("*")) {
+    // remove the leading star modifier(external all) of esm.sh
+    fristSegment = fristSegment.slice(1);
+  }
+  if (fristSegment.startsWith("@")) {
+    [pkgNameNoScope, pkgVersion] = segments[1].split("@");
+    pkgName = fristSegment + "/" + pkgNameNoScope;
+    target = segments[2];
+    hasTargetSegment = ESM_TARGETS.has(target);
+    subPath = segments.slice(3).join("/");
+  } else {
+    [pkgNameNoScope, pkgVersion] = fristSegment.split("@");
+    pkgName = pkgNameNoScope;
+    target = segments[1];
+    hasTargetSegment = ESM_TARGETS.has(target);
+    subPath = segments.slice(2).join("/");
+  }
+  if (!pkgName || !pkgVersion || !hasTargetSegment || !subPath) {
+    return null;
+  }
+  subPath = subPath.slice(0, -4);
+  if (subPath.endsWith(".development")) {
+    subPath = subPath.slice(0, -12);
+  }
+  if (subPath === pkgNameNoScope) {
+    return [pkgName, pkgVersion, target, ""];
+  }
+  if (subPath === "__" + pkgNameNoScope) {
+    subPath = pkgNameNoScope;
+  }
+  return [pkgName, pkgVersion, target, subPath];
+}
+
+const regexpESMPath = /\/((@|gh\/|pr\/|jsr\/@)[\w\.\-]+\/)?[\w\.\-]+@(\d+(\.\d+){0,2}(\-[\w\.]+)?|next|canary|rc|beta|latest)$/;
+
 function isWellKnownCDNURL(url: URL): boolean {
   const { pathname } = url;
-  return regexpPackagePath.test(pathname);
+  return regexpESMPath.test(pathname);
 }
 
 function isDts(fileName: string): boolean {

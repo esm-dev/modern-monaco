@@ -64,7 +64,7 @@ export enum QuickPickItemKind {
 // showInputBox has same signature as vscode.window.showInputBox
 // @see https://code.visualstudio.com/api/references/vscode-api#window.showInputBox
 export function showInputBox(options: InputBoxOptions = {}) {
-  const { placeHolder, title, value, password, ignoreFocusOut, validateInput } = options;
+  const { placeHolder, title, value, password, ignoreFocusOut, validateInput, prompt } = options;
   const quickInputService = StandaloneServices.get(IQuickInputService);
   const box = quickInputService.createInputBox();
   const validateValue = validateInput
@@ -88,6 +88,9 @@ export function showInputBox(options: InputBoxOptions = {}) {
   }
   if (placeHolder) {
     box.placeholder = placeHolder;
+  }
+  if (prompt) {
+    box.prompt = prompt;
   }
   if (password) {
     box.password = true;
@@ -126,7 +129,7 @@ export function showInputBox(options: InputBoxOptions = {}) {
 // showQuickPick has same signature as vscode.window.showQuickPick
 // @see https://code.visualstudio.com/api/references/vscode-api#window.showQuickPick
 export function showQuickPick(items: any[], options: QuickPickOptions = {}) {
-  const { placeHolder, title, ignoreFocusOut, matchOnDescription, matchOnDetail, canPickMany, onDidSelectItem } = options;
+  const { placeHolder, title, ignoreFocusOut, matchOnDescription, matchOnDetail, canPickMany, onDidSelectItem, prompt } = options;
   const quickInputService = StandaloneServices.get(IQuickInputService);
   const pick = quickInputService.createQuickPick();
   if (title) {
@@ -134,6 +137,9 @@ export function showQuickPick(items: any[], options: QuickPickOptions = {}) {
   }
   if (placeHolder) {
     pick.placeholder = placeHolder;
+  }
+  if (prompt) {
+    pick.prompt = prompt;
   }
   if (ignoreFocusOut) {
     pick.ignoreFocusOut = true;
@@ -159,7 +165,7 @@ export function showQuickPick(items: any[], options: QuickPickOptions = {}) {
   if (onDidSelectItem) {
     pick.onDidChangeActive((v) => {
       v.forEach((item) => {
-        onDidSelectItem(convertPickItem(item?._kind_string ? item.label : item));
+        onDidSelectItem(convertPickItem(item?.plainMode ? item.label : item));
       });
     });
   }
@@ -167,10 +173,10 @@ export function showQuickPick(items: any[], options: QuickPickOptions = {}) {
   return new Promise<any>((resolve) => {
     pick.onDidAccept(() => {
       if (canPickMany) {
-        resolve(pick.selectedItems.map(item => item._kind_string ? item.label : item));
+        resolve(pick.selectedItems.map(item => item.plainMode ? item.label : item));
       } else {
         let selectedItem = pick.selectedItems[0];
-        resolve(selectedItem?._kind_string ? selectedItem.label : selectedItem);
+        resolve(selectedItem?.plainMode ? selectedItem.label : selectedItem);
       }
       pick.dispose();
     });
@@ -246,7 +252,7 @@ function normalizeUri(uri?: string | URL | Uri) {
 
 function convertPickItem(item: string | QuickPickItem) {
   if (typeof item === "string") {
-    return { type: "item", label: item, _kind_string: true };
+    return { type: "item", label: item, plainMode: true };
   }
   if (item.kind === QuickPickItemKind.Separator) {
     return { type: "separator", ...item };

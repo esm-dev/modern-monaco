@@ -2,10 +2,11 @@ import type monacoNS from "monaco-editor-core";
 import type { FormattingOptions } from "vscode-languageserver-types";
 import type { Workspace } from "~/workspace.ts";
 import type { CreateData, JSONWorker } from "./worker.ts";
-import { parseFromHtml, parseFromJson } from "@esm.sh/import-map";
+import { parseFromHtml, parseFromJson, setFetcher } from "@esm.sh/import-map";
 import { schemas as builtinSchemas } from "./schemas.ts";
 
 // ! external modules, don't remove the `.js` extension
+import { cache } from "../../cache.js";
 import * as client from "../client.js";
 
 export async function setup(
@@ -67,100 +68,109 @@ export async function setup(
   client.registerDocumentLinks(languageId, worker);
 
   // register code lens provider for import maps
-  languages.registerCodeLensProvider(languageId, {
-    provideCodeLenses: function(model, _token) {
-      const isImportMap = model.uri.scheme == "file"
-        && ["importmap.json", "import_map.json", "import-map.json", "importMap.json"].some((name) => model.uri.path === "/" + name);
-      if (isImportMap) {
-        const m2 = model.findNextMatch(`"imports":\\s*\\{`, { column: 1, lineNumber: 1 }, true, false, null, false);
-        return {
-          lenses: [
-            {
-              range: m2?.range ?? new monaco.Range(1, 1, 1, 1),
-              command: {
-                id: "importmap:add-import",
-                title: "$(sparkle-filled) Add Import",
-                tooltip: "Add Import",
-                arguments: [model],
+  if (languageSettings?.importMapCodeLens ?? true) {
+    languages.registerCodeLensProvider(languageId, {
+      provideCodeLenses: function(model, _token) {
+        const isImportMap = model.uri.scheme == "file"
+          && ["importmap.json", "import_map.json", "import-map.json", "importMap.json"].some((name) => model.uri.path === "/" + name);
+        if (isImportMap) {
+          const m2 = model.findNextMatch(`"imports":\\s*\\{`, { column: 1, lineNumber: 1 }, true, false, null, false);
+          return {
+            lenses: [
+              {
+                range: m2?.range ?? new monaco.Range(1, 1, 1, 1),
+                command: {
+                  id: "importmap:add-import",
+                  title: "$(sparkle-filled) Add import from esm.sh",
+                  tooltip: "Add Import",
+                  arguments: [model],
+                },
               },
-            },
-          ],
-          dispose: () => {},
-        };
-      }
-    },
-  });
+            ],
+            dispose: () => {},
+          };
+        }
+      },
+    });
+  }
+
+  // set the fetcher for `addImport`
+  setFetcher(cache.fetch.bind(cache));
 
   // register command to search npm modules
   editor.registerCommand("importmap:add-import", async (_accessor: any, model: monacoNS.editor.ITextModel) => {
-    const keyword = await monaco.showInputBox({
-      placeHolder: "Enter package name, e.g. lodash",
-      validateInput: (value) => {
-        return /^[\w\-\.@]+$/.test(value) ? null : "Invalid package name, only word characters are allowed";
-      },
+    const specifier = await monaco.showInputBox({
+      placeHolder: "Enter package name, e.g. react, react@18, react-dom@beta, etc.",
+      validateInput: (value) => /^[\w\-\.\/@]+$/.test(value) ? null : "Invalid package name",
     });
-    if (!keyword) {
+    if (!specifier) {
       return;
     }
-    const pkg = await monaco.showQuickPick(searchPackagesFromNpm(keyword, 32), {
-      placeHolder: "Select a package",
-      matchOnDetail: true,
-    });
-    if (!pkg) {
-      return;
-    }
-    const editor = monaco.editor.getEditors().filter(e => e.hasWidgetFocus())[0];
+
     const modelPath = model.uri.path;
-    const { imports, scopes } = modelPath.endsWith(".json")
-      ? parseFromJson(model.getValue())
-      : parseFromHtml(model.getValue());
-    const specifier = "https://esm.sh/" + pkg.name + "@" + pkg.version;
-    if (imports[pkg.name] === specifier) {
+    const im = modelPath.endsWith(".json") ? parseFromJson(model.getValue()) : parseFromHtml(model.getValue());
+
+    const items = await createModulePickItems(specifier, im.config?.cdn);
+    const imports = items.length > 1
+      ? await monaco.showQuickPick(items, {
+        placeHolder: "Select modules to add",
+        canPickMany: true,
+      })
+      : items;
+    if (!imports || imports.length === 0) {
       return;
     }
-    imports[pkg.name] = specifier;
-    const json = JSON.stringify({ imports, scopes: Object.keys(scopes).length > 0 ? scopes : undefined }, null, 2);
-    if (modelPath.endsWith(".json")) {
-      const viewState = editor?.saveViewState();
-      model.setValue(model.normalizeIndentation(json));
-      editor?.restoreViewState(viewState);
-    } else if (modelPath.endsWith(".html")) {
+
+    // add imports to import map
+    await Promise.all(imports.map(async (module) => im.addImport(module.specifier, true)));
+
+    const json = JSON.stringify(im.raw, null, 2);
+    const editor = monaco.editor.getEditors().filter(e => e.hasWidgetFocus())[0];
+    const viewState = editor?.saveViewState();
+    if (modelPath.endsWith(".html")) {
       const html = model.getValue();
       const newHtml = html.replace(
         /<script[^>]*? type="importmap"[^>]*?>[^]*?<\/script>/,
         ['<script type="importmap">', ...json.split("\n").map((l) => "  " + l), "</script>"].join("\n  "),
       );
-      const viewState = editor?.saveViewState();
       model.setValue(model.normalizeIndentation(newHtml));
-      editor?.restoreViewState(viewState);
+    } else if (modelPath.endsWith(".json")) {
+      model.setValue(model.normalizeIndentation(json));
     }
+    editor?.restoreViewState(viewState);
   });
 }
 
-async function searchPackagesFromNpm(keyword: string, size = 20) {
-  const res = await fetch(`https://registry.npmjs.com/-/v1/search?text=${keyword}&size=${size}`);
+async function createModulePickItems(specifier: string, cdn?: string): Promise<(monacoNS.QuickPickItem & { specifier: string })[]> {
+  if (!cdn || !(cdn.startsWith("https://") || cdn.startsWith("http://"))) {
+    cdn = "https://esm.sh";
+  }
+  const res = await fetch(new URL(`/${specifier}?meta`, cdn));
   if (!res.ok) {
-    throw new Error(`Failed to search npm packages: ${res.statusText}`);
+    throw new Error(`Failed to fetch module metadata of ${specifier}: ${res.statusText}`);
   }
-  const { objects } = await res.json();
-  if (!Array.isArray(objects)) {
-    return [];
-  }
-  const items: (monacoNS.QuickPickItem & { name: string; version: string })[] = new Array(objects.length);
-  let len = 0;
-  for (const { package: pkg } of objects) {
-    if (!pkg.name.startsWith("@types/")) {
-      items[len] = {
-        label: (keyword === pkg.name ? "$(star-empty) " : "") + pkg.name,
-        description: pkg.version,
-        detail: pkg.description,
-        name: pkg.name,
-        version: pkg.version,
-      };
-      len++;
+  const { name, version, exports } = await res.json();
+  const items: (monacoNS.QuickPickItem & { specifier: string })[] = [{
+    label: name,
+    description: "@" + version + " main-module",
+    picked: true,
+    specifier: name + "@" + version,
+  }];
+  if (exports) {
+    var i = 0;
+    for (const subModule of exports as string[]) {
+      if (subModule.startsWith("./") && !subModule.endsWith(".json") && !subModule.endsWith(".wasm") && !subModule.endsWith(".css")) {
+        const treeChar = i == exports.length - 1 ? "└" : "├";
+        items.push({
+          label: " " + treeChar + " " + subModule.slice(2),
+          description: "sub-module",
+          specifier: name + "@" + version + subModule.slice(1),
+        });
+        i++;
+      }
     }
   }
-  return items.slice(0, len);
+  return items;
 }
 
 function createWebWorker(): Worker {

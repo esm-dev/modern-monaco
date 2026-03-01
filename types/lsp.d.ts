@@ -103,10 +103,16 @@ export interface CSSDataV1 {
 declare global {
   interface LSPLanguageConfig {
     html?: {
+      /** The default value for empty attributes. Default is "empty". */
       attributeDefaultValue?: "empty" | "singlequotes" | "doublequotes";
+      /** Provides a set of custom data providers. */
       customTags?: ITagData[];
+      /** Whether to hide end tag suggestions. Default is false. */
       hideEndTagSuggestions?: boolean;
+      /** Whether to hide auto complete proposals. Default is false. */
       hideAutoCompleteProposals?: boolean;
+      /** Whether to show the import map code lens. Default is true. */
+      importMapCodeLens?: boolean;
     };
     css?: {
       /** Defines whether the standard CSS properties, at-directives, pseudoClasses and pseudoElements are shown. */
@@ -115,6 +121,8 @@ declare global {
       dataProviders?: { [providerId: string]: CSSDataV1 };
     };
     json?: {
+      /** Whether to show the import map code lens. Default is true. */
+      importMapCodeLens?: boolean;
       /** By default, the validator will return syntax and semantic errors. Set to false to disable the validator. */
       validate?: boolean;
       /** Defines whether comments are allowed or not. Default is disallowed. */

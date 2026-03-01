@@ -339,14 +339,13 @@ async function loadCompilerOptions(workspace: Workspace) {
 export async function loadImportMap(workspace: Workspace, validate: (im: ImportMap) => ImportMapRaw) {
   try {
     let indexHtml = await workspace.fs.readTextFile("index.html");
-    const importMap = parseFromHtml(indexHtml, "file:///");
-    return validate(importMap);
+    return validate(parseFromHtml(indexHtml, "file:///"));
   } catch (error) {
     if (!isFsNotFoundError(error)) {
       console.error("Failed to parse import map from index.html:", error.message);
     }
   }
-  return validate(new ImportMap("file:///"));
+  return validate(new ImportMap({}, "file:///"));
 }
 
 /** Check if the two import maps have the same imports and scopes. */

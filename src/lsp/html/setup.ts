@@ -61,42 +61,44 @@ export async function setup(
   client.registerDocumentLinks(languageId, workerWithEmbeddedLanguages);
 
   // register code lens provider for import maps
-  languages.registerCodeLensProvider(languageId, {
-    provideCodeLenses: (model, _token) => {
-      const m = model.findNextMatch(
-        `<script\\s[^>]*?type=['"]importmap['"]`,
-        { lineNumber: 4, column: 1 },
-        true,
-        false,
-        null,
-        false,
-      );
-      if (m) {
-        const m2 = model.findNextMatch(
-          `"imports":\\s*\\{`,
-          m.range.getEndPosition(),
+  if (languageSettings?.importMapCodeLens ?? true) {
+    languages.registerCodeLensProvider(languageId, {
+      provideCodeLenses: (model, _token) => {
+        const m = model.findNextMatch(
+          `<script\\s[^>]*?type=['"]importmap['"]`,
+          { lineNumber: 4, column: 1 },
           true,
           false,
           null,
           false,
         );
-        return {
-          lenses: [
-            {
-              range: (m2 ?? m).range,
-              command: {
-                id: "importmap:add-import",
-                title: "$(sparkle-filled) Add Import",
-                tooltip: "Add Import",
-                arguments: [model],
+        if (m) {
+          const m2 = model.findNextMatch(
+            `"imports":\\s*\\{`,
+            m.range.getEndPosition(),
+            true,
+            false,
+            null,
+            false,
+          );
+          return {
+            lenses: [
+              {
+                range: (m2 ?? m).range,
+                command: {
+                  id: "importmap:add-import",
+                  title: "$(sparkle-filled) Add import from esm.sh",
+                  tooltip: "Add Import",
+                  arguments: [model],
+                },
               },
-            },
-          ],
-          dispose: () => {},
-        };
-      }
-    },
-  });
+            ],
+            dispose: () => {},
+          };
+        }
+      },
+    });
+  }
 }
 
 function createWebWorker(): Worker {

@@ -230,6 +230,12 @@ export interface QuickPickOptions {
   placeHolder?: string;
 
   /**
+   * Optional text that provides instructions or context to the user.
+   * The prompt is displayed below the input box and above the list of items.
+   */
+  prompt?: string;
+
+  /**
    * Set to `true` to keep the picker open when focus moves to another part of the editor or to another window.
    * This setting is ignored on iPad and is always false.
    */
