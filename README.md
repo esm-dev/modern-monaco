@@ -441,7 +441,7 @@ export interface LSPConfig {
 }
 ```
 
-You can also set the diagnostics options for all languages by adding the `diagnosticsOptions` option to the `lsp` object:
+You can also set the diagnostics options for all languages by adding the `diagnosticsOptions` option to the `lsp` options:
 
 ```js
 lazy({
