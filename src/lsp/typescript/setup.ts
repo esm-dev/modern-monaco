@@ -130,14 +130,19 @@ async function createWorker(
           throw new Error("Workspace is undefined.");
         }
         try {
-          await workspace._openTextDocument(monaco, uri);
+          const editors = monaco.editor.getEditors();
+          const editor = editors.find(e => e.hasWidgetFocus() || e.hasTextFocus()) ?? editors[0];
+          if (editor) {
+            await workspace._openTextDocument(monaco, editor, uri);
+            return true;
+          }
+          return false;
         } catch (error) {
           if (isFsNotFoundError(error)) {
             return false;
           }
           throw error;
         }
-        return true;
       },
       refreshDiagnostics: async (uri: string) => {
         let model = monaco.editor.getModel(uri);

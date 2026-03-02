@@ -277,13 +277,13 @@ export function lazy(options?: InitOptions) {
               editor.onDidScrollChange(debunce(storeViewState, 500));
               workspace.history.onChange((state) => {
                 if (editor.getModel()?.uri.toString() !== state.current) {
-                  workspace._openTextDocument(monaco, state.current, editor);
+                  workspace._openTextDocument(monaco, editor, state.current);
                 }
               });
             }
             if (filename && workspace) {
               try {
-                const model = await workspace._openTextDocument(monaco, filename, editor);
+                const model = await workspace._openTextDocument(monaco, editor, filename);
                 // update the model value with the SSR `code` if exists
                 if (code && code !== model.getValue()) {
                   model.setValue(code);
@@ -296,7 +296,7 @@ export function lazy(options?: InitOptions) {
                       await workspace.fs.createDirectory(dirname);
                     }
                     await workspace.fs.writeFile(filename, code);
-                    workspace._openTextDocument(monaco, filename, editor);
+                    workspace._openTextDocument(monaco, editor, filename);
                   } else {
                     // open an empty model
                     editor.setModel(monaco.editor.createModel(""));
@@ -416,7 +416,7 @@ async function loadMonaco(
     openCodeEditor: async (editor, resource, selectionOrPosition) => {
       if (workspace && resource.scheme === "file") {
         try {
-          await workspace._openTextDocument(monaco, resource.toString(), editor, selectionOrPosition);
+          await workspace._openTextDocument(monaco, editor, resource.toString(), selectionOrPosition);
           return true;
         } catch (err) {
           if (err instanceof NotFoundError) {
