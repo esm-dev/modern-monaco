@@ -5,7 +5,7 @@ import { WorkerBase, type WorkerCreateData } from "../worker-base.ts";
 // ! external modules, don't remove the `.js` extension
 import { initializeWorker } from "../../editor-worker.js";
 
-export interface CSSDataConfiguration {
+export interface CSSLanguageServiceOptions {
   /** Defines whether the standard CSS properties, at-directives, pseudoClasses and pseudoElements are shown. */
   useDefaultDataProvider?: boolean;
   /** Provides a set of custom data providers. */
@@ -15,8 +15,8 @@ export interface CSSDataConfiguration {
 export interface CreateData extends WorkerCreateData {
   /** The language ID. */
   readonly language?: "css" | "less" | "scss";
-  /** Configures the CSS data types known by the langauge service.  */
-  readonly data?: CSSDataConfiguration;
+  /** Configures the CSS data types known by the language service.  */
+  readonly data?: CSSLanguageServiceOptions;
   /** Settings for the CSS formatter. */
   readonly format?: cssService.CSSFormatConfiguration;
 }
@@ -34,16 +34,16 @@ export class CSSWorker extends WorkerBase<{}, cssService.Stylesheet> {
         customDataProviders.push(cssService.newCSSDataProvider(data.dataProviders[id]));
       }
     }
-    const langauge = createData.language ?? "css";
+    const language = createData.language ?? "css";
     const languageServiceOptions: cssService.LanguageServiceOptions = {
       customDataProviders,
       useDefaultDataProvider: data?.useDefaultDataProvider,
       fileSystemProvider: this.getFileSystemProvider(),
     };
     this._formatSettings = createData.format ?? {};
-    this._languageService = langauge === "less"
+    this._languageService = language === "less"
       ? cssService.getLESSLanguageService(languageServiceOptions)
-      : langauge === "scss"
+      : language === "scss"
       ? cssService.getSCSSLanguageService(languageServiceOptions)
       : cssService.getCSSLanguageService(languageServiceOptions);
   }

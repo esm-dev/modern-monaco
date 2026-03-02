@@ -1,6 +1,8 @@
 import type monacoNS from "monaco-editor-core";
 import type { FormattingOptions } from "vscode-languageserver-types";
+import type { DocumentLanguageSettings, LanguageSettings } from "vscode-json-languageservice";
 import type { Workspace } from "~/workspace.ts";
+import type { DiagnosticsOptions } from "~/lsp/client.ts";
 import type { CreateData, JSONWorker } from "./worker.ts";
 import { parseFromHtml, parseFromJson, setFetcher } from "@esm.sh/import-map";
 import { schemas as builtinSchemas } from "./schemas.ts";
@@ -9,10 +11,15 @@ import { schemas as builtinSchemas } from "./schemas.ts";
 import { cache } from "../../cache.js";
 import * as client from "../client.js";
 
+interface JSONLanguageSettings extends LanguageSettings, DocumentLanguageSettings {
+  importMapCodeLens?: boolean;
+  diagnosticsOptions?: DiagnosticsOptions;
+}
+
 export async function setup(
   monaco: typeof monacoNS,
   languageId: string,
-  languageSettings?: Record<string, unknown>,
+  languageSettings?: JSONLanguageSettings,
   formattingOptions?: FormattingOptions,
   workspace?: Workspace,
 ) {
@@ -20,7 +27,7 @@ export async function setup(
   const schemas = Array.isArray(languageSettings?.schemas) ? builtinSchemas.concat(languageSettings.schemas) : builtinSchemas;
   const createData: CreateData = {
     settings: {
-      validate: true,
+      validate: languageSettings?.diagnosticsOptions?.validate ?? true,
       allowComments: false,
       comments: "error",
       trailingCommas: "error",
@@ -63,7 +70,7 @@ export async function setup(
   client.init(monaco);
 
   // register language features
-  client.registerBasicFeatures(languageId, worker, [" ", ":", '"'], workspace);
+  client.registerBasicFeatures(languageId, worker, [" ", ":", '"'], workspace, languageSettings?.diagnosticsOptions);
   client.registerColorPresentation(languageId, worker);
   client.registerDocumentLinks(languageId, worker);
 
@@ -158,10 +165,10 @@ async function createModulePickItems(specifier: string, cdn?: string): Promise<(
   }];
   if (exports) {
     const subModules = (exports as string[]).filter((subModule) =>
-      subModule.startsWith("./") &&
-      !subModule.endsWith(".json") &&
-      !subModule.endsWith(".wasm") &&
-      !subModule.endsWith(".css")
+      subModule.startsWith("./")
+      && !subModule.endsWith(".json")
+      && !subModule.endsWith(".wasm")
+      && !subModule.endsWith(".css")
     );
     subModules.forEach((subModule, index) => {
       const treeChar = index === subModules.length - 1 ? "└" : "├";

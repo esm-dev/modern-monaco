@@ -53,15 +53,37 @@ export interface IReference {
   url: string;
 }
 
+export interface MarkupContent {
+  kind: "plaintext" | "markdown";
+  value: string;
+}
+
+export interface BaselineStatus {
+  baseline: false | "low" | "high";
+  baseline_low_date?: string;
+  baseline_high_date?: string;
+}
+
 export interface IData {
   name: string;
-  description?: string;
+  description?: string | MarkupContent;
   references?: IReference[];
+  browsers?: string[];
+  status?: BaselineStatus;
+}
+
+export interface ICSSData extends IData {
+  values?: IData[];
 }
 
 export interface IAttributeData extends IData {
   valueSet?: string;
   values?: IData[];
+}
+
+export interface IValueSet {
+  name: string;
+  values: IData[];
 }
 
 export interface ITagData extends IData {
@@ -92,39 +114,63 @@ export interface LSPConfig extends LSPLanguageConfig {
 
 export type SeverityLevel = "error" | "warning" | "ignore";
 
+export interface HTMLDataV1 {
+  version: 1 | 1.1;
+  tags?: ITagData[];
+  globalAttributes?: IAttributeData[];
+  valueSets?: IValueSet[];
+}
+
 export interface CSSDataV1 {
   version: 1 | 1.1;
-  properties?: (IData & Record<string, unknown>)[];
-  atDirectives?: (IData & Record<string, unknown>)[];
-  pseudoClasses?: (IData & Record<string, unknown>)[];
-  pseudoElements?: (IData & Record<string, unknown>)[];
+  properties?: (ICSSData & Record<string, unknown>)[];
+  atDirectives?: (ICSSData & Record<string, unknown>)[];
+  pseudoClasses?: (ICSSData & Record<string, unknown>)[];
+  pseudoElements?: (ICSSData & Record<string, unknown>)[];
+}
+
+export interface DiagnosticsOptions {
+  validate?: boolean;
+  codesToIgnore?: (string | number)[];
+  filter?: (diagnostic: monacoNS.editor.IMarkerData) => boolean;
 }
 
 declare global {
   interface LSPLanguageConfig {
+    /** HTML language configuration. */
     html?: {
+      /** Defines whether the standard HTML tags are shown. Default is true. */
+      useDefaultDataProvider?: boolean;
+      /** Provides a set of custom data providers. */
+      dataProviders?: { [providerId: string]: HTMLDataV1 };
+      /** Provides a set of custom HTML tags. */
+      customTags?: ITagData[];
       /** The default value for empty attributes. Default is "empty". */
       attributeDefaultValue?: "empty" | "singlequotes" | "doublequotes";
-      /** Provides a set of custom data providers. */
-      customTags?: ITagData[];
       /** Whether to hide end tag suggestions. Default is false. */
       hideEndTagSuggestions?: boolean;
       /** Whether to hide auto complete proposals. Default is false. */
       hideAutoCompleteProposals?: boolean;
       /** Whether to show the import map code lens. Default is true. */
       importMapCodeLens?: boolean;
+      /** Options for the diagnostics. */
+      diagnosticsOptions?: DiagnosticsOptions;
     };
+    /** CSS language configuration. */
     css?: {
       /** Defines whether the standard CSS properties, at-directives, pseudoClasses and pseudoElements are shown. */
       useDefaultDataProvider?: boolean;
       /** Provides a set of custom data providers. */
       dataProviders?: { [providerId: string]: CSSDataV1 };
+      /** A list of valid properties that not defined in the standard CSS properties. */
+      validProperties?: string[];
+      /** Options for the diagnostics. */
+      diagnosticsOptions?: DiagnosticsOptions;
     };
+    /** JSON language configuration. */
     json?: {
       /** Whether to show the import map code lens. Default is true. */
       importMapCodeLens?: boolean;
-      /** By default, the validator will return syntax and semantic errors. Set to false to disable the validator. */
-      validate?: boolean;
       /** Defines whether comments are allowed or not. Default is disallowed. */
       allowComments?: boolean;
       /** A list of known schemas and/or associations of schemas to file names. */
@@ -137,12 +183,17 @@ declare global {
       schemaValidation?: SeverityLevel;
       /** The severity of problems that occurred when resolving and loading schemas. Default is "warning". */
       schemaRequest?: SeverityLevel;
+      /** Options for the diagnostics. */
+      diagnosticsOptions?: DiagnosticsOptions;
     };
+    /** TypeScript language configuration. */
     typescript?: {
+      /** The default import maps. */
+      importMap?: ImportMap;
       /** The compiler options. */
       compilerOptions?: ts.CompilerOptions;
-      /** The global import maps. */
-      importMap?: ImportMap;
+      /** Options for the diagnostics. */
+      diagnosticsOptions?: DiagnosticsOptions;
     };
   }
 }

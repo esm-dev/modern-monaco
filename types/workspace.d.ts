@@ -20,7 +20,7 @@ export class Workspace {
   readonly fs: FileSystem;
   readonly history: WorkspaceHistory;
   readonly viewState: WorkspaceViewState;
-  openTextDocument(uri: string | URL, content?: string): Promise<editor.ITextModel>;
+  openTextDocument(uri: string | URL, content?: string, editor?: editor.ICodeEditor): Promise<editor.ITextModel>;
   showInputBox: typeof showInputBox;
   showQuickPick: typeof showQuickPick;
 }

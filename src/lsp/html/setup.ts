@@ -1,25 +1,42 @@
 import type monacoNS from "monaco-editor-core";
 import type { FormattingOptions } from "vscode-languageserver-types";
+import type { HTMLDataV1 } from "vscode-html-languageservice";
 import type { Workspace } from "~/workspace.ts";
+import type { DiagnosticsOptions } from "~/lsp/client.ts";
 import type { CreateData, HTMLWorker } from "./worker.ts";
 
 // ! external modules, don't remove the `.js` extension
 import * as client from "../client.js";
 
+interface HTMLLanguageSettings {
+  useDefaultDataProvider?: boolean;
+  dataProviders?: { [providerId: string]: HTMLDataV1 };
+  customTags?: HTMLDataV1["tags"];
+  attributeDefaultValue?: "empty" | "singlequotes" | "doublequotes";
+  hideAutoCompleteProposals?: boolean;
+  hideEndTagSuggestions?: boolean;
+  importMapCodeLens?: boolean;
+  diagnosticsOptions?: DiagnosticsOptions;
+}
+
 export async function setup(
   monaco: typeof monacoNS,
   languageId: string,
-  languageSettings?: Record<string, unknown>,
+  languageSettings?: HTMLLanguageSettings,
   formattingOptions?: FormattingOptions,
   workspace?: Workspace,
 ) {
   const { editor, languages } = monaco;
   const { tabSize, insertSpaces, insertFinalNewline, trimFinalNewlines } = formattingOptions ?? {};
+  const dataProviders = { ...languageSettings?.dataProviders };
+  if (languageSettings?.customTags) {
+    dataProviders["#custom-tags"] = { version: 1.1, tags: languageSettings.customTags };
+  }
   const createData: CreateData = {
     suggest: {
-      attributeDefaultValue: languageSettings?.attributeDefaultValue as "empty" | "singlequotes" | "doublequotes" | undefined,
-      hideAutoCompleteProposals: languageSettings?.hideAutoCompleteProposals as boolean | undefined,
-      hideEndTagSuggestions: languageSettings?.hideEndTagSuggestions as boolean | undefined,
+      attributeDefaultValue: languageSettings?.attributeDefaultValue,
+      hideAutoCompleteProposals: languageSettings?.hideAutoCompleteProposals,
+      hideEndTagSuggestions: languageSettings?.hideEndTagSuggestions,
     },
     format: {
       tabSize,
@@ -37,10 +54,8 @@ export async function setup(
       wrapAttributes: "auto",
     },
     data: {
-      useDefaultDataProvider: true,
-      dataProviders: Array.isArray(languageSettings?.customTags)
-        ? { custom: { version: 1.1, tags: languageSettings.customTags as any } }
-        : undefined,
+      useDefaultDataProvider: languageSettings?.useDefaultDataProvider ?? true,
+      dataProviders,
     },
     fs: workspace ? await client.walkFS(workspace.fs, "/") : undefined,
   };
@@ -53,9 +68,17 @@ export async function setup(
   // initialize lsp client
   client.init(monaco);
 
-  // register language features
+  // support embedded languages(css, javascript and importmap) in html files
   client.registerEmbedded(languageId, workerWithEmbeddedLanguages, ["css", "javascript", "importmap"]);
-  client.registerBasicFeatures(languageId, workerWithEmbeddedLanguages, ["<", "/", "=", '"'], workspace);
+
+  // register language features
+  client.registerBasicFeatures(
+    languageId,
+    workerWithEmbeddedLanguages,
+    ["<", "/", "=", '"'],
+    workspace,
+    languageSettings?.diagnosticsOptions,
+  );
   client.registerAutoComplete(languageId, workerWithEmbeddedLanguages, [">", "/", "="]);
   client.registerColorPresentation(languageId, workerWithEmbeddedLanguages); // css color presentation
   client.registerDocumentLinks(languageId, workerWithEmbeddedLanguages);

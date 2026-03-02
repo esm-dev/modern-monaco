@@ -95,18 +95,26 @@ export class Workspace implements IWorkspace {
     return this._viewState;
   }
 
-  async openTextDocument(uri: string | URL, content?: string): Promise<monacoNS.editor.ITextModel> {
+  async openTextDocument(uri: string | URL, content?: string, editor?: any): Promise<monacoNS.editor.ITextModel> {
     const monaco = await this._monaco.promise;
-    return this._openTextDocument(uri, monaco.editor.getEditors()[0], undefined, content);
+    const getEditor = async () => {
+      const editors = monaco.editor.getEditors();
+      const editor = editors.find(e => e.hasWidgetFocus() || e.hasTextFocus()) ?? editors[0];
+      if (!editor) {
+        return new Promise<monacoNS.editor.ICodeEditor>((resolve) => setTimeout(() => resolve(getEditor()), 100));
+      }
+      return editor;
+    };
+    return this._openTextDocument(monaco, editor ?? await getEditor(), uri, undefined, content);
   }
 
   async _openTextDocument(
+    monaco: typeof monacoNS,
+    editor: monacoNS.editor.ICodeEditor,
     uri: string | URL,
-    editor?: monacoNS.editor.ICodeEditor,
     selectionOrPosition?: monacoNS.IRange | monacoNS.IPosition,
     readonlyContent?: string,
   ): Promise<monacoNS.editor.ITextModel> {
-    const monaco = await this._monaco.promise;
     const fs = this._fs;
     const href = normalizeURL(uri).href;
     const content = readonlyContent ?? await fs.readTextFile(href);
@@ -133,34 +141,32 @@ export class Workspace implements IWorkspace {
       });
       Reflect.set(model, "__OB__", true);
     }
-    if (editor) {
-      editor.setModel(model);
-      editor.updateOptions({ readOnly: typeof readonlyContent === "string" });
-      if (typeof readonlyContent === "string") {
-        const disposable = editor.onDidChangeModel(() => {
-          model.dispose();
-          disposable.dispose();
-        });
+    editor.setModel(model);
+    editor.updateOptions({ readOnly: typeof readonlyContent === "string" });
+    if (typeof readonlyContent === "string") {
+      const disposable = editor.onDidChangeModel(() => {
+        model.dispose();
+        disposable.dispose();
+      });
+    }
+    if (selectionOrPosition) {
+      if ("startLineNumber" in selectionOrPosition) {
+        editor.setSelection(selectionOrPosition);
+      } else {
+        editor.setPosition(selectionOrPosition);
       }
-      if (selectionOrPosition) {
-        if ("startLineNumber" in selectionOrPosition) {
-          editor.setSelection(selectionOrPosition);
-        } else {
-          editor.setPosition(selectionOrPosition);
+      const pos = editor.getPosition();
+      if (pos) {
+        const svp = editor.getScrolledVisiblePosition(new monaco.Position(pos.lineNumber - 7, pos.column));
+        if (svp) {
+          editor.setScrollTop(svp.top);
         }
-        const pos = editor.getPosition();
-        if (pos) {
-          const svp = editor.getScrolledVisiblePosition(new monaco.Position(pos.lineNumber - 7, pos.column));
-          if (svp) {
-            editor.setScrollTop(svp.top);
-          }
-        }
-      } else if (viewState) {
-        editor.restoreViewState(viewState);
       }
-      if (this._history.state.current !== href) {
-        this._history.push(href);
-      }
+    } else if (viewState) {
+      editor.restoreViewState(viewState);
+    }
+    if (this._history.state.current !== href) {
+      this._history.push(href);
     }
     return model;
   }

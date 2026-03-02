@@ -382,16 +382,22 @@ export interface LSPConfig {
   };
   /** HTML language configuration. */
   html?: {
+    /** Defines whether the standard HTML tags are shown. Default is true. */
+    useDefaultDataProvider?: boolean;
+    /** Provides a set of custom data providers. */
+    dataProviders?: { [providerId: string]: HTMLDataV1 };
+    /** Provides a set of custom HTML tags. */
+    customTags?: ITagData[];
     /** The default value for empty attributes. Default is "empty". */
     attributeDefaultValue?: "empty" | "singlequotes" | "doublequotes";
-    /** Provides a set of custom data providers. */
-    customTags?: ITagData[];
     /** Whether to hide end tag suggestions. Default is false. */
     hideEndTagSuggestions?: boolean;
     /** Whether to hide auto complete proposals. Default is false. */
     hideAutoCompleteProposals?: boolean;
     /** Whether to show the import map code lens. Default is true. */
     importMapCodeLens?: boolean;
+    /** Options for the diagnostics. */
+    diagnosticsOptions?: DiagnosticsOptions;
   };
   /** CSS language configuration. */
   css?: {
@@ -399,13 +405,15 @@ export interface LSPConfig {
     useDefaultDataProvider?: boolean;
     /** Provides a set of custom data providers. */
     dataProviders?: { [providerId: string]: CSSDataV1 };
+    /** A list of valid properties that not defined in the standard CSS properties. */
+    validProperties?: string[];
+    /** Options for the diagnostics. */
+    diagnosticsOptions?: DiagnosticsOptions;
   };
   /** JSON language configuration. */
   json?: {
     /** Whether to show the import map code lens. Default is true. */
     importMapCodeLens?: boolean;
-    /** By default, the validator will return syntax and semantic errors. Set to false to disable the validator. */
-    validate?: boolean;
     /** Defines whether comments are allowed or not. Default is disallowed. */
     allowComments?: boolean;
     /** A list of known schemas and/or associations of schemas to file names. */
@@ -418,15 +426,46 @@ export interface LSPConfig {
     schemaValidation?: SeverityLevel;
     /** The severity of problems that occurred when resolving and loading schemas. Default is "warning". */
     schemaRequest?: SeverityLevel;
+    /** Options for the diagnostics. */
+    diagnosticsOptions?: DiagnosticsOptions;
   };
   /** TypeScript language configuration. */
   typescript?: {
+    /** The default import maps. */
+    importMap?: ImportMap;
     /** The compiler options. */
     compilerOptions?: ts.CompilerOptions;
-    /** The global import map. */
-    importMap?: ImportMap;
+    /** Options for the diagnostics. */
+    diagnosticsOptions?: DiagnosticsOptions;
   };
 }
+```
+
+You can also set the diagnostics options for each language by adding the `diagnosticsOptions` option to the `lsp` options:
+
+```js
+lazy({
+  lsp: {
+    css: {
+      diagnosticsOptions: {
+        // filter out unknown property errors
+        filter: (diagnostic) => diagnostic.code !== "unknownProperty"
+      }
+    },
+    json: {
+      diagnosticsOptions: {
+        // disable syntax and semantic validation
+        validate: false
+      }
+    },
+    typescript: {
+      diagnosticsOptions: {
+        // ignore type not found errors (code 2307)
+        codesToIgnore: [2307],
+      }
+    }
+  }
+})
 ```
 
 ### Import Maps
