@@ -1,5 +1,41 @@
 # Changelog
 
+## v0.4.0
+
+- Introduce `diagnosticsOptions` option for lsp (#59)
+  ```js
+  lazy({
+    lsp: {
+      css: {
+        diagnosticsOptions: {
+          // filter out unknown property errors
+          filter: (diagnostic) => diagnostic.code !== "unknownProperty"
+        }
+      },
+      json: {
+        diagnosticsOptions: {
+          // disable syntax and semantic validation
+          validate: false
+        }
+      },
+      typescript: {
+        diagnosticsOptions: {
+          // ignore type not found errors (code 2307)
+          codesToIgnore: [2307],
+        }
+      }
+    }
+  })
+  ```
+- Add `importMapCodeLens` option for html and json lsp that allows you to disable the import map code lens (default is enabled) (#58)
+- Upgrade `@esm.sh/import-map` to 0.4.0
+- Upgrade `shiki` to 4.0.0
+- Upgrade `tm-grammars` to 1.31.2
+- Upgrade `tm-themes` to 1.12.1
+- Upgrade `vscode-css-languageservice` to 6.3.10
+- Upgrade `vscode-html-languageservice` to 5.6.2
+- Upgrade `vscode-json-languageservice` to 5.7.2
+
 ## v0.3.8
 
 - Patch `monaco-editor-core` to allow paste via contextmenu action (#54)

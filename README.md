@@ -216,7 +216,7 @@ const monaco = await init({
 
 monaco.editor.create(document.getElementById("editor"), {
   theme: "one-light",
-})
+});
 // update the editor theme
 monaco.editor.setTheme("one-dark-pro");
 ```
@@ -449,23 +449,23 @@ lazy({
     css: {
       diagnosticsOptions: {
         // filter out unknown property errors
-        filter: (diagnostic) => diagnostic.code !== "unknownProperty"
-      }
+        filter: (diagnostic) => diagnostic.code !== "unknownProperty",
+      },
     },
     json: {
       diagnosticsOptions: {
         // disable syntax and semantic validation
-        validate: false
-      }
+        validate: false,
+      },
     },
     typescript: {
       diagnosticsOptions: {
         // ignore type not found errors (code 2307)
         codesToIgnore: [2307],
-      }
-    }
-  }
-})
+      },
+    },
+  },
+});
 ```
 
 ### Import Maps
