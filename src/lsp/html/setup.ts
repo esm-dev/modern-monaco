@@ -68,6 +68,9 @@ export async function setup(
   // initialize lsp client
   client.init(monaco);
 
+  // support embedded languages(css, javascript and importmap) in html files
+  client.registerEmbedded(languageId, workerWithEmbeddedLanguages, ["css", "javascript", "importmap"]);
+
   // register language features
   client.registerBasicFeatures(
     languageId,
@@ -79,9 +82,6 @@ export async function setup(
   client.registerAutoComplete(languageId, workerWithEmbeddedLanguages, [">", "/", "="]);
   client.registerColorPresentation(languageId, workerWithEmbeddedLanguages); // css color presentation
   client.registerDocumentLinks(languageId, workerWithEmbeddedLanguages);
-
-  // support embedded languages(css, javascript and importmap) in html files
-  client.registerEmbedded(languageId, workerWithEmbeddedLanguages, ["css", "javascript", "importmap"]);
 
   // register code lens provider for import maps
   if (languageSettings?.importMapCodeLens ?? true) {

@@ -141,34 +141,32 @@ export class Workspace implements IWorkspace {
       });
       Reflect.set(model, "__OB__", true);
     }
-    if (editor) {
-      editor.setModel(model);
-      editor.updateOptions({ readOnly: typeof readonlyContent === "string" });
-      if (typeof readonlyContent === "string") {
-        const disposable = editor.onDidChangeModel(() => {
-          model.dispose();
-          disposable.dispose();
-        });
+    editor.setModel(model);
+    editor.updateOptions({ readOnly: typeof readonlyContent === "string" });
+    if (typeof readonlyContent === "string") {
+      const disposable = editor.onDidChangeModel(() => {
+        model.dispose();
+        disposable.dispose();
+      });
+    }
+    if (selectionOrPosition) {
+      if ("startLineNumber" in selectionOrPosition) {
+        editor.setSelection(selectionOrPosition);
+      } else {
+        editor.setPosition(selectionOrPosition);
       }
-      if (selectionOrPosition) {
-        if ("startLineNumber" in selectionOrPosition) {
-          editor.setSelection(selectionOrPosition);
-        } else {
-          editor.setPosition(selectionOrPosition);
+      const pos = editor.getPosition();
+      if (pos) {
+        const svp = editor.getScrolledVisiblePosition(new monaco.Position(pos.lineNumber - 7, pos.column));
+        if (svp) {
+          editor.setScrollTop(svp.top);
         }
-        const pos = editor.getPosition();
-        if (pos) {
-          const svp = editor.getScrolledVisiblePosition(new monaco.Position(pos.lineNumber - 7, pos.column));
-          if (svp) {
-            editor.setScrollTop(svp.top);
-          }
-        }
-      } else if (viewState) {
-        editor.restoreViewState(viewState);
       }
-      if (this._history.state.current !== href) {
-        this._history.push(href);
-      }
+    } else if (viewState) {
+      editor.restoreViewState(viewState);
+    }
+    if (this._history.state.current !== href) {
+      this._history.push(href);
     }
     return model;
   }
