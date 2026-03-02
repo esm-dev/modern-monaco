@@ -28,9 +28,9 @@ export async function setup(
 ) {
   const { editor, languages } = monaco;
   const { tabSize, insertSpaces, insertFinalNewline, trimFinalNewlines } = formattingOptions ?? {};
-  const dataProviders = languageSettings?.dataProviders ?? {};
+  const dataProviders = { ...languageSettings?.dataProviders };
   if (languageSettings?.customTags) {
-    dataProviders["custom-tags"] = { version: 1.1, tags: languageSettings.customTags };
+    dataProviders["#custom-tags"] = { version: 1.1, tags: languageSettings.customTags };
   }
   const createData: CreateData = {
     suggest: {

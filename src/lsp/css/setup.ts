@@ -20,21 +20,19 @@ export async function setup(
   workspace?: Workspace,
 ) {
   const validProperties = languageSettings?.validProperties;
+  const dataProviders = { ...languageSettings?.dataProviders };
   if (validProperties) {
-    languageSettings.dataProviders = {
-      "valid-properties": {
-        version: 1.1,
-        properties: validProperties.map(property => ({ name: property })),
-      },
-      ...(languageSettings.dataProviders as Record<string, unknown> | undefined),
+    dataProviders["#valid-properties"] = {
+      version: 1.1,
+      properties: validProperties.map(property => ({ name: property })),
     };
   }
   const { tabSize, insertSpaces, insertFinalNewline, trimFinalNewlines } = formattingOptions ?? {};
   const createData: CreateData = {
     language: languageId as "css" | "less" | "scss",
     data: {
-      useDefaultDataProvider: true,
-      ...languageSettings,
+      useDefaultDataProvider: languageSettings?.useDefaultDataProvider ?? true,
+      dataProviders,
     },
     format: {
       tabSize,
