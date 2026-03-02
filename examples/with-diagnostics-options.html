@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Modern Monaco</title>
+  <style>
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    monaco-editor {
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "modern-monaco": "/modern-monaco/index.mjs",
+        "modern-monaco/editor-core": "/modern-monaco/editor-core.mjs",
+        "modern-monaco/lsp": "/modern-monaco/lsp/index.mjs"
+      }
+    }
+  </script>
+</head>
+
+<body>
+  <monaco-editor file="src/App.tsx"></monaco-editor>
+  <script type="module">
+    import { lazy } from 'modern-monaco';
+    import { workspace } from '/js/workspace.mjs';
+
+    const lsp = {
+      css: {
+        diagnosticsOptions: {
+          // filter out unknown property errors
+          filter: (diagnostic) => diagnostic.code !== "unknownProperty"
+        }
+      },
+      json: {
+        diagnosticsOptions: {
+          // disable syntax and semantic validation
+          validate: false
+        }
+      },
+      typescript: {
+        diagnosticsOptions: {
+          // ignore type not found errors (code 2307)
+          codesToIgnore: [2307],
+        }
+      }
+    }
+    lazy({ workspace, lsp });
+    workspace.openTextDocument("index.html");
+  </script>
+</body>
+
+</html>

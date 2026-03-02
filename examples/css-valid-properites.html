@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Modern Monaco</title>
+  <style>
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    monaco-editor {
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "modern-monaco": "/modern-monaco/index.mjs",
+        "modern-monaco/editor-core": "/modern-monaco/editor-core.mjs",
+        "modern-monaco/lsp": "/modern-monaco/lsp/index.mjs"
+      }
+    }
+  </script>
+</head>
+
+<body>
+  <monaco-editor file="src/App.tsx"></monaco-editor>
+  <script type="module">
+    import { lazy } from 'modern-monaco';
+    import { workspace } from '/js/workspace.mjs';
+
+    const lsp = {
+      css: {
+        validProperties: ['app-region'],
+      }
+    }
+    lazy({ workspace, lsp });
+    await workspace.fs.writeFile("style/style.css", "h1 { app-region: drag; app-regi0n: drag; }")
+    workspace.openTextDocument("style/style.css");
+  </script>
+</body>
+
+</html>

@@ -91,6 +91,7 @@ export function registerBasicFeatures<
   worker: Monaco.editor.MonacoWebWorker<T>,
   completionTriggerCharacters: string[],
   workspace?: Workspace,
+  diagnosticsOptions?: DiagnosticsOptions,
 ) {
   const { editor, languages } = monaco;
 
@@ -111,7 +112,9 @@ export function registerBasicFeatures<
   });
 
   // enable diagnostics
-  registerDiagnostics(languageId, worker);
+  if (diagnosticsOptions?.validate ?? true) {
+    registerDiagnostics(languageId, worker, diagnosticsOptions);
+  }
 
   // register language features
   languages.registerCompletionItemProvider(languageId, new CompletionAdapter(worker, completionTriggerCharacters));
@@ -154,6 +157,12 @@ export function registerBasicFeatures<
 
 // #region Diagnostics
 
+export interface DiagnosticsOptions {
+  validate?: boolean;
+  codesToIgnore?: (string | number)[];
+  filter?: (diagnostic: Monaco.editor.IMarkerData) => boolean;
+}
+
 export interface ILanguageWorkerWithValidation {
   doValidation(uri: string): Promise<lst.Diagnostic[] | null>;
 }
@@ -161,6 +170,7 @@ export interface ILanguageWorkerWithValidation {
 function registerDiagnostics<T extends ILanguageWorkerWithValidation>(
   languageId: string,
   worker: Monaco.editor.MonacoWebWorker<T>,
+  options?: DiagnosticsOptions,
 ) {
   const { editor } = monaco;
   const modelChangeListeners = new Map<string, Monaco.IDisposable>();
@@ -168,7 +178,21 @@ function registerDiagnostics<T extends ILanguageWorkerWithValidation>(
     const workerProxy = await worker.withSyncedResources([model.uri]);
     const diagnostics = await workerProxy.doValidation(model.uri.toString());
     if (diagnostics && !model.isDisposed()) {
-      const markers = diagnostics.map(diagnosticToMarker);
+      let markers = diagnostics.map(diagnosticToMarker);
+      if (options?.filter) {
+        markers = markers.filter(options.filter);
+      }
+      if (options?.codesToIgnore) {
+        markers = markers.filter(marker => {
+          const code = typeof marker.code === "string" ? marker.code : marker.code?.value;
+          for (const codeToIgnore of options!.codesToIgnore!) {
+            if (code && code === String(codeToIgnore)) {
+              return false;
+            }
+          }
+          return true;
+        });
+      }
       monaco.editor.setModelMarkers(model, languageId, markers);
     }
   };

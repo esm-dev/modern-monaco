@@ -97,16 +97,23 @@ export class Workspace implements IWorkspace {
 
   async openTextDocument(uri: string | URL, content?: string): Promise<monacoNS.editor.ITextModel> {
     const monaco = await this._monaco.promise;
-    return this._openTextDocument(uri, monaco.editor.getEditors()[0], undefined, content);
+    const getEditor = async () => {
+      const editors = monaco.editor.getEditors();
+      if (editors.length === 0) {
+        return new Promise<monacoNS.editor.ICodeEditor>((resolve) => setTimeout(() => resolve(getEditor()), 100));
+      }
+      return editors[0];
+    };
+    return this._openTextDocument(monaco, uri, await getEditor(), undefined, content);
   }
 
   async _openTextDocument(
+    monaco: typeof monacoNS,
     uri: string | URL,
     editor?: monacoNS.editor.ICodeEditor,
     selectionOrPosition?: monacoNS.IRange | monacoNS.IPosition,
     readonlyContent?: string,
   ): Promise<monacoNS.editor.ITextModel> {
-    const monaco = await this._monaco.promise;
     const fs = this._fs;
     const href = normalizeURL(uri).href;
     const content = readonlyContent ?? await fs.readTextFile(href);

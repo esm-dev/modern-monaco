@@ -132,4 +132,6 @@ Examples:
   Multiple themes - ${server.url}multi-theme
   SSR mode - ${server.url}ssr
   Compare modes - ${server.url}compare
+  CSS valid properties - ${server.url}css-valid-properites
+  With diagnostics options - ${server.url}with-diagnostics-options
 `);

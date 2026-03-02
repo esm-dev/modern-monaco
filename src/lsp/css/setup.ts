@@ -1,18 +1,34 @@
 import type monacoNS from "monaco-editor-core";
 import type { FormattingOptions } from "vscode-languageserver-types";
 import type { Workspace } from "~/workspace.ts";
-import type { CreateData, CSSWorker } from "./worker.ts";
+import type { DiagnosticsOptions } from "~/lsp/client.ts";
+import type { CreateData, CSSLanguageServiceOptions, CSSWorker } from "./worker.ts";
 
 // ! external modules, don't remove the `.js` extension
 import * as client from "../client.js";
 
+interface CSSLanguageSettings extends CSSLanguageServiceOptions {
+  validProperties?: string[];
+  diagnosticsOptions?: DiagnosticsOptions;
+}
+
 export async function setup(
   monaco: typeof monacoNS,
   languageId: string,
-  languageSettings?: Record<string, unknown>,
+  languageSettings?: CSSLanguageSettings,
   formattingOptions?: FormattingOptions,
   workspace?: Workspace,
 ) {
+  const validProperties = languageSettings?.validProperties;
+  if (validProperties) {
+    languageSettings.dataProviders = {
+      "valid-properties": {
+        version: 1.1,
+        properties: validProperties.map(property => ({ name: property })),
+      },
+      ...(languageSettings.dataProviders as Record<string, unknown> | undefined),
+    };
+  }
   const { tabSize, insertSpaces, insertFinalNewline, trimFinalNewlines } = formattingOptions ?? {};
   const createData: CreateData = {
     language: languageId as "css" | "less" | "scss",
@@ -41,7 +57,7 @@ export async function setup(
   client.init(monaco);
 
   // register language features
-  client.registerBasicFeatures(languageId, worker, ["/", "-", ":", "("], workspace);
+  client.registerBasicFeatures(languageId, worker, ["/", "-", ":", "("], workspace, languageSettings?.diagnosticsOptions);
   client.registerCodeAction(languageId, worker);
   client.registerColorPresentation(languageId, worker);
   client.registerDocumentLinks(languageId, worker);

@@ -2,6 +2,7 @@ import type monacoNS from "monaco-editor-core";
 import type ts from "typescript";
 import type { FormattingOptions } from "vscode-languageserver-types";
 import type { Workspace } from "~/workspace";
+import type { DiagnosticsOptions } from "~/lsp/client.ts";
 import type { CreateData, Host, TypeScriptWorker, VersionedContent } from "./worker";
 import { ImportMap, type ImportMapRaw, parseFromHtml } from "@esm.sh/import-map";
 
@@ -11,6 +12,11 @@ import * as client from "../client.js";
 
 type TSWorker = monacoNS.editor.MonacoWebWorker<TypeScriptWorker>;
 type CompilerOptions = { [key: string]: ts.CompilerOptionsValue };
+type TypeScriptLanguageSettings = {
+  importMap?: ImportMap;
+  compilerOptions?: CompilerOptions;
+  diagnosticsOptions?: DiagnosticsOptions;
+};
 
 // javascript and typescript share the same worker
 let worker: TSWorker | Promise<TSWorker> | null = null;
@@ -18,7 +24,7 @@ let worker: TSWorker | Promise<TSWorker> | null = null;
 export async function setup(
   monaco: typeof monacoNS,
   languageId: string,
-  languageSettings?: Record<string, unknown>,
+  languageSettings?: TypeScriptLanguageSettings,
   formattingOptions?: FormattingOptions & { semicolon?: "ignore" | "insert" | "remove" },
   workspace?: Workspace,
 ) {
@@ -33,7 +39,7 @@ export async function setup(
   client.init(monaco);
 
   // register language features
-  client.registerBasicFeatures(languageId, worker, [".", "/", '"', "'", "<"], workspace);
+  client.registerBasicFeatures(languageId, worker, [".", "/", '"', "'", "<"], workspace, languageSettings?.diagnosticsOptions);
   client.registerAutoComplete(languageId, worker, [">", "/"]);
   client.registerSignatureHelp(languageId, worker, ["(", ","]);
   client.registerCodeAction(languageId, worker);
@@ -48,7 +54,7 @@ export async function setup(
 async function createWorker(
   monaco: typeof monacoNS,
   workspace?: Workspace,
-  languageSettings?: Record<string, unknown>,
+  languageSettings?: TypeScriptLanguageSettings,
   formattingOptions?: FormattingOptions & { semicolon?: "ignore" | "insert" | "remove" },
 ) {
   const fs = workspace?.fs;
@@ -124,7 +130,7 @@ async function createWorker(
           throw new Error("Workspace is undefined.");
         }
         try {
-          await workspace._openTextDocument(uri);
+          await workspace._openTextDocument(monaco, uri);
         } catch (error) {
           if (isFsNotFoundError(error)) {
             return false;
