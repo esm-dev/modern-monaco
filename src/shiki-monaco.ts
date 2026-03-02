@@ -1,7 +1,7 @@
 /*! based on https://github.com/shikijs/shiki/blob/main/packages/monaco/src/index.ts */
 
 import type monacoNs from "monaco-editor-core";
-import type { ShikiInternal, ThemeRegistrationResolved } from "@shikijs/core";
+import type { ShikiPrimitive, ThemeRegistrationResolved } from "@shikijs/core";
 import type { StateStack } from "@shikijs/core/textmate";
 import { EncodedTokenMetadata, INITIAL } from "@shikijs/core/textmate";
 
@@ -36,7 +36,7 @@ const tokenizeTimeLimit = 500;
 const colorMap: string[] = [];
 const colorToScopeMap = new Map<string, string>();
 
-export function initShikiMonacoTokenizer(monaco: typeof monacoNs, highlighter: ShikiInternal<any, any>) {
+export function initShikiMonacoTokenizer(monaco: typeof monacoNs, highlighter: ShikiPrimitive<any, any>) {
   // Convert themes to Monaco themes and register them
   const themeMap = new Map<string, MonacoTheme>();
   const themeIds = highlighter.getLoadedThemes();
@@ -75,7 +75,7 @@ export function initShikiMonacoTokenizer(monaco: typeof monacoNs, highlighter: S
   monaco.editor.setTheme(themeIds[0]);
 }
 
-export function registerShikiMonacoTokenizer(monaco: typeof monacoNs, highlighter: ShikiInternal<any, any>, languageId: string) {
+export function registerShikiMonacoTokenizer(monaco: typeof monacoNs, highlighter: ShikiPrimitive<any, any>, languageId: string) {
   if (!highlighter.getLoadedLanguages().includes(languageId)) {
     // Language not loaded
     return;
