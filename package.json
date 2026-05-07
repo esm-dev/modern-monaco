@@ -71,14 +71,14 @@
   "sideEffects": ["dist/index.mjs"],
   "devDependencies": {
     "@esm.sh/import-map": "0.4.0",
-    "@shikijs/core": "4.0.0",
-    "@shikijs/engine-oniguruma": "4.0.0",
-    "@types/bun": "1.3.9",
-    "esbuild": "0.27.3",
+    "@shikijs/core": "4.0.2",
+    "@shikijs/engine-oniguruma": "4.0.2",
+    "@types/bun": "1.3.13",
+    "esbuild": "0.28.0",
     "monaco-editor-core": "0.55.1",
-    "tm-grammars": "1.31.2",
-    "tm-themes": "1.12.1",
-    "typescript": "5.9.3",
+    "tm-grammars": "1.31.15",
+    "tm-themes": "1.12.2",
+    "typescript": "6.0.3",
     "vscode-css-languageservice": "6.3.10",
     "vscode-html-languageservice": "5.6.2",
     "vscode-json-languageservice": "5.7.2",
@@ -86,7 +86,7 @@
     "vscode-languageserver-types": "3.17.5"
   },
   "peerDependencies": {
-    "typescript": ">= 5.0.0"
+    "typescript": ">= 6.0.0"
   },
   "repository": {
     "type": "git",
