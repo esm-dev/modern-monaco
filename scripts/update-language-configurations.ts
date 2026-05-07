@@ -49,7 +49,7 @@ try {
   configurations.sort((a, b) => a[0].localeCompare(b[0]));
   for (const [lang, configFile] of configurations) {
     console.log(`[${lang}]`, configFile, "found");
-    promises.push(import("../" + configFile + "c").then(config => [lang, config]));
+    promises.push(import("../" + configFile + "c").then(config => [lang, config.default]));
   }
   await Bun.write("language-configurations.json", JSON.stringify(Object.fromEntries(await Promise.all(promises)), undefined, 2));
   console.log(`✨ Done! ${configurations.length} language configuration files are updated.`);
