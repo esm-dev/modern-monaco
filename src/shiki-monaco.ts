@@ -15,7 +15,7 @@ export function textmateThemeToMonacoTheme(theme: ThemeRegistrationResolved): Mo
       if (s && settings?.foreground) {
         rules.push({
           token: s,
-          foreground: settings.foreground,
+          foreground: normalizeColor(theme.bg, settings.foreground),
           fontStyle: settings?.fontStyle,
         });
       }
@@ -23,7 +23,7 @@ export function textmateThemeToMonacoTheme(theme: ThemeRegistrationResolved): Mo
   }
   return {
     base: theme.type === "dark" ? "vs-dark" : "vs",
-    colors: theme.colors ?? {},
+    colors: Object.fromEntries(Object.entries(theme.colors ?? {}).map(([key, value]) => [key, normalizeColor(theme.bg, value)])),
     inherit: false,
     rules,
   };
@@ -59,7 +59,7 @@ export function initShikiMonacoTokenizer(monaco: typeof monacoNs, highlighter: S
     const ret = highlighter.setTheme(themeId);
     colorMap.length = ret.colorMap.length;
     ret.colorMap.forEach((color, i) => {
-      colorMap[i] = color;
+      colorMap[i] = normalizeColor(ret.theme.bg, color);
     });
     colorToScopeMap.clear();
     theme.rules.forEach((rule) => {
@@ -137,4 +137,39 @@ class TokenizerState implements monacoNs.languages.IState {
       && other._ruleStack === this._ruleStack
     );
   }
+}
+
+function toRGBA(hex: string) {
+  const start = hex.charCodeAt(0) === /* '#' */ 35 ? 1 : 0;
+  const step = (hex.length - start) >= 6 ? 2 : 1;
+  const rgba = [0, 0, 0, 0];
+  for (let i = 0; i < 4; i++) {
+    const j = start + i * step;
+    rgba[i] = parseInt(hex.slice(j, j + step).repeat(3 - step), 16);
+  }
+  if (Number.isNaN(rgba[3])) {
+    rgba[3] = 1;
+  } else {
+    rgba[3] /= 255;
+  }
+  return rgba as [r: number, g: number, b: number, a: number];
+}
+
+function toHexColor(rgb: number[]): string {
+  return "#" + rgb.map(c => c.toString(16).padStart(2, "0")).join("");
+}
+
+function channelMixer(channelA: number, channelB: number, amount: number) {
+  const a = channelA * (1 - amount);
+  const b = channelB * amount;
+  return Math.round(a + b);
+}
+
+function normalizeColor(bg: string, fg: string | string[]): string {
+  const fgRgba = toRGBA(Array.isArray(fg) ? fg[0] : fg);
+  if (fgRgba[3] === 1) {
+    return toHexColor(fgRgba.slice(0, 3));
+  }
+  const bgRgba = toRGBA(bg);
+  return toHexColor([0, 1, 2].map(i => channelMixer(bgRgba[i], fgRgba[i], fgRgba[3])));
 }
