@@ -15,7 +15,7 @@ export function textmateThemeToMonacoTheme(theme: ThemeRegistrationResolved): Mo
       if (s && settings?.foreground) {
         rules.push({
           token: s,
-          foreground: normalizeColor( settings.foreground),
+          foreground: normalizeColor(settings.foreground),
           fontStyle: settings?.fontStyle,
         });
       }
@@ -23,7 +23,7 @@ export function textmateThemeToMonacoTheme(theme: ThemeRegistrationResolved): Mo
   }
   return {
     base: theme.type === "dark" ? "vs-dark" : "vs",
-    colors: Object.fromEntries(Object.entries(theme.colors ?? {}).map(([key, value]) => [key, normalizeColor(  value)])),
+    colors: Object.fromEntries(Object.entries(theme.colors ?? {}).map(([key, value]) => [key, normalizeColor(value)])),
     inherit: false,
     rules,
   };
@@ -59,7 +59,7 @@ export function initShikiMonacoTokenizer(monaco: typeof monacoNs, highlighter: S
     const ret = highlighter.setTheme(themeId);
     colorMap.length = ret.colorMap.length;
     ret.colorMap.forEach((color, i) => {
-      colorMap[i] = normalizeColor(  color);
+      colorMap[i] = normalizeColor(color);
     });
     colorToScopeMap.clear();
     theme.rules.forEach((rule) => {
@@ -157,7 +157,7 @@ function toHexColor(rgb: number[]): string {
   return "#" + rgb.map(c => c.toString(16).padStart(2, "0")).join("");
 }
 
-function normalizeColor( color: string | string[]): string {
+function normalizeColor(color: string | string[]): string {
   const rgba = toRGBA(Array.isArray(color) ? color[0] : color);
   if (rgba[3] === 255) {
     return toHexColor(rgba.slice(0, 3));
