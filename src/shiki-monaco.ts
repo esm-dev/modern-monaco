@@ -15,7 +15,7 @@ export function textmateThemeToMonacoTheme(theme: ThemeRegistrationResolved): Mo
       if (s && settings?.foreground) {
         rules.push({
           token: s,
-          foreground: normalizeColor(theme.bg, settings.foreground),
+          foreground: normalizeColor( settings.foreground),
           fontStyle: settings?.fontStyle,
         });
       }
@@ -23,7 +23,7 @@ export function textmateThemeToMonacoTheme(theme: ThemeRegistrationResolved): Mo
   }
   return {
     base: theme.type === "dark" ? "vs-dark" : "vs",
-    colors: Object.fromEntries(Object.entries(theme.colors ?? {}).map(([key, value]) => [key, normalizeColor(theme.bg, value)])),
+    colors: Object.fromEntries(Object.entries(theme.colors ?? {}).map(([key, value]) => [key, normalizeColor(  value)])),
     inherit: false,
     rules,
   };
@@ -59,7 +59,7 @@ export function initShikiMonacoTokenizer(monaco: typeof monacoNs, highlighter: S
     const ret = highlighter.setTheme(themeId);
     colorMap.length = ret.colorMap.length;
     ret.colorMap.forEach((color, i) => {
-      colorMap[i] = normalizeColor(ret.theme.bg, color);
+      colorMap[i] = normalizeColor(  color);
     });
     colorToScopeMap.clear();
     theme.rules.forEach((rule) => {
@@ -148,9 +148,7 @@ function toRGBA(hex: string) {
     rgba[i] = parseInt(hex.slice(j, j + step).repeat(3 - step), 16);
   }
   if (Number.isNaN(rgba[3])) {
-    rgba[3] = 1;
-  } else {
-    rgba[3] /= 255;
+    rgba[3] = 255;
   }
   return rgba as [r: number, g: number, b: number, a: number];
 }
@@ -159,17 +157,10 @@ function toHexColor(rgb: number[]): string {
   return "#" + rgb.map(c => c.toString(16).padStart(2, "0")).join("");
 }
 
-function channelMixer(channelA: number, channelB: number, amount: number) {
-  const a = channelA * (1 - amount);
-  const b = channelB * amount;
-  return Math.round(a + b);
-}
-
-function normalizeColor(bg: string, fg: string | string[]): string {
-  const fgRgba = toRGBA(Array.isArray(fg) ? fg[0] : fg);
-  if (fgRgba[3] === 1) {
-    return toHexColor(fgRgba.slice(0, 3));
+function normalizeColor( color: string | string[]): string {
+  const rgba = toRGBA(Array.isArray(color) ? color[0] : color);
+  if (rgba[3] === 255) {
+    return toHexColor(rgba.slice(0, 3));
   }
-  const bgRgba = toRGBA(bg);
-  return toHexColor([0, 1, 2].map(i => channelMixer(bgRgba[i], fgRgba[i], fgRgba[3])));
+  return toHexColor(rgba);
 }
