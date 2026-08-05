@@ -352,7 +352,8 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
               const dts = res.headers.get("x-typescript-types");
               if (res.redirected) {
                 this.#urlMappings.set(moduleHref, res.url);
-              } else if (dts) {
+              }
+              if (dts) {
                 res.body?.cancel();
                 const dtsRes = await cache.fetch(new URL(dts, res.url));
                 if (dtsRes.ok) {
@@ -360,6 +361,10 @@ export class TypeScriptWorker extends WorkerBase<Host> implements ts.LanguageSer
                   this.#typesMappings.set(moduleHref, dtsRes.url);
                   this.#addHttpLib(dtsRes.url, dtsText);
                 }
+              } else if (res.redirected) {
+                // redirected but no `x-typescript-types` header: the URL
+                // mapping recorded above is all we need, nothing more to fetch.
+                res.body?.cancel();
               } else if (
                 /\.(c|m)?jsx?$/.test(moduleUrl.pathname)
                 || (contentType && /^(application|text)\/(javascript|jsx)/.test(contentType))
