@@ -8,6 +8,7 @@ import { ImportMap, type ImportMapRaw, parseFromHtml } from "@esm.sh/import-map"
 
 // ! external modules, don't remove the `.js` extension
 import { cache } from "../../cache.js";
+import { createPersistTask } from "../../util.js";
 import * as client from "../client.js";
 
 type TSWorker = monacoNS.editor.MonacoWebWorker<TypeScriptWorker>;
@@ -130,13 +131,33 @@ async function createWorker(
           throw new Error("Workspace is undefined.");
         }
         try {
-          const editors = monaco.editor.getEditors();
-          const editor = editors.find(e => e.hasWidgetFocus() || e.hasTextFocus()) ?? editors[0];
-          if (editor) {
-            await workspace._openTextDocument(monaco, editor, uri);
+          const modelUri = monaco.Uri.parse(uri);
+          if (monaco.editor.getModel(modelUri)) {
             return true;
           }
-          return false;
+          const content = await workspace.fs.readTextFile(uri);
+          const model = monaco.editor.createModel(content, undefined, modelUri);
+          if (!Reflect.has(model, "__OB__")) {
+            const persist = createPersistTask(() => workspace.fs.writeFile(uri, model.getValue(), { isModelContentChange: true }));
+            const disposable = model.onDidChangeContent(persist);
+            const unwatch = workspace.fs.watch(uri, (kind, _, __, context) => {
+              if (kind === "modify" && (!context || !context.isModelContentChange)) {
+                workspace.fs.readTextFile(uri).then((content) => {
+                  if (model.getValue() !== content) {
+                    model.setValue(content);
+                    model.pushStackElement();
+                  }
+                });
+              }
+            });
+            model.onWillDispose(() => {
+              Reflect.deleteProperty(model, "__OB__");
+              disposable.dispose();
+              unwatch();
+            });
+            Reflect.set(model, "__OB__", true);
+          }
+          return true;
         } catch (error) {
           if (isFsNotFoundError(error)) {
             return false;
