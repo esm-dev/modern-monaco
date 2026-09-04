@@ -1,5 +1,5 @@
 import type monacoNS from "monaco-editor-core";
-import type { Highlighter, RenderOptions, ShikiInitOptions } from "./shiki.ts";
+import type { Highlighter, RenderOptions, ShikiInitOptions, ThemeSource } from "./shiki.ts";
 import type { LSPConfig, LSPProvider } from "./lsp/index.ts";
 import { version } from "../package.json";
 
@@ -11,6 +11,7 @@ import {
   getLanguageIdFromPath,
   grammars,
   initShiki,
+  loadThemeFromSource,
   registerGrammarInfo,
   resolveThemeId,
   themes,
@@ -73,6 +74,7 @@ const errors = {
 
 const syntaxes: { name: string; scopeName: string }[] = [];
 const lspProviders: Record<string, LSPProvider> = {};
+let loadEditorTheme: ((theme: ThemeSource) => Promise<void>) | undefined;
 
 const getAttr = (el: HTMLElement, name: string): string | null => el.getAttribute(name);
 const setStyle = (el: HTMLElement, style: Partial<CSSStyleDeclaration>) => Object.assign(el.style, style);
@@ -84,7 +86,14 @@ export async function init(options?: InitOptions): Promise<typeof monacoNS> {
     ? await ensureShikiResources(options.highlighter, { ...options, langs })
     : await initShiki({ ...options, langs });
   const defaultTheme = resolveThemeId(options?.theme ?? options?.defaultTheme, shiki.getLoadedThemes());
-  return loadMonaco(shiki, options?.workspace, options?.lsp, defaultTheme);
+  return loadMonaco(shiki, options, defaultTheme);
+}
+
+export async function loadTheme(theme: ThemeSource): Promise<void> {
+  if (!loadEditorTheme) {
+    throw new Error("Monaco is not initialized. Call init() before loadTheme().");
+  }
+  await loadEditorTheme(theme);
 }
 
 /** Render a mock editor, then load the monaco editor in background. */
@@ -277,7 +286,8 @@ export function lazy(options?: InitOptions) {
 
           // load and render editor
           {
-            const monaco = await (monacoPromise ?? (monacoPromise = loadMonaco(highlighter, workspace, options?.lsp, renderOptions.theme)));
+            monacoPromise ??= loadMonaco(highlighter, options, renderOptions.theme);
+            const monaco = await monacoPromise;
             const editor = monaco.editor.create(containerEl, renderOptions);
             if (workspace) {
               const storeViewState = () => {
@@ -374,10 +384,10 @@ const activatedLanguages = new Set<string>();
 /** Load monaco editor core. */
 async function loadMonaco(
   highlighter: Highlighter,
-  workspace?: Workspace,
-  lsp?: LSPConfig,
+  options?: InitOptions,
   defaultTheme?: string,
 ): Promise<typeof monacoNS> {
+  const { workspace, lsp } = options ?? {};
   let cdnUrl = `https://esm.sh/modern-monaco@${version}`;
   let editorCoreModuleUrl = `${cdnUrl}/es2022/editor-core.mjs`;
   let lspModuleUrl = `${cdnUrl}/es2022/lsp.mjs`;
@@ -553,7 +563,12 @@ async function loadMonaco(
   });
 
   // use shiki as the tokenizer of monaco editor
-  initShikiMonacoTokenizer(monaco, highlighter, defaultTheme);
+  const registerTheme = initShikiMonacoTokenizer(monaco, highlighter, defaultTheme);
+  loadEditorTheme = async (theme) => {
+    const themeId = await loadThemeFromSource(highlighter, theme, options?.highlighter && options.cdn);
+    if (activeHighlighter !== highlighter) throw new Error("The editor highlighter changed while loading the theme.");
+    registerTheme(themeId);
+  };
 
   return monaco;
 }
