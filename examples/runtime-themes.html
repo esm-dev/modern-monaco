@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Runtime themes - Modern Monaco</title>
+  <style>
+    body { margin: 0; height: 100vh; display: flex; flex-direction: column; font-family: system-ui; }
+    nav { padding: 12px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    #editor { flex: 1; min-height: 0; }
+    #status { font-size: 14px; }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "modern-monaco/core": "/modern-monaco/core.mjs",
+        "modern-monaco/editor-core": "/modern-monaco/editor-core.mjs"
+      }
+    }
+  </script>
+</head>
+
+<body>
+  <nav>
+    <button id="cdn" disabled>Load GitHub Dark from CDN</button>
+    <button id="custom" disabled>Load custom theme object</button>
+    <button id="initial" disabled>Switch to initial theme</button>
+    <span id="status" role="status">Initializing…</span>
+  </nav>
+  <div id="editor"></div>
+  <script type="module">
+    import { init, loadTheme } from 'modern-monaco/core';
+
+    const initialTheme = {
+      name: 'initial-light',
+      type: 'light',
+      colors: { 'editor.background': '#ffffff', 'editor.foreground': '#24292e' },
+      tokenColors: [{ scope: 'keyword', settings: { foreground: '#d73a49' } }],
+    };
+    const customTheme = {
+      name: 'custom-dark',
+      type: 'dark',
+      colors: { 'editor.background': '#101010', 'editor.foreground': '#eeeeee' },
+      tokenColors: [{ scope: 'keyword', settings: { foreground: '#ff8080', fontStyle: 'bold' } }],
+    };
+    const grammar = {
+      name: 'javascript',
+      scopeName: 'source.js',
+      patterns: [{ match: '\\b(const|let|return)\\b', name: 'keyword' }],
+    };
+    const monaco = await init({
+      defaultTheme: initialTheme,
+      langs: [
+        grammar,
+        { name: 'html', scopeName: 'text.html.basic', patterns: [] },
+        { name: 'css', scopeName: 'source.css', patterns: [] },
+      ],
+    });
+    monaco.editor.create(document.getElementById('editor'), {
+      value: 'const message = "Load a theme without recreating this editor";\n\nlet count = 0;\n',
+      language: 'javascript',
+      automaticLayout: true,
+      minimap: { enabled: false },
+      fontSize: 16,
+    });
+
+    const buttons = [...document.querySelectorAll('button')];
+    const status = document.getElementById('status');
+    buttons.forEach(button => button.disabled = false);
+    status.textContent = 'Active theme: initial-light';
+
+    async function activateTheme(source, name) {
+      buttons.forEach(button => button.disabled = true);
+      status.textContent = `Loading ${name}…`;
+      try {
+        await loadTheme(source);
+        monaco.editor.setTheme(name);
+        status.textContent = `Active theme: ${name}`;
+      } catch (error) {
+        status.textContent = `Unable to load theme: ${error.message}`;
+      } finally {
+        buttons.forEach(button => button.disabled = false);
+      }
+    }
+
+    document.getElementById('cdn').onclick = () => activateTheme('github-dark', 'github-dark');
+    document.getElementById('custom').onclick = () => activateTheme(customTheme, customTheme.name);
+    document.getElementById('initial').onclick = () => {
+      monaco.editor.setTheme(initialTheme.name);
+      status.textContent = `Active theme: ${initialTheme.name}`;
+    };
+  </script>
+</body>
+
+</html>
