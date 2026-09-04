@@ -1,5 +1,5 @@
 import type monacoNS from "monaco-editor-core";
-import type { Highlighter, RenderOptions, ShikiInitOptions } from "./shiki.ts";
+import type { Highlighter, RenderOptions, ShikiInitOptions, ThemeSource } from "./shiki.ts";
 import type { LSPConfig, LSPProvider } from "./lsp/index.ts";
 import { version } from "../package.json";
 
@@ -60,6 +60,7 @@ const errors = {
 
 const syntaxes: { name: string; scopeName: string }[] = [];
 const lspProviders: Record<string, LSPProvider> = {};
+let loadEditorTheme: ((theme: ThemeSource) => Promise<void>) | undefined;
 
 const getAttr = (el: HTMLElement, name: string): string | null => el.getAttribute(name);
 const setStyle = (el: HTMLElement, style: Partial<CSSStyleDeclaration>) => Object.assign(el.style, style);
@@ -69,6 +70,14 @@ export async function init(options?: InitOptions): Promise<typeof monacoNS> {
   const langs = (options?.langs ?? []).concat(syntaxes as any[]);
   const shiki = await initShiki({ ...options, langs });
   return loadMonaco(shiki, options?.workspace, options?.lsp);
+}
+
+/** Load and register a theme without switching the current editor theme. Call after initialization. */
+export async function loadTheme(theme: ThemeSource): Promise<void> {
+  if (!loadEditorTheme) {
+    throw new Error("Monaco is not initialized. Call init() before loadTheme().");
+  }
+  await loadEditorTheme(theme);
 }
 
 /** Render a mock editor, then load the monaco editor in background. */
@@ -495,7 +504,11 @@ async function loadMonaco(
   });
 
   // use shiki as the tokenizer of monaco editor
-  initShikiMonacoTokenizer(monaco, highlighter);
+  const registerThemes = initShikiMonacoTokenizer(monaco, highlighter);
+  loadEditorTheme = async (theme) => {
+    await highlighter.loadThemeFromSource(theme);
+    registerThemes();
+  };
 
   return monaco;
 }

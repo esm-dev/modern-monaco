@@ -39,13 +39,19 @@ const colorToScopeMap = new Map<string, string>();
 export function initShikiMonacoTokenizer(monaco: typeof monacoNs, highlighter: ShikiPrimitive<any, any>) {
   // Convert themes to Monaco themes and register them
   const themeMap = new Map<string, MonacoTheme>();
-  const themeIds = highlighter.getLoadedThemes();
-  for (const themeId of themeIds) {
-    const tmTheme = highlighter.getTheme(themeId);
-    const monacoTheme = textmateThemeToMonacoTheme(tmTheme);
-    themeMap.set(themeId, monacoTheme);
-    monaco.editor.defineTheme(themeId, monacoTheme);
+
+  function registerThemes() {
+    const themeIds = highlighter.getLoadedThemes();
+    for (const themeId of themeIds) {
+      if (themeMap.has(themeId)) continue;
+      const tmTheme = highlighter.getTheme(themeId);
+      const monacoTheme = textmateThemeToMonacoTheme(tmTheme);
+      themeMap.set(themeId, monacoTheme);
+      monaco.editor.defineTheme(themeId, monacoTheme);
+    }
   }
+
+  registerThemes();
 
   // Because Monaco does not have the API of reading the current theme,
   // We hijack it here to keep track of the current theme.
@@ -72,7 +78,8 @@ export function initShikiMonacoTokenizer(monaco: typeof monacoNs, highlighter: S
   };
 
   // Set the first theme as the default theme
-  monaco.editor.setTheme(themeIds[0]);
+  monaco.editor.setTheme(highlighter.getLoadedThemes()[0]);
+  return registerThemes;
 }
 
 export function registerShikiMonacoTokenizer(monaco: typeof monacoNs, highlighter: ShikiPrimitive<any, any>, languageId: string) {
