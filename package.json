@@ -75,7 +75,7 @@
     "@shikijs/engine-oniguruma": "4.1.0",
     "@types/bun": "1.3.14",
     "esbuild": "0.28.0",
-    "monaco-editor-core": "0.55.1",
+    "monaco-editor-core": "0.57.0",
     "tm-grammars": "1.31.15",
     "tm-themes": "1.12.2",
     "typescript": "6.0.3",
