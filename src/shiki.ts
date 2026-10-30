@@ -1,5 +1,5 @@
 import type { HighlighterCore, LanguageInput, RegexEngine, ThemeInput, ThemeRegistration } from "@shikijs/core";
-import { createHighlighterCore } from "@shikijs/core";
+import { createHighlighterCore, normalizeGetter } from "@shikijs/core";
 import { createOnigurumaEngine, getDefaultWasmLoader, setDefaultWasmLoader } from "@shikijs/engine-oniguruma";
 import { version as tmGrammarsVersion } from "../node_modules/tm-grammars/package.json";
 import { version as tmThemesVersion } from "../node_modules/tm-themes/package.json";
@@ -12,19 +12,22 @@ const grammars = SHIKI_GRAMMARS;
 const themes: Map<string, ThemeRegistration> = new Map();
 const shikiThemeIds = new Set(SHIKI_THEMES);
 
+export type ThemeSource = string | URL | ThemeInput;
+
 export interface ShikiInitOptions {
   /**
    * @deprecated Use `defaultTheme` instead.
    */
-  theme?: string | URL | ThemeInput;
-  defaultTheme?: string | URL | ThemeInput;
-  themes?: (string | URL | ThemeInput)[];
+  theme?: ThemeSource;
+  defaultTheme?: ThemeSource;
+  themes?: ThemeSource[];
   langs?: (string | URL | LanguageInput)[];
   cdn?: string;
   engine?: RegexEngine | Promise<RegexEngine>;
 }
 
 export interface Highlighter extends HighlighterCore {
+  loadThemeFromSource(theme: ThemeSource): Promise<void>;
   loadThemeFromCDN(name: string): Promise<void>;
   loadGrammarFromCDN(...ids: string[]): Promise<void>;
 }
@@ -85,7 +88,15 @@ export async function initShiki({
     themes: await Promise.all([...themesToLoad].map(parseTheme)),
     engine,
   });
+  async function loadThemeFromSource(theme: ThemeSource) {
+    if (typeof theme === "string" && highlighterCore.getLoadedThemes().includes(theme)) return;
+    const resolved = await normalizeGetter(typeof theme === "string" || theme instanceof URL ? loadTMTheme(theme, cdn) : theme);
+    if (resolved.name && highlighterCore.getLoadedThemes().includes(resolved.name)) return;
+    await highlighterCore.loadTheme(resolved);
+  }
+
   Object.assign(highlighterCore, {
+    loadThemeFromSource,
     loadThemeFromCDN: (themeName: string) => highlighterCore.loadTheme(loadTMTheme(themeName, cdn)),
     loadGrammarFromCDN: (...ids: string[]) => highlighterCore.loadLanguage(...ids.map(id => loadTMGrammar(id, cdn))),
   });

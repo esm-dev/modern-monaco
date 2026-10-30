@@ -130,6 +130,7 @@ Examples:
   Manual mode (without workspace) - ${server.url}manual-no-workspace
   Custom theme(json) - ${server.url}custom-theme
   Multiple themes - ${server.url}multi-theme
+  Runtime themes - ${server.url}runtime-themes
   SSR mode - ${server.url}ssr
   Compare modes - ${server.url}compare
   CSS valid properties - ${server.url}css-valid-properties
