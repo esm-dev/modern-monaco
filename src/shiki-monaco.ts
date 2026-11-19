@@ -12,11 +12,11 @@ export function textmateThemeToMonacoTheme(theme: ThemeRegistrationResolved): Mo
   for (const { scope, settings } of theme.tokenColors ?? theme.settings) {
     const scopes = Array.isArray(scope) ? scope : [scope];
     for (const s of scopes) {
-      if (s && settings?.foreground) {
+      if (s && (settings?.foreground || settings?.fontStyle)) {
         rules.push({
           token: s,
-          foreground: normalizeColor(settings.foreground),
-          fontStyle: settings?.fontStyle,
+          ...(settings.foreground ? { foreground: normalizeColor(settings.foreground) } : {}),
+          fontStyle: settings.fontStyle,
         });
       }
     }
@@ -33,46 +33,104 @@ export function textmateThemeToMonacoTheme(theme: ThemeRegistrationResolved): Mo
 // default to 20000 (as in monaco-editor-core defaults)
 const tokenizeMaxLineLength = 20000;
 const tokenizeTimeLimit = 500;
-const colorMap: string[] = [];
-const colorToScopeMap = new Map<string, string>();
 
-export function initShikiMonacoTokenizer(monaco: typeof monacoNs, highlighter: ShikiPrimitive<any, any>) {
-  // Convert themes to Monaco themes and register them
-  const themeMap = new Map<string, MonacoTheme>();
+interface MonacoTokenizerState {
+  originalSetTheme: typeof monacoNs.editor.setTheme;
+  highlighter: ShikiPrimitive<any, any>;
+  themeMap: Map<string, MonacoTheme>;
+  currentThemeId: string | undefined;
+  colorMap: string[];
+  colorToScopeMap: Map<string, string>;
+  styleToScopeMap: Map<string, string>;
+}
+
+const monacoStateMap = new WeakMap<typeof monacoNs, MonacoTokenizerState>();
+
+export function initShikiMonacoTokenizer(
+  monaco: typeof monacoNs,
+  highlighter: ShikiPrimitive<any, any>,
+  defaultTheme?: string,
+) {
+  let state = monacoStateMap.get(monaco);
+  if (!state) {
+    state = {
+      originalSetTheme: monaco.editor.setTheme.bind(monaco.editor),
+      highlighter,
+      themeMap: new Map(),
+      currentThemeId: undefined,
+      colorMap: [],
+      colorToScopeMap: new Map(),
+      styleToScopeMap: new Map(),
+    };
+    monacoStateMap.set(monaco, state);
+
+    // Because Monaco does not have an API to read the current theme,
+    // we wrap setTheme once to keep Monaco and Shiki's theme state in sync.
+    monaco.editor.setTheme = (themeId: string) => {
+      const current = monacoStateMap.get(monaco)!;
+      let theme = current.themeMap.get(themeId);
+      if (!theme && current.highlighter.getLoadedThemes().includes(themeId)) {
+        theme = textmateThemeToMonacoTheme(current.highlighter.getTheme(themeId));
+        current.themeMap.set(themeId, theme);
+        monaco.editor.defineTheme(themeId, theme);
+      }
+      if (!theme) {
+        console.warn("Theme not found:", themeId);
+        return;
+      }
+      current.currentThemeId = themeId;
+      const ret = current.highlighter.setTheme(themeId);
+      current.colorMap.length = ret.colorMap.length;
+      ret.colorMap.forEach((color, i) => {
+        current.colorMap[i] = normalizeColor(color);
+      });
+      current.colorToScopeMap.clear();
+      current.styleToScopeMap.clear();
+      const plainColors = new Set<string>();
+      for (const rule of theme.rules) {
+        const fontStyle = parseFontStyle(rule.fontStyle);
+        const color = rule.foreground ?? "";
+        if (color) {
+          const styleKey = `${color}:${fontStyle}`;
+          if (!current.styleToScopeMap.has(styleKey)) {
+            current.styleToScopeMap.set(styleKey, rule.token);
+          }
+          if (!current.colorToScopeMap.has(color) || (fontStyle === 0 && !plainColors.has(color))) {
+            current.colorToScopeMap.set(color, rule.token);
+            if (fontStyle === 0) {
+              plainColors.add(color);
+            }
+          }
+        } else if (fontStyle !== 0) {
+          const styleKey = `:${fontStyle}`;
+          if (!current.styleToScopeMap.has(styleKey)) {
+            current.styleToScopeMap.set(styleKey, rule.token);
+          }
+        }
+      }
+      current.originalSetTheme(themeId);
+    };
+  } else {
+    state.highlighter = highlighter;
+  }
+
+  // Convert loaded themes to Monaco themes and register them
   const themeIds = highlighter.getLoadedThemes();
   for (const themeId of themeIds) {
     const tmTheme = highlighter.getTheme(themeId);
     const monacoTheme = textmateThemeToMonacoTheme(tmTheme);
-    themeMap.set(themeId, monacoTheme);
+    state.themeMap.set(themeId, monacoTheme);
     monaco.editor.defineTheme(themeId, monacoTheme);
   }
 
-  // Because Monaco does not have the API of reading the current theme,
-  // We hijack it here to keep track of the current theme.
-  const setTheme = monaco.editor.setTheme.bind(monaco.editor);
-  monaco.editor.setTheme = (themeId: string) => {
-    const theme = themeMap.get(themeId);
-    if (!theme) {
-      console.warn("Theme not found:", themeId);
-      return;
-    }
-    const ret = highlighter.setTheme(themeId);
-    colorMap.length = ret.colorMap.length;
-    ret.colorMap.forEach((color, i) => {
-      colorMap[i] = normalizeColor(color);
-    });
-    colorToScopeMap.clear();
-    theme.rules.forEach((rule) => {
-      const color = rule.foreground;
-      if (color && !colorToScopeMap.has(color)) {
-        colorToScopeMap.set(color, rule.token);
-      }
-    });
-    setTheme(themeId);
-  };
-
-  // Set the first theme as the default theme
-  monaco.editor.setTheme(themeIds[0]);
+  const initialTheme = (defaultTheme && themeIds.includes(defaultTheme))
+    ? defaultTheme
+    : (state.currentThemeId && themeIds.includes(state.currentThemeId))
+    ? state.currentThemeId
+    : themeIds[0];
+  if (initialTheme) {
+    monaco.editor.setTheme(initialTheme);
+  }
 }
 
 export function registerShikiMonacoTokenizer(monaco: typeof monacoNs, highlighter: ShikiPrimitive<any, any>, languageId: string) {
@@ -93,27 +151,50 @@ export function registerShikiMonacoTokenizer(monaco: typeof monacoNs, highlighte
         };
       }
 
+      const monacoState = monacoStateMap.get(monaco);
+      // Restore Monaco's active theme in case a shared highlighter ran codeToHtml with another theme.
+      if (monacoState?.currentThemeId) {
+        highlighter.setTheme(monacoState.currentThemeId);
+      }
+
       const grammar = highlighter.getLanguage(languageId);
       const result = grammar.tokenizeLine2(line, state.ruleStack, tokenizeTimeLimit);
       if (result.stoppedEarly) {
         console.warn(`Time limit reached when tokenizing line: ${line.substring(0, 100)}`);
       }
 
+      const colorMap = monacoState?.colorMap ?? [];
+      const colorToScopeMap = monacoState?.colorToScopeMap;
+      const styleToScopeMap = monacoState?.styleToScopeMap;
       const tokensLength = result.tokens.length / 2;
       const tokens: any[] = new Array(tokensLength);
       for (let j = 0; j < tokensLength; j++) {
         const startIndex = result.tokens[2 * j];
         const metadata = result.tokens[2 * j + 1];
         const color = colorMap[EncodedTokenMetadata.getForeground(metadata)] ?? "";
-        // Because Monaco only support one scope per token,
-        // we workaround this to use color to trace back the scope
-        const scope = colorToScopeMap.get(color) ?? "";
+        const fontStyle = EncodedTokenMetadata.getFontStyle(metadata);
+        // Because Monaco only supports one scope per token,
+        // we trace back a matching scope by color and fontStyle.
+        const scope = styleToScopeMap?.get(`${color}:${fontStyle}`)
+          ?? (fontStyle ? styleToScopeMap?.get(`:${fontStyle}`) : undefined)
+          ?? colorToScopeMap?.get(color)
+          ?? "";
         tokens[j] = { startIndex, scopes: scope };
       }
 
       return { endState: new TokenizerState(result.ruleStack), tokens };
     },
   });
+}
+
+function parseFontStyle(fontStyle?: string): number {
+  if (!fontStyle) return 0;
+  let mask = 0;
+  if (fontStyle.includes("italic")) mask |= 1;
+  if (fontStyle.includes("bold")) mask |= 2;
+  if (fontStyle.includes("underline")) mask |= 4;
+  if (fontStyle.includes("strikethrough")) mask |= 8;
+  return mask;
 }
 
 class TokenizerState implements monacoNs.languages.IState {
@@ -131,10 +212,8 @@ class TokenizerState implements monacoNs.languages.IState {
 
   public equals(other: monacoNs.languages.IState): boolean {
     return (
-      other
-      && other instanceof TokenizerState
-      && other === this
-      && other._ruleStack === this._ruleStack
+      other === this
+      || (other instanceof TokenizerState && this._ruleStack.equals(other._ruleStack))
     );
   }
 }
