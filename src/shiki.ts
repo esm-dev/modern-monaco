@@ -8,7 +8,16 @@ import { version as tmThemesVersion } from "../node_modules/tm-themes/package.js
 import { cache } from "./cache.js";
 import { isPlainObject } from "./util.js";
 
-const grammars = SHIKI_GRAMMARS;
+export interface GrammarInfo {
+  name: string;
+  scopeName?: string;
+  aliases?: string[];
+  embedded?: string[];
+  embeddedIn?: string[];
+  injectTo?: string[];
+}
+
+const grammars: GrammarInfo[] = SHIKI_GRAMMARS;
 const themes: Map<string, ThemeRegistration> = new Map();
 const shikiThemeIds = new Set(SHIKI_THEMES);
 
@@ -29,6 +38,120 @@ export interface Highlighter extends HighlighterCore {
   loadGrammarFromCDN(...ids: string[]): Promise<void>;
 }
 
+/** Register custom grammar metadata in the shared grammar catalogue. */
+export function registerGrammarInfo(lang: unknown): void {
+  if (!lang || typeof lang !== "object") {
+    return;
+  }
+  if (Array.isArray(lang)) {
+    lang.forEach(registerGrammarInfo);
+    return;
+  }
+  if ("default" in lang && (lang as any).default && typeof (lang as any).default === "object") {
+    registerGrammarInfo((lang as any).default);
+    return;
+  }
+  const g = lang as GrammarInfo;
+  if (typeof g.name !== "string" || !g.name) {
+    return;
+  }
+  const existing = grammars.find((item) => item.name === g.name);
+  if (!existing) {
+    const info: GrammarInfo = { name: g.name };
+    if (g.scopeName) info.scopeName = g.scopeName;
+    if (g.aliases?.length) info.aliases = [...g.aliases];
+    if (g.embedded?.length) info.embedded = [...g.embedded];
+    if (g.injectTo?.length) info.injectTo = [...g.injectTo];
+    grammars.push(info);
+  } else if (g.aliases?.length) {
+    const aliases = new Set([...(existing.aliases ?? []), ...g.aliases]);
+    existing.aliases = [...aliases];
+  }
+}
+
+async function resolveLanguageInput(input: LanguageInput): Promise<any> {
+  const resolved = typeof input === "function" ? await input() : await input;
+  registerGrammarInfo(resolved);
+  return resolved;
+}
+
+/** Ensure requested themes and languages are loaded on an existing highlighter. */
+export async function ensureShikiResources(
+  highlighter: Highlighter,
+  { defaultTheme, theme, themes: themeList = [], langs: languages, cdn }: Pick<
+    ShikiInitOptions,
+    "defaultTheme" | "theme" | "themes" | "langs" | "cdn"
+  > = {},
+): Promise<Highlighter> {
+  if (theme) defaultTheme = theme;
+  const loadedThemes = new Set(highlighter.getLoadedThemes());
+  const themeInputs: (string | URL | ThemeInput)[] = [];
+  for (const t of new Set(defaultTheme ? [defaultTheme, ...themeList] : themeList)) {
+    if (typeof t === "string" && !isUrlOrPathname(t)) {
+      const normalized = normalizeThemeId(t);
+      if (loadedThemes.has(t) || loadedThemes.has(normalized)) continue;
+    }
+    themeInputs.push(t);
+  }
+
+  const loadedLangs = new Set(highlighter.getLoadedLanguages());
+  const langInputs: LanguageInput[] = [];
+  const seenLangs = new Set<string>();
+  for (const l of languages ?? []) {
+    if (["plaintext", "text"].includes(l as string)) {
+      continue;
+    }
+    if (typeof l === "string" || l instanceof URL) {
+      const g = typeof l === "string" && !isUrlOrPathname(l) ? getGrammarInfo(l) : undefined;
+      const key = g?.name ?? l.toString();
+      if (!seenLangs.has(key) && !loadedLangs.has(key)) {
+        if (g?.embedded) {
+          for (const id of g.embedded) {
+            if (!seenLangs.has(id) && !loadedLangs.has(id)) {
+              langInputs.push(loadTMGrammar(id, cdn));
+              seenLangs.add(id);
+            }
+          }
+        }
+        langInputs.push(loadTMGrammar(g?.name ?? l, cdn));
+        seenLangs.add(key);
+      }
+    } else if (isPlainObject(l) || typeof l === "function") {
+      const name = isPlainObject(l) && typeof (l as any).name === "string" ? (l as any).name : undefined;
+      if (name) {
+        registerGrammarInfo(l);
+        if (loadedLangs.has(name)) continue;
+      }
+      langInputs.push(resolveLanguageInput(l));
+    }
+  }
+
+  const tasks: Promise<void>[] = [];
+  if (themeInputs.length > 0) {
+    tasks.push(
+      Promise.all(themeInputs.map((t) => parseThemeInput(t, cdn))).then((resolved) => {
+        const toLoad = resolved.filter((t): t is ThemeInput => Boolean(t));
+        return toLoad.length > 0 ? highlighter.loadTheme(...toLoad) : undefined;
+      }),
+    );
+  }
+  if (langInputs.length > 0) {
+    tasks.push(
+      Promise.all(langInputs).then((resolved) => {
+        const toLoad = resolved.filter((l) => {
+          const name = isPlainObject(l) && typeof (l as any).name === "string" ? (l as any).name : undefined;
+          return !name || !highlighter.getLoadedLanguages().includes(name);
+        });
+        return toLoad.length > 0 ? highlighter.loadLanguage(...toLoad) : undefined;
+      }),
+    );
+  }
+  if (tasks.length > 0) {
+    await Promise.all(tasks);
+  }
+  return highlighter;
+}
+
 /** Initialize shiki with the given options. */
 export async function initShiki({
   defaultTheme,
@@ -47,27 +170,24 @@ export async function initShiki({
         return;
       }
       if (typeof l === "string" || l instanceof URL) {
-        if (!set.has(l.toString())) {
-          const g = grammars.find((g) => g.name === l);
+        const g = typeof l === "string" && !isUrlOrPathname(l) ? getGrammarInfo(l) : undefined;
+        const key = g?.name ?? l.toString();
+        if (!set.has(key)) {
           if (g?.embedded) {
-            langs.push(...g.embedded.map((id) => loadTMGrammar(id, cdn)));
+            for (const id of g.embedded) {
+              if (!set.has(id)) {
+                langs.push(loadTMGrammar(id, cdn));
+                set.add(id);
+              }
+            }
           }
-          langs.push(loadTMGrammar(l, cdn));
-          set.add(l.toString());
+          langs.push(loadTMGrammar(g?.name ?? l, cdn));
+          set.add(key);
         }
       } else if (isPlainObject(l) || typeof l === "function") {
-        langs.push(l);
+        langs.push(resolveLanguageInput(l));
       }
     });
-  }
-
-  /** Parses a theme, loading via CDN if needed */
-  async function parseTheme(theme: string | URL | ThemeInput) {
-    if (typeof theme === "string" || theme instanceof URL) {
-      return await loadTMTheme(theme, cdn);
-    } else if (isPlainObject(theme) || typeof theme === "function") {
-      return theme;
-    }
   }
 
   /* Backwards-compatibility for deprecated `theme` param */
@@ -75,21 +195,74 @@ export async function initShiki({
   if (!defaultTheme && themes.length === 0) {
     defaultTheme = "vitesse-dark";
   }
-  const themesToLoad = new Set(themes);
-  if (defaultTheme) {
-    themesToLoad.add(defaultTheme);
-  }
+  const themesToLoad = new Set(defaultTheme ? [defaultTheme, ...themes] : themes);
 
   const highlighterCore = await createHighlighterCore({
     langs,
-    themes: await Promise.all([...themesToLoad].map(parseTheme)),
+    themes: await Promise.all([...themesToLoad].map((t) => parseThemeInput(t, cdn))),
     engine,
   });
+
+  const loadingThemes = new Map<string, Promise<void>>();
+  const loadingGrammars = new Map<string, Promise<void>>();
+
+  const loadThemeFromCDN = (themeName: string): Promise<void> => {
+    const normalized = isUrlOrPathname(themeName) ? themeName : normalizeThemeId(themeName);
+    if (highlighterCore.getLoadedThemes().includes(themeName) || highlighterCore.getLoadedThemes().includes(normalized)) {
+      return Promise.resolve();
+    }
+    let promise = loadingThemes.get(normalized);
+    if (!promise) {
+      promise = highlighterCore.loadTheme(loadTMTheme(themeName, cdn)).finally(() => {
+        loadingThemes.delete(normalized);
+      });
+      loadingThemes.set(normalized, promise);
+    }
+    return promise;
+  };
+
+  const loadGrammarFromCDN = async (...ids: string[]): Promise<void> => {
+    const promises: Promise<void>[] = [];
+    for (const rawId of ids) {
+      if (["plaintext", "text"].includes(rawId)) {
+        continue;
+      }
+      const id = isUrlOrPathname(rawId) ? rawId : (resolveLanguage(rawId) ?? rawId);
+      if (highlighterCore.getLoadedLanguages().includes(id)) {
+        continue;
+      }
+      let promise = loadingGrammars.get(id);
+      if (!promise) {
+        promise = highlighterCore.loadLanguage(loadTMGrammar(id, cdn)).finally(() => {
+          loadingGrammars.delete(id);
+        });
+        loadingGrammars.set(id, promise);
+      }
+      promises.push(promise);
+    }
+    if (promises.length > 0) {
+      await Promise.all(promises);
+    }
+  };
+
   Object.assign(highlighterCore, {
-    loadThemeFromCDN: (themeName: string) => highlighterCore.loadTheme(loadTMTheme(themeName, cdn)),
-    loadGrammarFromCDN: (...ids: string[]) => highlighterCore.loadLanguage(...ids.map(id => loadTMGrammar(id, cdn))),
+    loadThemeFromCDN,
+    loadGrammarFromCDN,
   });
   return highlighterCore as unknown as Highlighter;
+}
+
+/** Parses a theme, loading via CDN if needed. */
+async function parseThemeInput(theme: string | URL | ThemeInput, cdn?: string) {
+  if (typeof theme === "string" || theme instanceof URL) {
+    return await loadTMTheme(theme, cdn);
+  } else if (isPlainObject(theme) || typeof theme === "function") {
+    return theme;
+  }
+}
+
+function normalizeThemeId(src: string): string {
+  return src.replace(/\s+/g, "-").replace(/([a-z])([A-Z])/g, "$1-$2").toLowerCase();
 }
 
 /** Load a TextMate theme from the given source. */
@@ -101,7 +274,10 @@ function loadTMTheme(src: string | URL, cdn = "https://esm.sh") {
   if (themes.has(src)) {
     return themes.get(src)!;
   }
-  src = src.replace(/\s+/g, "-").replace(/([a-z])([A-Z])/g, "$1-$2").toLowerCase();
+  src = normalizeThemeId(src);
+  if (themes.has(src)) {
+    return themes.get(src)!;
+  }
   if (!shikiThemeIds.has(src)) {
     throw new Error(
       `Invalid theme ID: ${src}, please ensure the theme ID is one of the following: ${Array.from(shikiThemeIds.keys()).join(", ")}`,
@@ -116,7 +292,7 @@ function loadTMGrammar(src: string | URL, cdn = "https://esm.sh") {
   if (isUrlOrPathname(src)) {
     return cache.fetch(src).then((res) => res.json());
   }
-  const g = grammars.find(g => g.name === src);
+  const g = getGrammarInfo(src);
   if (g) {
     const url = new URL(`/tm-grammars@${tmGrammarsVersion}/grammars/${g.name}.json`, cdn);
     return cache.fetch(url).then((res) => res.json());
@@ -124,23 +300,32 @@ function loadTMGrammar(src: string | URL, cdn = "https://esm.sh") {
   throw new Error(`Unsupported grammar source: ${src}`);
 }
 
-/** Get grammar Info from the given path. */
-export function getGarmmarInfoFromPath(path: string): {
-  name: string;
-  aliases?: string[];
-  embedded?: string[];
-  injectTo?: string[];
-} | undefined {
+/** Get grammar info from a language name or alias (case-insensitive). */
+export function getGrammarInfo(nameOrAlias: string): GrammarInfo | undefined {
+  const key = nameOrAlias.toLowerCase();
+  return grammars.find((g) => g.name.toLowerCase() === key || g.aliases?.some((a) => a.toLowerCase() === key));
+}
+
+/** Resolve a language name or alias to its canonical grammar ID. */
+export function resolveLanguage(nameOrAlias: string): string | undefined {
+  return getGrammarInfo(nameOrAlias)?.name;
+}
+
+/** Get grammar info from the given path. */
+export function getGrammarInfoFromPath(path: string): GrammarInfo | undefined {
   const idx = path.lastIndexOf(".");
   if (idx > 0) {
     const ext = path.slice(idx + 1);
-    return grammars.find((g) => g.name === ext || g.aliases?.includes(ext));
+    return getGrammarInfo(ext);
   }
 }
 
+/** @deprecated Use `getGrammarInfoFromPath` instead. */
+export const getGarmmarInfoFromPath = getGrammarInfoFromPath;
+
 /** Get language ID from the given path. */
 export function getLanguageIdFromPath(path: string): string | undefined {
-  return getGarmmarInfoFromPath(path)?.name;
+  return getGrammarInfoFromPath(path)?.name;
 }
 
 /** Get the extension name from the given language ID. */
