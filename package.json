@@ -40,6 +40,7 @@
     "./shiki": {
       "import": "./dist/shiki.mjs"
     },
+    "./onig.wasm": "./dist/onig.wasm",
     "./util": {
       "import": "./dist/util.mjs"
     },

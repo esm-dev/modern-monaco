@@ -4,10 +4,9 @@ import type { LSPConfig, LSPProvider } from "./lsp/index.ts";
 import { version } from "../package.json";
 
 // ! external modules, don't remove the `.js` extension
-import { getExtnameFromLanguageId, getLanguageIdFromPath, grammars, initShiki, setDefaultWasmLoader, themes } from "./shiki.js";
+import { getExtnameFromLanguageId, getLanguageIdFromPath, grammars, initShiki, themes } from "./shiki.js";
 import { initShikiMonacoTokenizer, registerShikiMonacoTokenizer } from "./shiki.js";
 import { render } from "./shiki.js";
-import { getWasmInstance } from "./shiki-wasm.js";
 import { NotFoundError, Workspace } from "./workspace.js";
 import { debunce, decode, isDigital } from "./util.js";
 
@@ -516,8 +515,5 @@ export function registerTheme(theme: Record<string, any>) {
 export function registerLSPProvider(lang: string, provider: LSPProvider) {
   lspProviders[lang] = provider;
 }
-
-// set the shiki wasm default loader
-setDefaultWasmLoader(getWasmInstance);
 
 export { errors, Workspace };
