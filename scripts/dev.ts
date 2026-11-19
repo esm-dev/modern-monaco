@@ -84,6 +84,9 @@ function getContentType(pathname: string) {
   if (pathname.endsWith(".html")) {
     return "text/html; charset=utf-8";
   }
+  if (pathname.endsWith(".wasm")) {
+    return "application/wasm";
+  }
   return "application/octet-stream";
 }
 

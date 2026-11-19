@@ -66,7 +66,6 @@ const buildDist = async () => {
     "src/cache.ts",
     "src/index.ts",
     "src/core.ts",
-    "src/shiki-wasm.ts",
     "src/util.ts",
     "src/workspace.ts",
     "src/ssr/index.ts",
@@ -118,7 +117,7 @@ const runBuild = (entryPoints: string[], define?: Record<string, string>) => {
         name: "external",
         setup(build: any) {
           build.onResolve({ filter: /.*/ }, (args: { path: string; resolveDir: string }) => {
-            if (args.path === "typescript" || args.path.endsWith(".wasm")) {
+            if (args.path === "typescript" || args.path.endsWith(".wasm") || args.path.startsWith("node:")) {
               return {
                 path: args.path,
                 external: true,
