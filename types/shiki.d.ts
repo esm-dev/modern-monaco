@@ -2,6 +2,8 @@ import type * as monacoNS from "./monaco.d.ts";
 import type { ShikiInitOptions, TextmateTheme } from "./index.d.ts";
 import type { RenderInput, RenderOptions } from "./ssr.d.ts";
 
+export type { RenderInput, RenderOptions, ShikiInitOptions };
+
 export interface GrammarInfo {
   name: string;
   scopeName?: string;
@@ -39,6 +41,8 @@ export function ensureShikiResources(
 export function registerGrammarInfo(lang: unknown): void;
 export function getGrammarInfo(nameOrAlias: string): GrammarInfo | undefined;
 export function resolveLanguage(nameOrAlias: string): string | undefined;
+export function normalizeThemeId(src: string): string;
+export function resolveThemeId(theme: ShikiInitOptions["defaultTheme"], loadedThemes?: string[]): string | undefined;
 export function getGrammarInfoFromPath(path: string): GrammarInfo | undefined;
 /** @deprecated Use `getGrammarInfoFromPath` instead. */
 export function getGarmmarInfoFromPath(path: string): GrammarInfo | undefined;

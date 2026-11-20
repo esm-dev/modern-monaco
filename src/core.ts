@@ -7,10 +7,12 @@ import { version } from "../package.json";
 import {
   ensureShikiResources,
   getExtnameFromLanguageId,
+  getGrammarInfo,
   getLanguageIdFromPath,
   grammars,
   initShiki,
   registerGrammarInfo,
+  resolveThemeId,
   themes,
 } from "./shiki.js";
 import { initShikiMonacoTokenizer, registerShikiMonacoTokenizer } from "./shiki.js";
@@ -75,23 +77,13 @@ const lspProviders: Record<string, LSPProvider> = {};
 const getAttr = (el: HTMLElement, name: string): string | null => el.getAttribute(name);
 const setStyle = (el: HTMLElement, style: Partial<CSSStyleDeclaration>) => Object.assign(el.style, style);
 
-function resolveThemeName(theme: InitOptions["defaultTheme"]): string | undefined {
-  if (typeof theme === "string") {
-    return theme.replace(/\s+/g, "-").replace(/([a-z])([A-Z])/g, "$1-$2").toLowerCase();
-  }
-  if (theme && typeof theme === "object" && "name" in theme && typeof theme.name === "string") {
-    return theme.name;
-  }
-  return undefined;
-}
-
 /* Initialize and return the monaco editor namespace. */
 export async function init(options?: InitOptions): Promise<typeof monacoNS> {
   const langs = (options?.langs ?? []).concat(syntaxes as any[]);
   const shiki = options?.highlighter
     ? await ensureShikiResources(options.highlighter, { ...options, langs })
     : await initShiki({ ...options, langs });
-  const defaultTheme = resolveThemeName(options?.theme ?? options?.defaultTheme);
+  const defaultTheme = resolveThemeId(options?.theme ?? options?.defaultTheme, shiki.getLoadedThemes());
   return loadMonaco(shiki, options?.workspace, options?.lsp, defaultTheme);
 }
 
@@ -230,11 +222,7 @@ export function lazy(options?: InitOptions) {
             }
           }
 
-          let theme = options?.theme ?? options?.defaultTheme ?? renderOptions.theme;
-          if (typeof theme === "string") {
-            // fix theme ID
-            theme = theme.toLowerCase().replace(/ +/g, "-");
-          }
+          const theme = options?.theme ?? renderOptions.theme ?? options?.defaultTheme;
 
           // initialize or reuse shiki highlighter
           const highlighter = options?.highlighter
@@ -242,7 +230,7 @@ export function lazy(options?: InitOptions) {
             : await initShiki({ ...options, theme, langs });
 
           // set the editor theme to shiki theme
-          const defaultTheme = resolveThemeName(theme);
+          const defaultTheme = resolveThemeId(theme, highlighter.getLoadedThemes());
           renderOptions.theme = (defaultTheme && highlighter.getLoadedThemes().includes(defaultTheme))
             ? defaultTheme
             : highlighter.getLoadedThemes()[0];
@@ -507,15 +495,33 @@ async function loadMonaco(
     }
   }
 
+  const loadAndRegisterTokenizer = async (id: string, targetHighlighter: Highlighter) => {
+    const loadedGrammars = new Set(targetHighlighter.getLoadedLanguages());
+    const reqiredGrammars = [id].concat(grammars.find((g) => g.name === id)?.embedded ?? []).filter((g) => !loadedGrammars.has(g));
+    if (reqiredGrammars.length > 0) {
+      await targetHighlighter.loadGrammarFromCDN(...reqiredGrammars);
+    }
+    if (activeHighlighter === targetHighlighter) {
+      registerShikiMonacoTokenizer(monaco, targetHighlighter, id);
+    }
+  };
+
   // use shiki as the tokenizer for the monaco editor
-  const allLanguages = new Set([
-    ...grammars.filter((g) => !g.injectTo).map((g) => g.name),
-    ...highlighter.getLoadedLanguages(),
-  ]);
+  const allLanguages = new Set(grammars.filter((g) => !g.injectTo).map((g) => g.name));
+  for (const id of highlighter.getLoadedLanguages()) {
+    const info = getGrammarInfo(id);
+    if (!info || (!info.injectTo && info.name === id)) {
+      allLanguages.add(id);
+    }
+  }
   allLanguages.forEach((id) => {
     if (registeredLanguages.has(id)) {
       if (highlighterChanged && activatedLanguages.has(id)) {
-        registerShikiMonacoTokenizer(monaco, highlighter, id);
+        if (highlighter.getLoadedLanguages().includes(id)) {
+          registerShikiMonacoTokenizer(monaco, highlighter, id);
+        } else {
+          void loadAndRegisterTokenizer(id, highlighter);
+        }
       }
       return;
     }
@@ -526,17 +532,10 @@ async function loadMonaco(
       activatedLanguages.add(id);
       const currentHighlighter = activeHighlighter!;
       const config = monaco.languageConfigurations[monaco.languageConfigurationAliases[id] ?? id];
-      const loadedGrammars = new Set(currentHighlighter.getLoadedLanguages());
-      const reqiredGrammars = [id].concat(grammars.find((g) => g.name === id)?.embedded ?? []).filter((id) => !loadedGrammars.has(id));
       if (config) {
         languages.setLanguageConfiguration(id, monaco.convertVscodeLanguageConfiguration(config));
       }
-      if (reqiredGrammars.length > 0) {
-        await currentHighlighter.loadGrammarFromCDN(...reqiredGrammars);
-      }
-
-      // register the shiki tokenizer for the language
-      registerShikiMonacoTokenizer(monaco, currentHighlighter, id);
+      await loadAndRegisterTokenizer(id, currentHighlighter);
 
       // check if the language is supported by the LSP provider
       let lspLabel = id;

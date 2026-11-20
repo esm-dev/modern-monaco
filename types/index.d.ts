@@ -14,6 +14,7 @@ type ThemeInput = MaybeGetter<TextmateTheme>;
 export type TextmateGrammar = {
   name: string;
   scopeName: string;
+  aliases?: string[];
   displayName?: string;
   foldingStartMarker?: string;
   foldingStopMarker?: string;
