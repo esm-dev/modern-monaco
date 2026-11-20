@@ -171,13 +171,16 @@ export function registerShikiMonacoTokenizer(monaco: typeof monacoNs, highlighte
       for (let j = 0; j < tokensLength; j++) {
         const startIndex = result.tokens[2 * j];
         const metadata = result.tokens[2 * j + 1];
-        const color = colorMap[EncodedTokenMetadata.getForeground(metadata)] ?? "";
+        const foregroundId = EncodedTokenMetadata.getForeground(metadata);
+        const color = colorMap[foregroundId] ?? "";
         const fontStyle = EncodedTokenMetadata.getFontStyle(metadata);
         // Because Monaco only supports one scope per token,
         // we trace back a matching scope by color and fontStyle.
+        // Only prefer font-style-only rules over color-only rules on default foreground.
         const scope = styleToScopeMap?.get(`${color}:${fontStyle}`)
-          ?? (fontStyle ? styleToScopeMap?.get(`:${fontStyle}`) : undefined)
+          ?? (foregroundId <= 1 && fontStyle ? styleToScopeMap?.get(`:${fontStyle}`) : undefined)
           ?? colorToScopeMap?.get(color)
+          ?? (fontStyle ? styleToScopeMap?.get(`:${fontStyle}`) : undefined)
           ?? "";
         tokens[j] = { startIndex, scopes: scope };
       }

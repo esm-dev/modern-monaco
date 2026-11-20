@@ -18,6 +18,7 @@ export interface GrammarInfo {
 }
 
 const grammars: GrammarInfo[] = SHIKI_GRAMMARS;
+const builtinGrammarNames = new Set(SHIKI_GRAMMARS.map((g) => g.name));
 const themes: Map<string, ThemeRegistration> = new Map();
 const shikiThemeIds = new Set(SHIKI_THEMES);
 
@@ -85,11 +86,16 @@ export async function ensureShikiResources(
 ): Promise<Highlighter> {
   if (theme) defaultTheme = theme;
   const loadedThemes = new Set(highlighter.getLoadedThemes());
+  if (!defaultTheme && themeList.length === 0 && loadedThemes.size === 0) {
+    defaultTheme = "vitesse-dark";
+  }
   const themeInputs: (string | URL | ThemeInput)[] = [];
   for (const t of new Set(defaultTheme ? [defaultTheme, ...themeList] : themeList)) {
     if (typeof t === "string" && !isUrlOrPathname(t)) {
       const normalized = normalizeThemeId(t);
       if (loadedThemes.has(t) || loadedThemes.has(normalized)) continue;
+    } else if (isPlainObject(t) && typeof (t as any).name === "string" && loadedThemes.has((t as any).name)) {
+      continue;
     }
     themeInputs.push(t);
   }
@@ -261,8 +267,25 @@ async function parseThemeInput(theme: string | URL | ThemeInput, cdn?: string) {
   }
 }
 
-function normalizeThemeId(src: string): string {
-  return src.replace(/\s+/g, "-").replace(/([a-z])([A-Z])/g, "$1-$2").toLowerCase();
+export function normalizeThemeId(src: string): string {
+  const spaced = src.trim().replace(/\s+/g, "-").toLowerCase();
+  if (themes.has(spaced) || shikiThemeIds.has(spaced)) {
+    return spaced;
+  }
+  return src.trim().replace(/\s+/g, "-").replace(/([a-z])([A-Z])/g, "$1-$2").toLowerCase();
+}
+
+export function resolveThemeId(theme: ShikiInitOptions["defaultTheme"], loadedThemes?: string[]): string | undefined {
+  if (typeof theme === "string") {
+    if (loadedThemes?.includes(theme) || themes.has(theme)) {
+      return theme;
+    }
+    return normalizeThemeId(theme);
+  }
+  if (theme && typeof theme === "object" && "name" in theme && typeof theme.name === "string") {
+    return theme.name;
+  }
+  return undefined;
 }
 
 /** Load a TextMate theme from the given source. */
@@ -293,7 +316,7 @@ function loadTMGrammar(src: string | URL, cdn = "https://esm.sh") {
     return cache.fetch(src).then((res) => res.json());
   }
   const g = getGrammarInfo(src);
-  if (g) {
+  if (g && builtinGrammarNames.has(g.name)) {
     const url = new URL(`/tm-grammars@${tmGrammarsVersion}/grammars/${g.name}.json`, cdn);
     return cache.fetch(url).then((res) => res.json());
   }
