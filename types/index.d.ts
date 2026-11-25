@@ -11,6 +11,8 @@ type MaybeArray<T> = T | T[];
 type LanguageInput = MaybeGetter<MaybeArray<TextmateGrammar>>;
 type ThemeInput = MaybeGetter<TextmateTheme>;
 
+export type ThemeSource = TextmateThemeName | (string & {}) | URL | ThemeInput;
+
 export type TextmateGrammar = {
   name: string;
   scopeName: string;
@@ -39,15 +41,15 @@ export interface ShikiInitOptions {
   /**
    * @deprecated Use `defaultTheme` instead.
    */
-  theme?: TextmateThemeName | (string & {}) | URL | ThemeInput;
+  theme?: ThemeSource;
   /**
    * Theme name, or theme registration object to be loaded upfront.
    */
-  defaultTheme?: TextmateThemeName | (string & {}) | URL | ThemeInput;
+  defaultTheme?: ThemeSource;
   /**
    * Additional theme names, or theme registration objects to be loaded upfront.
    */
-  themes?: (TextmateThemeName | (string & {}) | URL | ThemeInput)[];
+  themes?: ThemeSource[];
   /**
    * Language names, or language registration objects to be loaded upfront.
    */
@@ -78,6 +80,8 @@ export interface InitOptions extends ShikiInitOptions {
 }
 
 export function init(options?: InitOptions): Promise<typeof monacoNS>;
+/** Load and register a theme after initialization. Use editor.setTheme(name) to activate it. */
+export function loadTheme(theme: ThemeSource): Promise<void>;
 export function lazy(options?: InitOptions): void;
 export function hydrate(options?: InitOptions): void;
 

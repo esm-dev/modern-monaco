@@ -254,6 +254,16 @@ lazy({
 });
 ```
 
+After initialization, `loadTheme` accepts the same inputs as `themes` without switching the active theme. Existing theme names are skipped. Await it before calling `setTheme`:
+
+```js
+import { init, loadTheme } from "modern-monaco";
+
+const monaco = await init();
+await loadTheme("github-dark");
+monaco.editor.setTheme("github-dark");
+```
+
 ### Pre-loading Language Grammars
 
 By default, modern-monaco loads language grammars when a specific language mode is attached to the editor. You can also pre-load language grammars by adding the `langs` option to the `lazy`, `init`, or `hydrate` functions. The `langs` option is an array of language grammars, which can be a language grammar object, a language ID, or a URL to the language grammar.

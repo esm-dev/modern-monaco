@@ -1,5 +1,5 @@
 import type { HighlighterCore, LanguageInput, RegexEngine, ThemeInput, ThemeRegistration } from "@shikijs/core";
-import { createHighlighterCore } from "@shikijs/core";
+import { createHighlighterCore, normalizeGetter } from "@shikijs/core";
 import { createOnigurumaEngine, getDefaultWasmLoader, setDefaultWasmLoader } from "@shikijs/engine-oniguruma";
 import { version as tmGrammarsVersion } from "../node_modules/tm-grammars/package.json";
 import { version as tmThemesVersion } from "../node_modules/tm-themes/package.json";
@@ -22,13 +22,15 @@ const builtinGrammarNames = new Set(SHIKI_GRAMMARS.map((g) => g.name));
 const themes: Map<string, ThemeRegistration> = new Map();
 const shikiThemeIds = new Set(SHIKI_THEMES);
 
+export type ThemeSource = string | URL | ThemeInput;
+
 export interface ShikiInitOptions {
   /**
    * @deprecated Use `defaultTheme` instead.
    */
-  theme?: string | URL | ThemeInput;
-  defaultTheme?: string | URL | ThemeInput;
-  themes?: (string | URL | ThemeInput)[];
+  theme?: ThemeSource;
+  defaultTheme?: ThemeSource;
+  themes?: ThemeSource[];
   langs?: (string | URL | LanguageInput)[];
   cdn?: string;
   engine?: RegexEngine | Promise<RegexEngine>;
@@ -219,7 +221,9 @@ export async function initShiki({
     }
     let promise = loadingThemes.get(normalized);
     if (!promise) {
-      promise = highlighterCore.loadTheme(loadTMTheme(themeName, cdn)).finally(() => {
+      promise = parseThemeInput(themeName, cdn).then((resolved) => {
+        if (!highlighterCore.getLoadedThemes().includes(resolved.name)) return highlighterCore.loadTheme(resolved);
+      }).finally(() => {
         loadingThemes.delete(normalized);
       });
       loadingThemes.set(normalized, promise);
@@ -258,13 +262,25 @@ export async function initShiki({
   return highlighterCore as unknown as Highlighter;
 }
 
-/** Parses a theme, loading via CDN if needed. */
-async function parseThemeInput(theme: string | URL | ThemeInput, cdn?: string) {
-  if (typeof theme === "string" || theme instanceof URL) {
-    return await loadTMTheme(theme, cdn);
-  } else if (isPlainObject(theme) || typeof theme === "function") {
-    return theme;
+export async function loadThemeFromSource(highlighter: Highlighter, theme: ThemeSource, cdn?: string): Promise<string> {
+  if (typeof theme === "string" && !isUrlOrPathname(theme)) {
+    const loaded = highlighter.getLoadedThemes();
+    const id = resolveThemeId(theme, loaded)!;
+    if (loaded.includes(id)) return id;
+    if (!cdn) {
+      await highlighter.loadThemeFromCDN(theme);
+      return id;
+    }
   }
+  const resolved = await parseThemeInput(theme, cdn);
+  if (!resolved.name) throw new Error("Theme name is required.");
+  if (!highlighter.getLoadedThemes().includes(resolved.name)) await highlighter.loadTheme(resolved);
+  return resolved.name;
+}
+
+/** Parses a theme, loading via CDN if needed. */
+function parseThemeInput(theme: ThemeSource, cdn?: string) {
+  return normalizeGetter(typeof theme === "string" || theme instanceof URL ? loadTMTheme(theme, cdn) : theme);
 }
 
 export function normalizeThemeId(src: string): string {

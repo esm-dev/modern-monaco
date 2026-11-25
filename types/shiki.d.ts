@@ -1,5 +1,5 @@
 import type * as monacoNS from "./monaco.d.ts";
-import type { ShikiInitOptions, TextmateTheme } from "./index.d.ts";
+import type { ShikiInitOptions, TextmateTheme, ThemeSource } from "./index.d.ts";
 import type { RenderInput, RenderOptions } from "./ssr.d.ts";
 
 export type { RenderInput, RenderOptions, ShikiInitOptions };
@@ -34,6 +34,7 @@ export interface Highlighter {
 }
 
 export function initShiki(options?: ShikiInitOptions): Promise<Highlighter>;
+export function loadThemeFromSource(highlighter: Highlighter, theme: ThemeSource, cdn?: string): Promise<string>;
 export function ensureShikiResources(
   highlighter: Highlighter,
   options?: Pick<ShikiInitOptions, "defaultTheme" | "theme" | "themes" | "langs" | "cdn">,
@@ -50,7 +51,7 @@ export function getLanguageIdFromPath(path: string): string | undefined;
 export function getExtnameFromLanguageId(language: string): string | undefined;
 export function render(highlighter: Highlighter, input: RenderInput, options?: RenderOptions): string;
 export function textmateThemeToMonacoTheme(theme: any): MonacoTheme;
-export function initShikiMonacoTokenizer(monaco: typeof monacoNS, highlighter: Highlighter, defaultTheme?: string): void;
+export function initShikiMonacoTokenizer(monaco: typeof monacoNS, highlighter: Highlighter, defaultTheme?: string): (themeId: string) => void;
 export function registerShikiMonacoTokenizer(monaco: typeof monacoNS, highlighter: Highlighter, languageId: string): void;
 export function setDefaultWasmLoader(loader: any): void;
 

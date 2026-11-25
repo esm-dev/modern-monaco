@@ -51,6 +51,13 @@ export function initShikiMonacoTokenizer(
   highlighter: ShikiPrimitive<any, any>,
   defaultTheme?: string,
 ) {
+  function registerTheme(current: MonacoTokenizerState, themeId: string) {
+    const theme = textmateThemeToMonacoTheme(current.highlighter.getTheme(themeId));
+    monaco.editor.defineTheme(themeId, theme);
+    current.themeMap.set(themeId, theme);
+    return theme;
+  }
+
   let state = monacoStateMap.get(monaco);
   if (!state) {
     state = {
@@ -70,9 +77,7 @@ export function initShikiMonacoTokenizer(
       const current = monacoStateMap.get(monaco)!;
       let theme = current.themeMap.get(themeId);
       if (!theme && current.highlighter.getLoadedThemes().includes(themeId)) {
-        theme = textmateThemeToMonacoTheme(current.highlighter.getTheme(themeId));
-        current.themeMap.set(themeId, theme);
-        monaco.editor.defineTheme(themeId, theme);
+        theme = registerTheme(current, themeId);
       }
       if (!theme) {
         console.warn("Theme not found:", themeId);
@@ -110,17 +115,15 @@ export function initShikiMonacoTokenizer(
       }
       current.originalSetTheme(themeId);
     };
-  } else {
+  } else if (state.highlighter !== highlighter) {
     state.highlighter = highlighter;
+    state.themeMap.clear();
   }
 
   // Convert loaded themes to Monaco themes and register them
   const themeIds = highlighter.getLoadedThemes();
   for (const themeId of themeIds) {
-    const tmTheme = highlighter.getTheme(themeId);
-    const monacoTheme = textmateThemeToMonacoTheme(tmTheme);
-    state.themeMap.set(themeId, monacoTheme);
-    monaco.editor.defineTheme(themeId, monacoTheme);
+    registerTheme(state, themeId);
   }
 
   const initialTheme = (defaultTheme && themeIds.includes(defaultTheme))
@@ -131,6 +134,9 @@ export function initShikiMonacoTokenizer(
   if (initialTheme) {
     monaco.editor.setTheme(initialTheme);
   }
+  return (themeId: string) => {
+    if (!state.themeMap.has(themeId)) registerTheme(state, themeId);
+  };
 }
 
 export function registerShikiMonacoTokenizer(monaco: typeof monacoNs, highlighter: ShikiPrimitive<any, any>, languageId: string) {
