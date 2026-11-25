@@ -38,7 +38,8 @@
       "import": "./dist/cache.mjs"
     },
     "./shiki": {
-      "import": "./dist/shiki.mjs"
+      "import": "./dist/shiki.mjs",
+      "types": "./types/shiki.d.ts"
     },
     "./onig.wasm": "./dist/onig.wasm",
     "./util": {

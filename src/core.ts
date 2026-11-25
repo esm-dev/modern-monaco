@@ -4,13 +4,27 @@ import type { LSPConfig, LSPProvider } from "./lsp/index.ts";
 import { version } from "../package.json";
 
 // ! external modules, don't remove the `.js` extension
-import { getExtnameFromLanguageId, getLanguageIdFromPath, grammars, initShiki, themes } from "./shiki.js";
+import {
+  ensureShikiResources,
+  getExtnameFromLanguageId,
+  getGrammarInfo,
+  getLanguageIdFromPath,
+  grammars,
+  initShiki,
+  registerGrammarInfo,
+  resolveThemeId,
+  themes,
+} from "./shiki.js";
 import { initShikiMonacoTokenizer, registerShikiMonacoTokenizer } from "./shiki.js";
 import { render } from "./shiki.js";
 import { NotFoundError, Workspace } from "./workspace.js";
 import { debunce, decode, isDigital } from "./util.js";
 
 export interface InitOptions extends ShikiInitOptions {
+  /**
+   * Existing Shiki highlighter instance to share with the editor.
+   */
+  highlighter?: Highlighter;
   /**
    * Virtual file system to be used by the editor.
    */
@@ -66,8 +80,11 @@ const setStyle = (el: HTMLElement, style: Partial<CSSStyleDeclaration>) => Objec
 /* Initialize and return the monaco editor namespace. */
 export async function init(options?: InitOptions): Promise<typeof monacoNS> {
   const langs = (options?.langs ?? []).concat(syntaxes as any[]);
-  const shiki = await initShiki({ ...options, langs });
-  return loadMonaco(shiki, options?.workspace, options?.lsp);
+  const shiki = options?.highlighter
+    ? await ensureShikiResources(options.highlighter, { ...options, langs })
+    : await initShiki({ ...options, langs });
+  const defaultTheme = resolveThemeId(options?.theme ?? options?.defaultTheme, shiki.getLoadedThemes());
+  return loadMonaco(shiki, options?.workspace, options?.lsp, defaultTheme);
 }
 
 /** Render a mock editor, then load the monaco editor in background. */
@@ -205,17 +222,18 @@ export function lazy(options?: InitOptions) {
             }
           }
 
-          let theme = options?.theme ?? renderOptions.theme;
-          if (typeof theme === "string") {
-            // fix theme ID
-            theme = theme.toLowerCase().replace(/ +/g, "-");
-          }
+          const theme = options?.theme ?? renderOptions.theme ?? options?.defaultTheme;
 
-          // initialize shiki highlighter
-          const highlighter = await initShiki({ ...options, theme, langs });
+          // initialize or reuse shiki highlighter
+          const highlighter = options?.highlighter
+            ? await ensureShikiResources(options.highlighter, { ...options, theme, langs })
+            : await initShiki({ ...options, theme, langs });
 
           // set the editor theme to shiki theme
-          renderOptions.theme = highlighter.getLoadedThemes()[0];
+          const defaultTheme = resolveThemeId(theme, highlighter.getLoadedThemes());
+          renderOptions.theme = (defaultTheme && highlighter.getLoadedThemes().includes(defaultTheme))
+            ? defaultTheme
+            : highlighter.getLoadedThemes()[0];
 
           // check the pre-rendered editor, if not exists, render one
           let prerenderEl: HTMLElement | undefined;
@@ -259,7 +277,7 @@ export function lazy(options?: InitOptions) {
 
           // load and render editor
           {
-            const monaco = await (monacoPromise ?? (monacoPromise = loadMonaco(highlighter, workspace, options?.lsp)));
+            const monaco = await (monacoPromise ?? (monacoPromise = loadMonaco(highlighter, workspace, options?.lsp, renderOptions.theme)));
             const editor = monaco.editor.create(containerEl, renderOptions);
             if (workspace) {
               const storeViewState = () => {
@@ -344,11 +362,21 @@ export function hydrate(options?: InitOptions) {
   return lazy(options);
 }
 
+let monacoInitialized = false;
+let useBuiltinLSPFlag: boolean | undefined;
+let activeHighlighter: Highlighter | undefined;
+let activeWorkspace: Workspace | undefined;
+let activeLsp: LSPConfig | undefined;
+let activeLspProviders: Record<string, LSPProvider> = {};
+const registeredLanguages = new Set<string>();
+const activatedLanguages = new Set<string>();
+
 /** Load monaco editor core. */
 async function loadMonaco(
   highlighter: Highlighter,
   workspace?: Workspace,
   lsp?: LSPConfig,
+  defaultTheme?: string,
 ): Promise<typeof monacoNS> {
   let cdnUrl = `https://esm.sh/modern-monaco@${version}`;
   let editorCoreModuleUrl = `${cdnUrl}/es2022/editor-core.mjs`;
@@ -369,139 +397,171 @@ async function loadMonaco(
     }
   }
 
-  const useBuiltinLSP = (globalThis as any).MonacoEnvironment?.useBuiltinLSP;
+  useBuiltinLSPFlag ??= Boolean((globalThis as any).MonacoEnvironment?.useBuiltinLSP);
   const [monaco, { builtinLSPProviders }]: [typeof import("./editor-core"), typeof import("./lsp")] = await Promise.all([
     import(/* webpackIgnore: true */ editorCoreModuleUrl),
-    useBuiltinLSP ? import(/* webpackIgnore: true */ lspModuleUrl) : Promise.resolve({ builtinLSPProviders: {} }),
+    useBuiltinLSPFlag ? import(/* webpackIgnore: true */ lspModuleUrl) : Promise.resolve({ builtinLSPProviders: {} }),
   ]);
-  const allLspProviders = { ...builtinLSPProviders, ...lspProviders, ...lsp?.providers };
+  const highlighterChanged = activeHighlighter !== undefined && activeHighlighter !== highlighter;
+  activeHighlighter = highlighter;
+  activeWorkspace = workspace;
+  activeLsp = lsp;
+  activeLspProviders = { ...builtinLSPProviders, ...lspProviders, ...lsp?.providers };
 
   // bind the monaco namespace to the workspace&lsp
   workspace?.setupMonaco(monaco);
 
-  // apply the monaco CSS
-  if (!document.getElementById("monaco-editor-core-css")) {
-    const styleEl = document.createElement("style");
-    styleEl.id = "monaco-editor-core-css";
-    styleEl.media = "screen";
-    // @ts-expect-error `monaco.cssBundle` is injected at build time
-    styleEl.textContent = monaco.cssBundle;
-    document.head.appendChild(styleEl);
-  }
+  if (!monacoInitialized) {
+    monacoInitialized = true;
 
-  // set the global `MonacoEnvironment` variable
-  Reflect.set(globalThis, "MonacoEnvironment", {
-    getWorker: async (_workerId: string, label: string) => {
-      if (label === "editorWorkerService") {
-        return monaco.createEditorWorkerMain();
-      }
-    },
-    getLanguageIdFromUri: (uri: monacoNS.Uri) => getLanguageIdFromPath(uri.path),
-    getExtnameFromLanguageId: getExtnameFromLanguageId,
-  });
+    // apply the monaco CSS
+    if (!document.getElementById("monaco-editor-core-css")) {
+      const styleEl = document.createElement("style");
+      styleEl.id = "monaco-editor-core-css";
+      styleEl.media = "screen";
+      // @ts-expect-error `monaco.cssBundle` is injected at build time
+      styleEl.textContent = monaco.cssBundle;
+      document.head.appendChild(styleEl);
+    }
 
-  // prevent to open a http link which is a model
-  monaco.editor.registerLinkOpener({
-    async open(link) {
-      if ((link.scheme === "https" || link.scheme === "http") && monaco.editor.getModel(link)) {
-        return true;
-      }
-      return false;
-    },
-  });
-
-  // register the editor opener for the monaco editor
-  monaco.editor.registerEditorOpener({
-    openCodeEditor: async (editor, resource, selectionOrPosition) => {
-      if (workspace && resource.scheme === "file") {
-        try {
-          await workspace._openTextDocument(monaco, editor, resource.toString(), selectionOrPosition);
-          return true;
-        } catch (err) {
-          if (err instanceof NotFoundError) {
-            return false;
-          }
-          throw err;
+    // set the global `MonacoEnvironment` variable
+    Reflect.set(globalThis, "MonacoEnvironment", {
+      getWorker: async (_workerId: string, label: string) => {
+        if (label === "editorWorkerService") {
+          return monaco.createEditorWorkerMain();
         }
-      }
-      try {
-        const model = monaco.editor.getModel(resource);
-        if (model) {
-          editor.setModel(model);
-          if (selectionOrPosition) {
-            if ("startLineNumber" in selectionOrPosition) {
-              editor.setSelection(selectionOrPosition);
-            } else {
-              editor.setPosition(selectionOrPosition);
+      },
+      getLanguageIdFromUri: (uri: monacoNS.Uri) => getLanguageIdFromPath(uri.path),
+      getExtnameFromLanguageId: getExtnameFromLanguageId,
+    });
+
+    // prevent to open a http link which is a model
+    monaco.editor.registerLinkOpener({
+      async open(link) {
+        if ((link.scheme === "https" || link.scheme === "http") && monaco.editor.getModel(link)) {
+          return true;
+        }
+        return false;
+      },
+    });
+
+    // register the editor opener for the monaco editor
+    monaco.editor.registerEditorOpener({
+      openCodeEditor: async (editor, resource, selectionOrPosition) => {
+        if (activeWorkspace && resource.scheme === "file") {
+          try {
+            await activeWorkspace._openTextDocument(monaco, editor, resource.toString(), selectionOrPosition);
+            return true;
+          } catch (err) {
+            if (err instanceof NotFoundError) {
+              return false;
             }
-            const pos = editor.getPosition();
-            if (pos) {
-              const svp = editor.getScrolledVisiblePosition(new monaco.Position(pos.lineNumber - 7, pos.column));
-              if (svp) {
-                editor.setScrollTop(svp.top);
+            throw err;
+          }
+        }
+        try {
+          const model = monaco.editor.getModel(resource);
+          if (model) {
+            editor.setModel(model);
+            if (selectionOrPosition) {
+              if ("startLineNumber" in selectionOrPosition) {
+                editor.setSelection(selectionOrPosition);
+              } else {
+                editor.setPosition(selectionOrPosition);
+              }
+              const pos = editor.getPosition();
+              if (pos) {
+                const svp = editor.getScrolledVisiblePosition(new monaco.Position(pos.lineNumber - 7, pos.column));
+                if (svp) {
+                  editor.setScrollTop(svp.top);
+                }
               }
             }
+            const isHttpUrl = resource.scheme === "https" || resource.scheme === "http";
+            editor.updateOptions({ readOnly: isHttpUrl });
+            return true;
           }
-          const isHttpUrl = resource.scheme === "https" || resource.scheme === "http";
-          editor.updateOptions({ readOnly: isHttpUrl });
-          return true;
-        }
-      } catch (error) {}
-      return false;
-    },
-  });
-
-  // add keybinding `cmd+k` for opening the quick command palette on macOS
-  if (globalThis.navigator?.userAgent?.includes("Macintosh")) {
-    monaco.editor.addKeybindingRule({
-      keybinding: monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK,
-      command: "editor.action.quickCommand",
+        } catch (error) {}
+        return false;
+      },
     });
+
+    // add keybinding `cmd+k` for opening the quick command palette on macOS
+    if (globalThis.navigator?.userAgent?.includes("Macintosh")) {
+      monaco.editor.addKeybindingRule({
+        keybinding: monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK,
+        command: "editor.action.quickCommand",
+      });
+    }
   }
 
-  // use the shiki as the tokenizer for the monaco editor
-  const allLanguages = new Set(grammars.filter(g => !g.injectTo).map(g => g.name));
+  const loadAndRegisterTokenizer = async (id: string, targetHighlighter: Highlighter) => {
+    const loadedGrammars = new Set(targetHighlighter.getLoadedLanguages());
+    const reqiredGrammars = [id].concat(grammars.find((g) => g.name === id)?.embedded ?? []).filter((g) => !loadedGrammars.has(g));
+    if (reqiredGrammars.length > 0) {
+      await targetHighlighter.loadGrammarFromCDN(...reqiredGrammars);
+    }
+    if (activeHighlighter === targetHighlighter) {
+      registerShikiMonacoTokenizer(monaco, targetHighlighter, id);
+    }
+  };
+
+  // use shiki as the tokenizer for the monaco editor
+  const allLanguages = new Set(grammars.filter((g) => !g.injectTo).map((g) => g.name));
+  for (const id of highlighter.getLoadedLanguages()) {
+    const info = getGrammarInfo(id);
+    if (!info || (!info.injectTo && info.name === id)) {
+      allLanguages.add(id);
+    }
+  }
   allLanguages.forEach((id) => {
+    if (registeredLanguages.has(id)) {
+      if (highlighterChanged && activatedLanguages.has(id)) {
+        if (highlighter.getLoadedLanguages().includes(id)) {
+          registerShikiMonacoTokenizer(monaco, highlighter, id);
+        } else {
+          void loadAndRegisterTokenizer(id, highlighter);
+        }
+      }
+      return;
+    }
+    registeredLanguages.add(id);
     const languages = monaco.languages;
-    languages.register({ id, aliases: grammars.find(g => g.name === id)?.aliases });
+    languages.register({ id, aliases: grammars.find((g) => g.name === id)?.aliases });
     languages.onLanguage(id, async () => {
+      activatedLanguages.add(id);
+      const currentHighlighter = activeHighlighter!;
       const config = monaco.languageConfigurations[monaco.languageConfigurationAliases[id] ?? id];
-      const loadedGrammars = new Set(highlighter.getLoadedLanguages());
-      const reqiredGrammars = [id].concat(grammars.find(g => g.name === id)?.embedded ?? []).filter((id) => !loadedGrammars.has(id));
       if (config) {
         languages.setLanguageConfiguration(id, monaco.convertVscodeLanguageConfiguration(config));
       }
-      if (reqiredGrammars.length > 0) {
-        await highlighter.loadGrammarFromCDN(...reqiredGrammars);
-      }
-
-      // register the shiki tokenizer for the language
-      registerShikiMonacoTokenizer(monaco, highlighter, id);
+      await loadAndRegisterTokenizer(id, currentHighlighter);
 
       // check if the language is supported by the LSP provider
       let lspLabel = id;
-      let lspProvider = allLspProviders[lspLabel];
+      let lspProvider = activeLspProviders[lspLabel];
       if (!lspProvider) {
-        const alias = Object.entries(allLspProviders).find(([, lsp]) => lsp.aliases?.includes(id));
+        const alias = Object.entries(activeLspProviders).find(([, lsp]) => lsp.aliases?.includes(id));
         if (alias) {
           [lspLabel, lspProvider] = alias;
         }
       }
       if (lspProvider) {
-        lspProvider.import().then(({ setup }) => setup(monaco, id, lsp?.[lspLabel], lsp?.formatting, workspace));
+        lspProvider.import().then(({ setup }) => setup(monaco, id, activeLsp?.[lspLabel], activeLsp?.formatting, activeWorkspace));
       }
     });
   });
 
   // use shiki as the tokenizer of monaco editor
-  initShikiMonacoTokenizer(monaco, highlighter);
+  initShikiMonacoTokenizer(monaco, highlighter, defaultTheme);
 
   return monaco;
 }
 
 /** Register a custom language syntax. */
-export function registerSyntax(syntax: { name: string; scopeName: string }) {
+export function registerSyntax(syntax: { name: string; scopeName: string; aliases?: string[] }) {
   syntaxes.push(syntax);
+  registerGrammarInfo(syntax);
 }
 
 /** Register a custom theme. */
