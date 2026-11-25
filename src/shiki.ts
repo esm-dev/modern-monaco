@@ -157,6 +157,29 @@ function isUrlOrPathname(src: string | URL): src is URL {
     || (typeof src === "string" && (src.startsWith("https://") || src.startsWith("http://") || src.startsWith("/")));
 }
 
+async function loadOnigWasm(imports?: WebAssembly.Imports) {
+  const url = new URL("./onig.wasm", import.meta.url);
+  if (url.protocol === "file:") {
+    const fs = (globalThis as any).process?.getBuiltinModule?.("node:fs/promises");
+    if (fs) {
+      return WebAssembly.instantiate(await fs.readFile(url), imports);
+    }
+  }
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch onig.wasm from ${url}: ${res.status} ${res.statusText}`);
+  }
+  if (
+    typeof WebAssembly.instantiateStreaming === "function"
+    && res.headers.get("content-type")?.includes("application/wasm")
+  ) {
+    return WebAssembly.instantiateStreaming(res, imports);
+  }
+  return WebAssembly.instantiate(await res.arrayBuffer(), imports);
+}
+
+setDefaultWasmLoader(loadOnigWasm);
+
 // `SHIKI_GRAMMARS` and `SHIKI_THEMES` are defined at build time
 declare const SHIKI_GRAMMARS: { name: string; aliases?: string[]; embedded?: string[]; injectTo?: string[] }[];
 declare const SHIKI_THEMES: string[];
